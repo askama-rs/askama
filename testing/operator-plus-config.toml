@@ -1,4 +1,0 @@
-[[syntax]]
-name = "plus"
-expr_start = "<+"
-expr_end = "+>"

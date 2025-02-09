@@ -1,9 +1,9 @@
-# rinja_derive: procedural macros for the Rinja templating engine
+# rinja_derive — *deprecated*
 
-[![Crates.io](https://img.shields.io/crates/v/rinja_derive?logo=rust&style=flat-square&logoColor=white "Crates.io")](https://crates.io/crates/rinja_derive)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/rinja-rs/rinja/rust.yml?branch=master&logo=github&style=flat-square&logoColor=white "GitHub Workflow Status")](https://github.com/rinja-rs/rinja/actions/workflows/rust.yml)
-[![Book](https://img.shields.io/readthedocs/rinja?label=book&logo=readthedocs&style=flat-square&logoColor=white "Book")](https://rinja.readthedocs.io/)
-[![docs.rs](https://img.shields.io/docsrs/rinja_derive?logo=docsdotrs&style=flat-square&logoColor=white "docs.rs")](https://docs.rs/rinja_derive/)
+New versions of `rinja` will be released under the name [`askama`](https://crates.io/crates/askama).
+Please update your dependencies from e.g. `rinja_derive = "0.3.5"` to `askama_derive = "0.13.0"`.
 
-This crate contains the procedural macros used by the
-[Rinja](https://github.com/rinja-rs/rinja) templating engine.
+Useful information can be found in our [upgrade guide], and in our [blog post].
+
+[upgrade guide]: https://askama.readthedocs.io/en/v0.13.0/upgrading.html
+[blog post]: https://blog.guillaume-gomez.fr/articles/2025-03-19+Askama+and+Rinja+merge

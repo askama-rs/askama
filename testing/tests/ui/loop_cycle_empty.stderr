@@ -1,7 +1,0 @@
-error: loop.cycle(…) cannot use an empty array
- --> ForCycleEmpty.txt:1:35
-       "[]) }}{{ v }},{% endfor %}"
- --> tests/ui/loop_cycle_empty.rs:5:14
-  |
-5 |     source = r#"{% for v in values %}{{ loop.cycle([]) }}{{ v }},{% endfor %}"#,
-  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

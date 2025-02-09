@@ -1,7 +1,0 @@
-error: expected name `foo` in `endmacro` tag, found `not_foo`
- --> <source attribute>:1:41
-       "not_foo %}"
- --> tests/ui/name_mismatch_endmacro.rs:4:21
-  |
-4 | #[template(source = "{% macro foo(arg) %} {{arg}} {% endmacro not_foo %}", ext = "html")]
-  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

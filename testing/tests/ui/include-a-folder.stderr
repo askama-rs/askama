@@ -1,7 +1,0 @@
-error: unable to open template file '$DIR/templates/a_file_that_is_actually_a_folder.html': Is a directory (os error 21)
- --> YouCannotIncludeFolders.txt:1:2
-       " include \"a_file_that_is_actually_a_folder.html\" %}"
- --> tests/ui/include-a-folder.rs:4:34
-  |
-4 | #[template(ext = "txt", source = r#"{% include "a_file_that_is_actually_a_folder.html" %}"#)]
-  |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

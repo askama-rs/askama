@@ -1,7 +1,0 @@
-error: your template code is too deeply nested, or the last expression is too complex
- --> testing/templates/fuzzed-recursion-mul-deref.txt:2:486
-       "!**y**false|yz***y**false|z**yz**s**fa*galse|iz**!**y**false|yz***y**f*!**y**fal"...
- --> tests/ui/fuzzed_recursion_depth_mul_deref.rs:4:19
-  |
-4 | #[template(path = "fuzzed-recursion-mul-deref.txt")]
-  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

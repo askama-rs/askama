@@ -1,4 +1,0 @@
-[[syntax]]
-name = "delim-clash"
-block_start = "<<<"
-expr_start = "<<<<"

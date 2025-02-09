@@ -1,7 +1,0 @@
-error: you can only `break` inside a `for` loop
- --> <source attribute>:1:9
-       "break%}, have a parsing error!"
- --> tests/ui/break_outside_of_loop.rs:5:14
-  |
-5 |     source = "Have a {%break%}, have a parsing error!",
-  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

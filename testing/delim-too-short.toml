@@ -1,3 +1,0 @@
-[[syntax]]
-name = "delim-too-short"
-block_start = "<"

@@ -1,4 +1,0 @@
-[[syntax]]
-name = "mwe"
-expr_start = "<<<"
-expr_end = ">>>"

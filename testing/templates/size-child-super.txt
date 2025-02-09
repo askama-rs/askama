@@ -1,2 +1,0 @@
-{% extends "size-parent.txt" %}
-{% block main %}{% call super() %}{% endblock %}

@@ -1,7 +1,0 @@
-error: literals are not allowed on the left-hand side of an assignment
- --> MyTemplate.txt:1:2
-       "let 7=x%}"
- --> tests/ui/lit_on_assignment_lhs.rs:5:14
-  |
-5 |     source = "{%let 7=x%}",
-  |              ^^^^^^^^^^^^^

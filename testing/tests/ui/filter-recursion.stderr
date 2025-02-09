@@ -1,7 +1,0 @@
-error: your template code is too deeply nested, or the last expression is too complex
- --> testing/templates/filter-recursion.html:1:275
-       "|A|A|AA|A|A|A|A|AA|A|A|A|A|AA|A|A|A|A|AA|A|A|A||A|A|AA|A|A|A|A|AA|A|A|A|A|AA|A|A"...
- --> tests/ui/filter-recursion.rs:4:19
-  |
-4 | #[template(path = "filter-recursion.html")]
-  |                   ^^^^^^^^^^^^^^^^^^^^^^^

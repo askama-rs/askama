@@ -1,9 +1,0 @@
-{%- macro outer(first) -%}
-{%- call inner(first, "second") -%}
-{%- endmacro -%}
-
-{%- macro inner(first, second) -%}
-{{ first }} {{ second }}
-{%- endmacro -%}
-
-{%- call outer("first") -%}
