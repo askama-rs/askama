@@ -18,7 +18,7 @@ any other feedback to the [issue tracker][issues].
 You can find the documentation about our syntax, features, configuration in our book:
 [askama.readthedocs.io](https://askama.readthedocs.io/).
 
-Have a look at our [*Askama Playground*](https://askama-rs.github.io/play-askama/),
+Have a look at our [*Askama Playground*](https://askama-rs.github.io/askama_playground/),
 if you want to try out askama's code generation online.
 
 ### Feature highlights
