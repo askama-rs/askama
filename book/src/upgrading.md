@@ -12,6 +12,11 @@ give you more in-dept explanations:
 
 ## From askama v0.12 to askama v0.13
 
+A blog post summarizing changes and also explaining the merge of `rinja` and `askama` is
+available [here](https://blog.guillaume-gomez.fr/articles/2025-03-19+Askama+and+Rinja+merge).
+
+List of the changes:
+
 * The <abbr title="minimum supported rust version">MSRV</abbr> of this release is 1.81.
 
 * The integration crates were removed.
