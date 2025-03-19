@@ -4,7 +4,7 @@ First, add the following to your crate's `Cargo.toml`:
 
 ```toml
 # in section [dependencies]
-rinja = "0.12.1"
+rinja = "0.3.5"
 ```
 
 Now create a directory called `templates` in your crate root.
@@ -43,7 +43,7 @@ First, add this to your `Cargo.toml` instead:
 
 ```toml
 # in section [dependencies]
-rinja_axum = "0.4.0"
+rinja_axum = "0.3.5"
 ```
 
 Then, import from rinja_axum instead of rinja:
