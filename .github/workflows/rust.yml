@@ -27,7 +27,7 @@ jobs:
           set -eu
           for PKG in \
             bench-build examples/actix-web-app examples/axum-app examples/poem-app examples/rocket-app examples/salvo-app examples/warp-app fuzzing \
-            askama askama_derive askama_derive_standalone askama_parser \
+            askama askama_derive askama_derive_standalone askama_escape askama_parser \
             testing testing-alloc testing-no-std testing-renamed
           do
             cd "$PKG"
@@ -117,7 +117,7 @@ jobs:
           set -eu
           for PKG in \
             bench-build examples/actix-web-app examples/axum-app examples/poem-app examples/rocket-app examples/salvo-app examples/warp-app fuzzing \
-            askama askama_derive askama_derive_standalone askama_parser \
+            askama askama_derive askama_derive_standalone askama_escape askama_parser \
             testing testing-alloc testing-no-std testing-renamed
           do
             cd "$PKG"
@@ -160,7 +160,7 @@ jobs:
       matrix:
         package: [
           bench-build, examples/actix-web-app, examples/axum-app, examples/poem-app, examples/rocket-app, examples/salvo-app, examples/warp-app, fuzzing,
-          askama, askama_derive, askama_derive_standalone, askama_parser,
+          askama, askama_derive, askama_derive_standalone, askama_escape, askama_parser,
           testing, testing-alloc, testing-no-std, testing-renamed,
         ]
     runs-on: ubuntu-latest

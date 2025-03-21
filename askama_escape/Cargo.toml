@@ -1,0 +1,22 @@
+[package]
+name = "askama_escape"
+version = "0.13.0-pre.0"
+description = "HTML escaping, extracted from Askama"
+keywords = ["html", "escaping"]
+categories = ["no-std", "no-std::no-alloc"]
+homepage = "https://askama.readthedocs.io/"
+repository = "https://github.com/askama-rs/askama"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+edition = "2021"
+rust-version = "1.81"
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--generate-link-to-definition", "--cfg=docsrs"]
+
+[[bench]]
+name = "all"
+harness = false
+
+[dev-dependencies]
+criterion = "0.5"

@@ -14,7 +14,7 @@ extend-exclude = [
     "askama_parser/benches",
     "askama_derive_standalone/benches",
     # filler texts
-    "askama/benches/strings.inc",
+    "*/benches/strings.inc",
     # too many false positives
     "testing/tests/gen_ws_tests.py",
 ]

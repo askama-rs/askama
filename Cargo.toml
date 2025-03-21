@@ -2,6 +2,7 @@
 members = [
     "askama",
     "askama_derive",
+    "askama_escape",
     "askama_parser",
     "testing",
     "testing-alloc",
