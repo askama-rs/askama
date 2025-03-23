@@ -7,19 +7,52 @@ on:
   schedule:
     - cron: "32 4 * * 5"
 
+# let jobs opt-in to permissions explicitly
+permissions: {}
+
 jobs:
+####################################################################################################
+# STEP 0: CHECK CI CONFIGURATION
+# ["Zizmor"]
+####################################################################################################
+
+  Zizmor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: zizmor@1
+
+      - name: Run zizmor
+        run: zizmor --format sarif . > results.sarif
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
+          category: zizmor
+
 ####################################################################################################
 # STEP 1: FASTEST
 # ["Rustfmt", "Docs", "Audit", "Book", "Typos", "Jinja2-Assumptions", "DevSkim", "CargoSort"]
 ####################################################################################################
 
   Rustfmt:
+    needs: ["Zizmor"]
     runs-on: ubuntu-latest
     steps:
       # No need to test `askama_derive_standalone`. It has same the `src` folder as `askama_derive`.
       # No need to run the checks in parallel. They are fast enough.
       # No need for caching. No code is compiled at all.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rustfmt
@@ -37,12 +70,15 @@ jobs:
           done
 
   Docs:
+    needs: ["Zizmor"]
     strategy:
       matrix:
         package: [askama, askama_derive, askama_parser]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@nightly
       - uses: Swatinem/rust-cache@v2
       - run: cd ${{ matrix.package }} && cargo doc --all-features --no-deps
@@ -50,15 +86,21 @@ jobs:
           RUSTDOCFLAGS: -Z unstable-options --generate-link-to-definition --cfg=docsrs -D warnings
 
   Audit:
+    needs: ["Zizmor"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: EmbarkStudios/cargo-deny-action@v2
 
   Book:
+    needs: ["Zizmor"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Generate "book/theme/index.hbs" as "skeleton" of the generated pages.
         run: ./update-theme.py
         working-directory: book
@@ -71,15 +113,21 @@ jobs:
         working-directory: book
 
   Typos:
+    needs: ["Zizmor"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: crate-ci/typos@master
 
   Jinja2-Assumptions:
+    needs: ["Zizmor"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -87,6 +135,7 @@ jobs:
       - run: testing/jinja2-assumptions/test.sh
 
   DevSkim:
+    needs: ["Zizmor"]
     name: DevSkim
     runs-on: ubuntu-latest
     permissions:
@@ -95,6 +144,8 @@ jobs:
       security-events: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Run DevSkim scanner
         uses: microsoft/DevSkim-Action@v1
@@ -105,10 +156,13 @@ jobs:
           sarif_file: devskim-results.sarif
 
   CargoSort:
+    needs: ["Zizmor"]
     name: Check order in Cargo.toml
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-sort
@@ -144,6 +198,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
@@ -166,6 +222,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
@@ -182,6 +240,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.81.0"
@@ -205,6 +265,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          persist-credentials: false
           submodules: recursive
       - run: git submodule update --remote
       - uses: dtolnay/rust-toolchain@master
