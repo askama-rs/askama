@@ -1,6 +1,6 @@
 [package]
 name = "salvo-app"
-version = "0.13.0-pre.0"
+version = "0.13.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 publish = false
@@ -8,7 +8,7 @@ publish = false
 # This is an example application that uses both askama as template engine,
 # and salvo as your web-framework.
 [dependencies]
-askama = { version = "0.13.0-pre.0", path = "../../askama" }
+askama = { version = "0.13.0", path = "../../askama" }
 salvo = { version = "0.76.0", default-features = false, features = ["http1", "logging", "server"] }
 tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread"] }
 
