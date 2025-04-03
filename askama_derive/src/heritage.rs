@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use parser::node::{BlockDef, Macro};
 use parser::{Node, Parsed, Span};
-use rustc_hash::FxBuildHasher;
 
 use crate::config::Config;
+use crate::BUILD_HASHER;
 use crate::{CompileError, FileInfo};
 
 pub(crate) struct Heritage<'a, 'h> {
@@ -18,13 +18,15 @@ pub(crate) struct Heritage<'a, 'h> {
 impl<'a, 'h> Heritage<'a, 'h> {
     pub(crate) fn new(
         mut root: &'h Context<'a>,
-        contexts: &'a HashMap<&'a Arc<Path>, Context<'a>, FxBuildHasher>,
+        contexts: &'a HashMap<&'a Arc<Path>, Context<'a>, crate::BuildHasherType>,
     ) -> Self {
-        let mut blocks: BlockAncestry<'a, 'h> = root
-            .blocks
-            .iter()
-            .map(|(name, def)| (*name, vec![(root, *def)]))
-            .collect();
+        let mut blocks: BlockAncestry<'a, 'h> = root.blocks.iter().fold(
+            HashMap::with_capacity_and_hasher(root.blocks.len(), BUILD_HASHER),
+            |mut map, (name, def)| {
+                map.insert(*name, vec![(root, *def)]);
+                map
+            },
+        );
 
         while let Some(path) = &root.extends {
             root = &contexts[path];
@@ -38,15 +40,15 @@ impl<'a, 'h> Heritage<'a, 'h> {
 }
 
 type BlockAncestry<'a, 'h> =
-    HashMap<&'a str, Vec<(&'h Context<'a>, &'a BlockDef<'a>)>, FxBuildHasher>;
+    HashMap<&'a str, Vec<(&'h Context<'a>, &'a BlockDef<'a>)>, crate::BuildHasherType>;
 
 #[derive(Clone)]
 pub(crate) struct Context<'a> {
     pub(crate) nodes: &'a [Node<'a>],
     pub(crate) extends: Option<Arc<Path>>,
-    pub(crate) blocks: HashMap<&'a str, &'a BlockDef<'a>, FxBuildHasher>,
-    pub(crate) macros: HashMap<&'a str, &'a Macro<'a>, FxBuildHasher>,
-    pub(crate) imports: HashMap<&'a str, Arc<Path>, FxBuildHasher>,
+    pub(crate) blocks: HashMap<&'a str, &'a BlockDef<'a>, crate::BuildHasherType>,
+    pub(crate) macros: HashMap<&'a str, &'a Macro<'a>, crate::BuildHasherType>,
+    pub(crate) imports: HashMap<&'a str, Arc<Path>, crate::BuildHasherType>,
     pub(crate) path: Option<&'a Path>,
     pub(crate) parsed: &'a Parsed,
 }
@@ -56,9 +58,9 @@ impl<'a> Context<'a> {
         Context {
             nodes: &[],
             extends: None,
-            blocks: HashMap::default(),
-            macros: HashMap::default(),
-            imports: HashMap::default(),
+            blocks: HashMap::with_hasher(BUILD_HASHER),
+            macros: HashMap::with_hasher(BUILD_HASHER),
+            imports: HashMap::with_hasher(BUILD_HASHER),
             path: None,
             parsed,
         }
@@ -70,9 +72,9 @@ impl<'a> Context<'a> {
         parsed: &'a Parsed,
     ) -> Result<Self, CompileError> {
         let mut extends = None;
-        let mut blocks = HashMap::default();
-        let mut macros = HashMap::default();
-        let mut imports = HashMap::default();
+        let mut blocks = HashMap::with_hasher(BUILD_HASHER);
+        let mut macros = HashMap::with_hasher(BUILD_HASHER);
+        let mut imports = HashMap::with_hasher(BUILD_HASHER);
         let mut nested = vec![parsed.nodes()];
         let mut top = true;
 

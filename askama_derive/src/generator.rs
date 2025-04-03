@@ -10,21 +10,21 @@ use std::sync::Arc;
 
 use parser::node::{Macro, Whitespace};
 use parser::{
-    CharLit, Expr, FloatKind, IntKind, MAX_RUST_KEYWORD_LEN, Num, RUST_KEYWORDS, StrLit, WithSpan,
+    CharLit, Expr, FloatKind, IntKind, Num, StrLit, WithSpan, MAX_RUST_KEYWORD_LEN, RUST_KEYWORDS,
 };
-use rustc_hash::FxBuildHasher;
 
 use crate::ascii_str::{AsciiChar, AsciiStr};
 use crate::heritage::{Context, Heritage};
 use crate::html::write_escaped_str;
 use crate::input::{Source, TemplateInput};
-use crate::integration::{Buffer, impl_everything, write_header};
+use crate::integration::{impl_everything, write_header, Buffer};
+use crate::BUILD_HASHER;
 use crate::{CompileError, FileInfo};
 
 pub(crate) fn template_to_string(
     buf: &mut Buffer,
     input: &TemplateInput<'_>,
-    contexts: &HashMap<&Arc<Path>, Context<'_>, FxBuildHasher>,
+    contexts: &HashMap<&Arc<Path>, Context<'_>, crate::BuildHasherType>,
     heritage: Option<&Heritage<'_, '_>>,
     tmpl_kind: TmplKind<'_>,
 ) -> Result<usize, CompileError> {
@@ -65,7 +65,7 @@ struct Generator<'a, 'h> {
     /// The template input state: original struct AST and attributes
     input: &'a TemplateInput<'a>,
     /// All contexts, keyed by the package-relative template path
-    contexts: &'a HashMap<&'a Arc<Path>, Context<'a>, FxBuildHasher>,
+    contexts: &'a HashMap<&'a Arc<Path>, Context<'a>, crate::BuildHasherType>,
     /// The heritage contains references to blocks and their ancestry
     heritage: Option<&'h Heritage<'a, 'h>>,
     /// Variables accessible directly from the current scope (not redirected to context)
@@ -90,7 +90,7 @@ struct Generator<'a, 'h> {
 impl<'a, 'h> Generator<'a, 'h> {
     fn new(
         input: &'a TemplateInput<'a>,
-        contexts: &'a HashMap<&'a Arc<Path>, Context<'a>, FxBuildHasher>,
+        contexts: &'a HashMap<&'a Arc<Path>, Context<'a>, crate::BuildHasherType>,
         heritage: Option<&'h Heritage<'a, 'h>>,
         locals: MapChain<'a>,
         buf_writable_discard: bool,
@@ -505,12 +505,17 @@ impl LocalMeta {
 }
 
 struct MapChain<'a> {
-    scopes: Vec<HashMap<Cow<'a, str>, LocalMeta, FxBuildHasher>>,
+    scopes: Vec<HashMap<Cow<'a, str>, LocalMeta, crate::BuildHasherType>>,
 }
 
 impl<'a> MapChain<'a> {
     fn new_empty() -> Self {
         Self { scopes: vec![] }
+    }
+
+    /// Push a new empty scope to the stack.
+    pub(crate) fn push_new_scope(&mut self) {
+        self.scopes.push(HashMap::with_hasher(BUILD_HASHER));
     }
 
     /// Iterates the scopes in reverse and returns `Some(LocalMeta)`
@@ -554,7 +559,7 @@ impl<'a> MapChain<'a> {
 impl Default for MapChain<'_> {
     fn default() -> Self {
         Self {
-            scopes: vec![HashMap::default()],
+            scopes: vec![HashMap::with_hasher(BUILD_HASHER)],
         }
     }
 }

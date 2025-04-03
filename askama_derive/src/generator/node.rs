@@ -8,16 +8,16 @@ use parser::node::{
     Whitespace, Ws,
 };
 use parser::{Expr, Filter, Node, Span, Target, WithSpan};
-use rustc_hash::FxBuildHasher;
 
 use super::{
-    DisplayWrap, FILTER_SOURCE, Generator, LocalMeta, MapChain, compile_time_escape, is_copyable,
-    normalize_identifier,
+    compile_time_escape, is_copyable, normalize_identifier, DisplayWrap, Generator, LocalMeta,
+    MapChain, FILTER_SOURCE,
 };
 use crate::generator::Writable;
 use crate::heritage::{Context, Heritage};
 use crate::integration::Buffer;
-use crate::{CompileError, FileInfo, fmt_left, fmt_right};
+use crate::BUILD_HASHER;
+use crate::{fmt_left, fmt_right, CompileError, FileInfo};
 
 impl<'a> Generator<'a, '_> {
     pub(super) fn impl_template_inner(
@@ -40,7 +40,7 @@ impl<'a> Generator<'a, '_> {
     where
         F: FnOnce(&mut Self) -> Result<T, CompileError>,
     {
-        self.locals.scopes.push(HashMap::default());
+        self.locals.push_new_scope();
         let res = callback(self);
         self.locals.scopes.pop().unwrap();
         res
@@ -54,7 +54,7 @@ impl<'a> Generator<'a, '_> {
     where
         F: FnOnce(&mut Generator<'a, 'b>) -> Result<T, CompileError>,
     {
-        self.locals.scopes.push(HashMap::default());
+        self.locals.push_new_scope();
 
         let buf_writable = mem::take(&mut self.buf_writable);
         let locals = mem::replace(&mut self.locals, MapChain::new_empty());
@@ -647,7 +647,7 @@ impl<'a> Generator<'a, '_> {
             buf.write('{');
             this.prepare_ws(def.ws1);
 
-            let mut named_arguments: HashMap<&str, _, FxBuildHasher> = HashMap::default();
+            let mut named_arguments: HashMap<&str, _, crate::BuildHasherType> = HashMap::with_hasher(BUILD_HASHER);
             // Since named arguments can only be passed last, we only need to check if the last argument
             // is a named one.
             if let Some(Expr::NamedArgument(_, _)) = args.last().map(|expr| &**expr) {
@@ -1119,7 +1119,8 @@ impl<'a> Generator<'a, '_> {
 
         let mut targets = Buffer::new();
         let mut lines = Buffer::new();
-        let mut expr_cache = HashMap::with_capacity(self.buf_writable.len());
+        let mut expr_cache =
+            HashMap::with_capacity_and_hasher(self.buf_writable.len(), BUILD_HASHER);
         // the `last_line` contains any sequence of trailing simple `writer.write_str()` calls
         let mut trailing_simple_lines = Vec::new();
 

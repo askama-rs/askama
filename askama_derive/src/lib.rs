@@ -18,20 +18,25 @@ use std::hash::{BuildHasher, Hash};
 use std::path::Path;
 use std::sync::Mutex;
 
-use parser::{Parsed, ascii_str, strip_common};
+use parser::{ascii_str, strip_common, Parsed};
 #[cfg(not(feature = "__standalone"))]
 use proc_macro::TokenStream as TokenStream12;
 #[cfg(feature = "__standalone")]
 use proc_macro2::TokenStream as TokenStream12;
 use proc_macro2::{Delimiter, Group, Span, TokenStream, TokenTree};
 use quote::{quote, quote_spanned};
-use rustc_hash::FxBuildHasher;
 
-use crate::config::{Config, read_config_file};
-use crate::generator::{TmplKind, template_to_string};
+use crate::config::{read_config_file, Config};
+use crate::generator::{template_to_string, TmplKind};
 use crate::heritage::{Context, Heritage};
 use crate::input::{AnyTemplateArgs, Print, TemplateArgs, TemplateInput};
-use crate::integration::{Buffer, build_template_enum};
+use crate::integration::{build_template_enum, Buffer};
+
+/// Use a fixed seed for hashes to ensure that the generated code is deterministic.
+pub(crate) type BuildHasherType = rustc_hash::FxSeededState;
+
+/// The [`BuildHasher`] implementation used in [`askama_derive`](crate).
+pub(crate) const BUILD_HASHER: BuildHasherType = rustc_hash::FxSeededState::with_seed(1234);
 
 /// The `Template` derive macro and its `template()` attribute.
 ///
@@ -262,7 +267,7 @@ fn build_skeleton(buf: &mut Buffer, ast: &syn::DeriveInput) -> Result<usize, Com
     let template_args = TemplateArgs::fallback();
     let config = Config::new("", None, None, None, None)?;
     let input = TemplateInput::new(ast, None, config, &template_args)?;
-    let mut contexts = HashMap::default();
+    let mut contexts = HashMap::with_hasher(BUILD_HASHER);
     let parsed = parser::Parsed::default();
     contexts.insert(&input.path, Context::empty(&parsed));
     template_to_string(buf, &input, &contexts, None, TmplKind::Struct)
@@ -325,10 +330,10 @@ fn build_template_item(
     )?;
     let input = TemplateInput::new(ast, enum_ast, config, template_args)?;
 
-    let mut templates = HashMap::default();
+    let mut templates = HashMap::with_hasher(BUILD_HASHER);
     input.find_used_templates(&mut templates)?;
 
-    let mut contexts = HashMap::default();
+    let mut contexts = HashMap::with_hasher(BUILD_HASHER);
     for (path, parsed) in &templates {
         contexts.insert(path, Context::new(input.config, path, parsed)?);
     }
@@ -512,11 +517,20 @@ impl fmt::Display for MsgValidEscapers<'_> {
 }
 
 #[derive(Debug)]
-struct OnceMap<K, V>([Mutex<HashMap<K, V, FxBuildHasher>>; 8]);
+struct OnceMap<K, V>([Mutex<HashMap<K, V, BuildHasherType>>; 8]);
 
 impl<K, V> Default for OnceMap<K, V> {
     fn default() -> Self {
-        Self(Default::default())
+        Self([
+            Mutex::new(HashMap::with_hasher(BUILD_HASHER)),
+            Mutex::new(HashMap::with_hasher(BUILD_HASHER)),
+            Mutex::new(HashMap::with_hasher(BUILD_HASHER)),
+            Mutex::new(HashMap::with_hasher(BUILD_HASHER)),
+            Mutex::new(HashMap::with_hasher(BUILD_HASHER)),
+            Mutex::new(HashMap::with_hasher(BUILD_HASHER)),
+            Mutex::new(HashMap::with_hasher(BUILD_HASHER)),
+            Mutex::new(HashMap::with_hasher(BUILD_HASHER)),
+        ])
     }
 }
 
@@ -533,7 +547,7 @@ impl<K: Hash + Eq, V> OnceMap<K, V> {
         K: Borrow<Q>,
         Q: Hash + Eq,
     {
-        let shard_idx = (FxBuildHasher.hash_one(key) % self.0.len() as u64) as usize;
+        let shard_idx = (BUILD_HASHER.hash_one(key) % self.0.len() as u64) as usize;
         let mut shard = self.0[shard_idx].lock().unwrap();
         Ok(to_value(if let Some(v) = shard.get(key) {
             v

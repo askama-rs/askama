@@ -9,7 +9,6 @@ use std::sync::{Arc, OnceLock};
 use parser::node::Whitespace;
 use parser::{Node, Parsed};
 use proc_macro2::Span;
-use rustc_hash::FxBuildHasher;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Attribute, Expr, ExprLit, ExprPath, Ident, Lit, LitBool, LitStr, Meta, Token};
@@ -150,7 +149,7 @@ impl TemplateInput<'_> {
 
     pub(crate) fn find_used_templates(
         &self,
-        map: &mut HashMap<Arc<Path>, Arc<Parsed>, FxBuildHasher>,
+        map: &mut HashMap<Arc<Path>, Arc<Parsed>, crate::BuildHasherType>,
     ) -> Result<(), CompileError> {
         let (source, source_path) = match &self.source {
             Source::Source(s) => (s.clone(), None),
