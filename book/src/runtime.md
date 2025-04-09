@@ -36,3 +36,20 @@ or by calling directly the `askama::get_value` function:
 
 If you try to retrieve a value with the wrong type or that you didn't set, you will get an
 `Err(askama::Error::ValueType)` or a `Err(askama::Error::ValueMissing)`.
+
+Another example with a key-value tuple:
+
+```rust
+let value = "value".to_string();
+let tuple: (&str, &dyn Any) = ("a", &value);
+
+template_struct.render_with_values(&tuple).unwrap();
+```
+
+With this setup, only the `"a"` key will return a value:
+
+```jinja
+{% if let Ok(name) = "a"|value::<String> %}
+  a is {{ a }}
+{% endif %}
+```
