@@ -35,4 +35,4 @@ or by calling directly the `askama::get_value` function:
 ```
 
 If you try to retrieve a value with the wrong type or that you didn't set, you will get an
-`Err(ValueError)`.
+`Err(askama::Error::ValueType)` or a `Err(askama::Error::ValueMissing)`.
