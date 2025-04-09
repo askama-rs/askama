@@ -52,6 +52,21 @@ impl Values for () {
     }
 }
 
+impl<K, V> Values for (K, V)
+where
+    K: Borrow<str>,
+    V: Value,
+{
+    #[inline]
+    fn get_value<'a>(&'a self, key: &str) -> Option<&'a dyn Any> {
+        if self.0.borrow() == key {
+            self.1.ref_any()
+        } else {
+            None
+        }
+    }
+}
+
 impl<T: Values> Values for Option<T> {
     #[inline]
     fn get_value<'a>(&'a self, key: &str) -> Option<&'a dyn Any> {
@@ -278,5 +293,14 @@ mod tests {
         list.pop_front();
         list.push_back(("a", &10u32));
         assert_a_10_c_blam(&list);
+    }
+
+    #[test]
+    fn values_on_tuple() {
+        let tuple: (&str, &dyn Any) = ("a", &10u32);
+
+        assert_matches!(get_value::<u32>(&tuple, "a"), Ok(10u32));
+        assert_matches!(get_value::<i32>(&tuple, "a"), Err(Error::ValueType));
+        assert_matches!(get_value::<i32>(&tuple, "b"), Err(Error::ValueMissing));
     }
 }
