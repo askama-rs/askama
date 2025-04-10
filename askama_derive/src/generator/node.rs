@@ -965,7 +965,11 @@ impl<'a> Generator<'a, '_> {
         }
 
         self.visit_target(buf, true, true, &l.var);
-        let (before, after) = if !is_copyable(val) {
+        // If it's not taking the ownership of a local variable or copyable, then we need to add
+        // a reference.
+        let (before, after) = if !matches!(**val, Expr::Var(name) if self.locals.get(name).is_some())
+            && !is_copyable(val)
+        {
             ("&(", ")")
         } else {
             ("", "")

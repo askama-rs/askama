@@ -151,3 +151,48 @@ fn test_not_moving_fields_in_var() {
     };
     assert_eq!(x.render().unwrap(), "a/a");
 }
+
+// Ensure that using a local variable as value when creating
+// another variable will not be behind a reference.
+#[test]
+fn test_moving_local_vars() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- let a = 1 -%}
+{%- if a == 1 %}A{% endif -%}
+{%- let b = a -%}
+{%- if b == 1 %}B{% endif -%}
+{%- let c = a + 0 -%}
+{%- if c == 1 %}C{% endif -%}
+{% let d = x %}
+{%- if *d == 1 %}D{% endif -%}
+{%- let e = y -%}
+{%- if e == "a" %}E{% endif -%}
+{%- let f = Bla::new() -%}
+{%- if f.x == 0 %}F{% endif -%}
+{%- let g = f.x -%}
+{%- if *g == 0 %}G{% endif -%}
+    "#,
+        ext = "txt"
+    )]
+    struct X {
+        x: u32,
+        y: String,
+    }
+    struct Bla {
+        x: u32,
+    }
+
+    impl Bla {
+        fn new() -> Self {
+            Self { x: 0 }
+        }
+    }
+
+    let x = X {
+        x: 1,
+        y: "a".to_owned(),
+    };
+    assert_eq!(x.render().unwrap(), "ABCDEFG");
+}
