@@ -1,14 +1,14 @@
 [package]
 name = "bench-build"
-version = "0.13.0"
+version = "0.13.1"
 authors = ["askama-rs developers"]
 edition = "2021"
 rust-version = "1.81"
 publish = false
 
 [dependencies]
-askama = { path = "../askama", version = "0.13.0", default-features = false, features = ["std"] }
-askama_derive = { path = "../askama_derive", version = "0.13.0", features = ["std"] }
+askama = { path = "../askama", version = "0.13.1", default-features = false, features = ["std"] }
+askama_derive = { path = "../askama_derive", version = "0.13.1", features = ["std"] }
 
 [features]
 default = []
