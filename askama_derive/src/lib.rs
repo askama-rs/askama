@@ -18,7 +18,6 @@ use std::hash::{BuildHasher, Hash};
 use std::path::Path;
 use std::sync::Mutex;
 
-use config::manifest_root;
 use parser::{Parsed, ascii_str, strip_common};
 #[cfg(not(feature = "__standalone"))]
 use proc_macro::TokenStream as TokenStream12;
@@ -261,8 +260,7 @@ pub fn derive_template(input: TokenStream12) -> TokenStream12 {
 
 fn build_skeleton(buf: &mut Buffer, ast: &syn::DeriveInput) -> Result<usize, CompileError> {
     let template_args = TemplateArgs::fallback();
-    let root = manifest_root();
-    let config = Config::new(&root, "", None, None, None, None)?;
+    let config = Config::new("", None, None, None, None)?;
     let input = TemplateInput::new(ast, None, config, &template_args)?;
     let mut contexts = HashMap::default();
     let parsed = parser::Parsed::default();
@@ -317,10 +315,8 @@ fn build_template_item(
     tmpl_kind: TmplKind<'_>,
 ) -> Result<usize, CompileError> {
     let config_path = template_args.config_path();
-    let root = manifest_root();
     let (s, full_config_path) = read_config_file(config_path, template_args.config_span)?;
     let config = Config::new(
-        &root,
         &s,
         config_path,
         template_args.whitespace,

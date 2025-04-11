@@ -70,7 +70,6 @@ impl<'a> Borrow<ConfigKey<'a>> for OwnedConfigKey {
 
 impl Config {
     pub(crate) fn new(
-        root: &Path,
         source: &str,
         config_path: Option<&str>,
         template_whitespace: Option<Whitespace>,
@@ -81,7 +80,7 @@ impl Config {
             ManuallyDrop::new(OnceLock::new());
         CACHE.get_or_init(OnceMap::default).get_or_try_insert(
             &ConfigKey {
-                root: root.into(),
+                root: Cow::Owned(manifest_root()),
                 source: source.into(),
                 config_path: config_path.map(Cow::Borrowed),
                 template_whitespace,
@@ -104,8 +103,9 @@ impl Config {
     ) -> Result<Config, CompileError> {
         let s = key.0.source.as_ref();
         let config_path = key.0.config_path.as_deref();
+        let root = key.0.root.as_ref();
 
-        let default_dirs = vec![key.0.root.join("templates")];
+        let default_dirs = vec![root.join("templates")];
 
         let mut syntaxes = BTreeMap::new();
         syntaxes.insert(DEFAULT_SYNTAX_NAME.to_string(), SyntaxAndCache::default());
@@ -123,7 +123,7 @@ impl Config {
                 whitespace,
             }) => (
                 dirs.map_or(default_dirs, |v| {
-                    v.into_iter().map(|dir| key.0.root.join(dir)).collect()
+                    v.into_iter().map(|dir| root.join(dir)).collect()
                 }),
                 default_syntax.unwrap_or(DEFAULT_SYNTAX_NAME),
                 whitespace,
@@ -364,7 +364,7 @@ pub(crate) fn read_config_file(
     }
 }
 
-pub(crate) fn manifest_root() -> PathBuf {
+fn manifest_root() -> PathBuf {
     env::var_os("CARGO_MANIFEST_DIR").map_or_else(|| PathBuf::from("."), PathBuf::from)
 }
 
@@ -386,27 +386,25 @@ static DEFAULT_ESCAPERS: &[(&[&str], &str)] = &[
 
 #[cfg(test)]
 mod tests {
-    use std::env;
     use std::path::{Path, PathBuf};
 
     use super::*;
 
     #[test]
     fn test_default_config() {
-        let root = manifest_root();
-        let templates_dir = root.join("templates");
-        let config = Config::new(&root, "", None, None, None, None).unwrap();
-        assert_eq!(config.dirs, vec![templates_dir]);
+        let mut root = manifest_root();
+        root.push("templates");
+        let config = Config::new("", None, None, None, None).unwrap();
+        assert_eq!(config.dirs, vec![root]);
     }
 
     #[cfg(feature = "config")]
     #[test]
     fn test_config_dirs() {
-        let root = manifest_root();
-        let templates_dir = root.join("tpl");
-        let config =
-            Config::new(&root, "[general]\ndirs = [\"tpl\"]", None, None, None, None).unwrap();
-        assert_eq!(config.dirs, vec![templates_dir]);
+        let mut root = manifest_root();
+        root = root.join("tpl");
+        let config = Config::new("[general]\ndirs = [\"tpl\"]", None, None, None, None).unwrap();
+        assert_eq!(config.dirs, vec![root]);
     }
 
     fn assert_eq_rooted(actual: &Path, expected: &str) {
@@ -424,8 +422,7 @@ mod tests {
 
     #[test]
     fn find_absolute() {
-        let root = manifest_root();
-        let config = Config::new(&root, "", None, None, None, None).unwrap();
+        let config = Config::new("", None, None, None, None).unwrap();
         let root = config.find_template("a.html", None, None).unwrap();
         let path = config
             .find_template("sub/b.html", Some(&root), None)
@@ -436,16 +433,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn find_relative_nonexistent() {
-        let root = manifest_root();
-        let config = Config::new(&root, "", None, None, None, None).unwrap();
+        let config = Config::new("", None, None, None, None).unwrap();
         let root = config.find_template("a.html", None, None).unwrap();
         config.find_template("c.html", Some(&root), None).unwrap();
     }
 
     #[test]
     fn find_relative() {
-        let root = manifest_root();
-        let config = Config::new(&root, "", None, None, None, None).unwrap();
+        let config = Config::new("", None, None, None, None).unwrap();
         let root = config.find_template("sub/b.html", None, None).unwrap();
         let path = config.find_template("c.html", Some(&root), None).unwrap();
         assert_eq_rooted(&path, "sub/c.html");
@@ -453,8 +448,7 @@ mod tests {
 
     #[test]
     fn find_relative_sub() {
-        let root = manifest_root();
-        let config = Config::new(&root, "", None, None, None, None).unwrap();
+        let config = Config::new("", None, None, None, None).unwrap();
         let root = config.find_template("sub/b.html", None, None).unwrap();
         let path = config
             .find_template("sub1/d.html", Some(&root), None)
@@ -465,7 +459,6 @@ mod tests {
     #[cfg(feature = "config")]
     #[test]
     fn add_syntax() {
-        let root = manifest_root();
         let raw_config = r#"
         [general]
         default_syntax = "foo"
@@ -480,7 +473,7 @@ mod tests {
         "#;
 
         let default_syntax = Syntax::default();
-        let config = Config::new(&root, raw_config, None, None, None, None).unwrap();
+        let config = Config::new(raw_config, None, None, None, None).unwrap();
         assert_eq!(config.default_syntax, "foo");
 
         let foo = config.syntaxes.get("foo").unwrap();
@@ -503,7 +496,6 @@ mod tests {
     #[cfg(feature = "config")]
     #[test]
     fn add_syntax_two() {
-        let root = manifest_root();
         let raw_config = r#"
         syntax = [{ name = "foo", block_start = "{<" },
                   { name = "bar", expr_start = "{!" } ]
@@ -513,7 +505,7 @@ mod tests {
         "#;
 
         let default_syntax = Syntax::default();
-        let config = Config::new(&root, raw_config, None, None, None, None).unwrap();
+        let config = Config::new(raw_config, None, None, None, None).unwrap();
         assert_eq!(config.default_syntax, "foo");
 
         let foo = config.syntaxes.get("foo").unwrap();
@@ -536,7 +528,6 @@ mod tests {
     #[cfg(feature = "config")]
     #[test]
     fn longer_delimiters() {
-        let root = manifest_root();
         let raw_config = r#"
         [[syntax]]
         name = "emoji"
@@ -551,7 +542,7 @@ mod tests {
         default_syntax = "emoji"
         "#;
 
-        let config = Config::new(&root, raw_config, None, None, None, None).unwrap();
+        let config = Config::new(raw_config, None, None, None, None).unwrap();
         assert_eq!(config.default_syntax, "emoji");
 
         let foo = config.syntaxes.get("emoji").unwrap();
@@ -574,14 +565,12 @@ mod tests {
             }
         }
 
-        let root = manifest_root();
-
         let raw_config = r#"
         [[syntax]]
         name = "too_short"
         block_start = "<"
         "#;
-        let config = Config::new(&root, raw_config, None, None, None, None);
+        let config = Config::new(raw_config, None, None, None, None);
         assert_eq!(
             expect_err(config).msg,
             r#"delimiters must be at least two characters long. The opening block delimiter ("<") is too short"#,
@@ -592,7 +581,7 @@ mod tests {
         name = "contains_ws"
         block_start = " {{ "
         "#;
-        let config = Config::new(&root, raw_config, None, None, None, None);
+        let config = Config::new(raw_config, None, None, None, None);
         assert_eq!(
             expect_err(config).msg,
             r#"delimiters may not contain white spaces. The opening block delimiter (" {{ ") contains white spaces"#,
@@ -605,7 +594,7 @@ mod tests {
         expr_start = "{{$"
         comment_start = "{{#"
         "#;
-        let config = Config::new(&root, raw_config, None, None, None, None);
+        let config = Config::new(raw_config, None, None, None, None);
         assert_eq!(
             expect_err(config).msg,
             r#"an opening delimiter may not be the prefix of another delimiter. The block delimiter ("{{") clashes with the expression delimiter ("{{$")"#,
@@ -616,46 +605,41 @@ mod tests {
     #[should_panic]
     #[test]
     fn use_default_at_syntax_name() {
-        let root = manifest_root();
         let raw_config = r#"
         syntax = [{ name = "default" }]
         "#;
 
-        let _config = Config::new(&root, raw_config, None, None, None, None).unwrap();
+        let _config = Config::new(raw_config, None, None, None, None).unwrap();
     }
 
     #[cfg(feature = "config")]
     #[should_panic]
     #[test]
     fn duplicated_syntax_name_on_list() {
-        let root = manifest_root();
         let raw_config = r#"
         syntax = [{ name = "foo", block_start = "~<" },
                   { name = "foo", block_start = "%%" } ]
         "#;
 
-        let _config = Config::new(&root, raw_config, None, None, None, None).unwrap();
+        let _config = Config::new(raw_config, None, None, None, None).unwrap();
     }
 
     #[cfg(feature = "config")]
     #[should_panic]
     #[test]
     fn is_not_exist_default_syntax() {
-        let root = manifest_root();
         let raw_config = r#"
         [general]
         default_syntax = "foo"
         "#;
 
-        let _config = Config::new(&root, raw_config, None, None, None, None).unwrap();
+        let _config = Config::new(raw_config, None, None, None, None).unwrap();
     }
 
     #[cfg(feature = "config")]
     #[test]
     fn escape_modes() {
-        let root = manifest_root();
         let config = Config::new(
-            &root,
             r#"
             [[escaper]]
             path = "::my_filters::Js"
@@ -688,9 +672,7 @@ mod tests {
     #[cfg(feature = "config")]
     #[test]
     fn test_whitespace_parsing() {
-        let root = manifest_root();
         let config = Config::new(
-            &root,
             r#"
             [general]
             whitespace = "suppress"
@@ -703,11 +685,10 @@ mod tests {
         .unwrap();
         assert_eq!(config.whitespace, Whitespace::Suppress);
 
-        let config = Config::new(&root, r#""#, None, None, None, None).unwrap();
+        let config = Config::new(r#""#, None, None, None, None).unwrap();
         assert_eq!(config.whitespace, Whitespace::Preserve);
 
         let config = Config::new(
-            &root,
             r#"
             [general]
             whitespace = "preserve"
@@ -721,7 +702,6 @@ mod tests {
         assert_eq!(config.whitespace, Whitespace::Preserve);
 
         let config = Config::new(
-            &root,
             r#"
             [general]
             whitespace = "minimize"
@@ -738,13 +718,10 @@ mod tests {
     #[cfg(feature = "config")]
     #[test]
     fn test_whitespace_in_template() {
-        let root = manifest_root();
-
         // Checking that template arguments have precedence over general configuration.
         // So in here, in the template arguments, there is `whitespace = "minimize"` so
         // the `Whitespace` should be `Minimize` as well.
         let config = Config::new(
-            &root,
             r#"
             [general]
             whitespace = "suppress"
@@ -757,8 +734,7 @@ mod tests {
         .unwrap();
         assert_eq!(config.whitespace, Whitespace::Minimize);
 
-        let config =
-            Config::new(&root, r#""#, None, Some(Whitespace::Minimize), None, None).unwrap();
+        let config = Config::new(r#""#, None, Some(Whitespace::Minimize), None, None).unwrap();
         assert_eq!(config.whitespace, Whitespace::Minimize);
     }
 }
