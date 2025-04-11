@@ -12,6 +12,7 @@ use core::iter::{Enumerate, Peekable};
 use core::ops::Deref;
 use core::pin::Pin;
 
+use crate::Values;
 pub use crate::error::{ErrorMarker, ResultConverter};
 use crate::filters::FastWritable;
 pub use crate::values::get_value;
@@ -245,7 +246,7 @@ impl fmt::Display for Empty {
 
 impl FastWritable for Empty {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(&self, _: &mut W) -> crate::Result<()> {
+    fn write_into<W: fmt::Write + ?Sized>(&self, _: &mut W, _: &dyn Values) -> crate::Result<()> {
         Ok(())
     }
 }
@@ -267,9 +268,13 @@ impl<L: fmt::Display, R: fmt::Display> fmt::Display for Concat<L, R> {
 
 impl<L: FastWritable, R: FastWritable> FastWritable for Concat<L, R> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(&self, dest: &mut W) -> crate::Result<()> {
-        self.0.write_into(dest)?;
-        self.1.write_into(dest)
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn Values,
+    ) -> crate::Result<()> {
+        self.0.write_into(dest, values)?;
+        self.1.write_into(dest, values)
     }
 }
 

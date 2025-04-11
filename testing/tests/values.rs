@@ -88,3 +88,23 @@ fn test_value_function_getter() {
     values.insert("a".to_string(), Box::new(false));
     assert_eq!(V.render_with_values(&values).unwrap(), "");
 }
+
+#[test]
+fn test_value_in_subtemplates() {
+    #[derive(Template)]
+    #[template(source = r#"{{ Child }}"#, ext = "html")]
+    struct Parent;
+
+    #[derive(Template)]
+    #[template(
+        source = r#"Hello, {{ askama::get_value::<String>("who")? }}!"#,
+        ext = "html"
+    )]
+    struct Child;
+
+    let values: (&str, &dyn Any) = ("who", &"<world>".to_owned());
+    assert_eq!(
+        Parent.render_with_values(&values).unwrap(),
+        "Hello, &#38;#60;world&#38;#62;!", // sic: escaped twice
+    );
+}
