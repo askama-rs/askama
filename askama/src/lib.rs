@@ -406,8 +406,12 @@ mod tests {
 
         impl filters::FastWritable for Test {
             #[inline]
-            fn write_into<W: fmt::Write + ?Sized>(&self, f: &mut W) -> crate::Result<()> {
-                self.render_into(f)
+            fn write_into<W: fmt::Write + ?Sized>(
+                &self,
+                f: &mut W,
+                values: &dyn Values,
+            ) -> crate::Result<()> {
+                self.render_into_with_values(f, values)
             }
         }
 

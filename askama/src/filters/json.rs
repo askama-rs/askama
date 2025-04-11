@@ -8,6 +8,7 @@ use serde_json::ser::{CompactFormatter, PrettyFormatter, Serializer};
 
 use super::FastWritable;
 use crate::ascii_str::{AsciiChar, AsciiStr};
+use crate::{NO_VALUES, Values};
 
 /// Serialize to JSON (requires `json` feature)
 ///
@@ -188,7 +189,8 @@ where
 }
 
 impl<S: Serialize> FastWritable for ToJson<S> {
-    fn write_into<W: fmt::Write + ?Sized>(&self, f: &mut W) -> crate::Result<()> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(&self, f: &mut W, _: &dyn Values) -> crate::Result<()> {
         serialize(f, &self.value, CompactFormatter)
     }
 }
@@ -196,12 +198,13 @@ impl<S: Serialize> FastWritable for ToJson<S> {
 impl<S: Serialize> fmt::Display for ToJson<S> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Ok(self.write_into(f)?)
+        Ok(self.write_into(f, NO_VALUES)?)
     }
 }
 
 impl<S: Serialize, I: AsIndent> FastWritable for ToJsonPretty<S, I> {
-    fn write_into<W: fmt::Write + ?Sized>(&self, f: &mut W) -> crate::Result<()> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(&self, f: &mut W, _: &dyn Values) -> crate::Result<()> {
         serialize(
             f,
             &self.value,
@@ -213,11 +216,10 @@ impl<S: Serialize, I: AsIndent> FastWritable for ToJsonPretty<S, I> {
 impl<S: Serialize, I: AsIndent> fmt::Display for ToJsonPretty<S, I> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        Ok(self.write_into(f)?)
+        Ok(self.write_into(f, NO_VALUES)?)
     }
 }
 
-#[inline]
 fn serialize<S, W, F>(dest: &mut W, value: &S, formatter: F) -> Result<(), crate::Error>
 where
     S: Serialize + ?Sized,
