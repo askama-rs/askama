@@ -56,7 +56,7 @@ alloc = [
 blocks = ["askama_derive?/blocks"]
 code-in-doc = ["askama_derive?/code-in-doc"]
 config = ["askama_derive?/config"]
-derive = ["dep:askama_derive"]
+derive = ["askama_derive"]
 serde_json = ["std", "askama_derive?/serde_json", "dep:serde", "dep:serde_json"]
 std = [
     "alloc",
