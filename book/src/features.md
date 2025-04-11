@@ -9,7 +9,7 @@ you have to opt-in to the feature [`"serde_json"`](#serde_json):
 
 ```toml
 [dependencies]
-askama = { version = "0.13.0", features = ["serde_json"] }
+askama = { version = "0.13.1", features = ["serde_json"] }
 ```
 
 Please read the [Cargo manual](https://doc.rust-lang.org/cargo/reference/features.html#dependency-features)
@@ -28,7 +28,7 @@ You can opt-out of using the feature flags by using
 
 ```toml
 [dependencies]
-askama = { version = "0.13.0", default-features = false }
+askama = { version = "0.13.1", default-features = false }
 ```
 
 Without `default-features = false`, i.e with default features enabled,
