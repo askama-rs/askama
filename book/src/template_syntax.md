@@ -65,16 +65,6 @@ Like Rust, Askama also supports shadowing variables.
 
 For compatibility with Jinja, `set` can be used in place of `let`.
 
-### Borrow rules
-
-In some cases, the value of a variable initialization will be put behind a reference
-to prevent changing ownership. The rules are as follows:
-
- * If the value is an expression of more than one element (like `x + 2`), it WILL NOT BE put behind a reference.
- * If the value is a variable defined in the templates, it WILL NOT BE put behind a reference.
- * If the value has a filter applied to it (`x|capitalize`), it WILL NOT BE put behind a reference.
- * If the value is a field (`x.y`), it WILL BE put behind a reference.
-
 ## Filters
 
 Values such as those obtained from variables can be post-processed

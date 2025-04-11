@@ -41,8 +41,8 @@ Without the feature, `cargo` will be able to compile more dependencies in parall
 ```toml
 # Cargo.toml
 [dependencies]
-askama = { version = "0.13.0", default-features = false, features = ["std"] }
-askama_derive = { version = "0.13.0", features = ["std"] }
+askama = { version = "0.13.1", default-features = false, features = ["std"] }
+askama_derive = { version = "0.13.1", features = ["std"] }
 ```
 
 ```rust
