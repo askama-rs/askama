@@ -1059,7 +1059,8 @@ const JINJA_EXTENSIONS: &[&str] = &["askama", "j2", "jinja", "jinja2", "rinja"];
 
 #[test]
 fn get_source() {
-    let path = Config::new("", None, None, None, None)
+    let root = crate::config::manifest_root();
+    let path = Config::new(&root, "", None, None, None, None)
         .and_then(|config| config.find_template("b.html", None, None))
         .unwrap();
     assert_eq!(get_template_source(&path, None).unwrap(), "bar".into());
