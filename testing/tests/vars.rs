@@ -196,3 +196,29 @@ fn test_moving_local_vars() {
     };
     assert_eq!(x.render().unwrap(), "ABCDEFG");
 }
+
+// Ensure that if a variable initialization expression ends with a `?`, we don't put it behind
+// a reference.
+#[test]
+fn test_variable_from_question_mark_init_expr() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- let v2 = v.as_str().ok_or("error")? %}
+{%- if v2 == "foo" %}1{% endif -%}
+"#,
+        ext = "txt"
+    )]
+    struct X {
+        v: B,
+    }
+
+    struct B;
+    impl B {
+        fn as_str(&self) -> Option<&'static str> {
+            Some("foo")
+        }
+    }
+
+    assert_eq!(X { v: B }.render().unwrap(), "1");
+}
