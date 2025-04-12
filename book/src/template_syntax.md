@@ -74,6 +74,7 @@ to prevent changing ownership. The rules are as follows:
  * If the value is a variable defined in the templates, it WILL NOT BE put behind a reference.
  * If the value has a filter applied to it (`x|capitalize`), it WILL NOT BE put behind a reference.
  * If the value is a field (`x.y`), it WILL BE put behind a reference.
+ * If the expression ends with a question mark (like `x?`), it WILL NOT BE put behind a reference.
 
 ## Filters
 
