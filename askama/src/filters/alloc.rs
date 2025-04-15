@@ -1,8 +1,11 @@
-use alloc::format;
+use alloc::borrow::Cow;
 use alloc::string::String;
+use alloc::str;
 use core::cell::Cell;
 use core::convert::Infallible;
 use core::fmt::{self, Write};
+use core::ops::Deref;
+use core::pin::Pin;
 
 use super::escape::HtmlSafeOutput;
 use super::{FastWritable, MAX_LEN};
@@ -504,7 +507,7 @@ fn flush_trim(dest: &mut (impl fmt::Write + ?Sized), collector: TrimCollector) -
     dest.write_str(collector.0.trim_end())
 }
 
-/// Indent lines with `width` spaces
+/// Indent lines with spaces or a prefix
 ///
 /// ```
 /// # #[cfg(feature = "code-in-doc")] {
@@ -524,58 +527,74 @@ fn flush_trim(dest: &mut (impl fmt::Write + ?Sized), collector: TrimCollector) -
 /// );
 /// # }
 /// ```
+///
+/// ```
+/// # #[cfg(feature = "code-in-doc")] {
+/// # use askama::Template;
+/// /// ```jinja
+/// /// <div>{{ example|indent("$$$ ") }}</div>
+/// /// ```
+/// #[derive(Template)]
+/// #[template(ext = "html", in_doc = true)]
+/// struct Example<'a> {
+///     example: &'a str,
+/// }
+///
+/// assert_eq!(
+///     Example { example: "hello\nfoo\nbar" }.to_string(),
+///     "<div>hello\n$$$ foo\n$$$ bar</div>"
+/// );
+/// # }
+/// ```
 #[inline]
-pub fn indent<S: fmt::Display>(source: S, width: usize) -> Result<Indent<S>, Infallible> {
-    Ok(Indent { source, width })
+pub fn indent<S, I: AsIndent>(source: S, indent: I) -> Result<Indent<S, I>, Infallible> {
+    Ok(Indent { source, indent })
 }
 
-pub struct Indent<S> {
+pub struct Indent<S, I> {
     source: S,
-    width: usize,
+    indent: I,
 }
 
-impl<S: fmt::Display> fmt::Display for Indent<S> {
+impl<S: fmt::Display, I: AsIndent> fmt::Display for Indent<S, I> {
     fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self { ref source, width } = *self;
-        if width >= MAX_LEN || width == 0 {
+        let Self { source, indent } = self;
+        let indent = indent.as_indent();
+        if indent.len() >= MAX_LEN || indent.is_empty() {
             write!(dest, "{source}")
         } else {
             let mut buffer;
-            flush_indent(dest, width, try_to_str!(source => buffer))
+            flush_indent(dest, &indent, try_to_str!(source => buffer))
         }
     }
 }
 
-impl<S: FastWritable> FastWritable for Indent<S> {
+impl<S: FastWritable, I: AsIndent> FastWritable for Indent<S, I> {
     fn write_into<W: fmt::Write + ?Sized>(
         &self,
         dest: &mut W,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        let Self { ref source, width } = *self;
-        if width >= MAX_LEN || width == 0 {
+        let Self { ref source, indent } = self;
+        let indent = indent.as_indent();
+        if indent.len() >= MAX_LEN || indent.is_empty() {
             source.write_into(dest, values)
         } else {
             let mut buffer = String::new();
             source.write_into(&mut buffer, values)?;
-            Ok(flush_indent(dest, width, &buffer)?)
+            Ok(flush_indent(dest, &indent, &buffer)?)
         }
     }
 }
 
-fn flush_indent(dest: &mut (impl fmt::Write + ?Sized), width: usize, s: &str) -> fmt::Result {
+fn flush_indent(dest: &mut (impl fmt::Write + ?Sized), indent: &str, s: &str) -> fmt::Result {
     if s.len() >= MAX_LEN {
         return dest.write_str(s);
     }
 
-    let mut prefix = String::new();
     for (idx, line) in s.split_inclusive('\n').enumerate() {
         if idx > 0 {
-            // only allocate prefix if needed, i.e. not for single-line outputs
-            if prefix.is_empty() {
-                prefix = format!("{: >1$}", "", width);
-            }
-            dest.write_str(&prefix)?;
+            dest.write_str(indent)?;
         }
         dest.write_str(line)?;
     }
@@ -774,6 +793,92 @@ fn flush_title(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
         flush_capitalize(dest, word)?;
     }
     Ok(())
+}
+
+/// A prefix usable for indenting [prettified JSON data](json_pretty)
+///
+/// ```
+/// # use askama::filters::AsIndent;
+/// assert_eq!(4.as_indent(), "    ");
+/// assert_eq!(" -> ".as_indent(), " -> ");
+/// ```
+pub trait AsIndent {
+    /// Borrow `self` as prefix to use.
+    fn as_indent(&self) -> &str;
+}
+
+impl AsIndent for str {
+    #[inline]
+    fn as_indent(&self) -> &str {
+        self
+    }
+}
+
+#[cfg(feature = "alloc")]
+impl AsIndent for alloc::string::String {
+    #[inline]
+    fn as_indent(&self) -> &str {
+        self
+    }
+}
+
+impl AsIndent for usize {
+    #[inline]
+    fn as_indent(&self) -> &str {
+        spaces(*self)
+    }
+}
+
+impl AsIndent for std::num::Wrapping<usize> {
+    #[inline]
+    fn as_indent(&self) -> &str {
+        spaces(self.0)
+    }
+}
+
+impl AsIndent for std::num::NonZeroUsize {
+    #[inline]
+    fn as_indent(&self) -> &str {
+        spaces(self.get())
+    }
+}
+
+fn spaces(width: usize) -> &'static str {
+    const MAX_SPACES: usize = 16;
+    const SPACES: &str = match str::from_utf8(&[b' '; MAX_SPACES]) {
+        Ok(spaces) => spaces,
+        Err(_) => panic!(),
+    };
+
+    &SPACES[..width.min(SPACES.len())]
+}
+
+#[cfg(feature = "alloc")]
+impl<T: AsIndent + alloc::borrow::ToOwned + ?Sized> AsIndent for Cow<'_, T> {
+    #[inline]
+    fn as_indent(&self) -> &str {
+        T::as_indent(self)
+    }
+}
+
+crate::impl_for_ref! {
+    impl AsIndent for T {
+        #[inline]
+        fn as_indent(&self) -> &str {
+            <T>::as_indent(self)
+        }
+    }
+}
+
+impl<T> AsIndent for Pin<T>
+where
+    T: Deref,
+    <T as Deref>::Target: AsIndent,
+{
+    #[inline]
+    fn as_indent(&self) -> &str {
+        self.as_ref().get_ref().as_indent()
+    }
 }
 
 #[cfg(test)]

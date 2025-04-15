@@ -154,7 +154,7 @@ HELLO
 fn filter_block_chaining_paren_followed_by_whitespace() {
     #[derive(Template)]
     #[template(
-        source = r#"{% filter lower|indent(2) -%}
+        source = r#"{% filter lower|indent("> ") -%}
 HELLO
 {{v}}
 {%- endfilter %}
@@ -183,7 +183,7 @@ HELLO
     assert_eq!(
         template.render().unwrap(),
         r"hello
-  pika
+> pika
 
 hello
   pika
