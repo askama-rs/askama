@@ -603,7 +603,6 @@ pub(crate) use {fmt_left, fmt_right};
 const BUILTIN_FILTERS: &[&str] = &[
     "capitalize",
     "center",
-    "indent",
     "lower",
     "lowercase",
     "title",

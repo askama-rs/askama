@@ -1,7 +1,7 @@
 use std::fmt;
 
 use arbitrary::{Arbitrary, Unstructured};
-use askama::filters;
+use askama::filters::{self, AsIndent};
 
 #[derive(Arbitrary, Debug, Clone, Copy)]
 pub enum Scenario<'a> {
@@ -27,7 +27,11 @@ fn run_text(filter: Text<'_>) -> Result<(), askama::Error> {
     let _ = match filter {
         TextFilter::Capitalize => filters::capitalize(input)?.to_string(),
         TextFilter::Center(a) => filters::center(input, a)?.to_string(),
-        TextFilter::Indent(a) => filters::indent(input, a)?.to_string(),
+        TextFilter::Indent {
+            prefix,
+            first,
+            blank,
+        } => filters::indent(input, prefix, first, blank)?.to_string(),
         TextFilter::Linebreaks => filters::linebreaks(input)?.to_string(),
         TextFilter::LinebreaksBr => filters::linebreaksbr(input)?.to_string(),
         TextFilter::Lowercase => filters::lowercase(input)?.to_string(),
@@ -52,7 +56,13 @@ impl fmt::Display for Scenario<'_> {
         let text = match filter {
             TextFilter::Capitalize => format!("capitalize({input:?})"),
             TextFilter::Center(a) => format!("center({input:?}, {a:?})"),
-            TextFilter::Indent(a) => format!("indent({input:?}, {a:?})"),
+            TextFilter::Indent {
+                prefix,
+                first,
+                blank,
+            } => {
+                format!("indent({input:?}, {prefix}, {first:?}, {blank:?})")
+            }
             TextFilter::Linebreaks => format!("linebreaks({input:?})"),
             TextFilter::LinebreaksBr => format!("linebreaksbr({input:?})"),
             TextFilter::Lowercase => format!("lowercase({input:?})"),
@@ -85,14 +95,18 @@ fn test() {{
 #[derive(Arbitrary, Debug, Clone, Copy)]
 pub struct Text<'a> {
     input: &'a str,
-    filter: TextFilter,
+    filter: TextFilter<'a>,
 }
 
 #[derive(Arbitrary, Debug, Clone, Copy)]
-enum TextFilter {
+enum TextFilter<'a> {
     Capitalize,
     Center(usize),
-    Indent(usize),
+    Indent {
+        prefix: Prefix<'a>,
+        first: bool,
+        blank: bool,
+    },
     Linebreaks,
     LinebreaksBr,
     Lowercase,
@@ -104,6 +118,30 @@ enum TextFilter {
     Uppercase,
     Urlencode,
     UrlencodeStrict,
+}
+
+#[derive(Arbitrary, Debug, Clone, Copy)]
+enum Prefix<'a> {
+    Width(usize),
+    Prefix(&'a str),
+}
+
+impl std::fmt::Display for Prefix<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Prefix::Width(v) => write!(f, "{v:?}"),
+            Prefix::Prefix(v) => write!(f, "{v:?}"),
+        }
+    }
+}
+
+impl AsIndent for Prefix<'_> {
+    fn as_indent(&self) -> &str {
+        match self {
+            Prefix::Width(v) => v.as_indent(),
+            Prefix::Prefix(v) => v.as_indent(),
+        }
+    }
 }
 
 #[derive(Arbitrary, Debug, Clone, Copy)]

@@ -257,6 +257,7 @@ impl<'a> Generator<'a, '_> {
             "filesizeformat" => Self::_visit_humansize,
             "fmt" => Self::_visit_fmt_filter,
             "format" => Self::_visit_format_filter,
+            "indent" => Self::_visit_indent_filter,
             "join" => Self::_visit_join_filter,
             "json" | "tojson" => Self::_visit_json_filter,
             "linebreaks" => Self::_visit_linebreaks_filter,
@@ -572,6 +573,39 @@ impl<'a> Generator<'a, '_> {
         buf.write(format_args!("askama::filters::{filter}("));
         self._visit_args(ctx, buf, args)?;
         buf.write(")?");
+        Ok(DisplayWrap::Unwrapped)
+    }
+
+    fn _visit_indent_filter(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[WithSpan<'_, Expr<'a>>],
+        node: Span<'_>,
+    ) -> Result<DisplayWrap, CompileError> {
+        const FALSE: &WithSpan<'static, Expr<'static>> =
+            &WithSpan::new_without_span(Expr::BoolLit(false));
+
+        ensure_filter_has_feature_alloc(ctx, "indent", node)?;
+        let (source, indent, first, blank) =
+            match args {
+                [source, indent] => (source, indent, FALSE, FALSE),
+                [source, indent, first] => (source, indent, first, FALSE),
+                [source, indent, first, blank] => (source, indent, first, blank),
+                _ => return Err(ctx.generate_error(
+                    "filter `indent` needs a `width` argument, and can have two optional arguments",
+                    node,
+                )),
+            };
+        buf.write("askama::filters::indent(");
+        self._visit_arg(ctx, buf, source)?;
+        buf.write(",");
+        self._visit_arg(ctx, buf, indent)?;
+        buf.write(", askama::helpers::as_bool(&(");
+        self._visit_arg(ctx, buf, first)?;
+        buf.write(")), askama::helpers::as_bool(&(");
+        self._visit_arg(ctx, buf, blank)?;
+        buf.write(")))?");
         Ok(DisplayWrap::Unwrapped)
     }
 

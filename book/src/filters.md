@@ -173,6 +173,24 @@ hello
     bar
 ```
 
+The first argument can also be a string that will be used to indent lines.
+
+The first line and blank lines are not indented by default.
+The filter has two optional [`bool`] arguments `first` and `blank`, that can be set to `true`
+to indent the first and blank lines, resp.:
+
+```jinja
+{{ "hello\n\nbar" | indent("$ ", true, true) }}
+```
+
+Output:
+
+```text
+$ hello
+$ 
+$ bar
+```
+
 ### join
 [#join]: #join
 

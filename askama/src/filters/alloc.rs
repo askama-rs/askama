@@ -1,6 +1,6 @@
 use alloc::borrow::Cow;
-use alloc::string::String;
 use alloc::str;
+use alloc::string::String;
 use core::cell::Cell;
 use core::convert::Infallible;
 use core::fmt::{self, Write};
@@ -507,7 +507,13 @@ fn flush_trim(dest: &mut (impl fmt::Write + ?Sized), collector: TrimCollector) -
     dest.write_str(collector.0.trim_end())
 }
 
-/// Indent lines with spaces or a prefix
+/// Indent lines with spaces or a prefix.
+///
+/// The first line and blank lines are not indented by default.
+/// The filter has two optional [`bool`] arguments, `first` and `blank`, that can be set to `true`
+/// to indent the first and blank lines, resp.
+///
+/// ### Example of `indent` with spaces
 ///
 /// ```
 /// # #[cfg(feature = "code-in-doc")] {
@@ -528,6 +534,8 @@ fn flush_trim(dest: &mut (impl fmt::Write + ?Sized), collector: TrimCollector) -
 /// # }
 /// ```
 ///
+/// ### Example of `indent` with prefix a custom prefix
+///
 /// ```
 /// # #[cfg(feature = "code-in-doc")] {
 /// # use askama::Template;
@@ -547,24 +555,36 @@ fn flush_trim(dest: &mut (impl fmt::Write + ?Sized), collector: TrimCollector) -
 /// # }
 /// ```
 #[inline]
-pub fn indent<S, I: AsIndent>(source: S, indent: I) -> Result<Indent<S, I>, Infallible> {
-    Ok(Indent { source, indent })
+pub fn indent<S, I: AsIndent>(
+    source: S,
+    indent: I,
+    first: bool,
+    blank: bool,
+) -> Result<Indent<S, I>, Infallible> {
+    Ok(Indent {
+        source,
+        indent,
+        first,
+        blank,
+    })
 }
 
 pub struct Indent<S, I> {
     source: S,
     indent: I,
+    first: bool,
+    blank: bool,
 }
 
 impl<S: fmt::Display, I: AsIndent> fmt::Display for Indent<S, I> {
     fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let Self { source, indent } = self;
-        let indent = indent.as_indent();
+        let indent = self.indent.as_indent();
         if indent.len() >= MAX_LEN || indent.is_empty() {
-            write!(dest, "{source}")
+            write!(dest, "{}", self.source)
         } else {
             let mut buffer;
-            flush_indent(dest, &indent, try_to_str!(source => buffer))
+            let buffer = try_to_str!(self.source => buffer);
+            flush_indent(dest, indent, buffer, self.first, self.blank)
         }
     }
 }
@@ -575,25 +595,30 @@ impl<S: FastWritable, I: AsIndent> FastWritable for Indent<S, I> {
         dest: &mut W,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        let Self { ref source, indent } = self;
-        let indent = indent.as_indent();
+        let indent = self.indent.as_indent();
         if indent.len() >= MAX_LEN || indent.is_empty() {
-            source.write_into(dest, values)
+            self.source.write_into(dest, values)
         } else {
             let mut buffer = String::new();
-            source.write_into(&mut buffer, values)?;
-            Ok(flush_indent(dest, &indent, &buffer)?)
+            self.source.write_into(&mut buffer, values)?;
+            Ok(flush_indent(dest, indent, &buffer, self.first, self.blank)?)
         }
     }
 }
 
-fn flush_indent(dest: &mut (impl fmt::Write + ?Sized), indent: &str, s: &str) -> fmt::Result {
+fn flush_indent(
+    dest: &mut (impl fmt::Write + ?Sized),
+    indent: &str,
+    s: &str,
+    first: bool,
+    blank: bool,
+) -> fmt::Result {
     if s.len() >= MAX_LEN {
         return dest.write_str(s);
     }
 
     for (idx, line) in s.split_inclusive('\n').enumerate() {
-        if idx > 0 {
+        if (first || idx > 0) && (blank || !matches!(line, "\n" | "\r\n")) {
             dest.write_str(indent)?;
         }
         dest.write_str(line)?;
@@ -795,7 +820,8 @@ fn flush_title(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
     Ok(())
 }
 
-/// A prefix usable for indenting [prettified JSON data](json_pretty)
+/// A prefix usable for indenting [prettified JSON data](super::json::json_pretty) and
+/// [`|indent`](indent)
 ///
 /// ```
 /// # use askama::filters::AsIndent;
@@ -829,14 +855,14 @@ impl AsIndent for usize {
     }
 }
 
-impl AsIndent for std::num::Wrapping<usize> {
+impl AsIndent for core::num::Wrapping<usize> {
     #[inline]
     fn as_indent(&self) -> &str {
         spaces(self.0)
     }
 }
 
-impl AsIndent for std::num::NonZeroUsize {
+impl AsIndent for core::num::NonZeroUsize {
     #[inline]
     fn as_indent(&self) -> &str {
         spaces(self.get())
@@ -884,6 +910,7 @@ where
 #[cfg(test)]
 mod tests {
     use alloc::string::ToString;
+    use std::borrow::ToOwned;
 
     use super::*;
     use crate::NO_VALUES;
@@ -950,16 +977,117 @@ mod tests {
 
     #[test]
     fn test_indent() {
-        assert_eq!(indent("hello", 2).unwrap().to_string(), "hello");
-        assert_eq!(indent("hello\n", 2).unwrap().to_string(), "hello\n");
-        assert_eq!(indent("hello\nfoo", 2).unwrap().to_string(), "hello\n  foo");
         assert_eq!(
-            indent("hello\nfoo\n bar", 4).unwrap().to_string(),
+            indent("hello", 2, false, false).unwrap().to_string(),
+            "hello"
+        );
+        assert_eq!(
+            indent("hello\n", 2, false, false).unwrap().to_string(),
+            "hello\n"
+        );
+        assert_eq!(
+            indent("hello\nfoo", 2, false, false).unwrap().to_string(),
+            "hello\n  foo"
+        );
+        assert_eq!(
+            indent("hello\nfoo\n bar", 4, false, false)
+                .unwrap()
+                .to_string(),
             "hello\n    foo\n     bar"
         );
         assert_eq!(
-            indent("hello", 267_332_238_858).unwrap().to_string(),
+            indent("hello", 267_332_238_858, false, false)
+                .unwrap()
+                .to_string(),
             "hello"
+        );
+
+        assert_eq!(
+            indent("hello\n\n bar", 4, false, false)
+                .unwrap()
+                .to_string(),
+            "hello\n\n     bar"
+        );
+        assert_eq!(
+            indent("hello\n\n bar", 4, false, true).unwrap().to_string(),
+            "hello\n    \n     bar"
+        );
+        assert_eq!(
+            indent("hello\n\n bar", 4, true, false).unwrap().to_string(),
+            "    hello\n\n     bar"
+        );
+        assert_eq!(
+            indent("hello\n\n bar", 4, true, true).unwrap().to_string(),
+            "    hello\n    \n     bar"
+        );
+    }
+
+    #[test]
+    fn test_indent_str() {
+        assert_eq!(
+            indent("hello\n\n bar", "❗❓", false, false)
+                .unwrap()
+                .to_string(),
+            "hello\n\n❗❓ bar"
+        );
+        assert_eq!(
+            indent("hello\n\n bar", "❗❓", false, true)
+                .unwrap()
+                .to_string(),
+            "hello\n❗❓\n❗❓ bar"
+        );
+        assert_eq!(
+            indent("hello\n\n bar", "❗❓", true, false)
+                .unwrap()
+                .to_string(),
+            "❗❓hello\n\n❗❓ bar"
+        );
+        assert_eq!(
+            indent("hello\n\n bar", "❗❓", true, true)
+                .unwrap()
+                .to_string(),
+            "❗❓hello\n❗❓\n❗❓ bar"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::arc_with_non_send_sync)] // it's only a test, it does not have to make sense
+    #[allow(clippy::type_complexity)] // it's only a test, it does not have to be pretty
+    fn test_indent_complicated() {
+        use std::boxed::Box;
+        use std::cell::{RefCell, RefMut};
+        use std::rc::Rc;
+        use std::sync::{Arc, Mutex, MutexGuard, RwLock, RwLockWriteGuard};
+
+        let prefix = Mutex::new(Box::pin("❗❓".to_owned()));
+        let prefix = RefCell::new(Arc::new(prefix.try_lock().unwrap()));
+        let prefix = RwLock::new(Rc::new(prefix.borrow_mut()));
+        let prefix: RwLockWriteGuard<'_, Rc<RefMut<'_, Arc<MutexGuard<'_, Pin<Box<String>>>>>>> =
+            prefix.try_write().unwrap();
+
+        assert_eq!(
+            indent("hello\n\n bar", &prefix, false, false)
+                .unwrap()
+                .to_string(),
+            "hello\n\n❗❓ bar"
+        );
+        assert_eq!(
+            indent("hello\n\n bar", &prefix, false, true)
+                .unwrap()
+                .to_string(),
+            "hello\n❗❓\n❗❓ bar"
+        );
+        assert_eq!(
+            indent("hello\n\n bar", &prefix, true, false)
+                .unwrap()
+                .to_string(),
+            "❗❓hello\n\n❗❓ bar"
+        );
+        assert_eq!(
+            indent("hello\n\n bar", &prefix, true, true)
+                .unwrap()
+                .to_string(),
+            "❗❓hello\n❗❓\n❗❓ bar"
         );
     }
 
@@ -1023,6 +1151,6 @@ mod tests {
     #[test]
     fn fuzzed_indent_filter() {
         let s = "hello\nfoo\nbar".to_string().repeat(1024);
-        assert_eq!(indent(s.clone(), 4).unwrap().to_string(), s);
+        assert_eq!(indent(s.clone(), 4, false, false).unwrap().to_string(), s);
     }
 }
