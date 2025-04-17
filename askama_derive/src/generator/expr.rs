@@ -239,7 +239,7 @@ impl<'a> Generator<'a, '_> {
         DisplayWrap::Unwrapped
     }
 
-    pub(super) fn _visit_value(
+    pub(super) fn visit_value(
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
@@ -265,12 +265,12 @@ impl<'a> Generator<'a, '_> {
         self.visit_ty_generic(buf, gen);
         buf.write('>');
         buf.write("(&__askama_values, &(");
-        self._visit_arg(ctx, buf, key)?;
+        self.visit_arg(ctx, buf, key)?;
         buf.write("))");
         Ok(DisplayWrap::Unwrapped)
     }
 
-    pub(super) fn _visit_args(
+    pub(super) fn visit_args(
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
@@ -280,21 +280,21 @@ impl<'a> Generator<'a, '_> {
             if i > 0 {
                 buf.write(',');
             }
-            self._visit_arg(ctx, buf, arg)?;
+            self.visit_arg(ctx, buf, arg)?;
         }
         Ok(())
     }
 
-    pub(super) fn _visit_arg(
+    pub(super) fn visit_arg(
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
         arg: &WithSpan<'_, Expr<'a>>,
     ) -> Result<(), CompileError> {
-        self._visit_arg_inner(ctx, buf, arg, false)
+        self.visit_arg_inner(ctx, buf, arg, false)
     }
 
-    fn _visit_arg_inner(
+    fn visit_arg_inner(
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
@@ -305,7 +305,7 @@ impl<'a> Generator<'a, '_> {
     ) -> Result<(), CompileError> {
         if let Expr::Unary(expr @ ("*" | "&"), ref arg) = **arg {
             buf.write(expr);
-            return self._visit_arg_inner(ctx, buf, arg, true);
+            return self.visit_arg_inner(ctx, buf, arg, true);
         }
         let borrow = need_borrow || !is_copyable(arg);
         if borrow {
@@ -327,7 +327,7 @@ impl<'a> Generator<'a, '_> {
         Ok(())
     }
 
-    pub(super) fn _visit_auto_escaped_arg(
+    pub(super) fn visit_auto_escaped_arg(
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
@@ -343,7 +343,7 @@ impl<'a> Generator<'a, '_> {
             }
         } else {
             buf.write("(&&askama::filters::AutoEscaper::new(");
-            self._visit_arg(ctx, buf, arg)?;
+            self.visit_arg(ctx, buf, arg)?;
             buf.write(format_args!(
                 ", {})).askama_auto_escape()?",
                 self.input.escaper
@@ -497,7 +497,7 @@ impl<'a> Generator<'a, '_> {
             }
             // We special-case "askama::get_value".
             Expr::Path(path) if path == &["askama", "get_value"] => {
-                self._visit_value(
+                self.visit_value(
                     ctx,
                     buf,
                     args,
@@ -518,7 +518,7 @@ impl<'a> Generator<'a, '_> {
                 }
                 self.visit_call_generics(buf, generics);
                 buf.write('(');
-                self._visit_args(ctx, buf, args)?;
+                self.visit_args(ctx, buf, args)?;
                 buf.write(')');
             }
         }
