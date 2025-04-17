@@ -1,4 +1,5 @@
 mod expr;
+mod filter;
 mod node;
 
 use std::borrow::Cow;
