@@ -16,7 +16,7 @@ impl<'a> Generator<'a, '_> {
     pub(crate) fn visit_expr_root(
         &mut self,
         ctx: &Context<'_>,
-        expr: &WithSpan<'_, Expr<'a>>,
+        expr: &WithSpan<'a, Expr<'a>>,
     ) -> Result<String, CompileError> {
         let mut buf = Buffer::new();
         self.visit_expr(ctx, &mut buf, expr)?;
@@ -27,7 +27,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'_, Expr<'a>>,
+        expr: &WithSpan<'a, Expr<'a>>,
     ) -> Result<DisplayWrap, CompileError> {
         Ok(match **expr {
             Expr::BoolLit(s) => self.visit_bool_lit(buf, s),
@@ -79,7 +79,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'_, Expr<'a>>,
+        expr: &WithSpan<'a, Expr<'a>>,
     ) -> Result<DisplayWrap, CompileError> {
         match **expr {
             Expr::BinOp(op @ ("||" | "&&"), ref left, _) => {
@@ -100,7 +100,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'_, Expr<'a>>,
+        expr: &WithSpan<'a, Expr<'a>>,
         prev_display_wrap: DisplayWrap,
     ) -> Result<DisplayWrap, CompileError> {
         match **expr {
@@ -119,7 +119,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'_, Expr<'a>>,
+        expr: &WithSpan<'a, Expr<'a>>,
     ) -> Result<(), CompileError> {
         match &**expr {
             Expr::BoolLit(_) | Expr::IsDefined(_) | Expr::IsNotDefined(_) => {
@@ -168,7 +168,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'_, Expr<'a>>,
+        expr: &WithSpan<'a, Expr<'a>>,
         target: &str,
     ) -> Result<DisplayWrap, CompileError> {
         buf.write("askama::helpers::get_primitive_value(&(");
@@ -183,7 +183,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        exprs: &[WithSpan<'_, Expr<'a>>],
+        exprs: &[WithSpan<'a, Expr<'a>>],
     ) -> Result<DisplayWrap, CompileError> {
         match exprs {
             [] => unreachable!(),
@@ -204,7 +204,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        cond: &WithSpan<'_, CondTest<'a>>,
+        cond: &WithSpan<'a, CondTest<'a>>,
     ) -> Result<DisplayWrap, CompileError> {
         let mut expr_buf = Buffer::new();
         let display_wrap = self.visit_expr_first(ctx, &mut expr_buf, &cond.expr)?;
@@ -220,7 +220,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'_, Expr<'a>>,
+        expr: &WithSpan<'a, Expr<'a>>,
     ) -> Result<DisplayWrap, CompileError> {
         buf.write("match (");
         self.visit_expr(ctx, buf, expr)?;
@@ -243,8 +243,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
-        generics: &[WithSpan<'_, TyGenerics<'_>>],
+        args: &[WithSpan<'a, Expr<'a>>],
+        generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
         kind: &str,
     ) -> Result<DisplayWrap, CompileError> {
@@ -274,7 +274,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
     ) -> Result<(), CompileError> {
         for (i, arg) in args.iter().enumerate() {
             if i > 0 {
@@ -289,7 +289,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        arg: &WithSpan<'_, Expr<'a>>,
+        arg: &WithSpan<'a, Expr<'a>>,
     ) -> Result<(), CompileError> {
         self.visit_arg_inner(ctx, buf, arg, false)
     }
@@ -298,7 +298,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        arg: &WithSpan<'_, Expr<'a>>,
+        arg: &WithSpan<'a, Expr<'a>>,
         // This parameter is needed because even though Expr::Unary is not copyable, we might still
         // be able to skip a few levels.
         need_borrow: bool,
@@ -331,7 +331,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        arg: &WithSpan<'_, Expr<'a>>,
+        arg: &WithSpan<'a, Expr<'a>>,
     ) -> Result<(), CompileError> {
         if let Some(Writable::Lit(arg)) = compile_time_escape(arg, self.input.escaper) {
             if !arg.is_empty() {
@@ -356,8 +356,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        obj: &WithSpan<'_, Expr<'a>>,
-        attr: &Attr<'_>,
+        obj: &WithSpan<'a, Expr<'a>>,
+        attr: &Attr<'a>,
     ) -> Result<DisplayWrap, CompileError> {
         if let Expr::Var(name) = **obj {
             if name == "loop" {
@@ -387,7 +387,7 @@ impl<'a> Generator<'a, '_> {
     pub(super) fn visit_call_generics(
         &mut self,
         buf: &mut Buffer,
-        generics: &[WithSpan<'_, TyGenerics<'_>>],
+        generics: &[WithSpan<'a, TyGenerics<'a>>],
     ) {
         if generics.is_empty() {
             return;
@@ -396,7 +396,7 @@ impl<'a> Generator<'a, '_> {
         self.visit_ty_generics(buf, generics);
     }
 
-    fn visit_ty_generics(&mut self, buf: &mut Buffer, generics: &[WithSpan<'_, TyGenerics<'_>>]) {
+    fn visit_ty_generics(&mut self, buf: &mut Buffer, generics: &[WithSpan<'a, TyGenerics<'a>>]) {
         if generics.is_empty() {
             return;
         }
@@ -411,7 +411,7 @@ impl<'a> Generator<'a, '_> {
     pub(super) fn visit_ty_generic(
         &mut self,
         buf: &mut Buffer,
-        generic: &WithSpan<'_, TyGenerics<'_>>,
+        generic: &WithSpan<'a, TyGenerics<'a>>,
     ) {
         let TyGenerics { refs, path, args } = &**generic;
         for _ in 0..*refs {
@@ -425,8 +425,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        obj: &WithSpan<'_, Expr<'a>>,
-        key: &WithSpan<'_, Expr<'a>>,
+        obj: &WithSpan<'a, Expr<'a>>,
+        key: &WithSpan<'a, Expr<'a>>,
     ) -> Result<DisplayWrap, CompileError> {
         buf.write('&');
         self.visit_expr(ctx, buf, obj)?;
@@ -440,9 +440,9 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        left: &WithSpan<'_, Expr<'a>>,
-        args: &[WithSpan<'_, Expr<'a>>],
-        generics: &[WithSpan<'_, TyGenerics<'_>>],
+        left: &WithSpan<'a, Expr<'a>>,
+        args: &[WithSpan<'a, Expr<'a>>],
+        generics: &[WithSpan<'a, TyGenerics<'a>>],
     ) -> Result<DisplayWrap, CompileError> {
         match &**left {
             Expr::Attr(sub_left, Attr { name, .. }) if ***sub_left == Expr::Var("loop") => {
@@ -530,7 +530,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         op: &str,
-        inner: &WithSpan<'_, Expr<'a>>,
+        inner: &WithSpan<'a, Expr<'a>>,
     ) -> Result<DisplayWrap, CompileError> {
         buf.write(op);
         self.visit_expr(ctx, buf, inner)?;
@@ -542,8 +542,8 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         op: &str,
-        left: Option<&WithSpan<'_, Expr<'a>>>,
-        right: Option<&WithSpan<'_, Expr<'a>>>,
+        left: Option<&WithSpan<'a, Expr<'a>>>,
+        right: Option<&WithSpan<'a, Expr<'a>>>,
     ) -> Result<DisplayWrap, CompileError> {
         if let Some(left) = left {
             self.visit_expr(ctx, buf, left)?;
@@ -560,8 +560,8 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         op: &str,
-        left: &WithSpan<'_, Expr<'a>>,
-        right: &WithSpan<'_, Expr<'a>>,
+        left: &WithSpan<'a, Expr<'a>>,
+        right: &WithSpan<'a, Expr<'a>>,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_expr(ctx, buf, left)?;
         buf.write(format_args!(" {op} "));
@@ -573,7 +573,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        inner: &WithSpan<'_, Expr<'a>>,
+        inner: &WithSpan<'a, Expr<'a>>,
     ) -> Result<DisplayWrap, CompileError> {
         buf.write('(');
         self.visit_expr(ctx, buf, inner)?;
@@ -585,7 +585,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        exprs: &[WithSpan<'_, Expr<'a>>],
+        exprs: &[WithSpan<'a, Expr<'a>>],
     ) -> Result<DisplayWrap, CompileError> {
         buf.write('(');
         for (index, expr) in exprs.iter().enumerate() {
@@ -603,7 +603,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'_, Expr<'a>>,
+        expr: &WithSpan<'a, Expr<'a>>,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_expr(ctx, buf, expr)?;
         Ok(DisplayWrap::Unwrapped)
@@ -613,7 +613,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        elements: &[WithSpan<'_, Expr<'a>>],
+        elements: &[WithSpan<'a, Expr<'a>>],
     ) -> Result<DisplayWrap, CompileError> {
         buf.write('[');
         for (i, el) in elements.iter().enumerate() {
