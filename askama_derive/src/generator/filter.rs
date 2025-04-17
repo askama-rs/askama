@@ -13,8 +13,8 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: &str,
-        args: &[WithSpan<'_, Expr<'a>>],
-        generics: &[WithSpan<'_, TyGenerics<'_>>],
+        args: &[WithSpan<'a, Expr<'a>>],
+        generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         let filter = match name {
@@ -53,8 +53,8 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: &str,
-        args: &[WithSpan<'_, Expr<'a>>],
-        generics: &[WithSpan<'_, TyGenerics<'_>>],
+        args: &[WithSpan<'a, Expr<'a>>],
+        generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         if BUILTIN_FILTERS_NEED_ALLOC.contains(&name) {
@@ -78,8 +78,8 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: &str,
-        args: &[WithSpan<'_, Expr<'a>>],
-        generics: &[WithSpan<'_, TyGenerics<'_>>],
+        args: &[WithSpan<'a, Expr<'a>>],
+        generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         if !generics.is_empty() {
@@ -99,7 +99,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_urlencode_filter_inner(ctx, buf, "urlencode", args, node)
@@ -109,7 +109,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_urlencode_filter_inner(ctx, buf, "urlencode_strict", args, node)
@@ -120,7 +120,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: &str,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         if cfg!(not(feature = "urlencode")) {
@@ -143,7 +143,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, "wordcount", node)?;
@@ -174,7 +174,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         _node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         // All filters return numbers, and any default formatted number is HTML safe.
@@ -191,7 +191,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         const SINGULAR: &WithSpan<'static, Expr<'static>> =
@@ -234,7 +234,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_linebreaks_filters(ctx, buf, "paragraphbreaks", args, node)
@@ -244,7 +244,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_linebreaks_filters(ctx, buf, "linebreaksbr", args, node)
@@ -254,7 +254,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_linebreaks_filters(ctx, buf, "linebreaks", args, node)
@@ -265,7 +265,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: &str,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, name, node)?;
@@ -289,7 +289,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         let arg = match args {
@@ -305,7 +305,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         let arg = match args {
@@ -321,7 +321,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         if cfg!(not(feature = "serde_json")) {
@@ -346,7 +346,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         const FALSE: &WithSpan<'static, Expr<'static>> =
@@ -379,7 +379,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         if args.len() != 1 {
@@ -395,7 +395,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         if args.len() > 2 {
@@ -455,7 +455,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, "format", node)?;
@@ -478,7 +478,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, "fmt", node)?;
@@ -500,7 +500,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'_, Expr<'a>>],
+        args: &[WithSpan<'a, Expr<'a>>],
         _node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         buf.write("askama::filters::join((&");
