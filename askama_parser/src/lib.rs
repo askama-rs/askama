@@ -1037,7 +1037,7 @@ fn filter<'a>(
     cut_err((
         ws(identifier),
         opt(|i: &mut _| expr::call_generics(i, level)).map(|generics| generics.unwrap_or_default()),
-        opt(|i: &mut _| Expr::arguments(i, level, false)),
+        opt(|i: &mut _| Expr::arguments(i, level, true)),
     ))
     .parse_next(i)
 }

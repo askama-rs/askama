@@ -1,4 +1,4 @@
-error: filter `truncate` needs one argument, the `length`
+error: `length` argument is missing when calling `truncate` filter; its arguments are: (length)
  --> NoArgument.html:1:3
        "text | truncate }}"
  --> tests/ui/truncate.rs:4:21
@@ -6,9 +6,9 @@ error: filter `truncate` needs one argument, the `length`
 4 | #[template(source = r#"{{ text | truncate }}"#, ext = "html")]
   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: filter `truncate` needs one argument, the `length`
- --> TooManyArguments.html:1:3
-       "text | truncate(length, extra) }}"
+error: `truncate` filter accepts at most 1 argument; its arguments are: (length)
+ --> TooManyArguments.html:1:27
+       "extra) }}"
   --> tests/ui/truncate.rs:17:21
    |
 17 | #[template(source = r#"{{ text | truncate(length, extra) }}"#, ext = "html")]

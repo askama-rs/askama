@@ -65,6 +65,7 @@ impl<'a> Generator<'a, '_> {
             Expr::As(ref expr, target) => self.visit_as(ctx, buf, expr, target)?,
             Expr::Concat(ref exprs) => self.visit_concat(ctx, buf, exprs)?,
             Expr::LetCond(ref cond) => self.visit_let_cond(ctx, buf, cond)?,
+            Expr::ArgumentPlaceholder => DisplayWrap::Unwrapped,
         })
     }
 

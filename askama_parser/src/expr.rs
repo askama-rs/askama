@@ -93,6 +93,10 @@ fn check_expr<'a>(
             }
             Ok(())
         }
+        Expr::ArgumentPlaceholder => Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            "unreachable",
+            expr.span,
+        ))),
     }
 }
 
@@ -137,6 +141,9 @@ pub enum Expr<'a> {
     Concat(Vec<WithSpan<'a, Expr<'a>>>),
     /// If you have `&& let Some(y)`, this variant handles it.
     LetCond(Box<WithSpan<'a, CondTest<'a>>>),
+    /// This variant should never be used directly.
+    /// It is used for the handling of named arguments in the generator, esp. with filters.
+    ArgumentPlaceholder,
 }
 
 impl<'a> Expr<'a> {
@@ -526,7 +533,8 @@ impl<'a> Expr<'a> {
             | Self::BinOp(_, _, _)
             | Self::Path(_)
             | Self::Concat(_)
-            | Self::LetCond(_) => false,
+            | Self::LetCond(_)
+            | Self::ArgumentPlaceholder => false,
         }
     }
 }

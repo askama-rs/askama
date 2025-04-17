@@ -207,7 +207,8 @@ impl<'a> Generator<'a, '_> {
             | Expr::FilterSource
             | Expr::As(_, _)
             | Expr::Concat(_)
-            | Expr::LetCond(_) => {
+            | Expr::LetCond(_)
+            | Expr::ArgumentPlaceholder => {
                 *only_contains_is_defined = false;
                 (EvaluatedResult::Unknown, WithSpan::new(expr, span))
             }
@@ -1559,5 +1560,6 @@ fn is_cacheable(expr: &WithSpan<'_, Expr<'_>>) -> bool {
         Expr::RustMacro(_, _) => false,
         // Should never be encountered:
         Expr::FilterSource => unreachable!("FilterSource in expression?"),
+        Expr::ArgumentPlaceholder => unreachable!("ExpressionPlaceholder in expression?"),
     }
 }

@@ -1,11 +1,13 @@
 use std::borrow::Cow;
+use std::fmt::{self, Write};
+use std::mem::replace;
 
 use parser::{Expr, IntKind, Num, Span, StrLit, StrPrefix, TyGenerics, WithSpan};
 
 use super::{DisplayWrap, Generator, TargetIsize, TargetUsize};
 use crate::heritage::Context;
 use crate::integration::Buffer;
-use crate::{CompileError, MsgValidEscapers};
+use crate::{CompileError, MsgValidEscapers, fmt_left, fmt_right};
 
 impl<'a> Generator<'a, '_> {
     pub(super) fn visit_filter(
@@ -60,8 +62,9 @@ impl<'a> Generator<'a, '_> {
         name: &str,
         args: &[WithSpan<'a, Expr<'a>>],
         generics: &[WithSpan<'a, TyGenerics<'a>>],
-        _node: Span<'_>,
+        node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
+        ensure_no_named_arguments(ctx, name, args, node)?;
         buf.write(format_args!("filters::{name}"));
         self.visit_call_generics(buf, generics);
         buf.write('(');
@@ -111,10 +114,11 @@ impl<'a> Generator<'a, '_> {
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_no_generics(ctx, name, node, generics)?;
+        let arg = no_arguments(ctx, name, args)?;
         buf.write(format_args!("askama::filters::{name}"));
         self.visit_call_generics(buf, generics);
         buf.write('(');
-        self.visit_args(ctx, buf, args)?;
+        self.visit_arg(ctx, buf, arg)?;
         buf.write(")?");
         Ok(DisplayWrap::Unwrapped)
     }
@@ -154,11 +158,12 @@ impl<'a> Generator<'a, '_> {
             ));
         }
 
+        let arg = no_arguments(ctx, name, args)?;
         // Both filters return HTML-safe strings.
         buf.write(format_args!(
             "askama::filters::HtmlSafeOutput(askama::filters::{name}(",
         ));
-        self.visit_args(ctx, buf, args)?;
+        self.visit_arg(ctx, buf, arg)?;
         buf.write(")?)");
         Ok(DisplayWrap::Unwrapped)
     }
@@ -171,15 +176,10 @@ impl<'a> Generator<'a, '_> {
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, "wordcount", node)?;
-        if args.len() != 1 {
-            return Err(ctx.generate_error(
-                format_args!("unexpected argument(s) in `wordcount` filter"),
-                node,
-            ));
-        }
 
+        let arg = no_arguments(ctx, "wordcount", args)?;
         buf.write("match askama::filters::wordcount(&(");
-        self.visit_args(ctx, buf, args)?;
+        self.visit_arg(ctx, buf, arg)?;
         buf.write(
             ")) {\
                 expr0 => {\
@@ -201,12 +201,13 @@ impl<'a> Generator<'a, '_> {
         args: &[WithSpan<'a, Expr<'a>>],
         _node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
+        let arg = no_arguments(ctx, "humansize", args)?;
         // All filters return numbers, and any default formatted number is HTML safe.
         buf.write(format_args!(
             "askama::filters::HtmlSafeOutput(askama::filters::filesizeformat(\
                  askama::helpers::get_primitive_value(&("
         ));
-        self.visit_args(ctx, buf, args)?;
+        self.visit_arg(ctx, buf, arg)?;
         buf.write(")) as askama::helpers::core::primitive::f32)?)");
         Ok(DisplayWrap::Unwrapped)
     }
@@ -228,17 +229,20 @@ impl<'a> Generator<'a, '_> {
                 prefix: None,
                 content: "s",
             }));
+        const ARGUMENTS: &[&FilterArgument; 3] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "sg",
+                default_value: Some(SINGULAR),
+            },
+            &FilterArgument {
+                name: "pl",
+                default_value: Some(PLURAL),
+            },
+        ];
 
-        let (count, sg, pl) = match args {
-            [count] => (count, SINGULAR, PLURAL),
-            [count, sg] => (count, sg, PLURAL),
-            [count, sg, pl] => (count, sg, pl),
-            _ => {
-                return Err(
-                    ctx.generate_error("unexpected argument(s) in `pluralize` filter", node)
-                );
-            }
-        };
+        let [count, sg, pl] = collect_filter_args(ctx, "pluralize", node, args, ARGUMENTS)?;
+
         if let Some(is_singular) = expr_is_int_lit_plus_minus_one(count) {
             let value = if is_singular { sg } else { pl };
             self.visit_auto_escaped_arg(ctx, buf, value)?;
@@ -293,16 +297,11 @@ impl<'a> Generator<'a, '_> {
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, name, node)?;
-        if args.len() != 1 {
-            return Err(ctx.generate_error(
-                format_args!("unexpected argument(s) in `{name}` filter"),
-                node,
-            ));
-        }
+        let arg = no_arguments(ctx, name, args)?;
         buf.write(format_args!(
             "askama::filters::{name}(&(&&askama::filters::AutoEscaper::new(&(",
         ));
-        self.visit_args(ctx, buf, args)?;
+        self.visit_arg(ctx, buf, arg)?;
         // The input is always HTML escaped, regardless of the selected escaper:
         buf.write("), askama::filters::Html)).askama_auto_escape()?)?");
         // The output is marked as HTML safe, not safe in all contexts:
@@ -314,12 +313,9 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         args: &[WithSpan<'a, Expr<'a>>],
-        node: Span<'_>,
+        _node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        let arg = match args {
-            [arg] => arg,
-            _ => return Err(ctx.generate_error("unexpected argument(s) in `as_ref` filter", node)),
-        };
+        let arg = no_arguments(ctx, "ref", args)?;
         buf.write('&');
         self.visit_expr(ctx, buf, arg)?;
         Ok(DisplayWrap::Unwrapped)
@@ -330,12 +326,9 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         args: &[WithSpan<'a, Expr<'a>>],
-        node: Span<'_>,
+        _node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        let arg = match args {
-            [arg] => arg,
-            _ => return Err(ctx.generate_error("unexpected argument(s) in `deref` filter", node)),
-        };
+        let arg = no_arguments(ctx, "deref", args)?;
         buf.write('*');
         self.visit_expr(ctx, buf, arg)?;
         Ok(DisplayWrap::Unwrapped)
@@ -348,6 +341,14 @@ impl<'a> Generator<'a, '_> {
         args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
+        const ARGUMENTS: &[&FilterArgument; 2] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "indent",
+                default_value: Some(ARGUMENT_PLACEHOLDER),
+            },
+        ];
+
         if cfg!(not(feature = "serde_json")) {
             return Err(ctx.generate_error(
                 "the `json` filter requires the `serde_json` feature to be enabled",
@@ -355,14 +356,18 @@ impl<'a> Generator<'a, '_> {
             ));
         }
 
-        let filter = match args.len() {
-            1 => "json",
-            2 => "json_pretty",
-            _ => return Err(ctx.generate_error("unexpected argument(s) in `json` filter", node)),
-        };
-        buf.write(format_args!("askama::filters::{filter}("));
-        self.visit_args(ctx, buf, args)?;
-        buf.write(")?");
+        let [value, indent] = collect_filter_args(ctx, "json", node, args, ARGUMENTS)?;
+        if is_argument_placeholder(indent) {
+            buf.write(format_args!("askama::filters::json("));
+            self.visit_arg(ctx, buf, value)?;
+            buf.write(")?");
+        } else {
+            buf.write(format_args!("askama::filters::json_pretty("));
+            self.visit_arg(ctx, buf, value)?;
+            buf.write(',');
+            self.visit_arg(ctx, buf, indent)?;
+            buf.write(")?");
+        }
         Ok(DisplayWrap::Unwrapped)
     }
 
@@ -375,18 +380,25 @@ impl<'a> Generator<'a, '_> {
     ) -> Result<DisplayWrap, CompileError> {
         const FALSE: &WithSpan<'static, Expr<'static>> =
             &WithSpan::new_without_span(Expr::BoolLit(false));
+        const ARGUMENTS: &[&FilterArgument; 4] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "width",
+                default_value: None,
+            },
+            &FilterArgument {
+                name: "first",
+                default_value: Some(FALSE),
+            },
+            &FilterArgument {
+                name: "blank",
+                default_value: Some(FALSE),
+            },
+        ];
 
         ensure_filter_has_feature_alloc(ctx, "indent", node)?;
-        let (source, indent, first, blank) =
-            match args {
-                [source, indent] => (source, indent, FALSE, FALSE),
-                [source, indent, first] => (source, indent, first, FALSE),
-                [source, indent, first, blank] => (source, indent, first, blank),
-                _ => return Err(ctx.generate_error(
-                    "filter `indent` needs a `width` argument, and can have two optional arguments",
-                    node,
-                )),
-            };
+        let [source, indent, first, blank] =
+            collect_filter_args(ctx, "indent", node, args, ARGUMENTS)?;
         buf.write("askama::filters::indent(");
         self.visit_arg(ctx, buf, source)?;
         buf.write(",");
@@ -404,13 +416,11 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         args: &[WithSpan<'a, Expr<'a>>],
-        node: Span<'_>,
+        _node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        if args.len() != 1 {
-            return Err(ctx.generate_error("unexpected argument(s) in `safe` filter", node));
-        }
+        let arg = no_arguments(ctx, "safe", args)?;
         buf.write("askama::filters::safe(");
-        self.visit_args(ctx, buf, args)?;
+        self.visit_arg(ctx, buf, arg)?;
         buf.write(format_args!(", {})?", self.input.escaper));
         Ok(DisplayWrap::Wrapped)
     }
@@ -422,31 +432,37 @@ impl<'a> Generator<'a, '_> {
         args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        if args.len() > 2 {
-            return Err(ctx.generate_error("only two arguments allowed to escape filter", node));
-        }
-        let opt_escaper = match args.get(1).map(|expr| &**expr) {
-            Some(Expr::StrLit(StrLit { prefix, content })) => {
-                if let Some(prefix) = prefix {
-                    let kind = if *prefix == StrPrefix::Binary {
-                        "slice"
-                    } else {
-                        "CStr"
-                    };
-                    return Err(ctx.generate_error(
-                        format_args!(
-                            "invalid escaper `b{content:?}`. Expected a string, found a {kind}"
-                        ),
-                        args[1].span(),
-                    ));
-                }
-                Some(content)
-            }
-            Some(_) => {
+        const ARGUMENTS: &[&FilterArgument; 2] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "escaper",
+                default_value: Some(ARGUMENT_PLACEHOLDER),
+            },
+        ];
+
+        let [source, opt_escaper] = collect_filter_args(ctx, "escape", node, args, ARGUMENTS)?;
+        let opt_escaper = if !is_argument_placeholder(opt_escaper) {
+            let Expr::StrLit(StrLit { prefix, content }) = **opt_escaper else {
                 return Err(ctx.generate_error("invalid escaper type for escape filter", node));
+            };
+            if let Some(prefix) = prefix {
+                let kind = if prefix == StrPrefix::Binary {
+                    "slice"
+                } else {
+                    "CStr"
+                };
+                return Err(ctx.generate_error(
+                    format_args!(
+                        "invalid escaper `b{content:?}`. Expected a string, found a {kind}"
+                    ),
+                    opt_escaper.span(),
+                ));
             }
-            None => None,
+            Some(content)
+        } else {
+            None
         };
+
         let escaper = match opt_escaper {
             Some(name) => self
                 .input
@@ -461,7 +477,8 @@ impl<'a> Generator<'a, '_> {
                 .ok_or_else(|| {
                     ctx.generate_error(
                         format_args!(
-                            "invalid escaper '{name}' for `escape` filter. {}",
+                            "invalid escaper `{}` for `escape` filter. {}",
+                            name.escape_debug(),
                             MsgValidEscapers(&self.input.config.escapers),
                         ),
                         node,
@@ -470,7 +487,7 @@ impl<'a> Generator<'a, '_> {
             None => self.input.escaper,
         };
         buf.write("askama::filters::escape(");
-        self.visit_args(ctx, buf, &args[..1])?;
+        self.visit_arg(ctx, buf, source)?;
         buf.write(format_args!(", {escaper})?"));
         Ok(DisplayWrap::Wrapped)
     }
@@ -483,6 +500,7 @@ impl<'a> Generator<'a, '_> {
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, "format", node)?;
+        ensure_no_named_arguments(ctx, "format", args, node)?;
         if !args.is_empty() {
             if let Expr::StrLit(ref fmt) = *args[0] {
                 buf.write("askama::helpers::alloc::format!(");
@@ -495,7 +513,10 @@ impl<'a> Generator<'a, '_> {
                 return Ok(DisplayWrap::Unwrapped);
             }
         }
-        Err(ctx.generate_error(r#"use filter format like `"a={} b={}"|format(a, b)`"#, node))
+        Err(ctx.generate_error(
+            r#"use `format` filter like `"a={} b={}"|format(a, b)`"#,
+            node,
+        ))
     }
 
     fn visit_fmt_filter(
@@ -505,18 +526,25 @@ impl<'a> Generator<'a, '_> {
         args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
+        const ARGUMENTS: &[&FilterArgument; 2] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "format",
+                default_value: None,
+            },
+        ];
+
         ensure_filter_has_feature_alloc(ctx, "fmt", node)?;
-        if let [_, arg2] = args {
-            if let Expr::StrLit(ref fmt) = **arg2 {
-                buf.write("askama::helpers::alloc::format!(");
-                self.visit_str_lit(buf, fmt);
-                buf.write(',');
-                self.visit_args(ctx, buf, &args[..1])?;
-                buf.write(')');
-                return Ok(DisplayWrap::Unwrapped);
-            }
-        }
-        Err(ctx.generate_error(r#"use filter fmt like `value|fmt("{:?}")`"#, node))
+        let [source, fmt] = collect_filter_args(ctx, "fmt", node, args, ARGUMENTS)?;
+        let Expr::StrLit(ref fmt) = **fmt else {
+            return Err(ctx.generate_error(r#"use `fmt` filter like `value|fmt("{:?}")`"#, node));
+        };
+        buf.write("askama::helpers::alloc::format!(");
+        self.visit_str_lit(buf, fmt);
+        buf.write(',');
+        self.visit_arg(ctx, buf, source)?;
+        buf.write(')');
+        Ok(DisplayWrap::Unwrapped)
     }
 
     // Force type coercion on first argument to `join` filter (see #39).
@@ -525,18 +553,21 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         args: &[WithSpan<'a, Expr<'a>>],
-        _node: Span<'_>,
+        node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        buf.write("askama::filters::join((&");
-        for (i, arg) in args.iter().enumerate() {
-            if i > 0 {
-                buf.write(", &");
-            }
-            self.visit_expr(ctx, buf, arg)?;
-            if i == 0 {
-                buf.write(").into_iter()");
-            }
-        }
+        const ARGUMENTS: &[&FilterArgument; 2] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "separator",
+                default_value: None,
+            },
+        ];
+
+        let [iterable, separator] = collect_filter_args(ctx, "join", node, args, ARGUMENTS)?;
+        buf.write("askama::filters::join((&(");
+        self.visit_arg(ctx, buf, iterable)?;
+        buf.write(")).into_iter(),");
+        self.visit_arg(ctx, buf, separator)?;
         buf.write(")?");
         Ok(DisplayWrap::Unwrapped)
     }
@@ -569,14 +600,16 @@ impl<'a> Generator<'a, '_> {
         node: Span<'_>,
         name: &str,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_filter_has_feature_alloc(ctx, name, node)?;
-        let [arg, length] = args else {
-            return Err(ctx.generate_error(
-                format_args!("`{name}` filter needs one argument, the `length`"),
-                node,
-            ));
-        };
+        const ARGUMENTS: &[&FilterArgument; 2] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "length",
+                default_value: None,
+            },
+        ];
 
+        ensure_filter_has_feature_alloc(ctx, name, node)?;
+        let [arg, length] = collect_filter_args(ctx, name, node, args, ARGUMENTS)?;
         buf.write(format_args!("askama::filters::{name}("));
         self.visit_arg(ctx, buf, arg)?;
         buf.write(
@@ -695,6 +728,185 @@ fn expr_is_int_lit_plus_minus_one(expr: &WithSpan<'_, Expr<'_>>) -> Option<bool>
         U128 => u128,
         Usize => TargetUsize;
     }
+}
+
+struct FilterArgument {
+    name: &'static str,
+    /// If set to `None`, then a value is needed.
+    /// If set to `Some(ARGUMENT_PLACEHOLDER)`, then no value has to be assigned.
+    /// If set to `Some(&WithSpan...)`, then this value will be used if no argument was supplied.
+    default_value: Option<&'static WithSpan<'static, Expr<'static>>>,
+}
+
+/// Must be the first entry to `collect_filter_args()`'s argument `filter_args`.
+const FILTER_SOURCE: &FilterArgument = &FilterArgument {
+    name: "",
+    default_value: None,
+};
+
+const ARGUMENT_PLACEHOLDER: &WithSpan<'_, Expr<'_>> =
+    &WithSpan::new_without_span(Expr::ArgumentPlaceholder);
+
+#[inline]
+fn is_argument_placeholder(arg: &WithSpan<'_, Expr<'_>>) -> bool {
+    matches!(**arg, Expr::ArgumentPlaceholder)
+}
+
+fn no_arguments<'a, 'b>(
+    ctx: &Context<'_>,
+    name: &str,
+    args: &'b [WithSpan<'a, Expr<'a>>],
+) -> Result<&'b WithSpan<'a, Expr<'a>>, CompileError> {
+    match args {
+        [arg] => Ok(arg),
+        [_, arg, ..] => Err(ctx.generate_error(
+            format_args!("`{name}` filter does not have any arguments"),
+            arg.span(),
+        )),
+        _ => unreachable!(),
+    }
+}
+
+#[inline]
+fn collect_filter_args<'a, 'b, const N: usize>(
+    ctx: &Context<'_>,
+    name: &str,
+    node: Span<'_>,
+    input_args: &'b [WithSpan<'a, Expr<'a>>],
+    filter_args: &'static [&'static FilterArgument; N],
+) -> Result<[&'b WithSpan<'a, Expr<'a>>; N], CompileError> {
+    let mut collected_args = [ARGUMENT_PLACEHOLDER; N];
+    // rationale: less code duplication by implementing the bulk of the function non-generic
+    collect_filter_args_inner(
+        ctx,
+        name,
+        node,
+        input_args,
+        filter_args,
+        &mut collected_args,
+    )?;
+    Ok(collected_args)
+}
+
+fn collect_filter_args_inner<'a, 'b>(
+    ctx: &Context<'_>,
+    name: &str,
+    node: Span<'_>,
+    input_args: &'b [WithSpan<'a, Expr<'a>>],
+    filter_args: &'static [&'static FilterArgument],
+    collected_args: &mut [&'b WithSpan<'a, Expr<'a>>],
+) -> Result<(), CompileError> {
+    // invariant: the parser ensures that named arguments come after positional arguments
+    let mut arg_idx = 0;
+    for arg in input_args {
+        let (idx, value) = if let Expr::NamedArgument(arg_name, ref value) = **arg {
+            let Some(idx) = filter_args
+                .iter()
+                .enumerate()
+                .find_map(|(idx, arg)| (arg.name == arg_name).then_some(idx))
+            else {
+                return Err(ctx.generate_error(
+                    match filter_args.len() {
+                        1 => fmt_left!("`{name}` filter does not have any arguments"),
+                        _ => fmt_right!(
+                            "`{name}` filter does not have an argument `{}`{}",
+                            arg_name.escape_debug(),
+                            ItsArgumentsAre(filter_args),
+                        ),
+                    },
+                    arg.span(),
+                ));
+            };
+            (idx, &**value)
+        } else {
+            let idx = arg_idx;
+            arg_idx += 1;
+            (idx, arg)
+        };
+
+        let Some(collected_arg) = collected_args.get_mut(idx) else {
+            return Err(ctx.generate_error(
+                format_args!(
+                    "`{name}` filter accepts at most {} argument{}{}",
+                    filter_args.len() - 1,
+                    if filter_args.len() != 2 { "s" } else { "" },
+                    ItsArgumentsAre(filter_args),
+                ),
+                arg.span(),
+            ));
+        };
+        if !is_argument_placeholder(replace(collected_arg, value)) {
+            return Err(ctx.generate_error(
+                format_args!(
+                    "`{}` argument to `{}` filter was already set{}",
+                    filter_args[idx].name.escape_debug(),
+                    name.escape_debug(),
+                    ItsArgumentsAre(filter_args),
+                ),
+                arg.span(),
+            ));
+        }
+    }
+
+    for (&arg, collected) in filter_args.iter().zip(collected_args) {
+        if !is_argument_placeholder(collected) {
+            continue;
+        } else if let Some(default) = arg.default_value {
+            *collected = default;
+        } else {
+            return Err(ctx.generate_error(
+                format_args!(
+                    "`{}` argument is missing when calling `{name}` filter{}",
+                    arg.name.escape_debug(),
+                    ItsArgumentsAre(filter_args),
+                ),
+                node,
+            ));
+        }
+    }
+
+    Ok(())
+}
+
+struct ItsArgumentsAre(&'static [&'static FilterArgument]);
+
+impl fmt::Display for ItsArgumentsAre {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("; its arguments are: (")?;
+        for (idx, arg) in self.0.iter().enumerate() {
+            match idx {
+                0 => continue,
+                1 => {}
+                _ => f.write_str(", ")?,
+            }
+            if arg.default_value.is_some() {
+                write!(f, "[{}]", arg.name)?;
+            } else {
+                f.write_str(arg.name)?;
+            }
+        }
+        f.write_char(')')
+    }
+}
+
+fn ensure_no_named_arguments(
+    ctx: &Context<'_>,
+    name: &str,
+    args: &[WithSpan<'_, Expr<'_>>],
+    node: Span<'_>,
+) -> Result<(), CompileError> {
+    for arg in args {
+        if is_argument_placeholder(arg) {
+            return Err(ctx.generate_error(
+                format_args!(
+                    "`{}` filter cannot accept named arguments",
+                    name.escape_debug()
+                ),
+                node,
+            ));
+        }
+    }
+    Ok(())
 }
 
 // These built-in filters take no arguments, no generics, and are not feature gated.
