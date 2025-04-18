@@ -1544,8 +1544,8 @@ fn is_cacheable(expr: &WithSpan<'_, Expr<'_>>) -> bool {
         Expr::BinOp(_, lhs, rhs) => is_cacheable(lhs) && is_cacheable(rhs),
         Expr::IsDefined(_) | Expr::IsNotDefined(_) => true,
         Expr::Range(_, lhs, rhs) => {
-            lhs.as_ref().map_or(true, |v| is_cacheable(v))
-                && rhs.as_ref().map_or(true, |v| is_cacheable(v))
+            lhs.as_ref().is_none_or(|v| is_cacheable(v))
+                && rhs.as_ref().is_none_or(|v| is_cacheable(v))
         }
         Expr::Group(arg) => is_cacheable(arg),
         Expr::Tuple(args) => args.iter().all(is_cacheable),

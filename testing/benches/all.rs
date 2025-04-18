@@ -1,5 +1,5 @@
 use std::hint::black_box;
-use std::iter::repeat;
+use std::iter::repeat_n;
 
 use askama::Template;
 use criterion::{Criterion, criterion_group, criterion_main};
@@ -47,7 +47,7 @@ impl Default for BigTable {
         const SIZE: usize = 100;
 
         BigTable {
-            table: repeat((0..SIZE).collect()).take(SIZE).collect(),
+            table: repeat_n((0..SIZE).collect(), SIZE).collect(),
         }
     }
 }
