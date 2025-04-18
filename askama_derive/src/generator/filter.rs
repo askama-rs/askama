@@ -55,11 +55,8 @@ impl<'a> Generator<'a, '_> {
         name: &str,
         args: &[WithSpan<'a, Expr<'a>>],
         generics: &[WithSpan<'a, TyGenerics<'a>>],
-        node: Span<'_>,
+        _node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        if BUILTIN_FILTERS_NEED_ALLOC.contains(&name) {
-            ensure_filter_has_feature_alloc(ctx, name, node)?;
-        }
         buf.write(format_args!("filters::{name}"));
         self.visit_call_generics(buf, generics);
         buf.write('(');
@@ -82,6 +79,9 @@ impl<'a> Generator<'a, '_> {
         generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
+        if BUILTIN_FILTERS_NEED_ALLOC.contains(&name) {
+            ensure_filter_has_feature_alloc(ctx, name, node)?;
+        }
         if !generics.is_empty() {
             return Err(
                 ctx.generate_error(format_args!("unexpected generics on filter `{name}`"), node)
