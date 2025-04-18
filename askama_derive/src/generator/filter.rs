@@ -5,7 +5,7 @@ use parser::{Expr, IntKind, Num, Span, StrLit, StrPrefix, TyGenerics, WithSpan};
 use super::{DisplayWrap, Generator, TargetIsize, TargetUsize};
 use crate::heritage::Context;
 use crate::integration::Buffer;
-use crate::{BUILTIN_FILTERS, BUILTIN_FILTERS_NEED_ALLOC, CompileError, MsgValidEscapers};
+use crate::{BUILTIN_FILTERS, CompileError, MsgValidEscapers};
 
 impl<'a> Generator<'a, '_> {
     pub(super) fn visit_filter(
@@ -18,6 +18,7 @@ impl<'a> Generator<'a, '_> {
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         let filter = match name {
+            "center" => Self::visit_center_filter,
             "deref" => Self::visit_deref_filter,
             "escape" | "e" => Self::visit_escape_filter,
             "filesizeformat" => Self::visit_humansize,
@@ -32,6 +33,7 @@ impl<'a> Generator<'a, '_> {
             "pluralize" => Self::visit_pluralize_filter,
             "ref" => Self::visit_ref_filter,
             "safe" => Self::visit_safe_filter,
+            "truncate" => Self::visit_truncate_filter,
             "urlencode" => Self::visit_urlencode_filter,
             "urlencode_strict" => Self::visit_urlencode_strict_filter,
             "value" => return self.visit_value(ctx, buf, args, generics, node, "`value` filter"),
@@ -79,9 +81,6 @@ impl<'a> Generator<'a, '_> {
         generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        if BUILTIN_FILTERS_NEED_ALLOC.contains(&name) {
-            ensure_filter_has_feature_alloc(ctx, name, node)?;
-        }
         if !generics.is_empty() {
             return Err(
                 ctx.generate_error(format_args!("unexpected generics on filter `{name}`"), node)
@@ -514,6 +513,60 @@ impl<'a> Generator<'a, '_> {
             }
         }
         buf.write(")?");
+        Ok(DisplayWrap::Unwrapped)
+    }
+
+    fn visit_center_filter(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[WithSpan<'a, Expr<'a>>],
+        node: Span<'_>,
+    ) -> Result<DisplayWrap, CompileError> {
+        self.visit_center_truncate_filter(ctx, buf, args, node, "center")
+    }
+
+    fn visit_truncate_filter(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[WithSpan<'a, Expr<'a>>],
+        node: Span<'_>,
+    ) -> Result<DisplayWrap, CompileError> {
+        self.visit_center_truncate_filter(ctx, buf, args, node, "truncate")
+    }
+
+    fn visit_center_truncate_filter(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[WithSpan<'a, Expr<'a>>],
+        node: Span<'_>,
+        name: &str,
+    ) -> Result<DisplayWrap, CompileError> {
+        ensure_filter_has_feature_alloc(ctx, name, node)?;
+        let [arg, length] = args else {
+            return Err(ctx.generate_error(
+                format_args!("`{name}` filter needs one argument, the `length`"),
+                node,
+            ));
+        };
+
+        buf.write(format_args!("askama::filters::{name}("));
+        self.visit_arg(ctx, buf, arg)?;
+        buf.write(
+            "\
+                ,\
+                askama::helpers::core::primitive::usize::try_from(\
+                    askama::helpers::get_primitive_value(&(",
+        );
+        self.visit_arg(ctx, buf, length)?;
+        buf.write(
+            "\
+                    ))\
+                ).map_err(|_| askama::Error::Fmt)?\
+            )?",
+        );
         Ok(DisplayWrap::Unwrapped)
     }
 }

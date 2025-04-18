@@ -1,0 +1,30 @@
+error: filter `truncate` needs one argument, the `length`
+ --> NoArgument.html:1:3
+       "text | truncate }}"
+ --> tests/ui/truncate.rs:4:21
+  |
+4 | #[template(source = r#"{{ text | truncate }}"#, ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: filter `truncate` needs one argument, the `length`
+ --> TooManyArguments.html:1:3
+       "text | truncate(length, extra) }}"
+  --> tests/ui/truncate.rs:17:21
+   |
+17 | #[template(source = r#"{{ text | truncate(length, extra) }}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0277]: the trait bound `usize: TryFrom<f32>` is not satisfied
+ --> tests/ui/truncate.rs:9:10
+  |
+9 | #[derive(Template)]
+  |          ^^^^^^^^ the trait `From<f32>` is not implemented for `usize`
+  |
+  = help: the following other types implement trait `From<T>`:
+            `usize` implements `From<bool>`
+            `usize` implements `From<std::ptr::Alignment>`
+            `usize` implements `From<u16>`
+            `usize` implements `From<u8>`
+  = note: required for `f32` to implement `Into<usize>`
+  = note: required for `usize` to implement `TryFrom<f32>`
+  = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
