@@ -3,6 +3,7 @@
 extern crate serde_json;
 
 use askama::Template;
+use assert_matches::assert_matches;
 #[cfg(feature = "serde_json")]
 use serde_json::Value;
 
@@ -298,6 +299,32 @@ fn test_filter_truncate() {
         foo: "alpha bar".into(),
     };
     assert_eq!(t.render().unwrap(), "alpha baralpha...");
+
+    #[derive(Template)]
+    #[template(source = "{{ foo | truncate(length) }}", ext = "txt")]
+    struct TruncateFilterLength<'a> {
+        foo: String,
+        length: &'a &'a &'a i32,
+    }
+
+    assert_eq!(
+        TruncateFilterLength {
+            foo: "alpha bar".into(),
+            length: &&&5,
+        }
+        .render()
+        .unwrap(),
+        "alpha..."
+    );
+    assert_matches!(
+        TruncateFilterLength {
+            foo: "alpha bar".into(),
+            length: &&&-5,
+        }
+        .render()
+        .unwrap_err(),
+        askama::Error::Fmt
+    );
 }
 
 #[cfg(feature = "serde_json")]

@@ -602,15 +602,10 @@ pub(crate) use {fmt_left, fmt_right};
 // Askama or should refer to a local `filters` module.
 const BUILTIN_FILTERS: &[&str] = &[
     "capitalize",
-    "center",
     "lower",
     "lowercase",
     "title",
     "trim",
-    "truncate",
     "upper",
     "uppercase",
 ];
-
-// Built-in filters that need the `alloc` feature.
-const BUILTIN_FILTERS_NEED_ALLOC: &[&str] = &["center", "truncate"];
