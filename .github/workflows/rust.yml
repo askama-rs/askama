@@ -246,7 +246,7 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.81.0"
+          toolchain: "1.83.0"
       - run: cargo check --lib -p askama --all-features
 
 ####################################################################################################

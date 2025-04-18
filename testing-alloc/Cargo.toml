@@ -3,7 +3,7 @@ name = "askama_testing-alloc"
 version = "0.13.0"
 authors = ["askama-rs developers"]
 edition = "2021"
-rust-version = "1.81"
+rust-version = "1.83"
 publish = false
 
 [dev-dependencies]
