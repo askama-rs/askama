@@ -1,3 +1,11 @@
 [workspace]
-members = ["rinja", "rinja_derive", "rinja_parser"]
+members = [
+    "askama_actix",
+    "askama_axum",
+    "askama_rocket",
+    "askama_warp",
+    "rinja",
+    "rinja_derive",
+    "rinja_parser",
+]
 resolver = "2"
