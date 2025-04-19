@@ -7,7 +7,7 @@ have optional extra arguments in parentheses.
 Filters can be chained, in which case the output from one filter
 is passed to the next.
 
-```
+```jinja
 {{ "HELLO" | lower }}
 ```
 
@@ -18,8 +18,28 @@ Enable it with Cargo features (see below for more information).
 ## Built-In Filters
 [#built-in-filters]: #built-in-filters
 
+Built-in filters that take (optional) arguments can be called with named arguments, too.
+The order of the named arguments does not matter, but named arguments must come after
+positional (i.e. unnamed) arguments.
+
+E.g. the filter `pluralize` takes two optional arguments: `sg` and `pl` (singular and plural),
+which are `sg = ""` and `pl = "s"` by default.
+If you are fine with the default empty string for the singular, and you only want to set a
+specific plural, then you can call the filter like `dog{{ count | pluralize(pl = "gies") }}`.
+
 ### capitalize
 [#capitalize]: #capitalize
+
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ text_to_capitalize | capitalize }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
 
 Capitalize a value. The first character will be uppercase, all others lowercase:
 
@@ -36,6 +56,17 @@ Hello
 ### center
 [#center]: #center
 
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ text_to_center | center(length) }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
+
 Centers the value in a field of a given width:
 
 ```jinja
@@ -49,6 +80,12 @@ Output:
 
 ### deref
 [#deref]: #deref
+
+```jinja
+{{ expression | deref }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
 
 Dereferences the given argument.
 
@@ -67,6 +104,14 @@ if *s == String::from("b") {}
 
 ### escape | e
 [#escape]: #escape--e
+
+```jinja
+{{ text_to_escape | e }}
+{{ text_to_escape | escape }}
+{{ text_to_escape | escape(escaper) }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
 
 Escapes HTML characters in strings:
 
@@ -108,6 +153,12 @@ Escape &lt;&gt;&amp;
 ### filesizeformat
 [#filesizeformat]: #filesizeformat
 
+```jinja
+{{ number_of_bytes | filesizeformat }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
+
 Returns adequate string representation (in KB, ..) of number of bytes:
 
 ```jinja
@@ -120,8 +171,18 @@ Output:
 ```
 
 ### fmt
-
 [#fmt]: #fmt
+
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ expression | fmt("format_string") }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
 
 Formats arguments according to the specified format
 
@@ -144,6 +205,17 @@ Which is not possible using the `format` filter.
 ### format
 [#format]: #format
 
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ "format_string" | format([variables ...]) }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
+
 Formats arguments according to the specified format.
 
 The first argument to this filter must be a string literal (as in normal Rust).
@@ -158,6 +230,17 @@ All arguments are passed through to [`format!()`] by the Askama code generator.
 
 ### indent
 [#indent]: #indent
+
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ text_to_indent | indent(width, [first], [blank]) }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
 
 Indent newlines with width spaces.
 
@@ -194,6 +277,12 @@ $ bar
 ### join
 [#join]: #join
 
+```jinja
+{{ iterable | join(separator) }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
+
 Joins iterable into a string separated by provided argument.
 
 ```rust
@@ -213,6 +302,17 @@ foo, bar, bazz
 ### linebreaks
 [#linebreaks]: #linebreaks
 
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ text_to_break | linebreaks }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
+
 Replaces line breaks in plain text with appropriate HTML.
 
 A single newline becomes an HTML line break `<br>` and a new line followed by a blank line becomes a paragraph break `<p>`.
@@ -230,6 +330,17 @@ Output:
 ### linebreaksbr
 [#linebreaksbr]: #linebreaksbr
 
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ text_to_break | linebreaksbr }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
+
 Converts all newlines in a piece of plain text to HTML line breaks.
 
 ```jinja
@@ -244,6 +355,17 @@ hello<br />world<br /><br />from<br />askama
 
 ### paragraphbreaks
 [#paragraphbreaks]: #paragraphbreaks
+
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ text_to_break | paragraphbreaks }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
 
 A new line followed by a blank line becomes `<p>`, but, unlike `linebreaks`, single new lines are ignored and no `<br/>` tags are generated.
 
@@ -264,6 +386,18 @@ Output:
 ### lower | lowercase
 [#lower]: #lower--lowercase
 
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ text_to_convert | lower }}
+{{ text_to_convert | lowercase }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
+
 Converts to lowercase.
 
 ```jinja
@@ -278,6 +412,13 @@ hello
 
 ### `pluralize`
 [#pluralize]: #pluralize
+
+```jinja
+{{ integer | pluralize }}
+{{ integer | pluralize([sg = ""], [pl = "s"]) }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
 
 Select a singular or plural version of a word, depending on the input value.
 
@@ -306,6 +447,12 @@ though.
 ### ref
 [#ref]: #ref
 
+```jinja
+{{ expression | ref }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
+
 Creates a reference to the given argument.
 
 ```jinja
@@ -323,6 +470,12 @@ will become:
 ### safe
 [#safe]: #safe
 
+```jinja
+{{ expression | safe }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
+
 Marks a string (or other Display type) as safe. By default all strings are escaped according to the format.
 
 ```
@@ -337,6 +490,17 @@ Output:
 
 ### title
 [#title]: #title
+
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ text_to_convert | title }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
 
 Return a title cased version of the value. Words will start with uppercase letters, all
 remaining characters are lowercase.
@@ -354,6 +518,17 @@ Hello World
 ### trim
 [#trim]: #trim
 
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ text_to_trim | trim }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
+
 Strip leading and trailing whitespace.
 
 ```jinja
@@ -369,8 +544,11 @@ hello
 ### truncate
 [#truncate]: #truncate
 
-Limit string length, appends '...' if truncated.
+```jinja
+{{ text_to_truncate | truncate(length) }}
+```
 
+Limit string length, appends '...' if truncated.
 
 ```jinja
 {{ "hello" | truncate(2) }}
@@ -384,6 +562,18 @@ he...
 
 ### upper | uppercase
 [#upper]: #upper--uppercase
+
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ text_to_convert | upper }}
+{{ text_to_convert | uppercase }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
 
 Converts to uppercase.
 
@@ -399,6 +589,18 @@ HELLO
 
 ### urlencode | urlencode_strict
 [#urlencode]: #urlencode--urlencode_strict
+
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"urlencode"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ text_to_escape | urlencode }}
+{{ text_to_escape | urlencode_strict }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
 
 Percent encodes the string. Replaces reserved characters with the % escape character followed by a byte value as two hexadecimal digits.
 
@@ -417,6 +619,17 @@ With `|urlencode_strict` a forward slash `/` is escaped, too.
 
 ### wordcount
 [#wordcount]: #wordcount
+
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ text_with_words | wordcount }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
 
 Count the words in that string.
 
@@ -443,6 +656,17 @@ askama = { version = "0.12", features = ["serde_json"] }
 
 ### `json` | `tojson`
 [#json]: #json--tojson
+
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"serde_json"</code>
+</blockquote>
+
+```jinja2
+{{ value_to_serialize | json }}
+{{ value_to_serialize | json(indent) }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
 
 Enabling the `serde_json` feature will enable the use of the `json` filter.
 This will output formatted JSON for any value that implements the required
@@ -501,6 +725,7 @@ For example, the `trim` built-in filter accepts any value implementing `Display`
 Its signature is similar to `fn trim(s: impl std::fmt::Display, values: &dyn askama::Values) -> askama::Result<String>`.
 
 Note that built-in filters have preference over custom filters, so, in case of name collision, the built-in filter is applied.
+Custom filters cannot have named or optional arguments.
 
 ### Examples
 
