@@ -723,7 +723,7 @@ fn path_or_identifier<'a>(i: &mut &'a str) -> ParseResult<'a, PathOrIdentifier<'
             if name
                 .chars()
                 .next()
-                .map_or(true, |c| c == '_' || c.is_lowercase()) =>
+                .is_none_or(|c| c == '_' || c.is_lowercase()) =>
         {
             Ok(PathOrIdentifier::Identifier(name))
         }

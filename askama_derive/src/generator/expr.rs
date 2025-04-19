@@ -13,7 +13,10 @@ use super::{
 };
 use crate::heritage::Context;
 use crate::integration::Buffer;
-use crate::{BUILTIN_FILTERS, BUILTIN_FILTERS_NEED_ALLOC, CompileError, MsgValidEscapers};
+use crate::{
+    BUILTIN_FILTERS, BUILTIN_FILTERS_NEED_ALLOC, BUILTIN_FILTERS_NEED_STD, CompileError,
+    MsgValidEscapers,
+};
 
 impl<'a> Generator<'a, '_> {
     pub(crate) fn visit_expr_root(
@@ -293,6 +296,8 @@ impl<'a> Generator<'a, '_> {
     ) -> Result<DisplayWrap, CompileError> {
         if BUILTIN_FILTERS_NEED_ALLOC.contains(&name) {
             ensure_filter_has_feature_alloc(ctx, name, node)?;
+        } else if BUILTIN_FILTERS_NEED_STD.contains(&name) {
+            ensure_filter_has_feature_std(ctx, name, node)?;
         }
         buf.write(format_args!("filters::{name}"));
         self.visit_call_generics(buf, generics);
@@ -1307,6 +1312,20 @@ fn ensure_filter_has_feature_alloc(
     if !cfg!(feature = "alloc") {
         return Err(ctx.generate_error(
             format_args!("the `{name}` filter requires the `alloc` feature to be enabled"),
+            node,
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_filter_has_feature_std(
+    ctx: &Context<'_>,
+    name: &str,
+    node: Span<'_>,
+) -> Result<(), CompileError> {
+    if !cfg!(feature = "std") {
+        return Err(ctx.generate_error(
+            format_args!("the `{name}` filter requires the `std` feature to be enabled"),
             node,
         ));
     }
