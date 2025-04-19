@@ -207,7 +207,8 @@ impl<'a> Generator<'a, '_> {
             | Expr::FilterSource
             | Expr::As(_, _)
             | Expr::Concat(_)
-            | Expr::LetCond(_) => {
+            | Expr::LetCond(_)
+            | Expr::ArgumentPlaceholder => {
                 *only_contains_is_defined = false;
                 (EvaluatedResult::Unknown, WithSpan::new(expr, span))
             }
@@ -506,7 +507,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        loop_block: &'a WithSpan<'_, Loop<'_>>,
+        loop_block: &'a WithSpan<'a, Loop<'_>>,
     ) -> Result<usize, CompileError> {
         self.handle_ws(loop_block.ws1);
         self.push_locals(|this| {
@@ -592,7 +593,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        call: &'a WithSpan<'_, Call<'_>>,
+        call: &'a WithSpan<'a, Call<'_>>,
     ) -> Result<usize, CompileError> {
         let Call {
             ws,
@@ -769,7 +770,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        filter: &'a WithSpan<'_, FilterBlock<'_>>,
+        filter: &'a WithSpan<'a, FilterBlock<'_>>,
     ) -> Result<usize, CompileError> {
         self.write_buf_writable(ctx, buf)?;
         self.flush_ws(filter.ws1);
@@ -828,7 +829,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        i: &'a WithSpan<'_, Include<'_>>,
+        i: &'a WithSpan<'a, Include<'_>>,
     ) -> Result<usize, CompileError> {
         self.flush_ws(i.ws);
         self.write_buf_writable(ctx, buf)?;
@@ -936,7 +937,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        l: &'a WithSpan<'_, Let<'_>>,
+        l: &'a WithSpan<'a, Let<'_>>,
     ) -> Result<(), CompileError> {
         self.handle_ws(l.ws);
 
@@ -1195,7 +1196,7 @@ impl<'a> Generator<'a, '_> {
         Ok(size_hint)
     }
 
-    fn write_comment(&mut self, comment: &'a WithSpan<'_, Comment<'_>>) {
+    fn write_comment(&mut self, comment: &'a WithSpan<'a, Comment<'_>>) {
         self.handle_ws(comment.ws);
     }
 
@@ -1559,5 +1560,6 @@ fn is_cacheable(expr: &WithSpan<'_, Expr<'_>>) -> bool {
         Expr::RustMacro(_, _) => false,
         // Should never be encountered:
         Expr::FilterSource => unreachable!("FilterSource in expression?"),
+        Expr::ArgumentPlaceholder => unreachable!("ExpressionPlaceholder in expression?"),
     }
 }

@@ -43,7 +43,7 @@ similar = "2.6.0"
 syn = { version = "2.0.3", features = ["full"] }
 
 [features]
-default = ["__standalone"]
+default = ["__standalone", "std"]
 __standalone = []
 
 alloc = []
