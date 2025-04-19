@@ -597,15 +597,3 @@ macro_rules! fmt_right {
 }
 
 pub(crate) use {fmt_left, fmt_right};
-
-// This is used by the code generator to decide whether a named filter is part of
-// Askama or should refer to a local `filters` module.
-const BUILTIN_FILTERS: &[&str] = &[
-    "capitalize",
-    "lower",
-    "lowercase",
-    "title",
-    "trim",
-    "upper",
-    "uppercase",
-];

@@ -5,7 +5,7 @@ use parser::{Expr, IntKind, Num, Span, StrLit, StrPrefix, TyGenerics, WithSpan};
 use super::{DisplayWrap, Generator, TargetIsize, TargetUsize};
 use crate::heritage::Context;
 use crate::integration::Buffer;
-use crate::{BUILTIN_FILTERS, CompileError, MsgValidEscapers};
+use crate::{CompileError, MsgValidEscapers};
 
 impl<'a> Generator<'a, '_> {
     pub(super) fn visit_filter(
@@ -38,16 +38,19 @@ impl<'a> Generator<'a, '_> {
             "urlencode_strict" => Self::visit_urlencode_strict_filter,
             "value" => return self.visit_value(ctx, buf, args, generics, node, "`value` filter"),
             "wordcount" => Self::visit_wordcount_filter,
-            name if BUILTIN_FILTERS.contains(&name) => {
-                return self.visit_builtin_filter(ctx, buf, name, args, generics, node);
+            name => {
+                let filter = match () {
+                    _ if BUILTIN_FILTERS.contains(&name) => Self::visit_builtin_filter,
+                    _ if BUILTIN_FILTERS_ALLOC.contains(&name) => Self::visit_builtin_filter_alloc,
+                    _ if BUILTIN_FILTERS_STD.contains(&name) => Self::visit_builtin_filter_std,
+                    _ => Self::visit_custom_filter,
+                };
+                return filter(self, ctx, buf, name, args, generics, node);
             }
-            _ => return self.visit_custom_filter(ctx, buf, name, args, generics, node),
         };
-        if !generics.is_empty() {
-            Err(ctx.generate_error(format_args!("unexpected generics on filter `{name}`"), node))
-        } else {
-            filter(self, ctx, buf, args, node)
-        }
+
+        ensure_no_generics(ctx, name, node, generics)?;
+        filter(self, ctx, buf, args, node)
     }
 
     fn visit_custom_filter(
@@ -72,6 +75,32 @@ impl<'a> Generator<'a, '_> {
         Ok(DisplayWrap::Unwrapped)
     }
 
+    fn visit_builtin_filter_alloc(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        name: &str,
+        args: &[WithSpan<'a, Expr<'a>>],
+        generics: &[WithSpan<'a, TyGenerics<'a>>],
+        node: Span<'_>,
+    ) -> Result<DisplayWrap, CompileError> {
+        ensure_filter_has_feature_alloc(ctx, name, node)?;
+        self.visit_builtin_filter(ctx, buf, name, args, generics, node)
+    }
+
+    fn visit_builtin_filter_std(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        name: &str,
+        args: &[WithSpan<'a, Expr<'a>>],
+        generics: &[WithSpan<'a, TyGenerics<'a>>],
+        node: Span<'_>,
+    ) -> Result<DisplayWrap, CompileError> {
+        ensure_filter_has_feature_std(ctx, name, node)?;
+        self.visit_builtin_filter(ctx, buf, name, args, generics, node)
+    }
+
     fn visit_builtin_filter(
         &mut self,
         ctx: &Context<'_>,
@@ -81,11 +110,7 @@ impl<'a> Generator<'a, '_> {
         generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        if !generics.is_empty() {
-            return Err(
-                ctx.generate_error(format_args!("unexpected generics on filter `{name}`"), node)
-            );
-        }
+        ensure_no_generics(ctx, name, node, generics)?;
         buf.write(format_args!("askama::filters::{name}"));
         self.visit_call_generics(buf, generics);
         buf.write('(');
@@ -585,6 +610,34 @@ fn ensure_filter_has_feature_alloc(
     Ok(())
 }
 
+fn ensure_filter_has_feature_std(
+    ctx: &Context<'_>,
+    name: &str,
+    node: Span<'_>,
+) -> Result<(), CompileError> {
+    if !cfg!(feature = "alloc") {
+        return Err(ctx.generate_error(
+            format_args!("the `{name}` filter requires the `std` feature to be enabled"),
+            node,
+        ));
+    }
+    Ok(())
+}
+
+fn ensure_no_generics(
+    ctx: &Context<'_>,
+    name: &str,
+    node: Span<'_>,
+    generics: &[WithSpan<'_, TyGenerics<'_>>],
+) -> Result<(), CompileError> {
+    if !generics.is_empty() {
+        return Err(
+            ctx.generate_error(format_args!("unexpected generics on filter `{name}`"), node)
+        );
+    }
+    Ok(())
+}
+
 fn expr_is_int_lit_plus_minus_one(expr: &WithSpan<'_, Expr<'_>>) -> Option<bool> {
     fn is_signed_singular<T: Eq + Default, E>(
         from_str_radix: impl Fn(&str, u32) -> Result<T, E>,
@@ -643,3 +696,20 @@ fn expr_is_int_lit_plus_minus_one(expr: &WithSpan<'_, Expr<'_>>) -> Option<bool>
         Usize => TargetUsize;
     }
 }
+
+// These built-in filters take no arguments, no generics, and are not feature gated.
+const BUILTIN_FILTERS: &[&str] = &[];
+
+// These built-in filters take no arguments, no generics, and need `features = ["alloc"]`.
+const BUILTIN_FILTERS_ALLOC: &[&str] = &[
+    "capitalize",
+    "lower",
+    "lowercase",
+    "title",
+    "trim",
+    "upper",
+    "uppercase",
+];
+
+// These built-in filters take no arguments, no generics, and need `features = ["std"]`.
+const BUILTIN_FILTERS_STD: &[&str] = &[];
