@@ -24,6 +24,26 @@ monomorphised code. On average, expect `.to_string()` to be 100% to 200% slower 
 [`.to_string()`]: <https://doc.rust-lang.org/stable/std/string/trait.ToString.html#tymethod.to_string>
 [`format!()`]: <https://doc.rust-lang.org/stable/std/fmt/fn.format.html>
 
+## Faster Rendering of Custom Types
+
+Every type that implements [`fmt::Display`] can be used in askama expressions: `{{ value }}`.
+Rendering with `fmt::Display` can be slow, though, because is uses [dynamic methods calls] in its
+[`fmt::Formatter`] argument. To speed up rendering (by a lot, actually),
+askama adds the trait [`FastWritable`]. For any custom type you want to render,
+it has to implement `fmt::Display`, but if it also implements `FastWritable`,
+then the latter implementation is automatically preferred.
+
+To reduce the amount of code duplication, you can let your `fmt::Display` implementation call
+your `FastWritable` implementation:
+
+```rust
+{{#include ../../testing/tests/book_example_performance_fmt_call_fast_writable.rs}}
+```
+
+[`fmt::Display`]: <https://doc.rust-lang.org/stable/std/fmt/trait.Display.html>
+[`fmt::Formatter`]: <https://doc.rust-lang.org/stable/std/fmt/struct.Formatter.html>
+[`FastWritable`]: <./doc/askama/filters/trait.FastWritable.html>
+
 ## Slow Debug Recompilations
 
 If you experience slow compile times when iterating with lots of templates,
