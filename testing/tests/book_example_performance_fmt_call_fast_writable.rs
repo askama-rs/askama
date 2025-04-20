@@ -1,7 +1,6 @@
 use std::fmt::{self, Write};
 
-use askama::NO_VALUES;
-use askama::filters::FastWritable;
+use askama::{FastWritable, NO_VALUES};
 
 // In a real application, please have a look at
 // https://github.com/kdeldycke/awesome-falsehood/blob/690a070/readme.md#human-identity

@@ -5,8 +5,7 @@ use core::ops::Deref;
 use core::pin::Pin;
 
 use super::MAX_LEN;
-use super::escape::FastWritable;
-use crate::{Error, Result, Values};
+use crate::{Error, FastWritable, Result, Values};
 
 /// Limit string length, appends '...' if truncated
 ///

@@ -7,9 +7,9 @@ use core::fmt::{self, Write};
 use core::ops::Deref;
 use core::pin::Pin;
 
+use super::MAX_LEN;
 use super::escape::HtmlSafeOutput;
-use super::{FastWritable, MAX_LEN};
-use crate::Result;
+use crate::{FastWritable, Result};
 
 /// Return an ephemeral `&str` for `$src: impl fmt::Display`
 ///

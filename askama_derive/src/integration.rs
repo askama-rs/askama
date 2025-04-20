@@ -60,7 +60,7 @@ fn impl_display(ast: &DeriveInput, buf: &mut Buffer) {
 
 /// Implement `FastWritable` for the given item.
 fn impl_fast_writable(ast: &DeriveInput, buf: &mut Buffer) {
-    write_header(ast, buf, "askama::filters::FastWritable");
+    write_header(ast, buf, "askama::FastWritable");
     buf.write(
         "\
             #[inline]\

@@ -4,8 +4,8 @@ use std::fmt::Write;
 
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 
-use crate::Values;
-use crate::filters::{FastWritable, HtmlSafeOutput};
+use crate::filters::HtmlSafeOutput;
+use crate::{FastWritable, Values};
 
 // Urlencode char encoding set. Only the characters in the unreserved set don't
 // have any special purpose in any part of a URI and can be safely left

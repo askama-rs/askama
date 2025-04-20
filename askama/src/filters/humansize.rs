@@ -2,9 +2,8 @@ use core::convert::Infallible;
 use core::fmt;
 use core::mem::MaybeUninit;
 
-use super::FastWritable;
 use crate::ascii_str::{AsciiChar, AsciiStr};
-use crate::{NO_VALUES, Values};
+use crate::{FastWritable, NO_VALUES, Values};
 
 /// Returns adequate string representation (in KB, ..) of number of bytes
 ///

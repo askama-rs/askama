@@ -307,7 +307,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             }
 
             // cannot use `crate::integrations::impl_fast_writable()` w/o cloning the struct
-            impl #wrapper_impl_generics askama::filters::FastWritable
+            impl #wrapper_impl_generics askama::FastWritable
             for #wrapper_id #wrapper_ty_generics #wrapper_where_clause {
                 #[inline]
                 fn write_into<AskamaW>(

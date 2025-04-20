@@ -4,9 +4,9 @@ use std::{fmt, io, str};
 use serde::Serialize;
 use serde_json::ser::{CompactFormatter, PrettyFormatter, Serializer};
 
-use super::{AsIndent, FastWritable};
+use super::AsIndent;
 use crate::ascii_str::{AsciiChar, AsciiStr};
-use crate::{NO_VALUES, Values};
+use crate::{FastWritable, NO_VALUES, Values};
 
 /// Serialize to JSON (requires `json` feature)
 ///

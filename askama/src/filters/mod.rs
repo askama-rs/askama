@@ -27,8 +27,8 @@ pub use self::alloc::{
 };
 pub use self::builtin::{PluralizeCount, center, join, pluralize, truncate};
 pub use self::escape::{
-    AutoEscape, AutoEscaper, Escaper, FastWritable, Html, HtmlSafe, HtmlSafeOutput, MaybeSafe,
-    Safe, Text, Unsafe, Writable, WriteWritable, e, escape, safe,
+    AutoEscape, AutoEscaper, Escaper, Html, HtmlSafe, HtmlSafeOutput, MaybeSafe, Safe, Text,
+    Unsafe, Writable, WriteWritable, e, escape, safe,
 };
 pub use self::humansize::filesizeformat;
 #[cfg(feature = "serde_json")]

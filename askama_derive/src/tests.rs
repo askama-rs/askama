@@ -67,7 +67,7 @@ fn compare_ex(
             }
         }
 
-        impl askama::filters::FastWritable for Foo {
+        impl askama::FastWritable for Foo {
             #[inline]
             fn write_into<AskamaW>(
                 &self,

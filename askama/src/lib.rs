@@ -76,6 +76,7 @@ mod values;
 #[cfg(feature = "alloc")]
 use alloc::string::String;
 use core::fmt;
+use core::ops::Deref;
 #[cfg(feature = "std")]
 use std::io;
 
@@ -109,7 +110,7 @@ pub use crate::values::{NO_VALUES, Value, Values, get_value};
 /// `.render()`.
 ///
 /// [dynamic methods calls]: <https://doc.rust-lang.org/stable/std/keyword.dyn.html>
-pub trait Template: fmt::Display + filters::FastWritable {
+pub trait Template: fmt::Display + FastWritable {
     /// Helper method which allocates a new `String` and renders into it.
     #[inline]
     #[cfg(feature = "alloc")]
@@ -370,6 +371,194 @@ macro_rules! impl_for_ref {
     }
 }
 
+/// Types implementing this trait can be written without needing to employ an [`fmt::Formatter`].
+pub trait FastWritable {
+    /// Used internally by askama to speed up writing some types.
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn Values,
+    ) -> crate::Result<()>;
+}
+
+const _: () = {
+    crate::impl_for_ref! {
+        impl FastWritable for T {
+            #[inline]
+            fn write_into<W: fmt::Write + ?Sized>(
+                &self,
+                dest: &mut W,
+                values: &dyn Values,
+            ) -> crate::Result<()> {
+                <T>::write_into(self, dest, values)
+            }
+        }
+    }
+
+    impl<T> FastWritable for core::pin::Pin<T>
+    where
+        T: Deref,
+        <T as Deref>::Target: FastWritable,
+    {
+        #[inline]
+        fn write_into<W: fmt::Write + ?Sized>(
+            &self,
+            dest: &mut W,
+            values: &dyn Values,
+        ) -> crate::Result<()> {
+            self.as_ref().get_ref().write_into(dest, values)
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    impl<T: FastWritable + alloc::borrow::ToOwned> FastWritable for alloc::borrow::Cow<'_, T> {
+        #[inline]
+        fn write_into<W: fmt::Write + ?Sized>(
+            &self,
+            dest: &mut W,
+            values: &dyn Values,
+        ) -> crate::Result<()> {
+            T::write_into(self.as_ref(), dest, values)
+        }
+    }
+
+    // implement FastWritable for a list of types
+    macro_rules! impl_for_int {
+        ($($ty:ty)*) => { $(
+            impl FastWritable for $ty {
+                #[inline]
+                fn write_into<W: fmt::Write + ?Sized>(
+                    &self,
+                    dest: &mut W,
+                    values: &dyn Values,
+                ) -> crate::Result<()> {
+                    itoa::Buffer::new().format(*self).write_into(dest, values)
+                }
+            }
+        )* };
+    }
+
+    impl_for_int!(
+        u8 u16 u32 u64 u128 usize
+        i8 i16 i32 i64 i128 isize
+    );
+
+    // implement FastWritable for a list of non-zero integral types
+    macro_rules! impl_for_nz_int {
+        ($($id:ident)*) => { $(
+            impl FastWritable for core::num::$id {
+                #[inline]
+                fn write_into<W: fmt::Write + ?Sized>(
+                    &self,
+                    dest: &mut W,
+                    values: &dyn Values,
+                ) -> crate::Result<()> {
+                    self.get().write_into(dest, values)
+                }
+            }
+        )* };
+    }
+
+    impl_for_nz_int!(
+        NonZeroU8 NonZeroU16 NonZeroU32 NonZeroU64 NonZeroU128 NonZeroUsize
+        NonZeroI8 NonZeroI16 NonZeroI32 NonZeroI64 NonZeroI128 NonZeroIsize
+    );
+
+    impl FastWritable for str {
+        #[inline]
+        fn write_into<W: fmt::Write + ?Sized>(
+            &self,
+            dest: &mut W,
+            _: &dyn Values,
+        ) -> crate::Result<()> {
+            Ok(dest.write_str(self)?)
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    impl FastWritable for alloc::string::String {
+        #[inline]
+        fn write_into<W: fmt::Write + ?Sized>(
+            &self,
+            dest: &mut W,
+            values: &dyn Values,
+        ) -> crate::Result<()> {
+            self.as_str().write_into(dest, values)
+        }
+    }
+
+    impl FastWritable for bool {
+        #[inline]
+        fn write_into<W: fmt::Write + ?Sized>(
+            &self,
+            dest: &mut W,
+            _: &dyn Values,
+        ) -> crate::Result<()> {
+            Ok(dest.write_str(match self {
+                true => "true",
+                false => "false",
+            })?)
+        }
+    }
+
+    impl FastWritable for char {
+        #[inline]
+        fn write_into<W: fmt::Write + ?Sized>(
+            &self,
+            dest: &mut W,
+            _: &dyn Values,
+        ) -> crate::Result<()> {
+            Ok(dest.write_char(*self)?)
+        }
+    }
+
+    impl FastWritable for fmt::Arguments<'_> {
+        fn write_into<W: fmt::Write + ?Sized>(
+            &self,
+            dest: &mut W,
+            _: &dyn Values,
+        ) -> crate::Result<()> {
+            Ok(match self.as_str() {
+                Some(s) => dest.write_str(s),
+                None => dest.write_fmt(*self),
+            }?)
+        }
+    }
+
+    impl<S: crate::Template + ?Sized> filters::WriteWritable for &filters::Writable<'_, S> {
+        #[inline]
+        fn askama_write<W: fmt::Write + ?Sized>(
+            &self,
+            dest: &mut W,
+            values: &dyn Values,
+        ) -> crate::Result<()> {
+            self.0.render_into_with_values(dest, values)
+        }
+    }
+
+    impl<S: FastWritable + ?Sized> filters::WriteWritable for &&filters::Writable<'_, S> {
+        #[inline]
+        fn askama_write<W: fmt::Write + ?Sized>(
+            &self,
+            dest: &mut W,
+            values: &dyn Values,
+        ) -> crate::Result<()> {
+            self.0.write_into(dest, values)
+        }
+    }
+
+    impl<S: fmt::Display + ?Sized> filters::WriteWritable for &&&filters::Writable<'_, S> {
+        #[inline]
+        fn askama_write<W: fmt::Write + ?Sized>(
+            &self,
+            dest: &mut W,
+            _: &dyn Values,
+        ) -> crate::Result<()> {
+            Ok(write!(dest, "{}", self.0)?)
+        }
+    }
+};
+
 pub(crate) use impl_for_ref;
 
 #[cfg(all(test, feature = "alloc"))]
@@ -404,7 +593,7 @@ mod tests {
             }
         }
 
-        impl filters::FastWritable for Test {
+        impl FastWritable for Test {
             #[inline]
             fn write_into<W: fmt::Write + ?Sized>(
                 &self,

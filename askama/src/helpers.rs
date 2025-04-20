@@ -12,10 +12,9 @@ use core::iter::{Enumerate, Peekable};
 use core::ops::Deref;
 use core::pin::Pin;
 
-use crate::Values;
 pub use crate::error::{ErrorMarker, ResultConverter};
-use crate::filters::FastWritable;
 pub use crate::values::get_value;
+use crate::{FastWritable, Values};
 
 pub struct TemplateLoop<I>
 where

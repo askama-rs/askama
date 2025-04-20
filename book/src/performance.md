@@ -42,7 +42,7 @@ your `FastWritable` implementation:
 
 [`fmt::Display`]: <https://doc.rust-lang.org/stable/std/fmt/trait.Display.html>
 [`fmt::Formatter`]: <https://doc.rust-lang.org/stable/std/fmt/struct.Formatter.html>
-[`FastWritable`]: <./doc/askama/filters/trait.FastWritable.html>
+[`FastWritable`]: <./doc/askama/trait.FastWritable.html>
 [autoref-based specialization]: <https://lukaskalbertodt.github.io/2019/12/05/generalized-autoref-based-specialization.html>
 
 ## Slow Debug Recompilations
