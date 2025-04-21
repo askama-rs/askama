@@ -560,6 +560,31 @@ Output:
 he...
 ```
 
+### unique
+[#unique]: #unique
+
+Returns an iterator with all duplicates removed.
+
+**This filter is only available with the `std` feature enabled.**
+
+With this data:
+
+```rust
+vec!["a", "b", "a", "c"]
+```
+
+And this template:
+
+```jinja
+{% for elem in data|unique %}{{ elem }},{% endfor %}
+```
+
+Output will be:
+
+```text
+a,b,c,
+```
+
 ### upper | uppercase
 [#upper]: #upper--uppercase
 
