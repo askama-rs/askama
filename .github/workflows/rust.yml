@@ -205,12 +205,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
       - uses: Swatinem/rust-cache@v2
       - run: cargo build --all-targets --features full
-      - run: cargo nextest run --all-targets --no-tests=warn --features full
+      - run: cargo test --all-targets --features full
 
   Package:
     needs: ["Rustfmt", "Docs", "Audit", "Book", "Typos", "Jinja2-Assumptions", "DevSkim", "CargoSort"]
@@ -229,12 +226,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest
       - uses: Swatinem/rust-cache@v2
       - run: cd ${{ matrix.package }} && cargo build --all-targets
-      - run: cd ${{ matrix.package }} && cargo nextest run --all-targets --no-fail-fast --no-tests=warn
+      - run: cd ${{ matrix.package }} && cargo test --all-targets
       - run: cd ${{ matrix.package }} && cargo clippy --all-targets -- -D warnings
 
   MSRV:
