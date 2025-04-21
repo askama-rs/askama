@@ -17,6 +17,8 @@ mod escape;
 mod humansize;
 #[cfg(feature = "serde_json")]
 mod json;
+#[cfg(feature = "std")]
+mod std;
 #[cfg(feature = "urlencode")]
 mod urlencode;
 
@@ -33,6 +35,8 @@ pub use self::escape::{
 pub use self::humansize::filesizeformat;
 #[cfg(feature = "serde_json")]
 pub use self::json::{json, json_pretty};
+#[cfg(feature = "std")]
+pub use self::std::unique;
 #[cfg(feature = "urlencode")]
 pub use self::urlencode::{urlencode, urlencode_strict};
 

@@ -924,4 +924,4 @@ const BUILTIN_FILTERS_ALLOC: &[&str] = &[
 ];
 
 // These built-in filters take no arguments, no generics, and need `features = ["std"]`.
-const BUILTIN_FILTERS_STD: &[&str] = &[];
+const BUILTIN_FILTERS_STD: &[&str] = &["unique"];
