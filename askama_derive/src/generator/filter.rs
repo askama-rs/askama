@@ -232,11 +232,11 @@ impl<'a> Generator<'a, '_> {
         const ARGUMENTS: &[&FilterArgument; 3] = &[
             FILTER_SOURCE,
             &FilterArgument {
-                name: "sg",
+                name: "singular",
                 default_value: Some(SINGULAR),
             },
             &FilterArgument {
-                name: "pl",
+                name: "plural",
                 default_value: Some(PLURAL),
             },
         ];

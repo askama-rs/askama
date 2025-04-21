@@ -2,7 +2,7 @@ use askama::Template;
 
 #[derive(Template)]
 #[template(
-    source = r#"I have {{ count }} butterfl{{ count | pluralize(pl = "ies", "y") }}."#,
+    source = r#"I have {{ count }} butterfl{{ count | pluralize(plural = "ies", "y") }}."#,
     ext = "txt"
 )]
 struct PositionalAfterNamed {
@@ -11,7 +11,7 @@ struct PositionalAfterNamed {
 
 #[derive(Template)]
 #[template(
-    source = r#"I have {{ count }} butterfl{{ count | pluralize(pl = "y", pl = "ies") }}."#,
+    source = r#"I have {{ count }} butterfl{{ count | pluralize(plural = "y", plural = "ies") }}."#,
     ext = "txt"
 )]
 struct NamedRepeated {
@@ -20,7 +20,7 @@ struct NamedRepeated {
 
 #[derive(Template)]
 #[template(
-    source = r#"I have {{ count }} butterfl{{ count | pluralize("y", sg = "ies") }}."#,
+    source = r#"I have {{ count }} butterfl{{ count | pluralize("y", pl = "ies") }}."#,
     ext = "txt"
 )]
 struct NamedButAlreadyPositional {
@@ -29,7 +29,7 @@ struct NamedButAlreadyPositional {
 
 #[derive(Template)]
 #[template(
-    source = r#"I have {{ count }} butterfl{{ count | pluralize("y", plural = "ies") }}."#,
+    source = r#"I have {{ count }} butterfl{{ count | pluralize("y", sg = "ies") }}."#,
     ext = "txt"
 )]
 struct NoSuchNamedArgument {

@@ -29,7 +29,7 @@ fn test_pluralize_two_positional_args() {
 fn test_pluralize_positional_and_named() {
     #[derive(Template)]
     #[template(
-        source = r#"I have {{ count }} butterfl{{ count | pluralize("y", pl = "ies") }}."#,
+        source = r#"I have {{ count }} butterfl{{ count | pluralize("y", plural = "ies") }}."#,
         ext = "txt"
     )]
     struct CountButterflies {
@@ -54,7 +54,7 @@ fn test_pluralize_positional_and_named() {
 fn test_pluralize_named_reordered() {
     #[derive(Template)]
     #[template(
-        source = r#"I have {{ count }} butterfl{{ count | pluralize(pl = "ies", sg = "y") }}."#,
+        source = r#"I have {{ count }} butterfl{{ count | pluralize(plural = "ies", singular = "y") }}."#,
         ext = "txt"
     )]
     struct CountButterflies {
@@ -79,7 +79,7 @@ fn test_pluralize_named_reordered() {
 fn test_pluralize_defaulted_and_named() {
     #[derive(Template)]
     #[template(
-        source = r#"I have {{ count }} potato{{ count | pluralize(pl = "es") }}."#,
+        source = r#"I have {{ count }} potato{{ count | pluralize(plural = "es") }}."#,
         ext = "txt"
     )]
     struct CountPotatoes {

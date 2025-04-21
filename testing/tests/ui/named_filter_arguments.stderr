@@ -1,34 +1,34 @@
 error: named arguments must always be passed last
  --> <source attribute>:1:47
-       "(pl = \"ies\", \"y\") }}."
+       "(plural = \"ies\", \"y\") }}."
  --> tests/ui/named_filter_arguments.rs:5:14
   |
-5 |     source = r#"I have {{ count }} butterfl{{ count | pluralize(pl = "ies", "y") }}."#,
-  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+5 |     source = r#"I have {{ count }} butterfl{{ count | pluralize(plural = "ies", "y") }}."#,
+  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: named argument `pl` was passed more than once
+error: named argument `plural` was passed more than once
  --> <source attribute>:1:47
-       "(pl = \"y\", pl = \"ies\") }}."
+       "(plural = \"y\", plural = \"ies\") }}."
   --> tests/ui/named_filter_arguments.rs:14:14
    |
-14 |     source = r#"I have {{ count }} butterfl{{ count | pluralize(pl = "y", pl = "ies") }}."#,
-   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+14 |     source = r#"I have {{ count }} butterfl{{ count | pluralize(plural = "y", plural = "ies") }}."#,
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: `sg` argument to `pluralize` filter was already set; its arguments are: ([sg], [pl])
+error: `pluralize` filter does not have an argument `pl`; its arguments are: ([singular], [plural])
  --> NamedButAlreadyPositional.txt:1:47
-       "(\"y\", sg = \"ies\") }}."
+       "(\"y\", pl = \"ies\") }}."
   --> tests/ui/named_filter_arguments.rs:23:14
    |
-23 |     source = r#"I have {{ count }} butterfl{{ count | pluralize("y", sg = "ies") }}."#,
+23 |     source = r#"I have {{ count }} butterfl{{ count | pluralize("y", pl = "ies") }}."#,
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: `pluralize` filter does not have an argument `plural`; its arguments are: ([sg], [pl])
+error: `pluralize` filter does not have an argument `sg`; its arguments are: ([singular], [plural])
  --> NoSuchNamedArgument.txt:1:47
-       "(\"y\", plural = \"ies\") }}."
+       "(\"y\", sg = \"ies\") }}."
   --> tests/ui/named_filter_arguments.rs:32:14
    |
-32 |     source = r#"I have {{ count }} butterfl{{ count | pluralize("y", plural = "ies") }}."#,
-   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+32 |     source = r#"I have {{ count }} butterfl{{ count | pluralize("y", sg = "ies") }}."#,
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: `uppercase` filter does not have any arguments
  --> NamedArgumentButNoArgumentExpected.txt:1:30

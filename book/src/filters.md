@@ -22,10 +22,10 @@ Built-in filters that take (optional) arguments can be called with named argumen
 The order of the named arguments does not matter, but named arguments must come after
 positional (i.e. unnamed) arguments.
 
-E.g. the filter `pluralize` takes two optional arguments: `sg` and `pl` (singular and plural),
-which are `sg = ""` and `pl = "s"` by default.
+E.g. the filter `pluralize` takes two optional arguments: `singular` and `plural`
+which are `singular = ""` and `plural = "s"` by default.
 If you are fine with the default empty string for the singular, and you only want to set a
-specific plural, then you can call the filter like `dog{{ count | pluralize(pl = "gies") }}`.
+specific plural, then you can call the filter like `dog{{ count | pluralize(plural = "gies") }}`.
 
 ### capitalize
 [#capitalize]: #capitalize
@@ -415,7 +415,7 @@ hello
 
 ```jinja
 {{ integer | pluralize }}
-{{ integer | pluralize([sg = ""], [pl = "s"]) }}
+{{ integer | pluralize([singular = ""], [plural = "s"]) }}
 ```
 
 <hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
