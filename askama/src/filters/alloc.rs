@@ -835,7 +835,7 @@ fn flush_title(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
 /// }
 ///
 /// assert_eq!(
-///     Example { example: "hello WORLD" }.to_string(),
+///     Example { example: "hello WÖRLD" }.to_string(),
 ///     "<div>Hello World</div>"
 /// );
 /// # }
