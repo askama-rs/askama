@@ -918,6 +918,7 @@ const BUILTIN_FILTERS_ALLOC: &[&str] = &[
     "lower",
     "lowercase",
     "title",
+    "titlecase",
     "trim",
     "upper",
     "uppercase",

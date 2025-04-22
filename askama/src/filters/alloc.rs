@@ -820,6 +820,31 @@ fn flush_title(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
     Ok(())
 }
 
+/// Return a title cased version of the value. Alias for the [`|title`](title) filter.
+///
+/// ```
+/// # #[cfg(feature = "code-in-doc")] {
+/// # use askama::Template;
+/// /// ```jinja
+/// /// <div>{{ example|titlecase }}</div>
+/// /// ```
+/// #[derive(Template)]
+/// #[template(ext = "html", in_doc = true)]
+/// struct Example<'a> {
+///     example: &'a str,
+/// }
+///
+/// assert_eq!(
+///     Example { example: "hello WORLD" }.to_string(),
+///     "<div>Hello World</div>"
+/// );
+/// # }
+/// ```
+#[inline]
+pub fn titlecase<S: fmt::Display>(source: S) -> Result<Title<S>, Infallible> {
+    title(source)
+}
+
 /// A prefix usable for indenting [prettified JSON data](super::json::json_pretty) and
 /// [`|indent`](indent)
 ///

@@ -25,7 +25,7 @@ mod urlencode;
 #[cfg(feature = "alloc")]
 pub use self::alloc::{
     AsIndent, capitalize, fmt, format, indent, linebreaks, linebreaksbr, lower, lowercase,
-    paragraphbreaks, title, trim, upper, uppercase, wordcount,
+    paragraphbreaks, title, titlecase, trim, upper, uppercase, wordcount,
 };
 pub use self::builtin::{PluralizeCount, center, join, pluralize, truncate};
 pub use self::escape::{

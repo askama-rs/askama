@@ -488,8 +488,8 @@ Output:
 <p>I'm Safe</p>
 ```
 
-### title
-[#title]: #title
+### title | titlecase
+[#title]: #title--titlecase
 
 <blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
 enabled by <code>"alloc"</code><br/>
@@ -498,6 +498,7 @@ enabled by <code>"default"</code>
 
 ```jinja
 {{ text_to_convert | title }}
+{{ text_to_convert | titlecase }}
 ```
 
 <hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
