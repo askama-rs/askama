@@ -23,7 +23,7 @@ use parser::{Parsed, ascii_str, strip_common};
 use proc_macro::TokenStream as TokenStream12;
 #[cfg(feature = "__standalone")]
 use proc_macro2::TokenStream as TokenStream12;
-use proc_macro2::{Delimiter, Group, Span, TokenStream, TokenTree};
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned};
 use rustc_hash::FxBuildHasher;
 
@@ -239,7 +239,6 @@ pub fn derive_template(input: TokenStream12) -> TokenStream12 {
         buf.into_string().parse().unwrap()
     };
 
-    let ts = TokenTree::Group(Group::new(Delimiter::None, ts));
     let ts = if let Some(crate_name) = crate_name {
         quote! {
             const _: () = {

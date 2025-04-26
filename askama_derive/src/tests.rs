@@ -1169,3 +1169,16 @@ fn test_with_config() {
         r#"#[template(config = "empty_test_config.toml")]"#,
     );
 }
+
+#[test]
+#[cfg(feature = "__standalone")]
+fn test_generated_with_error() {
+    // Ensure that the generated code on errors can still be parsed by syn.
+    let ts = quote::quote! {
+        #[derive(Template)]
+        #[template(ext = "txt", source = "test {#")]
+        struct HelloWorld;
+    };
+    let ts = crate::derive_template(ts);
+    let _: syn::File = syn::parse2(ts).unwrap();
+}
