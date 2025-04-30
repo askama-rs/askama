@@ -106,6 +106,45 @@ mod test_double_attr_arg {
     }
 }
 
+#[test]
+fn test_caller() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test() -%}
+{%- call caller() -%}
+{%- endmacro -%}
+{%- call() test() -%}
+nested
+{%- endcall -%}
+"#,
+        ext = "html"
+    )]
+    struct CallerEmpty {}
+    let x = CallerEmpty {};
+    assert_eq!(x.render().unwrap(), "nested");
+}
+
+#[test]
+fn test_caller_args() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test() -%}
+{%- call caller("test") -%}
+{%- call caller("test") -%}
+{%- endmacro -%}
+{%- call(value) test() -%}
+nested {{value}}
+{%- endcall -%}
+"#,
+        ext = "html"
+    )]
+    struct CallerEmpty {}
+    let x = CallerEmpty {};
+    assert_eq!(x.render().unwrap(), "nested testnested test");
+}
+
 // Ensures that fields are not moved when calling a jinja macro.
 #[test]
 fn test_do_not_move_fields() {

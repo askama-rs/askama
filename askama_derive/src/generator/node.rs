@@ -600,12 +600,18 @@ impl<'a> Generator<'a, '_> {
             scope,
             name,
             ref args,
+            ref block,
         } = **call;
         if name == "super" {
             return self.write_block(ctx, buf, None, ws, call.span());
         }
 
-        let (def, own_ctx) = if let Some(s) = scope {
+        let (def, own_ctx) = if name == "caller" {
+            let def = self.seen_call_macro.last().ok_or_else(|| {
+                ctx.generate_error(format_args!("block is not defined for caller"), call.span())
+            })?;
+            (*def, ctx)
+        } else if let Some(s) = scope {
             let path = ctx.imports.get(s).ok_or_else(|| {
                 ctx.generate_error(format_args!("no import found for scope {s:?}"), call.span())
             })?;
@@ -639,7 +645,9 @@ impl<'a> Generator<'a, '_> {
         } else {
             self.seen_macros.push((def, ctx.file_info_of(call.span())));
         }
-
+        if let Some(macr) = block {
+            self.seen_call_macro.push(macr);
+        }
         self.flush_ws(ws); // Cannot handle_ws() here: whitespace from macro definition comes first
         let size_hint = self.push_locals(|this| {
             macro_call_ensure_arg_count(call, def, ctx)?;
@@ -763,6 +771,9 @@ impl<'a> Generator<'a, '_> {
         })?;
         self.prepare_ws(ws);
         self.seen_macros.pop();
+        if let Some(_macr) = block {
+            self.seen_call_macro.pop();
+        }
         Ok(size_hint)
     }
 
