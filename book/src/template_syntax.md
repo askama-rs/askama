@@ -919,6 +919,52 @@ Then if you don't pass a value for this argument, its default value will be used
 {% call heading(1, 2) %}
 ```
 
+### Call
+
+you can specify a block for a call to be passed down as used as apart of a macro. For this case 
+a block is denoted by `{% call(args) macro() %}`, ending with `{% endcall %}`. for a call with no args it's 
+denoted by `{% call() macro() %}`, ending with `{% endcall %}`. Inside a macro, the `caller()` macro 
+is called to pull in the block from the caller.
+
+```jinja
+{% macro render_dialog(title, class='dialog') -%}
+    <div class="{{ class }}">
+        <h2>{{ title }}</h2>
+        <div class="contents">
+            {% call caller() %}
+        </div>
+    </div>
+{%- endmacro %}
+
+{% call() render_dialog('Hello World') %}
+    This is a simple dialog rendered by using a macro and
+    a call block.
+{% endcall %}
+
+```
+
+here is an example with a call block using arguments:
+
+```jinja
+{% macro dump_users(users) -%}
+    <ul>
+    {%- for user in users %}
+        <li><p>{{ user.username }}</p>{% call caller(user) %}</li>
+    {%- endfor %}
+    </ul>
+{%- endmacro %}
+
+{% call(user) dump_users(list_of_user) %}
+    <dl>
+        <dt>Realname</dt>
+        <dd>{{ user.realname }}</dd>
+        <dt>Description</dt>
+        <dd>{{ user.description }}</dd>
+    </dl>
+{% endcall %}
+
+```
+
 ## Calling Rust macros
 
 It is possible to call rust macros directly in your templates:
