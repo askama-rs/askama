@@ -1,61 +1,61 @@
 error: Found recursion in macro calls:
  --> Direct.html:3:10
-       " call one %}\n    "
+       " call one %}{% endcall %}\n    "
          --> Direct.html:2:25
-       " call one %}{% endmacro %}\n        {% call one %}\n    "
+       " call one %}{% endcall %}{% endmacro %}\n        {% call one %}{% endcall %}\n    "
  --> tests/ui/macro-recursion.rs:5:14
   |
 5 |       source = "
   |  ______________^
-6 | |         {% macro one %}{% call one %}{% endmacro %}
-7 | |         {% call one %}
+6 | |         {% macro one %}{% call one %}{% endcall %}{% endmacro %}
+7 | |         {% call one %}{% endcall %}
 8 | |     ",
   | |_____^
 
 error: Found recursion in macro calls:
  --> Indirect.html:7:10
-       " call one %}\n    "
+       " call one %}{% endcall %}\n    "
          --> Indirect.html:2:25
-       " call two %}{% endmacro %}\n        {% macro two %}{% call three %}{% endmacro %}"...
+       " call two %}{% endcall %}{% endmacro %}\n        {% macro two %}{% call three %}{"...
          --> Indirect.html:3:25
-       " call three %}{% endmacro %}\n        {% macro three %}{% call four %}{% endmacro"...
+       " call three %}{% endcall %}{% endmacro %}\n        {% macro three %}{% call four "...
          --> Indirect.html:4:27
-       " call four %}{% endmacro %}\n        {% macro four %}{% call five %}{% endmacro %"...
+       " call four %}{% endcall %}{% endmacro %}\n        {% macro four %}{% call five %}"...
          --> Indirect.html:5:26
-       " call five %}{% endmacro %}\n        {% macro five %}{% call one %}{% endmacro %}"...
+       " call five %}{% endcall %}{% endmacro %}\n        {% macro five %}{% call one %}{"...
          --> Indirect.html:6:26
-       " call one %}{% endmacro %}\n        {% call one %}\n    "
+       " call one %}{% endcall %}{% endmacro %}\n        {% call one %}{% endcall %}\n    "
   --> tests/ui/macro-recursion.rs:15:14
    |
 15 |       source = "
    |  ______________^
-16 | |         {% macro one %}{% call two %}{% endmacro %}
-17 | |         {% macro two %}{% call three %}{% endmacro %}
-18 | |         {% macro three %}{% call four %}{% endmacro %}
+16 | |         {% macro one %}{% call two %}{% endcall %}{% endmacro %}
+17 | |         {% macro two %}{% call three %}{% endcall %}{% endmacro %}
+18 | |         {% macro three %}{% call four %}{% endcall %}{% endmacro %}
 ...  |
-21 | |         {% call one %}
+21 | |         {% call one %}{% endcall %}
 22 | |     ",
    | |_____^
 
 error: Found recursion in macro calls:
  --> AcrossImports.html:6:10
-       " call some_macro %}\n    "
+       " call some_macro %}{% endcall %}\n    "
          --> AcrossImports.html:4:14
-       " call next::some_macro %}\n        {% endmacro %}\n        {% call some_macro %}\n "...
+       " call next::some_macro %}{% endcall %}\n        {% endmacro %}\n        {% call so"...
          --> testing/templates/macro-recursion-1.html:4:6
-       " call next::some_macro %}\n{% endmacro %}"
+       " call next::some_macro %}{% endcall %}\n{% endmacro %}"
          --> testing/templates/macro-recursion-2.html:4:6
-       " call next::some_macro %}\n{% endmacro %}"
+       " call next::some_macro %}{% endcall %}\n{% endmacro %}"
          --> testing/templates/macro-recursion-3.html:4:6
-       " call next::some_macro %}\n{% endmacro %}"
+       " call next::some_macro %}{% endcall %}\n{% endmacro %}"
   --> tests/ui/macro-recursion.rs:29:14
    |
 29 |       source = r#"
    |  ______________^
 30 | |         {% import "macro-recursion-1.html" as next %}
 31 | |         {% macro some_macro %}
-32 | |             {% call next::some_macro %}
+32 | |             {% call next::some_macro %}{% endcall %}
 33 | |         {% endmacro %}
-34 | |         {% call some_macro %}
+34 | |         {% call some_macro %}{% endcall %}
 35 | |     "#,
    | |______^

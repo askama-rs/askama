@@ -9,7 +9,7 @@ use std::path::Path;
 use std::str;
 use std::sync::Arc;
 
-use parser::node::{Macro, Whitespace};
+use parser::node::{Call, Macro, Whitespace};
 use parser::{
     CharLit, Expr, FloatKind, IntKind, MAX_RUST_KEYWORD_LEN, Num, RUST_KEYWORDS, StrLit, WithSpan,
 };
@@ -86,8 +86,8 @@ struct Generator<'a, 'h> {
     is_in_filter_block: usize,
     /// Set of called macros we are currently in. Used to prevent (indirect) recursions.
     seen_macros: Vec<(&'a Macro<'a>, Option<FileInfo<'a>>)>,
-    /// Set of called macros we are currently associated with a call.
-    seen_call_macro: Vec<&'a Macro<'a>>,
+    /// Set of callers to forward into the macro.
+    seen_callers: Vec<&'a Call<'a>>,
 }
 
 impl<'a, 'h> Generator<'a, 'h> {
@@ -113,7 +113,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             },
             is_in_filter_block,
             seen_macros: Vec::new(),
-            seen_call_macro: Vec::new(),
+            seen_callers: Vec::new(),
         }
     }
 

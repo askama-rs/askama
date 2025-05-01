@@ -878,10 +878,13 @@ impl<'a> Import<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Call<'a> {
     pub ws: Ws,
+    pub caller_args: Vec<&'a str>,
     pub scope: Option<&'a str>,
     pub name: &'a str,
     pub args: Vec<WithSpan<'a, Expr<'a>>>,
-    pub block: Option<Macro<'a>>,
+    pub ws1: Ws,
+    pub nodes: Vec<Node<'a>>,
+    pub ws2: Ws,
 }
 
 impl<'a> Call<'a> {
@@ -918,51 +921,40 @@ impl<'a> Call<'a> {
                     ws(identifier),
                     opt(ws(|nested: &mut _| Expr::arguments(nested, s.level, true))),
                     opt(Whitespace::parse),
+                    |i: &mut _| s.tag_block_end(i),
                 ),
             ),
         );
-        let (pws, _, call_args, (scope, name, args, nws)) = p.parse_next(i)?;
+        let (pws, _, call_args, (scope, name, args, nws, _)) = p.parse_next(i)?;
         let scope = scope.map(|(scope, _)| scope);
         let args = args.unwrap_or_default();
+        let mut end = cut_node(
+            Some("call"),
+            (
+                |i: &mut _| Node::many(i, s),
+                cut_node(
+                    Some("call"),
+                    (
+                        |i: &mut _| check_block_start(i, start_s, s, "call", "endcall"),
+                        opt(Whitespace::parse),
+                        end_node("call", "endcall"),
+                        opt(Whitespace::parse),
+                    ),
+                ),
+            ),
+        );
+        let (nodes, (_, pws2, _, nws2)) = end.parse_next(i)?;
 
         Ok(WithSpan::new(
             Self {
                 ws: Ws(pws, nws),
+                caller_args: call_args.unwrap_or_default(),
                 scope,
                 name,
                 args,
-                block: match call_args {
-                    Some(args) => {
-                        let mut end = cut_node(
-                            Some("call"),
-                            (
-                                |i: &mut _| s.tag_block_end(i),
-                                |i: &mut _| Node::many(i, s),
-                                cut_node(
-                                    Some("call"),
-                                    (
-                                        |i: &mut _| {
-                                            check_block_start(i, start_s, s, "call", "endcall")
-                                        },
-                                        opt(Whitespace::parse),
-                                        end_node("call", "endcall"),
-                                        opt(Whitespace::parse),
-                                    ),
-                                ),
-                            ),
-                        );
-
-                        let (_, nodes, (_, pws2, _, nws2)) = end.parse_next(i)?;
-                        Some(Macro {
-                            ws1: Ws(pws, pws2),
-                            name: "", // this macro is not resolved wtih a name
-                            args: args.iter().map(|v| (*v, None)).collect(),
-                            nodes,
-                            ws2: Ws(pws2, nws2),
-                        })
-                    }
-                    None => None,
-                },
+                ws1: Ws(pws, pws2),
+                nodes,
+                ws2: Ws(pws2, nws2),
             },
             start_s,
         ))

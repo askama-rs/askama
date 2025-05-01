@@ -3,9 +3,9 @@
 {%- endmacro -%}
 
 {%- macro child1() -%}
-    {% call child0() %}
+    {% call child0() %}{% endcall %}
 {%- endmacro -%}
 
 {%- macro parent() -%}
-    {% call child1() %}
+    {% call child1() %}{% endcall %}
 {%- endmacro -%}

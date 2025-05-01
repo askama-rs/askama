@@ -5,7 +5,7 @@ use askama::Template;
 {{ param1 }} {{ param2 }}
 {%- endmacro -%}
 
-{%- call thrice(param1=2, param3=3) -%}", ext = "html")]
+{%- call thrice(param1=2, param3=3) -%}{%- endcall -%}", ext = "html")]
 struct InvalidNamedArg;
 
 #[derive(Template)]
@@ -13,7 +13,7 @@ struct InvalidNamedArg;
 {{ param1 }} {{ param2 }}
 {%- endmacro -%}
 
-{%- call thrice(param1=2, param1=3) -%}", ext = "html")]
+{%- call thrice(param1=2, param1=3) -%}{%- endcall -%}", ext = "html")]
 struct InvalidNamedArg2;
 
 // Ensures that filters can't have named arguments.
@@ -22,7 +22,7 @@ struct InvalidNamedArg2;
 {{ param1 }} {{ param2 }}
 {%- endmacro -%}
 
-{%- call thrice(3, param1=2)|filter(param1=12) -%}", ext = "html")]
+{%- call thrice(3, param1=2)|filter(param1=12) -%}{%- endcall -%}", ext = "html")]
 struct InvalidNamedArg3;
 
 // Ensures that named arguments can only be passed last.
@@ -30,7 +30,7 @@ struct InvalidNamedArg3;
 #[template(source = "{%- macro thrice(param1, param2) -%}
 {{ param1 }} {{ param2 }}
 {%- endmacro -%}
-{%- call thrice(param1=2, 3) -%}", ext = "html")]
+{%- call thrice(param1=2, 3) -%}{%- endcall -%}", ext = "html")]
 struct InvalidNamedArg4;
 
 // Ensures that named arguments can't be used for arguments before them.
@@ -38,19 +38,19 @@ struct InvalidNamedArg4;
 #[template(source = "{%- macro thrice(param1, param2) -%}
 {{ param1 }} {{ param2 }}
 {%- endmacro -%}
-{%- call thrice(3, param1=2) -%}", ext = "html")]
+{%- call thrice(3, param1=2) -%}{%- endcall -%}", ext = "html")]
 struct InvalidNamedArg5;
 
 #[derive(Template)]
 #[template(source = "{%- macro thrice(param1, param2) -%}
 {%- endmacro -%}
-{%- call thrice() -%}", ext = "html")]
+{%- call thrice() -%}{%- endcall -%}", ext = "html")]
 struct MissingArgs;
 
 #[derive(Template)]
 #[template(source = "{%- macro thrice(param1, param2=1) -%}
 {%- endmacro -%}
-{%- call thrice() -%}", ext = "html")]
+{%- call thrice() -%}{%- endcall -%}", ext = "html")]
 struct MissingArgs2;
 
 fn main() {

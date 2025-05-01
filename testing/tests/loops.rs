@@ -453,7 +453,7 @@ fn test_loop_locals() {
 {% endfor -%}
 {% endmacro -%}
 
-{% call mac(bla=bla) %}
+{% call mac(bla=bla) %}{% endcall %}
 {{- bla }}"#,
         ext = "txt"
     )]

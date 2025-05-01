@@ -112,7 +112,7 @@ fn test_caller() {
     #[template(
         source = r#"
 {%- macro test() -%}
-{%- call caller() -%}
+{{- caller() -}}
 {%- endmacro -%}
 {%- call() test() -%}
 nested
@@ -126,13 +126,44 @@ nested
 }
 
 #[test]
+fn test_caller_struct() {
+    struct TestInput<'a> {
+        a: &'a str, 
+        b: &'a str 
+    }
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test(a) -%}
+{{caller(a)}}
+{%- endmacro -%}
+{%- call(value) test(a) -%}
+a: {{value.a}}
+b: {{value.b}}
+{%- endcall -%}
+"#,
+        ext = "txt"
+    )]
+    struct Tmpl<'a> {
+        a: TestInput<'a>
+    }
+    let x = Tmpl {
+        a: TestInput {
+            a: "one",
+            b: "two"
+        }
+    };
+    assert_eq!(x.render().unwrap(), "a: one\nb: two");
+}
+
+#[test]
 fn test_caller_args() {
     #[derive(Template)]
     #[template(
         source = r#"
 {%- macro test() -%}
-{%- call caller("test") -%}
-{%- call caller("test") -%}
+{{-  caller("test") -}}
+{{-  caller("test") -}}
 {%- endmacro -%}
 {%- call(value) test() -%}
 nested {{value}}
@@ -159,7 +190,7 @@ no show
 {%- endif -%}
 {%- endmacro -%}
 
-{%- call package_navigation(title=title, show=true) -%}
+{%- call package_navigation(title=title, show=true) -%}{%- endcall -%}
 ",
         ext = "html"
     )]
