@@ -28,7 +28,10 @@ pub use self::alloc::{
     capitalize, fmt, format, linebreaks, linebreaksbr, lower, lowercase, paragraphbreaks, title,
     titlecase, trim, upper, uppercase, wordcount,
 };
-pub use self::builtin::{PluralizeCount, center, join, pluralize, reject, reject_with, truncate};
+pub use self::builtin::{
+    DefaultFilterable, Either, PluralizeCount, assigned_or, center, join, pluralize, reject,
+    reject_with, truncate,
+};
 pub use self::escape::{
     AutoEscape, AutoEscaper, Escaper, Html, HtmlSafe, HtmlSafeOutput, MaybeSafe, Safe, Text,
     Unsafe, Writable, WriteWritable, e, escape, safe,
