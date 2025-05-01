@@ -29,7 +29,10 @@ impl<'a> Generator<'a, '_> {
             PathOrIdentifier::Identifier(name) => (*name, &[]),
         };
         let filter = match name {
+            "assigned_or" => Self::visit_assigned_or,
             "center" => Self::visit_center_filter,
+            "default" => Self::visit_default_filter,
+            "defined_or" => Self::visit_defined_or,
             "deref" => Self::visit_deref_filter,
             "escape" | "e" => Self::visit_escape_filter,
             "filesizeformat" => Self::visit_humansize,
@@ -446,8 +449,6 @@ impl<'a> Generator<'a, '_> {
         args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        const FALSE: &WithSpan<'static, Expr<'static>> =
-            &WithSpan::new_without_span(Expr::BoolLit(false));
         const ARGUMENTS: &[&FilterArgument; 4] = &[
             FILTER_SOURCE,
             &FilterArgument {
@@ -698,6 +699,129 @@ impl<'a> Generator<'a, '_> {
         );
         Ok(DisplayWrap::Unwrapped)
     }
+
+    fn visit_default_filter(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[WithSpan<'a, Expr<'a>>],
+        node: Span<'_>,
+    ) -> Result<DisplayWrap, CompileError> {
+        const ARGUMENTS: &[&FilterArgument; 3] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "default_value",
+                default_value: None,
+            },
+            &FilterArgument {
+                name: "boolean",
+                default_value: Some(FALSE),
+            },
+        ];
+
+        let [value, fallback, is_assigned] =
+            collect_filter_args(ctx, "default", node, args, ARGUMENTS)?;
+        let Expr::BoolLit(is_assigned) = **is_assigned else {
+            return Err(ctx.generate_error(
+                "the `default` filter takes a boolean literal as its optional second argument",
+                is_assigned.span(),
+            ));
+        };
+        if is_assigned {
+            self.visit_assigned_or_impl(ctx, buf, value, fallback)
+        } else {
+            self.visit_defined_or_impl(ctx, buf, node, value, fallback, "default")
+        }
+    }
+
+    fn visit_assigned_or(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[WithSpan<'a, Expr<'a>>],
+        node: Span<'_>,
+    ) -> Result<DisplayWrap, CompileError> {
+        const ARGUMENTS: &[&FilterArgument; 2] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "fallback",
+                default_value: None,
+            },
+        ];
+
+        let [value, fallback] = collect_filter_args(ctx, "assigned_or", node, args, ARGUMENTS)?;
+        self.visit_assigned_or_impl(ctx, buf, value, fallback)
+    }
+
+    fn visit_assigned_or_impl(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        value: &WithSpan<'a, Expr<'a>>,
+        fallback: &WithSpan<'a, Expr<'a>>,
+    ) -> Result<DisplayWrap, CompileError> {
+        if let Expr::Var(var_name) = **value {
+            if !self.is_var_assigned(var_name) {
+                self.visit_expr(ctx, buf, fallback)?;
+                return Ok(DisplayWrap::Unwrapped);
+            }
+        }
+
+        buf.write("askama::filters::assigned_or(&(");
+        self.visit_arg(ctx, buf, value)?;
+        buf.write("),");
+        self.visit_arg(ctx, buf, fallback)?;
+        buf.write(")?");
+
+        Ok(DisplayWrap::Unwrapped)
+    }
+
+    fn visit_defined_or(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[WithSpan<'a, Expr<'a>>],
+        node: Span<'_>,
+    ) -> Result<DisplayWrap, CompileError> {
+        const ARGUMENTS: &[&FilterArgument; 2] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "fallback",
+                default_value: None,
+            },
+        ];
+
+        let [value, fallback] = collect_filter_args(ctx, "defined_or", node, args, ARGUMENTS)?;
+        self.visit_defined_or_impl(ctx, buf, node, value, fallback, "defined_or")
+    }
+
+    fn visit_defined_or_impl(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        node: Span<'_>,
+        value: &WithSpan<'a, Expr<'a>>,
+        fallback: &WithSpan<'a, Expr<'a>>,
+        name: &str,
+    ) -> Result<DisplayWrap, CompileError> {
+        let var_name = match **value {
+            Expr::Var(var_name) => var_name,
+            _ => {
+                return Err(ctx.generate_error(
+                    format!("the `{name}` filter requires a variable name on its left-hand side"),
+                    node,
+                ));
+            }
+        };
+
+        let expr = match self.is_var_assigned(var_name) {
+            true => value,
+            false => fallback,
+        };
+        self.visit_expr(ctx, buf, expr)?;
+
+        Ok(DisplayWrap::Unwrapped)
+    }
 }
 
 fn ensure_filter_has_feature_alloc(
@@ -713,6 +837,8 @@ fn ensure_filter_has_feature_alloc(
     }
     Ok(())
 }
+
+const FALSE: &WithSpan<'static, Expr<'static>> = &WithSpan::new_without_span(Expr::BoolLit(false));
 
 fn ensure_filter_has_feature_std(
     ctx: &Context<'_>,

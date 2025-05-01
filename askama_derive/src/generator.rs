@@ -346,6 +346,15 @@ impl<'a, 'h> Generator<'a, 'h> {
     fn is_var_defined(&self, var_name: &str) -> bool {
         self.locals.get_any(var_name).is_some() || self.input.fields.iter().any(|f| f == var_name)
     }
+
+    /// Like [`is_var_defined()`], but not true for a forward declaration `{% let var %}`.
+    fn is_var_assigned(&self, var_name: &str) -> bool {
+        if let Some(meta) = self.locals.get(var_name) {
+            meta.initialized
+        } else {
+            self.input.fields.iter().any(|f| f == var_name)
+        }
+    }
 }
 
 #[cfg(target_pointer_width = "16")]

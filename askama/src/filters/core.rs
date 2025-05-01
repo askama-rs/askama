@@ -2,12 +2,13 @@ use core::cell::Cell;
 use core::convert::Infallible;
 use core::fmt::{self, Write};
 use core::mem::replace;
+use core::num::{Saturating, Wrapping};
 use core::ops::Deref;
 use core::pin::Pin;
 
 use super::MAX_LEN;
 use crate::filters::HtmlSafeOutput;
-use crate::{Error, FastWritable, Result, Values};
+use crate::{Error, FastWritable, Result, Values, impl_for_ref};
 
 /// Limit string length, appends '...' if truncated
 ///
@@ -332,13 +333,13 @@ impl<T: fmt::Display> fmt::Display for Center<T> {
 /// # }
 /// ```
 #[inline]
-pub fn pluralize<C, S, P>(count: C, singular: S, plural: P) -> Result<Pluralize<S, P>, C::Error>
+pub fn pluralize<C, S, P>(count: C, singular: S, plural: P) -> Result<Either<S, P>, C::Error>
 where
     C: PluralizeCount,
 {
     match count.is_singular()? {
-        true => Ok(Pluralize::Singular(singular)),
-        false => Ok(Pluralize::Plural(plural)),
+        true => Ok(Either::Left(singular)),
+        false => Ok(Either::Right(plural)),
     }
 }
 
@@ -428,22 +429,256 @@ const _: () = {
     }
 };
 
-pub enum Pluralize<S, P> {
-    Singular(S),
-    Plural(P),
+/// Render `value` if it is not its "default" value, see [`DefaultFilterable`],
+/// otherwise `fallback`.
+#[inline]
+pub fn assigned_or<L: DefaultFilterable, R>(
+    value: &L,
+    fallback: R,
+) -> Result<Either<L::Filtered<'_>, R>, L::Error> {
+    match value.as_filtered()? {
+        Some(value) => Ok(Either::Left(value)),
+        None => Ok(Either::Right(fallback)),
+    }
 }
 
-impl<S: fmt::Display, P: fmt::Display> fmt::Display for Pluralize<S, P> {
+/// A type (or a reference to it) that can be used in [`|assigned_or`](assigned_or).
+///
+/// The type is either a monad such as [`Option`] or [`Result`], or a type that has a well defined,
+/// trivial default value, e.g. an [empty](str::is_empty) [`str`] or `0` for integer types.
+#[diagnostic::on_unimplemented(
+    label = "`{Self}` is not `|assigned_or` filterable",
+    message = "`{Self}` is not `|assigned_or` filterable"
+)]
+pub trait DefaultFilterable {
+    /// The contained value
+    type Filtered<'a>
+    where
+        Self: 'a;
+
+    /// An error that prevented [`as_filtered()`](DefaultFilterable::as_filtered) to succeed,
+    /// e.g. a poisoned state or an unacquirable lock.
+    type Error: Into<crate::Error>;
+
+    /// Return the contained value, if a value was contained, and it's not the default value.
+    ///
+    /// Returns `Ok(None)` if the value could not be unwrapped.
+    fn as_filtered(&self) -> Result<Option<Self::Filtered<'_>>, Self::Error>;
+}
+
+const _: () = {
+    impl_for_ref! {
+        impl DefaultFilterable for T {
+            type Filtered<'a> = T::Filtered<'a>
+            where
+                Self: 'a;
+
+            type Error = T::Error;
+
+            #[inline]
+            fn as_filtered(&self) -> Result<Option<Self::Filtered<'_>>, Self::Error> {
+                <T>::as_filtered(self)
+            }
+        }
+    }
+
+    impl<T> DefaultFilterable for Pin<T>
+    where
+        T: Deref,
+        <T as Deref>::Target: DefaultFilterable,
+    {
+        type Filtered<'a>
+            = <<T as Deref>::Target as DefaultFilterable>::Filtered<'a>
+        where
+            Self: 'a;
+
+        type Error = <<T as Deref>::Target as DefaultFilterable>::Error;
+
+        #[inline]
+        fn as_filtered(&self) -> Result<Option<Self::Filtered<'_>>, Self::Error> {
+            self.as_ref().get_ref().as_filtered()
+        }
+    }
+
+    impl<T> DefaultFilterable for Option<T> {
+        type Filtered<'a>
+            = &'a T
+        where
+            Self: 'a;
+
+        type Error = Infallible;
+
+        #[inline]
+        fn as_filtered(&self) -> Result<Option<&T>, Infallible> {
+            Ok(self.as_ref())
+        }
+    }
+
+    impl<T, E> DefaultFilterable for Result<T, E> {
+        type Filtered<'a>
+            = &'a T
+        where
+            Self: 'a;
+
+        type Error = Infallible;
+
+        #[inline]
+        fn as_filtered(&self) -> Result<Option<&T>, Infallible> {
+            Ok(self.as_ref().ok())
+        }
+    }
+
+    impl DefaultFilterable for str {
+        type Filtered<'a>
+            = &'a str
+        where
+            Self: 'a;
+
+        type Error = Infallible;
+
+        #[inline]
+        fn as_filtered(&self) -> Result<Option<&str>, Infallible> {
+            match self.is_empty() {
+                false => Ok(Some(self)),
+                true => Ok(None),
+            }
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    impl DefaultFilterable for alloc::string::String {
+        type Filtered<'a>
+            = &'a str
+        where
+            Self: 'a;
+
+        type Error = Infallible;
+
+        #[inline]
+        fn as_filtered(&self) -> Result<Option<&str>, Infallible> {
+            self.as_str().as_filtered()
+        }
+    }
+
+    #[cfg(feature = "alloc")]
+    impl<T: DefaultFilterable + alloc::borrow::ToOwned + ?Sized> DefaultFilterable
+        for alloc::borrow::Cow<'_, T>
+    {
+        type Filtered<'a>
+            = T::Filtered<'a>
+        where
+            Self: 'a;
+
+        type Error = T::Error;
+
+        #[inline]
+        fn as_filtered(&self) -> Result<Option<Self::Filtered<'_>>, Self::Error> {
+            self.as_ref().as_filtered()
+        }
+    }
+
+    impl<T: DefaultFilterable> DefaultFilterable for Wrapping<T> {
+        type Filtered<'a>
+            = T::Filtered<'a>
+        where
+            Self: 'a;
+
+        type Error = T::Error;
+
+        #[inline]
+        fn as_filtered(&self) -> Result<Option<Self::Filtered<'_>>, Self::Error> {
+            self.0.as_filtered()
+        }
+    }
+
+    impl<T: DefaultFilterable> DefaultFilterable for Saturating<T> {
+        type Filtered<'a>
+            = T::Filtered<'a>
+        where
+            Self: 'a;
+
+        type Error = T::Error;
+
+        #[inline]
+        fn as_filtered(&self) -> Result<Option<Self::Filtered<'_>>, Self::Error> {
+            self.0.as_filtered()
+        }
+    }
+
+    macro_rules! impl_for_int {
+        ($($ty:ty)*) => { $(
+            impl DefaultFilterable for $ty {
+                type Filtered<'a> = $ty;
+                type Error = Infallible;
+
+                #[inline]
+                fn as_filtered(&self) -> Result<Option<$ty>, Infallible> {
+                    match *self {
+                        0 => Ok(None),
+                        value => Ok(Some(value)),
+                    }
+                }
+            }
+        )* };
+    }
+
+    impl_for_int!(
+        u8 u16 u32 u64 u128 usize
+        i8 i16 i32 i64 i128 isize
+    );
+
+    macro_rules! impl_for_non_zero {
+        ($($name:ident : $ty:ty)*) => { $(
+            impl DefaultFilterable for core::num::$name {
+                type Filtered<'a> = $ty;
+                type Error = Infallible;
+
+                #[inline]
+                fn as_filtered(&self) -> Result<Option<$ty>, Infallible> {
+                    Ok(Some(self.get()))
+                }
+            }
+        )* };
+    }
+
+    impl_for_non_zero!(
+        NonZeroU8:u8 NonZeroU16:u16 NonZeroU32:u32 NonZeroU64:u64 NonZeroU128:u128 NonZeroUsize:usize
+        NonZeroI8:i8 NonZeroI16:i16 NonZeroI32:i32 NonZeroI64:i64 NonZeroI128:i128 NonZeroIsize:isize
+    );
+
+    impl DefaultFilterable for bool {
+        type Filtered<'a> = bool;
+        type Error = Infallible;
+
+        #[inline]
+        fn as_filtered(&self) -> Result<Option<bool>, Infallible> {
+            match *self {
+                true => Ok(Some(true)),
+                false => Ok(None),
+            }
+        }
+    }
+};
+
+/// Render either `L` or `R`
+pub enum Either<L, R> {
+    /// First variant
+    Left(L),
+    /// Second variant
+    Right(R),
+}
+
+impl<L: fmt::Display, R: fmt::Display> fmt::Display for Either<L, R> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Pluralize::Singular(value) => write!(f, "{value}"),
-            Pluralize::Plural(value) => write!(f, "{value}"),
+            Either::Left(value) => write!(f, "{value}"),
+            Either::Right(value) => write!(f, "{value}"),
         }
     }
 }
 
-impl<S: FastWritable, P: FastWritable> FastWritable for Pluralize<S, P> {
+impl<L: FastWritable, R: FastWritable> FastWritable for Either<L, R> {
     #[inline]
     fn write_into<W: fmt::Write + ?Sized>(
         &self,
@@ -451,8 +686,8 @@ impl<S: FastWritable, P: FastWritable> FastWritable for Pluralize<S, P> {
         values: &dyn Values,
     ) -> crate::Result<()> {
         match self {
-            Pluralize::Singular(value) => value.write_into(dest, values),
-            Pluralize::Plural(value) => value.write_into(dest, values),
+            Either::Left(value) => value.write_into(dest, values),
+            Either::Right(value) => value.write_into(dest, values),
         }
     }
 }

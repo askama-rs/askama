@@ -11,7 +11,7 @@ is passed to the next.
 {{ "HELLO" | lower }}
 ```
 
-Askama has a collection of built-in filters, documented below, but can also include custom filters. 
+Askama has a collection of built-in filters, documented below, but can also include custom filters.
 Additionally, the `json` filter is included in the built-in filters, but is disabled by default.
 Enable it with Cargo features (see below for more information).
 
@@ -26,6 +26,29 @@ E.g. the filter `pluralize` takes two optional arguments: `singular` and `plural
 which are `singular = ""` and `plural = "s"` by default.
 If you are fine with the default empty string for the singular, and you only want to set a
 specific plural, then you can call the filter like `dog{{ count | pluralize(plural = "gies") }}`.
+
+### assigned_or
+[#assigned_or]: #assigned_or
+
+```jinja
+{{ variable_or_expression | assigned_or(fallback) }}
+```
+
+If the variable on the left-hand side is in its "default" state, e.g. an empty `""` string,
+a `0` integer, a `None` optional, or an `Err(_)` result, then the `fallback` value is printed.
+Otherwise the value.
+
+```jinja
+{% let greeting = Some("Hello") %}
+{{ greeting.as_ref() | assigned_or("Hi", true) }}
+```
+
+```html
+Hello
+```
+
+If the value is an identifier, then it is first tested of the variable name is defined.
+See also [`|defined_or`][#defined_or].
 
 ### capitalize
 [#capitalize]: #capitalize
@@ -78,6 +101,47 @@ Output:
 -  a  -
 ```
 
+### default
+[#default]: #default
+
+```jinja
+{{ variable_or_expression | default(default_value) }}
+{{ variable_or_expression | default(default_value, [[boolean =] true]) }}
+```
+
+This filter works like the Jinja filter of the [same name](https://jinja.palletsprojects.com/en/stable/templates/#jinja-filters.default).
+If the second argument is not an boolean `true`, then the filter behaves like [`|defined_or`][#defined_or].
+If it is supplied and `true`, then the filter behaves like [`|assigned_or`][#assigned_or].
+
+**This filter exists for compatibility with Jinja.**
+Askama provides [`|defined_or`][#defined_or] and [`|assigned_or`][#assigned_or] which both
+better express the intention and should generally usually be used instead of this filter.
+
+### defined_or
+[#defined_or]: #defined_or
+
+```jinja
+{{ variable | defined_or(fallback) }}
+```
+
+The left-hand side of the filter must be an identifier.
+Return a `fallback` value if the identifier is undefined:
+
+```jinja
+{% let greeting = "Hello" %}
+{{ greeting | default("Hi") }}
+```
+
+Since the variable `greeting` is defined, the output is its value: `Hello`.
+
+If you remove the variable, then the output is the default value: `Hi`:
+
+```jinja
+{{ greeting | default("Hi") }}
+```
+
+See also [`|assigned_or`][#assigned_or].
+
 ### deref
 [#deref]: #deref
 
@@ -125,9 +189,9 @@ Output:
 Escape &lt;&gt;&amp;
 ```
 
-Optionally, it is possible to specify and override which escaper is used. 
-Consider a template where the escaper is configured as [`escape = "none"`]. 
-However, somewhere escaping using the HTML escaper is desired. 
+Optionally, it is possible to specify and override which escaper is used.
+Consider a template where the escaper is configured as [`escape = "none"`].
+However, somewhere escaping using the HTML escaper is desired.
 Then it is possible to override and use the HTML escaper like this:
 
 ```jinja
@@ -265,7 +329,7 @@ Output:
 
 ```text
 $ hello
-$ 
+$
 $ bar
 ```
 
@@ -758,8 +822,8 @@ The expressions `{{ value | my_filter }}` and `{{ value | filters::my_filter }}`
 unless "my_filter" happens to be a built-in filter.
 
 The functions must have at least two arguments and the return type must be `askama::Result<T>`.
-Although there are no restrictions on `T` for a single filter, 
-the final result of a chain of filters must implement `Display`. 
+Although there are no restrictions on `T` for a single filter,
+the final result of a chain of filters must implement `Display`.
 
 The arguments to the filters are passed as follows:
 * The first argument corresponds to the expression they are applied to.
@@ -769,7 +833,7 @@ The arguments to the filters are passed as follows:
   The first argument may or may not be a reference, depending on the context in which the filter is called.
 
 To abstract over ownership, consider defining your argument as a trait bound.
-For example, the `trim` built-in filter accepts any value implementing `Display`. 
+For example, the `trim` built-in filter accepts any value implementing `Display`.
 Its signature is similar to `fn trim(s: impl std::fmt::Display, values: &dyn askama::Values) -> askama::Result<String>`.
 
 Note that built-in filters have preference over custom filters, so, in case of name collision, the built-in filter is applied.

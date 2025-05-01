@@ -1,0 +1,88 @@
+error: the `default` filter requires a variable name on its left-hand side
+ --> DefaultLhsExpr.html:1:11
+       "| default(2) }}"
+ --> tests/ui/default.rs:6:35
+  |
+6 | #[template(ext = "html", source = "{{ (1 + 1) | default(2) }}")]
+  |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `default_value` argument is missing when calling `default` filter; its arguments are: (default_value, [boolean])
+ --> DefaultNoDefaultValue.html:1:7
+       "| default }}"
+  --> tests/ui/default.rs:10:35
+   |
+10 | #[template(ext = "html", source = "{{ var | default }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^
+
+error: `default_value` argument is missing when calling `default` filter; its arguments are: (default_value, [boolean])
+ --> DefaultNoDefaultValue2.html:1:7
+       "| default(boolean = true) }}"
+  --> tests/ui/default.rs:14:35
+   |
+14 | #[template(ext = "html", source = "{{ var | default(boolean = true) }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: the `default` filter takes a boolean literal as its optional second argument
+ --> DefaultNotABool.html:1:20
+       "2) }}"
+  --> tests/ui/default.rs:24:35
+   |
+24 | #[template(ext = "html", source = "{{ var | default(1, 2) }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: the `default` filter takes a boolean literal as its optional second argument
+ --> DefaultNotABool2.html:1:30
+       "2) }}"
+  --> tests/ui/default.rs:28:35
+   |
+28 | #[template(ext = "html", source = "{{ var | default(1, boolean = 2) }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `fallback` argument is missing when calling `assigned_or` filter; its arguments are: (fallback)
+ --> AssignedOrNoDefaultValue.html:1:7
+       "| assigned_or }}"
+  --> tests/ui/default.rs:32:35
+   |
+32 | #[template(ext = "html", source = "{{ var | assigned_or }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: the `defined_or` filter requires a variable name on its left-hand side
+ --> DefinedOrLhsExpr.html:1:11
+       "| defined_or(2) }}"
+  --> tests/ui/default.rs:36:35
+   |
+36 | #[template(ext = "html", source = "{{ (1 + 1) | defined_or(2) }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `fallback` argument is missing when calling `defined_or` filter; its arguments are: (fallback)
+ --> DefinedOrNoDefaultValue.html:1:7
+       "| defined_or }}"
+  --> tests/ui/default.rs:40:35
+   |
+40 | #[template(ext = "html", source = "{{ var | defined_or }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0277]: `Mutex<u32>` is not `|assigned_or` filterable
+  --> tests/ui/default.rs:17:10
+   |
+17 | #[derive(Template)]
+   |          ^^^^^^^^ `Mutex<u32>` is not `|assigned_or` filterable
+   |
+   = help: the trait `DefaultFilterable` is not implemented for `Mutex<u32>`
+   = help: the following other types implement trait `DefaultFilterable`:
+             &T
+             &mut T
+             Arc<T>
+             Box<T>
+             Cow<'_, T>
+             MutexGuard<'_, T>
+             NonZero<i128>
+             NonZero<i16>
+           and $N others
+   = note: required for `&Mutex<u32>` to implement `DefaultFilterable`
+note: required by a bound in `assigned_or`
+  --> $WORKSPACE/askama/src/filters/core.rs
+   |
+   | pub fn assigned_or<L: DefaultFilterable, R>(
+   |                       ^^^^^^^^^^^^^^^^^ required by this bound in `assigned_or`
+   = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
