@@ -40,6 +40,7 @@ impl<'a> Generator<'a, '_> {
             "paragraphbreaks" => Self::visit_paragraphbreaks_filter,
             "pluralize" => Self::visit_pluralize_filter,
             "ref" => Self::visit_ref_filter,
+            "reject" => Self::visit_reject_filter,
             "safe" => Self::visit_safe_filter,
             "truncate" => Self::visit_truncate_filter,
             "urlencode" => Self::visit_urlencode_filter,
@@ -239,6 +240,42 @@ impl<'a> Generator<'a, '_> {
         self.visit_arg(ctx, buf, arg)?;
         buf.write(")) as askama::helpers::core::primitive::f32)?)");
         Ok(DisplayWrap::Unwrapped)
+    }
+
+    fn visit_reject_filter(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[WithSpan<'a, Expr<'a>>],
+        node: Span<'_>,
+    ) -> Result<DisplayWrap, CompileError> {
+        const ARGUMENTS: &[&FilterArgument; 2] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "filter",
+                default_value: None,
+            },
+        ];
+        let [input, filter] = collect_filter_args(ctx, "reject", node, args, ARGUMENTS)?;
+
+        let extra_ampersand = match &**filter {
+            Expr::Path(_) => {
+                buf.write("askama::filters::reject_with(");
+                false
+            }
+            _ => {
+                buf.write("askama::filters::reject(");
+                true
+            }
+        };
+        self.visit_arg(ctx, buf, input)?;
+        buf.write(',');
+        if extra_ampersand {
+            buf.write('&');
+        }
+        self.visit_arg(ctx, buf, filter)?;
+        buf.write(")?");
+        Ok(DisplayWrap::Wrapped)
     }
 
     fn visit_pluralize_filter(
