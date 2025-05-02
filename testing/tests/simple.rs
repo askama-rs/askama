@@ -8,6 +8,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 
 use askama::Template;
 use askama::filters::HtmlSafe;
+use either::Either;
 
 #[test]
 fn test_variables() {
@@ -631,4 +632,23 @@ fn test_concat_inner() {
     }
 
     assert_eq!(ConcatInner { a: "'" }.to_string(), "%3C%27%3E");
+}
+
+#[test]
+fn test_either() {
+    #[derive(Template)]
+    #[template(ext = "html", source = "Left")]
+    struct Left;
+
+    #[derive(Template)]
+    #[template(ext = "html", source = "Right")]
+    struct Right;
+
+    type Direction = Either<Left, Right>;
+    type OtherDirection = Either<Right, Left>;
+
+    assert_eq!(Direction::Left(Left).to_string(), "Left");
+    assert_eq!(Direction::Right(Right).to_string(), "Right");
+    assert_eq!(OtherDirection::Left(Right).to_string(), "Right");
+    assert_eq!(OtherDirection::Right(Left).to_string(), "Left");
 }

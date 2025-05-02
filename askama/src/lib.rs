@@ -66,6 +66,7 @@ extern crate alloc;
 extern crate std;
 
 mod ascii_str;
+mod either;
 mod error;
 pub mod filters;
 #[doc(hidden)]
