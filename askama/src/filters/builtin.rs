@@ -455,6 +455,63 @@ impl<S: FastWritable, P: FastWritable> FastWritable for Pluralize<S, P> {
     }
 }
 
+/// Returns an iterator without filtered out values.
+///
+/// ```
+/// # use askama::Template;
+/// #[derive(Template)]
+/// #[template(
+///       ext = "html",
+///       source = r#"{% for elem in strs|reject("a") %}{{ elem }},{% endfor %}"#,
+/// )]
+/// struct Example<'a> {
+///     strs: Vec<&'a str>,
+/// }
+///
+/// assert_eq!(
+///     Example { strs: vec!["a", "b", "c"] }.to_string(),
+///     "b,c,"
+/// );
+/// ```
+pub fn reject<T: PartialEq>(
+    it: impl IntoIterator<Item = T>,
+    filter: T,
+) -> Result<impl Iterator<Item = T>, Infallible> {
+    Ok(it.into_iter().filter(move |v| v != &filter))
+}
+
+/// Returns an iterator without filtered out values.
+///
+/// ```
+/// # use askama::Template;
+///
+/// fn is_odd(v: &&u32) -> bool {
+///     **v & 1 != 0
+/// }
+///
+/// #[derive(Template)]
+/// #[template(
+///       ext = "html",
+///       source = r#"{% for elem in numbers|reject(self::is_odd) %}{{ elem }},{% endfor %}"#,
+/// )]
+/// struct Example {
+///     numbers: Vec<u32>,
+/// }
+///
+/// fn main() {
+///     assert_eq!(
+///         Example { numbers: vec![1, 2, 3, 4] }.to_string(),
+///         "2,4,"
+///     );
+/// }
+/// ```
+pub fn reject_with<T: PartialEq, F: Fn(&T) -> bool>(
+    it: impl IntoIterator<Item = T>,
+    callback: F,
+) -> Result<impl Iterator<Item = T>, Infallible> {
+    Ok(it.into_iter().filter(move |v| !callback(v)))
+}
+
 #[cfg(all(test, feature = "alloc"))]
 mod tests {
     use alloc::string::{String, ToString};
