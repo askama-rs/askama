@@ -415,7 +415,7 @@ const _: () = {
     }
 
     #[cfg(feature = "alloc")]
-    impl<T: FastWritable + alloc::borrow::ToOwned> FastWritable for alloc::borrow::Cow<'_, T> {
+    impl<T: FastWritable + alloc::borrow::ToOwned + ?Sized> FastWritable for alloc::borrow::Cow<'_, T> {
         #[inline]
         fn write_into<W: fmt::Write + ?Sized>(
             &self,
