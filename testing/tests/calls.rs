@@ -163,7 +163,7 @@ fn test_caller_args() {
         source = r#"
 {%- macro test() -%}
 {{-  caller("test") -}}
-{{-  caller("test") -}}
+{{-  caller(1) -}}
 {%- endmacro -%}
 {%- call(value) test() -%}
 nested {{value}}
@@ -173,7 +173,7 @@ nested {{value}}
     )]
     struct CallerEmpty {}
     let x = CallerEmpty {};
-    assert_eq!(x.render().unwrap(), "nested testnested test");
+    assert_eq!(x.render().unwrap(), "nested testnested 1");
 }
 
 // Ensures that fields are not moved when calling a jinja macro.
