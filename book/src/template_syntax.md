@@ -940,7 +940,7 @@ You can use the content in the call block directly inside the macro by using `{{
 
 ```
 
-here is an example with a call block using arguments:
+Here is an example with a call block using arguments:
 
 ```jinja
 {% macro dump_users(users) -%}
