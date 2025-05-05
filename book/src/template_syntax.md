@@ -921,9 +921,7 @@ Then if you don't pass a value for this argument, its default value will be used
 
 ### Call
 
-you can specify a block for a call to be passed down as used as apart of a macro. For this case 
-a block is denoted by `{% call(args) macro() %}`, ending with `{% endcall %}`. the callee is denoted by
-`{{caller()}}`.
+You can use the content in the call block directly inside the macro by using `{{ caller() }}`:
 
 ```jinja
 {% macro render_dialog(title, class='dialog') -%}
