@@ -1110,7 +1110,6 @@ impl<'a> Generator<'a, '_> {
                 let def = self.seen_callers.last().ok_or_else(|| {
                     ctx.generate_error(format_args!("block is not defined for caller"), s.span())
                 })?;
-                //self.flush_ws(ws); // Cannot handle_ws() here: whitespace from macro definition comes first
                 let size_hint = self.push_locals(|this| {
                     this.write_buf_writable(ctx, buf)?;
                     buf.write('{');
@@ -1119,6 +1118,7 @@ impl<'a> Generator<'a, '_> {
                     for (index, arg) in def.caller_args.iter().enumerate() {
                         match expr_args.get(index) {
                             Some(expr) => {
+                                value.clear();
                                 match &**expr {
                                     // If `expr` is already a form of variable then
                                     // don't reintroduce a new variable. This is
@@ -1142,7 +1142,6 @@ impl<'a> Generator<'a, '_> {
                                     // multiple times, e.g. in the case of macro
                                     // parameters being used multiple times.
                                     _ => {
-                                        value.clear();
                                         let (before, after) = if !is_copyable(expr) {
                                             ("&(", ")")
                                         } else {

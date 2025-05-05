@@ -937,7 +937,6 @@ You can use the content in the call block directly inside the macro by using `{{
     This is a simple dialog rendered by using a macro and
     a call block.
 {% endcall %}
-
 ```
 
 Here is an example with a call block using arguments:
