@@ -877,12 +877,11 @@ impl<'a> Import<'a> {
 
 #[derive(Debug, PartialEq)]
 pub struct Call<'a> {
-    pub ws: Ws,
+    pub ws1: Ws,
     pub caller_args: Vec<&'a str>,
     pub scope: Option<&'a str>,
     pub name: &'a str,
     pub args: Vec<WithSpan<'a, Expr<'a>>>,
-    pub ws1: Ws,
     pub nodes: Vec<Node<'a>>,
     pub ws2: Ws,
 }
@@ -947,12 +946,11 @@ impl<'a> Call<'a> {
 
         Ok(WithSpan::new(
             Self {
-                ws: Ws(pws, nws),
+                ws1: Ws(pws, nws),
                 caller_args: call_args.unwrap_or_default(),
                 scope,
                 name,
                 args,
-                ws1: Ws(pws, pws2),
                 nodes,
                 ws2: Ws(pws2, nws2),
             },

@@ -125,17 +125,18 @@ nested
     assert_eq!(x.render().unwrap(), "nested");
 }
 
+
 #[test]
 fn test_caller_struct() {
     struct TestInput<'a> {
-        a: &'a str, 
-        b: &'a str 
+        a: &'a str,
+        b: &'a str,
     }
     #[derive(Template)]
     #[template(
         source = r#"
 {%- macro test(a) -%}
-{{caller(a)}}
+{{- caller(a) -}}
 {%- endmacro -%}
 {%- call(value) test(a) -%}
 a: {{value.a}}
@@ -145,13 +146,10 @@ b: {{value.b}}
         ext = "txt"
     )]
     struct Tmpl<'a> {
-        a: TestInput<'a>
+        a: TestInput<'a>,
     }
     let x = Tmpl {
-        a: TestInput {
-            a: "one",
-            b: "two"
-        }
+        a: TestInput { a: "one", b: "two" },
     };
     assert_eq!(x.render().unwrap(), "a: one\nb: two");
 }
@@ -162,18 +160,18 @@ fn test_caller_args() {
     #[template(
         source = r#"
 {%- macro test() -%}
-{{-  caller("test") -}}
-{{-  caller(1) -}}
+{{~ caller("test") ~}}
+{{~ caller(1) ~}}
 {%- endmacro -%}
 {%- call(value) test() -%}
-nested {{value}}
+nested {{value}}  
 {%- endcall -%}
 "#,
         ext = "html"
     )]
     struct CallerEmpty {}
     let x = CallerEmpty {};
-    assert_eq!(x.render().unwrap(), "nested testnested 1");
+    assert_eq!(x.render().unwrap(), "nested test\nnested 1");
 }
 
 // Ensures that fields are not moved when calling a jinja macro.

@@ -596,7 +596,7 @@ impl<'a> Generator<'a, '_> {
         call: &'a WithSpan<'a, Call<'_>>,
     ) -> Result<usize, CompileError> {
         let Call {
-            ws,
+            ws1,
             scope,
             name,
             ref args,
@@ -638,7 +638,7 @@ impl<'a> Generator<'a, '_> {
             self.seen_macros.push((def, ctx.file_info_of(call.span())));
         }
         self.seen_callers.push(call);
-        self.flush_ws(ws); // Cannot handle_ws() here: whitespace from macro definition comes first
+        self.flush_ws(ws1); // Cannot handle_ws() here: whitespace from macro definition comes first
         let size_hint = self.push_locals(|this| {
             macro_call_ensure_arg_count(call, def, ctx)?;
 
@@ -759,7 +759,7 @@ impl<'a> Generator<'a, '_> {
             buf.write('}');
             Ok(size_hint)
         })?;
-        self.prepare_ws(ws);
+        self.prepare_ws(ws1);
         self.seen_macros.pop();
         self.seen_callers.pop();
         Ok(size_hint)
@@ -1107,9 +1107,10 @@ impl<'a> Generator<'a, '_> {
             if ***path == Expr::Var("super") {
                 return self.write_block(ctx, buf, None, ws, s.span());
             } else if ***path == Expr::Var("caller") {
-                let def = self.seen_callers.last().ok_or_else(|| {
+                let def = self.seen_callers.pop().ok_or_else(|| {
                     ctx.generate_error(format_args!("block is not defined for caller"), s.span())
                 })?;
+                self.handle_ws(ws); 
                 let size_hint = self.push_locals(|this| {
                     this.write_buf_writable(ctx, buf)?;
                     buf.write('{');
@@ -1168,14 +1169,14 @@ impl<'a> Generator<'a, '_> {
                             }
                         }
                     }
-
                     let mut size_hint = this.handle(ctx, &def.nodes, buf, AstLevel::Nested)?;
+                    
                     this.flush_ws(def.ws2);
                     size_hint += this.write_buf_writable(ctx, buf)?;
                     buf.write('}');
                     Ok(size_hint)
                 })?;
-                self.prepare_ws(ws);
+                self.seen_callers.push(def);
                 return Ok(size_hint);
             }
         }

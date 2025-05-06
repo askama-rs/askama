@@ -1,0 +1,59 @@
+error: missing `c` argument
+ --> InvalidNumberArguments.txt:3:18
+       "(\"a\", \"b\") -}}\n    {%- endmacro -%}\n    {%- call(a,b,c) test() -%}\n        {{- a"...
+  --> tests/ui/caller_arguments.rs:5:14
+   |
+5  |       source = r#"
+   |  ______________^
+6  | |     {% macro test() %}
+7  | |         {{- caller("a", "b") -}}
+8  | |     {%- endmacro -%}
+...  |
+11 | |     {%- endcall -%}
+12 | |     "#,
+   | |______^
+
+error: expected `)` to close call argument list
+ --> <source attribute>:5:15
+       "test() -%}\n        {{- a -}}\n    {%- endcall -%}\n    "
+  --> tests/ui/caller_arguments.rs:20:14
+   |
+20 |       source = r#"
+   |  ______________^
+21 | |     {% macro test() %}
+22 | |         {{- caller("a") -}}
+23 | |     {%- endmacro -%}
+...  |
+26 | |     {%- endcall -%}
+27 | |     "#,
+   | |______^
+
+error: block is not defined for caller
+ --> CallerInCaller.txt:6:18
+       "(a) -}}\n    {%- endcall -%}\n    "
+  --> tests/ui/caller_arguments.rs:35:14
+   |
+35 |       source = r#"
+   |  ______________^
+36 | |     {% macro test() %}
+37 | |         {{- caller("a") -}}
+38 | |     {%- endmacro -%}
+...  |
+41 | |     {%- endcall -%}
+42 | |     "#,
+   | |______^
+
+error: block is not defined for caller
+ --> CallerInCaller1.txt:10:21
+       "(\"b\") }}\n        {% endcall %}\n        {{- a -}}\n    {%- endcall -%}\n    "
+  --> tests/ui/caller_arguments.rs:50:14
+   |
+50 |       source = r#"
+   |  ______________^
+51 | |     {% macro test2() %}
+52 | |         {{ caller("bb") }}
+53 | |     {% endmacro %}
+...  |
+62 | |     {%- endcall -%}
+63 | |     "#,
+   | |______^

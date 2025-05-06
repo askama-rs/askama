@@ -238,6 +238,48 @@ fn test_default_value3() {
     );
 }
 
+// This test a caller expression with expressions in the arguments.
+#[test]
+fn test_caller_expr() {
+    #[derive(Template)]
+    #[template(
+        source = "{%- macro thrice(a, b, c) -%}
+{{caller(a+10,b - 10,a+b+c)}}
+{% endmacro -%}
+{%- call(a,b,c) thrice(10,11,13) -%}{{a}} {{b}} {{c + 1}}{%- endcall -%}
+",
+        ext = "html"
+    )]
+    struct MacroCallerExpr;
+    assert_eq!(MacroCallerExpr.render().unwrap(), "20 1 35\n");
+
+}
+
+#[test]
+fn test_caller_in_caller() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+        {%- macro test2() -%}
+            {{~ caller("bb") ~}}
+        {%- endmacro -%}
+        {%- macro test() -%}
+            {{~ caller("a") ~}}
+        {%- endmacro -%}
+        {%- call(a) test() -%}
+            {%- call(b) test2() -%}
+                one: {{ b }}
+            {%- endcall -%}
+            two: {{- a -}}
+        {%- endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    struct CallerInCaller; 
+    assert_eq!(CallerInCaller.render().unwrap(), "one: bbtwo:a");
+}
+
+
 // This test ensures that we can use declared variables as default value for
 // macro arguments.
 #[test]
