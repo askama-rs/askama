@@ -624,9 +624,9 @@ impl<'a> Generator<'a, '_> {
             (*def, ctx)
         };
 
-        if self.seen_macros.iter().any(|(s, _)| std::ptr::eq(*s, def)) {
+        if self.seen_callers.iter().any(|(_, s, _)| std::ptr::eq(*s, def)) {
             let mut message = "Found recursion in macro calls:".to_owned();
-            for (m, f) in &self.seen_macros {
+            for (_, m, f) in &self.seen_callers {
                 if let Some(f) = f {
                     write!(message, "{f}").unwrap();
                 } else {
@@ -635,9 +635,10 @@ impl<'a> Generator<'a, '_> {
             }
             return Err(ctx.generate_error(message, call.span()));
         } else {
-            self.seen_macros.push((def, ctx.file_info_of(call.span())));
+            self.seen_callers
+                .push((call, def, ctx.file_info_of(call.span())));
         }
-        self.current_caller = Some(call);
+        self.active_caller = self.seen_callers.last().map(|v| v.0);
         self.flush_ws(ws1); // Cannot handle_ws() here: whitespace from macro definition comes first
         let size_hint = self.push_locals(|this| {
             macro_call_ensure_arg_count(call, def, ctx)?;
@@ -760,8 +761,8 @@ impl<'a> Generator<'a, '_> {
             Ok(size_hint)
         })?;
         self.prepare_ws(ws1);
-        self.seen_macros.pop();
-        self.current_caller = None;
+        self.seen_callers.pop();
+        self.active_caller = None;
         Ok(size_hint)
     }
 
@@ -1107,11 +1108,11 @@ impl<'a> Generator<'a, '_> {
             if ***path == Expr::Var("super") {
                 return self.write_block(ctx, buf, None, ws, s.span());
             } else if ***path == Expr::Var("caller") {
-                let def = self.current_caller.ok_or_else(|| {
+                let def = self.active_caller.ok_or_else(|| {
                     ctx.generate_error(format_args!("block is not defined for caller"), s.span())
                 })?;
-                self.current_caller = None;
-                self.handle_ws(ws); 
+                self.active_caller = None;
+                self.handle_ws(ws);
                 let size_hint = self.push_locals(|this| {
                     this.write_buf_writable(ctx, buf)?;
                     buf.write('{');
@@ -1171,13 +1172,13 @@ impl<'a> Generator<'a, '_> {
                         }
                     }
                     let mut size_hint = this.handle(ctx, &def.nodes, buf, AstLevel::Nested)?;
-                    
+
                     this.flush_ws(def.ws2);
                     size_hint += this.write_buf_writable(ctx, buf)?;
                     buf.write('}');
                     Ok(size_hint)
                 })?;
-                self.current_caller = Some(def);
+                self.active_caller = self.seen_callers.last().map(|v| v.0);
                 return Ok(size_hint);
             }
         }

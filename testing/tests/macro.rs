@@ -252,7 +252,6 @@ fn test_caller_expr() {
     )]
     struct MacroCallerExpr;
     assert_eq!(MacroCallerExpr.render().unwrap(), "20 1 35\n");
-
 }
 
 #[test]
@@ -261,24 +260,41 @@ fn test_caller_in_caller() {
     #[template(
         source = r#"
         {%- macro test2() -%}
-            {{~ caller("bb") ~}}
+            {{ caller("bb") }}
         {%- endmacro -%}
         {%- macro test() -%}
-            {{~ caller("a") ~}}
+            {{ caller("a") }}
+            {%- call(b) test2() -%}
+                five: {{ b }}
+            {%~ endcall -%}
+        {%- endmacro -%}
+        {%- macro test3() -%}
+            {{ caller("cc") }}
+        {%- endmacro -%}
+        {%- macro test4() -%}
+            {{ caller("dd") }}
         {%- endmacro -%}
         {%- call(a) test() -%}
             {%- call(b) test2() -%}
                 one: {{ b }}
+            {%~ endcall -%}
+            {%- call(b) test3() -%}
+                two: {{ b }}
+                {%~ call(b) test4() -%}
+                    three: {{ b }}
+                {%~ endcall -%}
             {%- endcall -%}
-            two: {{- a -}}
-        {%- endcall -%}
+            four: {{ a }}
+        {%~ endcall -%}
         "#,
         ext = "txt"
     )]
-    struct CallerInCaller; 
-    assert_eq!(CallerInCaller.render().unwrap(), "one: bbtwo:a");
+    struct CallerInCaller;
+    assert_eq!(
+        CallerInCaller.render().unwrap(),
+        "one: bb\ntwo: cc\nthree: dd\nfour: a\nfive: bb\n"
+    );
 }
-
 
 // This test ensures that we can use declared variables as default value for
 // macro arguments.

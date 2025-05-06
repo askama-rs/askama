@@ -125,7 +125,6 @@ nested
     assert_eq!(x.render().unwrap(), "nested");
 }
 
-
 #[test]
 fn test_caller_struct() {
     struct TestInput<'a> {
