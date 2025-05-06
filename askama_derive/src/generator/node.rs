@@ -637,7 +637,7 @@ impl<'a> Generator<'a, '_> {
         } else {
             self.seen_macros.push((def, ctx.file_info_of(call.span())));
         }
-        self.seen_callers.push(call);
+        self.current_caller = Some(call);
         self.flush_ws(ws1); // Cannot handle_ws() here: whitespace from macro definition comes first
         let size_hint = self.push_locals(|this| {
             macro_call_ensure_arg_count(call, def, ctx)?;
@@ -761,7 +761,7 @@ impl<'a> Generator<'a, '_> {
         })?;
         self.prepare_ws(ws1);
         self.seen_macros.pop();
-        self.seen_callers.pop();
+        self.current_caller = None;
         Ok(size_hint)
     }
 
@@ -1107,9 +1107,10 @@ impl<'a> Generator<'a, '_> {
             if ***path == Expr::Var("super") {
                 return self.write_block(ctx, buf, None, ws, s.span());
             } else if ***path == Expr::Var("caller") {
-                let def = self.seen_callers.pop().ok_or_else(|| {
+                let def = self.current_caller.ok_or_else(|| {
                     ctx.generate_error(format_args!("block is not defined for caller"), s.span())
                 })?;
+                self.current_caller = None;
                 self.handle_ws(ws); 
                 let size_hint = self.push_locals(|this| {
                     this.write_buf_writable(ctx, buf)?;
@@ -1176,7 +1177,7 @@ impl<'a> Generator<'a, '_> {
                     buf.write('}');
                     Ok(size_hint)
                 })?;
-                self.seen_callers.push(def);
+                self.current_caller = Some(def);
                 return Ok(size_hint);
             }
         }

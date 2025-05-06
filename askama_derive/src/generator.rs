@@ -87,7 +87,7 @@ struct Generator<'a, 'h> {
     /// Set of called macros we are currently in. Used to prevent (indirect) recursions.
     seen_macros: Vec<(&'a Macro<'a>, Option<FileInfo<'a>>)>,
     /// Set of callers to forward into the macro.
-    seen_callers: Vec<&'a Call<'a>>,
+    current_caller: Option<&'a Call<'a>>,
 }
 
 impl<'a, 'h> Generator<'a, 'h> {
@@ -113,7 +113,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             },
             is_in_filter_block,
             seen_macros: Vec::new(),
-            seen_callers: Vec::new(),
+            current_caller: None,
         }
     }
 
