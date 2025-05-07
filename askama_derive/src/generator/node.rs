@@ -1165,7 +1165,7 @@ impl<'a> Generator<'a, '_> {
                             }
                             None => {
                                 return Err(ctx.generate_error(
-                                    format_args!("missing `{arg}` argument"),
+                                    format_args!("missing `{arg}` argument in `caller`"),
                                     s.span(),
                                 ));
                             }
