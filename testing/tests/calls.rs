@@ -114,15 +114,15 @@ fn test_caller() {
 {%- macro test() -%}
 {{- caller() -}}
 {%- endmacro -%}
-{%- call() test() -%}
+{%- call() test() %}
 nested
-{%- endcall -%}
+{% endcall -%}
 "#,
         ext = "html"
     )]
     struct CallerEmpty {}
     let x = CallerEmpty {};
-    assert_eq!(x.render().unwrap(), "nested");
+    assert_eq!(x.render().unwrap(), "\nnested\n\n");
 }
 
 #[test]

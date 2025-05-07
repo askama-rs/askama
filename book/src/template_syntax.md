@@ -839,7 +839,7 @@ You can then call it with `{% call name(args) %}`, ending with `{% endcall %}`:
 
 {% endmacro %}
 
-{% call heading(s) %} {% endcall %}
+{% call heading(s) %}{% endcall %}
 ```
 
 You can place macros in a separate file and use them in your templates by using `{% import %}`:
@@ -847,7 +847,7 @@ You can place macros in a separate file and use them in your templates by using 
 ```jinja
 {%- import "macro.html" as scope -%}
 
-{% call scope::heading(s) %} {% endcall %}
+{% call scope::heading(s) %}{% endcall %}
 ```
 
 You can optionally specify the name of the macro in `endmacro`:
@@ -865,7 +865,7 @@ You can also specify arguments by their name (as defined in the macro):
 
 {% endmacro %}
 
-{% call heading(bold="something", arg="title") %} {% endcall%}
+{% call heading(bold="something", arg="title") %}{% endcall%}
 ```
 
 You can use whitespace characters around `=`:
@@ -914,9 +914,9 @@ Then if you don't pass a value for this argument, its default value will be used
 
 ```jinja
 {# We only specify `arg1`, so `arg2` will be "something" #}
-{% call heading(1) %} {% endcall %}
+{% call heading(1) %}{% endcall %}
 {# We specify both `arg1` and `arg2` so no default value is used #}
-{% call heading(1, 2) %} {% endcall %}
+{% call heading(1, 2) %}{% endcall %}
 ```
 
 ### Call
@@ -958,7 +958,6 @@ Here is an example with a call block using arguments:
         <dd>{{ user.description }}</dd>
     </dl>
 {% endcall %}
-
 ```
 
 ## Calling Rust macros
