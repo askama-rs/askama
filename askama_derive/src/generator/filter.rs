@@ -21,6 +21,7 @@ impl<'a> Generator<'a, '_> {
     ) -> Result<DisplayWrap, CompileError> {
         let filter = match name {
             "center" => Self::visit_center_filter,
+            "default" => Self::visit_default_filter,
             "deref" => Self::visit_deref_filter,
             "escape" | "e" => Self::visit_escape_filter,
             "filesizeformat" => Self::visit_humansize,
@@ -378,8 +379,6 @@ impl<'a> Generator<'a, '_> {
         args: &[WithSpan<'a, Expr<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        const FALSE: &WithSpan<'static, Expr<'static>> =
-            &WithSpan::new_without_span(Expr::BoolLit(false));
         const ARGUMENTS: &[&FilterArgument; 4] = &[
             FILTER_SOURCE,
             &FilterArgument {
@@ -627,6 +626,66 @@ impl<'a> Generator<'a, '_> {
         );
         Ok(DisplayWrap::Unwrapped)
     }
+
+    fn visit_default_filter(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[WithSpan<'a, Expr<'a>>],
+        node: Span<'_>,
+    ) -> Result<DisplayWrap, CompileError> {
+        const ARGUMENTS: &[&FilterArgument; 3] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "default_value",
+                default_value: None,
+            },
+            &FilterArgument {
+                name: "boolean",
+                default_value: Some(FALSE),
+            },
+        ];
+
+        let [value, default, boolean] = collect_filter_args(ctx, "default", node, args, ARGUMENTS)?;
+        let var_name = match **value {
+            Expr::Var(var_name) => Some(var_name),
+            _ => None,
+        };
+        let Expr::BoolLit(do_unwrap) = **boolean else {
+            return Err(ctx.generate_error(
+                "the `default` filter takes a boolean literal as its optional second argument",
+                boolean.span(),
+            ));
+        };
+
+        if !do_unwrap {
+            let Some(var_name) = var_name else {
+                return Err(ctx.generate_error(
+                    "the `default` filter requires a variable name on its left-hand side",
+                    node,
+                ));
+            };
+            let expr = match self.is_var_assigned(var_name) {
+                true => value,
+                false => default,
+            };
+            self.visit_expr(ctx, buf, expr)?;
+        } else {
+            if let Some(var_name) = var_name {
+                if !self.is_var_assigned(var_name) {
+                    self.visit_expr(ctx, buf, default)?;
+                    return Ok(DisplayWrap::Unwrapped);
+                }
+            }
+
+            buf.write("askama::filters::default(&(");
+            self.visit_arg(ctx, buf, value)?;
+            buf.write("),");
+            self.visit_arg(ctx, buf, default)?;
+            buf.write(")?");
+        }
+        Ok(DisplayWrap::Unwrapped)
+    }
 }
 
 fn ensure_filter_has_feature_alloc(
@@ -642,6 +701,8 @@ fn ensure_filter_has_feature_alloc(
     }
     Ok(())
 }
+
+const FALSE: &WithSpan<'static, Expr<'static>> = &WithSpan::new_without_span(Expr::BoolLit(false));
 
 fn ensure_filter_has_feature_std(
     ctx: &Context<'_>,
