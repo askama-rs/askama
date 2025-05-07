@@ -3,16 +3,30 @@ use std::fmt::Display;
 
 use askama::{FastWritable, Template};
 
-// This tests, that Cow<'_, str> implements FastWritable.
-// If it didn't, compiling the tests would fail.
-const _: () = {
+#[test]
+fn test_cows() {
+    // This test ensures that Cow is FastWritable.
+    // Every expression needs to implement fmt::Display, even if the FastWritable path
+    // is going to be used.
+
     #[derive(Template)]
-    #[template(source = "{{content|safe}}", ext = "txt")]
-    pub struct Test<T: FastWritable + Display> {
-        pub content: T,
+    #[template(source = "{{ bull }} + {{ cow }} = {{ calf }}", ext = "txt")]
+    struct Cattle<A, B, C>
+    where
+        A: FastWritable + Display,
+        B: FastWritable + Display,
+        C: FastWritable + Display,
+    {
+        bull: A,
+        cow: B,
+        calf: C,
     }
 
-    Test {
-        content: Cow::Borrowed(""),
+    let calf = "calf".to_owned();
+    let t = Cattle {
+        bull: Cow::Borrowed("bull"),
+        cow: Cow::<str>::Owned("cow".to_owned()),
+        calf: Cow::Borrowed(&calf),
     };
-};
+    assert_eq!(t.render().unwrap(), "bull + cow = calf");
+}
