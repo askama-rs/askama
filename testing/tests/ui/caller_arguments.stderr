@@ -1,4 +1,4 @@
-error: missing `c` argument
+error: expected `3` argument, found `2`
  --> InvalidNumberArguments.txt:3:18
        "(\"a\", \"b\") -}}\n    {%- endmacro -%}\n    {%- call(a,b,c) test() -%}\n        {{- a"...
   --> tests/ui/caller_arguments.rs:5:14
@@ -13,47 +13,85 @@ error: missing `c` argument
 12 | |     "#,
    | |______^
 
+error: expected `1` argument, found `2`
+ --> InvalidNumberArguments1.txt:3:18
+       "(\"a\", \"b\") -}}\n    {%- endmacro -%}\n    {%- call(a) test() -%}\n        {{- a -}}"...
+  --> tests/ui/caller_arguments.rs:21:14
+   |
+21 |       source = r#"
+   |  ______________^
+22 | |     {% macro test() %}
+23 | |         {{- caller("a", "b") -}}
+24 | |     {%- endmacro -%}
+...  |
+27 | |     {%- endcall -%}
+28 | |     "#,
+   | |______^
+
 error: expected `)` to close call argument list
  --> <source attribute>:5:15
        "test() -%}\n        {{- a -}}\n    {%- endcall -%}\n    "
-  --> tests/ui/caller_arguments.rs:20:14
+  --> tests/ui/caller_arguments.rs:36:14
    |
-20 |       source = r#"
+36 |       source = r#"
    |  ______________^
-21 | |     {% macro test() %}
-22 | |         {{- caller("a") -}}
-23 | |     {%- endmacro -%}
+37 | |     {% macro test() %}
+38 | |         {{- caller("a") -}}
+39 | |     {%- endmacro -%}
 ...  |
-26 | |     {%- endcall -%}
-27 | |     "#,
+42 | |     {%- endcall -%}
+43 | |     "#,
    | |______^
 
 error: block is not defined for caller
  --> CallerInCaller.txt:6:18
        "(a) -}}\n    {%- endcall -%}\n    "
-  --> tests/ui/caller_arguments.rs:35:14
+  --> tests/ui/caller_arguments.rs:51:14
    |
-35 |       source = r#"
+51 |       source = r#"
    |  ______________^
-36 | |     {% macro test() %}
-37 | |         {{- caller("a") -}}
-38 | |     {%- endmacro -%}
+52 | |     {% macro test() %}
+53 | |         {{- caller("a") -}}
+54 | |     {%- endmacro -%}
 ...  |
-41 | |     {%- endcall -%}
-42 | |     "#,
+57 | |     {%- endcall -%}
+58 | |     "#,
    | |______^
 
 error: block is not defined for caller
  --> CallerInCaller1.txt:10:21
        "(\"b\") }}\n        {% endcall %}\n        {{- a -}}\n    {%- endcall -%}\n    "
-  --> tests/ui/caller_arguments.rs:50:14
+  --> tests/ui/caller_arguments.rs:66:14
    |
-50 |       source = r#"
+66 |       source = r#"
    |  ______________^
-51 | |     {% macro test2() %}
-52 | |         {{ caller("bb") }}
-53 | |     {% endmacro %}
+67 | |     {% macro test2() %}
+68 | |         {{ caller("bb") }}
+69 | |     {% endmacro %}
 ...  |
-62 | |     {%- endcall -%}
-63 | |     "#,
+78 | |     {%- endcall -%}
+79 | |     "#,
    | |______^
+
+error: block is not defined for caller
+ --> JustCaller.txt:1:8
+       "()}}"
+  --> tests/ui/caller_arguments.rs:87:14
+   |
+87 |     source = r#"{{caller()}}"#,
+   |              ^^^^^^^^^^^^^^^^^
+
+error: failed to parse template source
+ --> <source attribute>:3:27
+       "= \"b\") }}\n    {%- endmacro -%}\n    {%- call(two, one) test() -%}\n        {{- two"...
+   --> tests/ui/caller_arguments.rs:95:14
+    |
+95  |       source = r#"
+    |  ______________^
+96  | |     {% macro test() %}
+97  | |         {{ caller("a", one = "b") }}
+98  | |     {%- endmacro -%}
+...   |
+101 | |     {%- endcall -%}
+102 | |     "#,
+    | |______^

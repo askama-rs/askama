@@ -624,7 +624,11 @@ impl<'a> Generator<'a, '_> {
             (*def, ctx)
         };
 
-        if self.seen_callers.iter().any(|(_, s, _)| std::ptr::eq(*s, def)) {
+        if self
+            .seen_callers
+            .iter()
+            .any(|(_, s, _)| std::ptr::eq(*s, def))
+        {
             let mut message = "Found recursion in macro calls:".to_owned();
             for (_, m, f) in &self.seen_callers {
                 if let Some(f) = f {
@@ -1105,7 +1109,23 @@ impl<'a> Generator<'a, '_> {
             ..
         } = &**s
         {
+            fn check_num_args<'a>(
+                s: &'a WithSpan<'a, Expr<'a>>,
+                ctx: &Context<'a>,
+                expected: usize,
+                found: usize,
+            ) -> Result<(), CompileError> {
+                if expected != found {
+                    Err(ctx.generate_error(
+                        format!("expected `{}` argument, found `{}`", expected, found),
+                        s.span(),
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
             if ***path == Expr::Var("super") {
+                check_num_args(s, ctx, 0, expr_args.len())?;
                 return self.write_block(ctx, buf, None, ws, s.span());
             } else if ***path == Expr::Var("caller") {
                 let def = self.active_caller.ok_or_else(|| {
@@ -1118,6 +1138,7 @@ impl<'a> Generator<'a, '_> {
                     buf.write('{');
                     this.prepare_ws(def.ws1);
                     let mut value = Buffer::new();
+                    check_num_args(s, ctx, def.caller_args.len(), expr_args.len())?;
                     for (index, arg) in def.caller_args.iter().enumerate() {
                         match expr_args.get(index) {
                             Some(expr) => {
