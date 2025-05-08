@@ -106,6 +106,73 @@ mod test_double_attr_arg {
     }
 }
 
+#[test]
+fn test_caller() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test() -%}
+{{- caller() -}}
+{%- endmacro -%}
+{%- call() test() %}
+nested
+{% endcall -%}
+"#,
+        ext = "html"
+    )]
+    struct CallerEmpty {}
+    let x = CallerEmpty {};
+    assert_eq!(x.render().unwrap(), "\nnested\n\n");
+}
+
+#[test]
+fn test_caller_struct() {
+    struct TestInput<'a> {
+        a: &'a str,
+        b: &'a str,
+    }
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test(a) -%}
+{{- caller(a) -}}
+{%- endmacro -%}
+{%- call(value) test(a) -%}
+a: {{value.a}}
+b: {{value.b}}
+{%- endcall -%}
+"#,
+        ext = "txt"
+    )]
+    struct Tmpl<'a> {
+        a: TestInput<'a>,
+    }
+    let x = Tmpl {
+        a: TestInput { a: "one", b: "two" },
+    };
+    assert_eq!(x.render().unwrap(), "a: one\nb: two");
+}
+
+#[test]
+fn test_caller_args() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test() -%}
+{{~ caller("test") ~}}
+{{~ caller(1) ~}}
+{%- endmacro -%}
+{%- call(value) test() -%}
+nested {{value}}  
+{%- endcall -%}
+"#,
+        ext = "html"
+    )]
+    struct CallerEmpty {}
+    let x = CallerEmpty {};
+    assert_eq!(x.render().unwrap(), "nested test\nnested 1");
+}
+
 // Ensures that fields are not moved when calling a jinja macro.
 #[test]
 fn test_do_not_move_fields() {
@@ -120,7 +187,7 @@ no show
 {%- endif -%}
 {%- endmacro -%}
 
-{%- call package_navigation(title=title, show=true) -%}
+{%- call package_navigation(title=title, show=true) -%}{%- endcall -%}
 ",
         ext = "html"
     )]

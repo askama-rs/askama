@@ -14,9 +14,9 @@ fn test_macro_in_block_inheritance() {
 {%- endmacro -%}
 
 {% block header -%}
-{% call m1::twice(1) %}
-{% call m2::twice(2) %}
-{% call another(3) %}
+{% call m1::twice(1) %}{% endcall %}
+{% call m2::twice(2) %}{% endcall %}
+{% call another(3) %}{% endcall %}
 {%- endblock -%}
 "#,
         ext = "txt"

@@ -2,11 +2,11 @@
 
 {% block body %}
 <p>Hello {{ name }}!</p>
-{% call super() %}
+{{ super() }}
 {% endblock %}
 
 {% block other_body %}
 <p>Don't render me.</p>
-{% call super() %}
+{{ super() }}
 {% endblock %}
 

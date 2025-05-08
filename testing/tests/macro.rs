@@ -106,9 +106,9 @@ fn test_named_argument() {
 {{ param1 }} {{ param2 }}
 {% endmacro -%}
 
-{%- call thrice(param1=2, param2=3) -%}
-{%- call thrice(param2=3, param1=2) -%}
-{%- call thrice(3, param2=2) -%}
+{%- call thrice(param1=2, param2=3) -%}{%- endcall -%}
+{%- call thrice(param2=3, param1=2) -%}{%- endcall -%}
+{%- call thrice(3, param2=2) -%}{%- endcall -%}
 ",
         ext = "html"
     )]
@@ -132,7 +132,7 @@ fn test_only_named_argument() {
 {{- label -}}
 {% endmacro %}
 
-{%- call button(label="hi") -%}
+{%- call button(label="hi") -%}{%- endcall -%}
 "#,
         ext = "html"
     )]
@@ -158,11 +158,11 @@ fn test_trailing_comma() {
 {%- macro button5(label ) %}
 {% endmacro %}
 
-{%- call button(label="hi" , ) -%}
-{%- call button(label="hi" ,) -%}
-{%- call button(label="hi",) -%}
-{%- call button(label="hi", ) -%}
-{%- call button(label="hi" ) -%}
+{%- call button(label="hi" , ) -%}{%- endcall -%}
+{%- call button(label="hi" ,) -%}{%- endcall -%}
+{%- call button(label="hi",) -%}{%- endcall -%}
+{%- call button(label="hi", ) -%}{%- endcall -%}
+{%- call button(label="hi" ) -%}{%- endcall -%}
 "#,
         ext = "html"
     )]
@@ -179,11 +179,11 @@ fn test_default_value() {
 {{ param1 }} {{ param2 }}
 {% endmacro -%}
 
-{%- call thrice() -%}
-{%- call thrice(param1=4) -%}
-{%- call thrice(param2=4) -%}
-{%- call thrice(param2=4, param1=5) -%}
-{%- call thrice(4) -%}
+{%- call thrice() -%}{%- endcall -%}
+{%- call thrice(param1=4) -%}{%- endcall -%}
+{%- call thrice(param2=4) -%}{%- endcall -%}
+{%- call thrice(param2=4, param1=5) -%}{%- endcall -%}
+{%- call thrice(4) -%}{%- endcall -%}
 ",
         ext = "html"
     )]
@@ -205,7 +205,7 @@ fn test_default_value2() {
 {{ param1 }} {{ param2 }} {{ param3 }}
 {% endmacro -%}
 
-{%- call thrice(4, param3=5) -%}
+{%- call thrice(4, param3=5) -%}{%- endcall -%}
 ",
         ext = "html"
     )]
@@ -223,10 +223,10 @@ fn test_default_value3() {
 {{ a }} {{ b }} {{ c }}
 {% endmacro -%}
 
-{%- call thrice() -%}
-{%- call thrice(b=6) -%}
-{%- call thrice(c=3) -%}
-{%- call thrice(a=3) -%}
+{%- call thrice() -%}{%- endcall -%}
+{%- call thrice(b=6) -%}{%- endcall -%}
+{%- call thrice(c=3) -%}{%- endcall -%}
+{%- call thrice(a=3) -%}{%- endcall -%}
 ",
         ext = "html"
     )]
@@ -235,6 +235,64 @@ fn test_default_value3() {
     assert_eq!(
         MacroDefaultValue3.render().unwrap(),
         "1 2 5\n1 6 9\n1 2 3\n3 4 9\n"
+    );
+}
+
+// This test a caller expression with expressions in the arguments.
+#[test]
+fn test_caller_expr() {
+    #[derive(Template)]
+    #[template(
+        source = "{%- macro thrice(a, b, c) -%}
+{{caller(a+10,b - 10,a+b+c)}}
+{% endmacro -%}
+{%- call(a,b,c) thrice(10,11,13) -%}{{a}} {{b}} {{c + 1}}{%- endcall -%}
+",
+        ext = "html"
+    )]
+    struct MacroCallerExpr;
+    assert_eq!(MacroCallerExpr.render().unwrap(), "20 1 35\n");
+}
+
+#[test]
+fn test_caller_in_caller() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+        {%- macro test2() -%}
+            {{ caller("bb") }}
+        {%- endmacro -%}
+        {%- macro test() -%}
+            {{ caller("a") }}
+            {%- call(b) test2() -%}
+                five: {{ b }}
+            {%~ endcall -%}
+        {%- endmacro -%}
+        {%- macro test3() -%}
+            {{ caller("cc") }}
+        {%- endmacro -%}
+        {%- macro test4() -%}
+            {{ caller("dd") }}
+        {%- endmacro -%}
+        {%- call(a) test() -%}
+            {%- call(b) test2() -%}
+                one: {{ b }}
+            {%~ endcall -%}
+            {%- call(b) test3() -%}
+                two: {{ b }}
+                {%~ call(b) test4() -%}
+                    three: {{ b }}
+                {%~ endcall -%}
+            {%- endcall -%}
+            four: {{ a }}
+        {%~ endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    struct CallerInCaller;
+    assert_eq!(
+        CallerInCaller.render().unwrap(),
+        "one: bb\ntwo: cc\nthree: dd\nfour: a\nfive: bb\n"
     );
 }
 
@@ -250,9 +308,9 @@ fn test_default_value4() {
 {% endmacro -%}
 
 {%- let y = 4 -%}
-{%- call thrice() -%}
-{%- call thrice(1) -%}
-{%- call thrice(b=1) -%}
+{%- call thrice() -%}{%- endcall -%}
+{%- call thrice(1) -%}{%- endcall -%}
+{%- call thrice(b=1) -%}{%- endcall -%}
 ",
         ext = "html"
     )]
@@ -272,9 +330,9 @@ fn test_default_value5() {
 {{ a }} {{ b }}
 {% endmacro -%}
 
-{%- call thrice() -%}
-{%- call thrice(1) -%}
-{%- call thrice(1, 2) -%}
+{%- call thrice() -%}{%- endcall -%}
+{%- call thrice(1) -%}{%- endcall -%}
+{%- call thrice(1, 2) -%}{%- endcall -%}
 ",
         ext = "html"
     )]
@@ -296,8 +354,8 @@ fn test_rust_keywords_as_args() {
 {{ type }}
 {% endmacro -%}
 
-{%- call input(1) -%}
-{%- call input(type=1) -%}
+{%- call input(1) -%}{%- endcall -%}
+{%- call input(type=1) -%}{%- endcall -%}
 ",
         ext = "html"
     )]
@@ -321,9 +379,9 @@ fn test_rust_keywords_as_args_with_default() {
 {{ type }}
 {% endmacro -%}
 
-{%- call input() -%}
-{%- call input(1) -%}
-{%- call input(type=1) -%}
+{%- call input() -%}{%- endcall -%}
+{%- call input(1) -%}{%- endcall -%}
+{%- call input(type=1) -%}{%- endcall -%}
 ",
         ext = "html"
     )]
@@ -347,9 +405,9 @@ fn test_rust_keywords_as_args_with_default_expr() {
 {{ type }}
 {% endmacro -%}
 
-{%- call input() -%}
-{%- call input(1) -%}
-{%- call input(type=1) -%}
+{%- call input() -%}{%- endcall -%}
+{%- call input(1) -%}{%- endcall -%}
+{%- call input(type=1) -%}{%- endcall -%}
 ",
         ext = "html"
     )]

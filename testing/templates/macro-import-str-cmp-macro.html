@@ -9,5 +9,5 @@
 {% endmacro %}
 
 {% macro strcmp(s) %}
-    {%- call strcmp0(s, "bar") -%}
+    {%- call strcmp0(s, "bar") -%}{%- endcall -%}
 {% endmacro %}

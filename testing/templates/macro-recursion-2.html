@@ -1,5 +1,5 @@
 {% import "macro-recursion-3.html" as next %}
 
 {% macro some_macro %}
-    {% call next::some_macro %}
+    {% call next::some_macro %}{% endcall %}
 {% endmacro %}

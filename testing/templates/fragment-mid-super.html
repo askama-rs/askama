@@ -1,9 +1,9 @@
 {% extends "fragment-base.html" %}
 
 {% block body %}
-[{% call super() %}]
+[{{ super() }}]
 {% endblock %}
 
 {% block other_body %}
-({% call super() %})
+({{ super() }})
 {% endblock %}

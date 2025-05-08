@@ -7,7 +7,7 @@
   </head>
   <body>
   {% block body %}
-    {% call libb::thrice("nav") %}
+    {% call libb::thrice("nav") %}{% endcall %}
     Copyright {{ year }}
   {% endblock %}
   </body>

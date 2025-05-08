@@ -1265,6 +1265,16 @@ const KWS_PARSER: &[&[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]]; MAX_RUST_KEYWORD_L
         result[result.len() - 1] = AsciiStr::new_sized("r#union");
         result
     };
+    const KW6: &[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]] = &{
+        let mut result = [AsciiStr::new_sized("r#"); RUST_KEYWORDS[6].len() + 1];
+        let mut i = 0;
+        while i < RUST_KEYWORDS[6].len() {
+            result[i] = RUST_KEYWORDS[6][i];
+            i += 1;
+        }
+        result[result.len() - 1] = AsciiStr::new_sized("r#caller");
+        result
+    };
 
     [
         RUST_KEYWORDS[0],
@@ -1273,7 +1283,7 @@ const KWS_PARSER: &[&[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]]; MAX_RUST_KEYWORD_L
         RUST_KEYWORDS[3],
         KW4,
         KW5,
-        RUST_KEYWORDS[6],
+        KW6,
         RUST_KEYWORDS[7],
         RUST_KEYWORDS[8],
     ]
@@ -1493,6 +1503,7 @@ mod test {
 
     #[test]
     fn test_is_rust_keyword() {
+        assert!(is_rust_keyword("caller"));
         assert!(is_rust_keyword("super"));
         assert!(is_rust_keyword("become"));
         assert!(!is_rust_keyword("supeeeer"));

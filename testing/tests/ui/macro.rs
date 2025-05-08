@@ -5,7 +5,7 @@ use askama::Template;
 {{ param }}
 {%- endmacro -%}
 
-{%- call thrice(2, 3) -%}", ext = "html")]
+{%- call thrice(2, 3) -%}{%- endcall -%}", ext = "html")]
 struct InvalidNumberOfArgs;
 
 #[derive(Template)]
@@ -13,14 +13,14 @@ struct InvalidNumberOfArgs;
 {{ param }} {{ param2 }}
 {%- endmacro -%}
 
-{%- call thrice() -%}", ext = "html")]
+{%- call thrice() -%}{%- endcall -%}", ext = "html")]
 struct InvalidNumberOfArgs2;
 
 #[derive(Template)]
 #[template(source = "{%- macro thrice() -%}
 {%- endmacro -%}
 
-{%- call thrice(1, 2) -%}", ext = "html")]
+{%- call thrice(1, 2) -%}{%- endcall -%}", ext = "html")]
 struct InvalidNumberOfArgs3;
 
 #[derive(Template)]
@@ -44,7 +44,7 @@ struct NoClosingParen4;
     source = r#"
         {% macro example(name, value, current, label="", id="") %}
         {% endmacro %}
-        {% call example(name="name", value="") %}
+        {% call example(name="name", value="") %}{% endcall %}
     "#,
     ext = "txt"
 )]
@@ -55,7 +55,7 @@ struct WrongNumberOfParams;
     source = r#"
         {% macro example(name, value, arg=12) %}
         {% endmacro %}
-        {% call example(0, name="name", value="") %}
+        {% call example(0, name="name", value="") %}{% endcall %}
     "#,
     ext = "txt"
 )]

@@ -3,8 +3,8 @@ use askama::Template;
 #[derive(Template)]
 #[template(
     source = "
-        {% macro one %}{% call one %}{% endmacro %}
-        {% call one %}
+        {% macro one %}{% call one %}{% endcall %}{% endmacro %}
+        {% call one %}{% endcall %}
     ",
     ext = "html"
 )]
@@ -13,12 +13,12 @@ struct Direct;
 #[derive(Template)]
 #[template(
     source = "
-        {% macro one %}{% call two %}{% endmacro %}
-        {% macro two %}{% call three %}{% endmacro %}
-        {% macro three %}{% call four %}{% endmacro %}
-        {% macro four %}{% call five %}{% endmacro %}
-        {% macro five %}{% call one %}{% endmacro %}
-        {% call one %}
+        {% macro one %}{% call two %}{% endcall %}{% endmacro %}
+        {% macro two %}{% call three %}{% endcall %}{% endmacro %}
+        {% macro three %}{% call four %}{% endcall %}{% endmacro %}
+        {% macro four %}{% call five %}{% endcall %}{% endmacro %}
+        {% macro five %}{% call one %}{% endcall %}{% endmacro %}
+        {% call one %}{% endcall %}
     ",
     ext = "html"
 )]
@@ -29,9 +29,9 @@ struct Indirect;
     source = r#"
         {% import "macro-recursion-1.html" as next %}
         {% macro some_macro %}
-            {% call next::some_macro %}
+            {% call next::some_macro %}{% endcall %}
         {% endmacro %}
-        {% call some_macro %}
+        {% call some_macro %}{% endcall %}
     "#,
     ext = "html"
 )]

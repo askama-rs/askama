@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::collections::hash_map::{Entry, HashMap};
-use std::fmt::{self, Write};
+use std::fmt::{self, Debug, Write};
 use std::mem;
 
 use parser::node::{
@@ -96,7 +96,7 @@ impl<'a> Generator<'a, '_> {
                     self.write_comment(comment);
                 }
                 Node::Expr(ws, ref val) => {
-                    self.write_expr(ws, val);
+                    size_hint += self.write_expr(ctx, buf, ws, val)?;
                 }
                 Node::Let(ref l) => {
                     self.write_let(ctx, buf, l)?;
@@ -596,14 +596,12 @@ impl<'a> Generator<'a, '_> {
         call: &'a WithSpan<'a, Call<'_>>,
     ) -> Result<usize, CompileError> {
         let Call {
-            ws,
+            ws1,
             scope,
             name,
             ref args,
+            ..
         } = **call;
-        if name == "super" {
-            return self.write_block(ctx, buf, None, ws, call.span());
-        }
 
         let (def, own_ctx) = if let Some(s) = scope {
             let path = ctx.imports.get(s).ok_or_else(|| {
@@ -626,9 +624,13 @@ impl<'a> Generator<'a, '_> {
             (*def, ctx)
         };
 
-        if self.seen_macros.iter().any(|(s, _)| std::ptr::eq(*s, def)) {
+        if self
+            .seen_callers
+            .iter()
+            .any(|(_, s, _)| std::ptr::eq(*s, def))
+        {
             let mut message = "Found recursion in macro calls:".to_owned();
-            for (m, f) in &self.seen_macros {
+            for (_, m, f) in &self.seen_callers {
                 if let Some(f) = f {
                     write!(message, "{f}").unwrap();
                 } else {
@@ -637,10 +639,11 @@ impl<'a> Generator<'a, '_> {
             }
             return Err(ctx.generate_error(message, call.span()));
         } else {
-            self.seen_macros.push((def, ctx.file_info_of(call.span())));
+            self.seen_callers
+                .push((call, def, ctx.file_info_of(call.span())));
         }
-
-        self.flush_ws(ws); // Cannot handle_ws() here: whitespace from macro definition comes first
+        self.active_caller = self.seen_callers.last().map(|v| v.0);
+        self.flush_ws(ws1); // Cannot handle_ws() here: whitespace from macro definition comes first
         let size_hint = self.push_locals(|this| {
             macro_call_ensure_arg_count(call, def, ctx)?;
 
@@ -761,8 +764,9 @@ impl<'a> Generator<'a, '_> {
             buf.write('}');
             Ok(size_hint)
         })?;
-        self.prepare_ws(ws);
-        self.seen_macros.pop();
+        self.prepare_ws(ws1);
+        self.seen_callers.pop();
+        self.active_caller = None;
         Ok(size_hint)
     }
 
@@ -1092,17 +1096,126 @@ impl<'a> Generator<'a, '_> {
         Ok(size_hint)
     }
 
-    fn write_expr(&mut self, ws: Ws, s: &'a WithSpan<'a, Expr<'a>>) {
+    fn write_expr(
+        &mut self,
+        ctx: &Context<'a>,
+        buf: &mut Buffer,
+        ws: Ws,
+        s: &'a WithSpan<'a, Expr<'a>>,
+    ) -> Result<usize, CompileError> {
+        if let Expr::Call {
+            ref path,
+            args: expr_args,
+            ..
+        } = &**s
+        {
+            fn check_num_args<'a>(
+                s: &'a WithSpan<'a, Expr<'a>>,
+                ctx: &Context<'a>,
+                expected: usize,
+                found: usize,
+            ) -> Result<(), CompileError> {
+                if expected != found {
+                    Err(ctx.generate_error(
+                        format!("expected `{}` argument, found `{}`", expected, found),
+                        s.span(),
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
+            if ***path == Expr::Var("super") {
+                check_num_args(s, ctx, 0, expr_args.len())?;
+                return self.write_block(ctx, buf, None, ws, s.span());
+            } else if ***path == Expr::Var("caller") {
+                let def = self.active_caller.ok_or_else(|| {
+                    ctx.generate_error(format_args!("block is not defined for caller"), s.span())
+                })?;
+                self.active_caller = None;
+                self.handle_ws(ws);
+                let size_hint = self.push_locals(|this| {
+                    this.write_buf_writable(ctx, buf)?;
+                    buf.write('{');
+                    this.prepare_ws(def.ws1);
+                    let mut value = Buffer::new();
+                    check_num_args(s, ctx, def.caller_args.len(), expr_args.len())?;
+                    for (index, arg) in def.caller_args.iter().enumerate() {
+                        match expr_args.get(index) {
+                            Some(expr) => {
+                                value.clear();
+                                match &**expr {
+                                    // If `expr` is already a form of variable then
+                                    // don't reintroduce a new variable. This is
+                                    // to avoid moving non-copyable values.
+                                    Expr::Var(name) if *name != "self" => {
+                                        let var = this.locals.resolve_or_self(name);
+                                        this.locals
+                                            .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
+                                    }
+                                    Expr::Attr(obj, attr) => {
+                                        let mut attr_buf = Buffer::new();
+                                        this.visit_attr(ctx, &mut attr_buf, obj, attr)?;
+
+                                        let attr = attr_buf.into_string();
+                                        let var = this.locals.resolve(&attr).unwrap_or(attr);
+                                        this.locals
+                                            .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
+                                    }
+                                    // Everything else still needs to become variables,
+                                    // to avoid having the same logic be executed
+                                    // multiple times, e.g. in the case of macro
+                                    // parameters being used multiple times.
+                                    _ => {
+                                        let (before, after) = if !is_copyable(expr) {
+                                            ("&(", ")")
+                                        } else {
+                                            ("", "")
+                                        };
+                                        value.write(this.visit_expr_root(ctx, expr)?);
+                                        // We need to normalize the arg to write it, thus we need to add it to
+                                        // locals in the normalized manner
+                                        let normalized_arg = normalize_identifier(arg);
+                                        buf.write(format_args!(
+                                            "let {} = {before}{value}{after};",
+                                            normalized_arg
+                                        ));
+                                        this.locals
+                                            .insert_with_default(Cow::Borrowed(normalized_arg));
+                                    }
+                                }
+                            }
+                            None => {
+                                return Err(ctx.generate_error(
+                                    format_args!("missing `{arg}` argument in `caller`"),
+                                    s.span(),
+                                ));
+                            }
+                        }
+                    }
+                    let mut size_hint = this.handle(ctx, &def.nodes, buf, AstLevel::Nested)?;
+
+                    this.flush_ws(def.ws2);
+                    size_hint += this.write_buf_writable(ctx, buf)?;
+                    buf.write('}');
+                    Ok(size_hint)
+                })?;
+                self.active_caller = self.seen_callers.last().map(|v| v.0);
+                return Ok(size_hint);
+            }
+        }
+
         self.handle_ws(ws);
         let items = if let Expr::Concat(exprs) = &**s {
             exprs
         } else {
             std::slice::from_ref(s)
         };
+
         for s in items {
             self.buf_writable
                 .push(compile_time_escape(s, self.input.escaper).unwrap_or(Writable::Expr(s)));
         }
+        Ok(0)
     }
 
     // Write expression buffer and empty
