@@ -17,6 +17,7 @@ harness = false
 [dependencies]
 askama = { path = "../askama", version = "0.14.0" }
 
+either = "1.15.0"
 serde_json = { version = "1.0", optional = true }
 
 # intentionally shadow the name `::core` to test if the generated code still works fine

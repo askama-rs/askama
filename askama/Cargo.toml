@@ -24,6 +24,7 @@ name = "escape"
 harness = false
 
 [dependencies]
+either = { version = "1.15.0", default-features = false }
 itoa = "1.0.11"
 
 # needed by feature "derive"
@@ -61,6 +62,7 @@ serde_json = ["std", "askama_derive?/serde_json", "dep:serde", "dep:serde_json"]
 std = [
     "alloc",
     "askama_derive?/std",
+    "either/std",
     "serde?/std",
     "serde_json?/std",
     "percent-encoding?/std",

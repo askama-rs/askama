@@ -4,6 +4,8 @@ use core::fmt::{self, Write};
 use core::ops::Deref;
 use core::pin::Pin;
 
+use either::Either;
+
 use super::MAX_LEN;
 use crate::{Error, FastWritable, Result, Values};
 
@@ -330,13 +332,13 @@ impl<T: fmt::Display> fmt::Display for Center<T> {
 /// # }
 /// ```
 #[inline]
-pub fn pluralize<C, S, P>(count: C, singular: S, plural: P) -> Result<Pluralize<S, P>, C::Error>
+pub fn pluralize<C, S, P>(count: C, singular: S, plural: P) -> Result<Either<S, P>, C::Error>
 where
     C: PluralizeCount,
 {
     match count.is_singular()? {
-        true => Ok(Pluralize::Singular(singular)),
-        false => Ok(Pluralize::Plural(plural)),
+        true => Ok(Either::Left(singular)),
+        false => Ok(Either::Right(plural)),
     }
 }
 
@@ -425,35 +427,6 @@ const _: () = {
         NonZeroU8 NonZeroU16 NonZeroU32 NonZeroU64 NonZeroU128 NonZeroUsize
     }
 };
-
-pub enum Pluralize<S, P> {
-    Singular(S),
-    Plural(P),
-}
-
-impl<S: fmt::Display, P: fmt::Display> fmt::Display for Pluralize<S, P> {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Pluralize::Singular(value) => write!(f, "{value}"),
-            Pluralize::Plural(value) => write!(f, "{value}"),
-        }
-    }
-}
-
-impl<S: FastWritable, P: FastWritable> FastWritable for Pluralize<S, P> {
-    #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
-        &self,
-        dest: &mut W,
-        values: &dyn Values,
-    ) -> crate::Result<()> {
-        match self {
-            Pluralize::Singular(value) => value.write_into(dest, values),
-            Pluralize::Plural(value) => value.write_into(dest, values),
-        }
-    }
-}
 
 #[cfg(all(test, feature = "alloc"))]
 mod tests {
