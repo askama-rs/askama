@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use askama::Template as _;
-use askama_derive::Template;
+use askama_macros::Template;
 
 fn main() {
     let mut args = std::env::args().fuse().skip(1);

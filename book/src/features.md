@@ -51,8 +51,8 @@ enabled by <code>"default"</code>
 </blockquote>
 
 This feature enables `#[derive(Template)]`. Without it the trait `askama::Template` will still be
-available, but if you want to derive a template, you have to manually depend on `askama_derive`.
-`askama_derive` should be used with the same features as `askama`.
+available, but if you want to derive a template, you have to manually depend on `askama_macros`.
+`askama_macros` should be used with the same features as `askama`.
 
 Not using this feature might be useful e.g. if you are writing a library with manual filters
 for askama, without any templates. It might also very slightly speed-up the compilation,

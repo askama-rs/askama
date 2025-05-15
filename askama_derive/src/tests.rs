@@ -5,6 +5,7 @@ use std::path::Path;
 
 use console::style;
 use prettyplease::unparse;
+use quote::quote;
 use similar::{Algorithm, ChangeTag, TextDiffConfig};
 
 use crate::AnyTemplateArgs;
@@ -1171,14 +1172,17 @@ fn test_with_config() {
 }
 
 #[test]
-#[cfg(feature = "__standalone")]
 fn test_generated_with_error() {
     // Ensure that the generated code on errors can still be parsed by syn.
-    let ts = quote::quote! {
+    let ts = quote! {
         #[derive(Template)]
         #[template(ext = "txt", source = "test {#")]
         struct HelloWorld;
     };
-    let ts = crate::derive_template(ts);
+    let ts = crate::derive_template(ts, || {
+        quote! {
+            extern crate askama;
+        }
+    });
     let _: syn::File = syn::parse2(ts).unwrap();
 }

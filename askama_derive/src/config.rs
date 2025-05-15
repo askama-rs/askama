@@ -402,18 +402,13 @@ mod tests {
     #[test]
     fn test_config_dirs() {
         let mut root = manifest_root();
-        root = root.join("tpl");
+        root.push("tpl");
         let config = Config::new("[general]\ndirs = [\"tpl\"]", None, None, None, None).unwrap();
         assert_eq!(config.dirs, vec![root]);
     }
 
     fn assert_eq_rooted(actual: &Path, expected: &str) {
         let mut root = manifest_root().canonicalize().unwrap();
-        if root.ends_with("askama_derive_standalone") {
-            root.pop();
-            root.push("askama_derive");
-        }
-
         root.push("templates");
         let mut inner = PathBuf::new();
         inner.push(expected);

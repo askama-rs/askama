@@ -7,7 +7,7 @@
 //! It lets you write templates in a Jinja-like syntax,
 //! which are linked to a `struct` or an `enum` defining the template context.
 //! This is done using a custom derive implementation (implemented
-//! in [`askama_derive`](https://crates.io/crates/askama_derive)).
+//! in [`askama_macros`](https://crates.io/crates/askama_macros)).
 //!
 //! For feature highlights and a quick start, please review the
 //! [README](https://github.com/askama-rs/askama/blob/master/README.md).
@@ -81,10 +81,8 @@ use core::ops::Deref;
 use std::io;
 
 #[cfg(feature = "derive")]
-pub use askama_derive::Template;
+pub use askama_macros::Template;
 
-#[doc(hidden)]
-pub use crate as shared;
 pub use crate::error::{Error, Result};
 pub use crate::helpers::PrimitiveType;
 pub use crate::values::{NO_VALUES, Value, Values, get_value};

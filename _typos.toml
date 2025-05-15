@@ -12,7 +12,7 @@ extend-exclude = [
     "testing/templates/fuzzed-*",
     # we copied the files verbatim including any typos :)
     "askama_parser/benches",
-    "askama_derive_standalone/benches",
+    "askama_derive/benches",
     # filler texts
     "*/benches/strings.inc",
     # too many false positives

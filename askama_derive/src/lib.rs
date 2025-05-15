@@ -11,6 +11,16 @@ mod integration;
 #[cfg(test)]
 mod tests;
 
+#[doc(hidden)]
+#[cfg(feature = "proc-macro")]
+pub mod __macro_support {
+    extern crate proc_macro;
+
+    pub use proc_macro::TokenStream as TokenStream1;
+    pub use proc_macro2::TokenStream as TokenStream2;
+    pub use quote::quote;
+}
+
 use std::borrow::{Borrow, Cow};
 use std::collections::hash_map::{Entry, HashMap};
 use std::fmt;
@@ -19,10 +29,6 @@ use std::path::Path;
 use std::sync::Mutex;
 
 use parser::{Parsed, ascii_str, strip_common};
-#[cfg(not(feature = "__standalone"))]
-use proc_macro::TokenStream as TokenStream12;
-#[cfg(feature = "__standalone")]
-use proc_macro2::TokenStream as TokenStream12;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned};
 use rustc_hash::FxBuildHasher;
@@ -33,176 +39,192 @@ use crate::heritage::{Context, Heritage};
 use crate::input::{AnyTemplateArgs, Print, TemplateArgs, TemplateInput};
 use crate::integration::{Buffer, build_template_enum};
 
-/// The `Template` derive macro and its `template()` attribute.
-///
-/// Askama works by generating one or more trait implementations for any
-/// `struct` type decorated with the `#[derive(Template)]` attribute. The
-/// code generation process takes some options that can be specified through
-/// the `template()` attribute.
-///
-/// ## Attributes
-///
-/// The following sub-attributes are currently recognized:
-///
-/// ### path
-///
-/// E.g. `path = "foo.html"`
-///
-/// Sets the path to the template file.
-/// The path is interpreted as relative to the configured template directories
-/// (by default, this is a `templates` directory next to your `Cargo.toml`).
-/// The file name extension is used to infer an escape mode (see below). In
-/// web framework integrations, the path's extension may also be used to
-/// infer the content type of the resulting response.
-/// Cannot be used together with `source`.
-///
-/// ### source
-///
-/// E.g. `source = "{{ foo }}"`
-///
-/// Directly sets the template source.
-/// This can be useful for test cases or short templates. The generated path
-/// is undefined, which generally makes it impossible to refer to this
-/// template from other templates. If `source` is specified, `ext` must also
-/// be specified (see below). Cannot be used together with `path`.
-/// `ext` (e.g. `ext = "txt"`): lets you specify the content type as a file
-/// extension. This is used to infer an escape mode (see below), and some
-/// web framework integrations use it to determine the content type.
-/// Cannot be used together with `path`.
-///
-/// ### `in_doc`
-///
-/// E.g. `in_doc = true`
-///
-/// As an alternative to supplying the code template code in an external file (as `path` argument),
-/// or as a string (as `source` argument), you can also enable the `"code-in-doc"` feature.
-/// With this feature, you can specify the template code directly in the documentation
-/// of the template `struct`.
-///
-/// Instead of `path = "…"` or `source = "…"`, specify `in_doc = true` in the `#[template]`
-/// attribute, and in the struct's documentation add a `askama` code block:
-///
-/// ```rust,ignore
-/// /// ```askama
-/// /// <div>{{ lines|linebreaksbr }}</div>
-/// /// ```
-/// #[derive(Template)]
-/// #[template(ext = "html", in_doc = true)]
-/// struct Example<'a> {
-///     lines: &'a str,
-/// }
-/// ```
-///
-/// ### print
-///
-/// E.g. `print = "code"`
-///
-/// Enable debugging by printing nothing (`none`), the parsed syntax tree (`ast`),
-/// the generated code (`code`) or `all` for both.
-/// The requested data will be printed to stdout at compile time.
-///
-/// ### block
-///
-/// E.g. `block = "block_name"`
-///
-/// Renders the block by itself.
-/// Expressions outside of the block are not required by the struct, and
-/// inheritance is also supported. This can be useful when you need to
-/// decompose your template for partial rendering, without needing to
-/// extract the partial into a separate template or macro.
-///
-/// ```rust,ignore
-/// #[derive(Template)]
-/// #[template(path = "hello.html", block = "hello")]
-/// struct HelloTemplate<'a> { ... }
-/// ```
-///
-/// ### blocks
-///
-/// E.g. `blocks = ["title", "content"]`
-///
-/// Automatically generates (a number of) sub-templates that act as if they had a
-/// `block = "..."` attribute. You can access the sub-templates with the method
-/// <code>my_template.as_<em>block_name</em>()</code>, where *`block_name`* is the
-/// name of the block:
-///
-/// ```rust,ignore
-/// #[derive(Template)]
-/// #[template(
-///     ext = "txt",
-///     source = "
-///         {% block title %} ... {% endblock %}
-///         {% block content %} ... {% endblock %}
-///     ",
-///     blocks = ["title", "content"]
-/// )]
-/// struct News<'a> {
-///     title: &'a str,
-///     message: &'a str,
-/// }
-///
-/// let news = News {
-///     title: "Announcing Rust 1.84.1",
-///     message: "The Rust team has published a new point release of Rust, 1.84.1.",
-/// };
-/// assert_eq!(
-///     news.as_title().render().unwrap(),
-///     "<h1>Announcing Rust 1.84.1</h1>"
-/// );
-/// ```
-///
-/// ### escape
-///
-/// E.g. `escape = "none"`
-///
-/// Override the template's extension used for the purpose of determining the escaper for
-/// this template. See the section on configuring custom escapers for more information.
-///
-/// ### syntax
-///
-/// E.g. `syntax = "foo"`
-///
-/// Set the syntax name for a parser defined in the configuration file.
-/// The default syntax, `"default"`,  is the one provided by Askama.
-///
-/// ### askama
-///
-/// E.g. `askama = askama`
-///
-/// If you are using askama in a subproject, a library or a [macro][book-macro], it might be
-/// necessary to specify the [path][book-tree] where to find the module `askama`:
-///
-/// [book-macro]: https://doc.rust-lang.org/book/ch19-06-macros.html
-/// [book-tree]: https://doc.rust-lang.org/book/ch07-03-paths-for-referring-to-an-item-in-the-module-tree.html
-///
-/// ```rust,ignore
-/// #[doc(hidden)]
-/// use askama as __askama;
-///
-/// #[macro_export]
-/// macro_rules! new_greeter {
-///     ($name:ident) => {
-///         #[derive(Debug, $crate::askama::Template)]
-///         #[template(
-///             ext = "txt",
-///             source = "Hello, world!",
-///             askama = $crate::__askama
-///         )]
-///         struct $name;
-///     }
-/// }
-///
-/// new_greeter!(HelloWorld);
-/// assert_eq!(HelloWorld.to_string(), Ok("Hello, world."));
-/// ```
-#[allow(clippy::useless_conversion)] // To be compatible with both `TokenStream`s
-#[cfg_attr(
-    not(feature = "__standalone"),
-    proc_macro_derive(Template, attributes(template))
-)]
-#[must_use]
-pub fn derive_template(input: TokenStream12) -> TokenStream12 {
-    let ast = match syn::parse2(input.into()) {
+#[macro_export]
+macro_rules! make_derive_template {
+    (
+        $(#[$meta:meta])*
+        $vis:vis fn $name:ident() {
+            $($import:stmt)+
+        }
+    ) => {
+        /// The `Template` derive macro and its `template()` attribute.
+        ///
+        /// Askama works by generating one or more trait implementations for any
+        /// `struct` type decorated with the `#[derive(Template)]` attribute. The
+        /// code generation process takes some options that can be specified through
+        /// the `template()` attribute.
+        ///
+        /// ## Attributes
+        ///
+        /// The following sub-attributes are currently recognized:
+        ///
+        /// ### path
+        ///
+        /// E.g. `path = "foo.html"`
+        ///
+        /// Sets the path to the template file.
+        /// The path is interpreted as relative to the configured template directories
+        /// (by default, this is a `templates` directory next to your `Cargo.toml`).
+        /// The file name extension is used to infer an escape mode (see below). In
+        /// web framework integrations, the path's extension may also be used to
+        /// infer the content type of the resulting response.
+        /// Cannot be used together with `source`.
+        ///
+        /// ### source
+        ///
+        /// E.g. `source = "{{ foo }}"`
+        ///
+        /// Directly sets the template source.
+        /// This can be useful for test cases or short templates. The generated path
+        /// is undefined, which generally makes it impossible to refer to this
+        /// template from other templates. If `source` is specified, `ext` must also
+        /// be specified (see below). Cannot be used together with `path`.
+        /// `ext` (e.g. `ext = "txt"`): lets you specify the content type as a file
+        /// extension. This is used to infer an escape mode (see below), and some
+        /// web framework integrations use it to determine the content type.
+        /// Cannot be used together with `path`.
+        ///
+        /// ### `in_doc`
+        ///
+        /// E.g. `in_doc = true`
+        ///
+        /// As an alternative to supplying the code template code in an external file (as `path` argument),
+        /// or as a string (as `source` argument), you can also enable the `"code-in-doc"` feature.
+        /// With this feature, you can specify the template code directly in the documentation
+        /// of the template `struct`.
+        ///
+        /// Instead of `path = "…"` or `source = "…"`, specify `in_doc = true` in the `#[template]`
+        /// attribute, and in the struct's documentation add a `askama` code block:
+        ///
+        /// ```rust,ignore
+        /// /// ```askama
+        /// /// <div>{{ lines|linebreaksbr }}</div>
+        /// /// ```
+        /// #[derive(Template)]
+        /// #[template(ext = "html", in_doc = true)]
+        /// struct Example<'a> {
+        ///     lines: &'a str,
+        /// }
+        /// ```
+        ///
+        /// ### print
+        ///
+        /// E.g. `print = "code"`
+        ///
+        /// Enable debugging by printing nothing (`none`), the parsed syntax tree (`ast`),
+        /// the generated code (`code`) or `all` for both.
+        /// The requested data will be printed to stdout at compile time.
+        ///
+        /// ### block
+        ///
+        /// E.g. `block = "block_name"`
+        ///
+        /// Renders the block by itself.
+        /// Expressions outside of the block are not required by the struct, and
+        /// inheritance is also supported. This can be useful when you need to
+        /// decompose your template for partial rendering, without needing to
+        /// extract the partial into a separate template or macro.
+        ///
+        /// ```rust,ignore
+        /// #[derive(Template)]
+        /// #[template(path = "hello.html", block = "hello")]
+        /// struct HelloTemplate<'a> { ... }
+        /// ```
+        ///
+        /// ### blocks
+        ///
+        /// E.g. `blocks = ["title", "content"]`
+        ///
+        /// Automatically generates (a number of) sub-templates that act as if they had a
+        /// `block = "..."` attribute. You can access the sub-templates with the method
+        /// <code>my_template.as_<em>block_name</em>()</code>, where *`block_name`* is the
+        /// name of the block:
+        ///
+        /// ```rust,ignore
+        /// # use askama::Template;
+        /// #[derive(Template)]
+        /// #[template(
+        ///     ext = "txt",
+        ///     source = "
+        ///         {% block title -%} <h1>{{title}}</h1> {%- endblock %}
+        ///         {% block content -%} <p>{{message</p> {%- endblock %}
+        ///     ",
+        ///     blocks = ["title", "content"]
+        /// )]
+        /// struct News<'a> {
+        ///     title: &'a str,
+        ///     message: &'a str,
+        /// }
+        ///
+        /// let news = News {
+        ///     title: "Announcing Rust 1.84.1",
+        ///     message: "The Rust team has published a new point release of Rust, 1.84.1.",
+        /// };
+        /// assert_eq!(
+        ///     news.as_title().render().unwrap(),
+        ///     "<h1>Announcing Rust 1.84.1</h1>"
+        /// );
+        /// ```
+        ///
+        /// ### escape
+        ///
+        /// E.g. `escape = "none"`
+        ///
+        /// Override the template's extension used for the purpose of determining the escaper for
+        /// this template. See the section on configuring custom escapers for more information.
+        ///
+        /// ### syntax
+        ///
+        /// E.g. `syntax = "foo"`
+        ///
+        /// Set the syntax name for a parser defined in the configuration file.
+        /// The default syntax, `"default"`,  is the one provided by Askama.
+        ///
+        /// ### askama
+        ///
+        /// E.g. `askama = askama`
+        ///
+        /// If you are using askama in a subproject, a library or a [macro][book-macro], it might be
+        /// necessary to specify the [path][book-tree] where to find the module `askama`:
+        ///
+        /// [book-macro]: https://doc.rust-lang.org/book/ch19-06-macros.html
+        /// [book-tree]: https://doc.rust-lang.org/book/ch07-03-paths-for-referring-to-an-item-in-the-module-tree.html
+        ///
+        /// ```rust,ignore
+        /// #[doc(hidden)]
+        /// pub use askama as __askama;
+        ///
+        /// #[macro_export]
+        /// macro_rules! new_greeter {
+        ///     ($name:ident) => {
+        ///         #[derive(Debug, $crate::__askama::Template)]
+        ///         #[template(
+        ///             ext = "txt",
+        ///             source = "Hello, world!",
+        ///             askama = $crate::__askama
+        ///         )]
+        ///         struct $name;
+        ///     }
+        /// }
+        ///
+        /// new_greeter!(HelloWorld);
+        /// assert_eq!(HelloWorld.to_string(), "Hello, world!");
+        /// ```
+        $(#[$meta])*
+        $vis fn $name(
+            input: $crate::__macro_support::TokenStream1,
+        ) -> $crate::__macro_support::TokenStream1 {
+            fn import_askama() -> $crate::__macro_support::TokenStream2 {
+                $crate::__macro_support::quote!($($import)*)
+            }
+
+            $crate::derive_template(input.into(), import_askama).into()
+        }
+    };
+}
+
+pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -> TokenStream {
+    let ast = match syn::parse2(input) {
         Ok(ast) => ast,
         Err(err) => {
             let msgs = err.into_iter().map(|err| err.to_string());
@@ -212,7 +234,7 @@ pub fn derive_template(input: TokenStream12) -> TokenStream12 {
                     #(core::compile_error!(#msgs);)*
                 };
             };
-            return ts.into();
+            return ts;
         }
     };
 
@@ -239,22 +261,16 @@ pub fn derive_template(input: TokenStream12) -> TokenStream12 {
         buf.into_string().parse().unwrap()
     };
 
-    let ts = if let Some(crate_name) = crate_name {
-        quote! {
-            const _: () = {
-                use #crate_name as askama;
-                #ts
-            };
-        }
-    } else {
-        quote! {
-            const _: () = {
-                extern crate askama;
-                #ts
-            };
-        }
+    let import_askama = match crate_name {
+        Some(crate_name) => quote!(use #crate_name as askama;),
+        None => import_askama(),
     };
-    ts.into()
+    quote! {
+        const _: () = {
+            #import_askama
+            #ts
+        };
+    }
 }
 
 fn build_skeleton(buf: &mut Buffer, ast: &syn::DeriveInput) -> Result<usize, CompileError> {

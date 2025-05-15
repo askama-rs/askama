@@ -4,6 +4,12 @@ use quote::quote;
 criterion_main!(benches);
 criterion_group!(benches, hello_world, librustdoc);
 
+fn extern_crate_askama() -> proc_macro2::TokenStream {
+    quote! {
+        extern crate askama;
+    }
+}
+
 fn hello_world(c: &mut Criterion) {
     let source = "<html><body><h1>Hello, {{user}}!</h1></body></html>";
     let ts = quote! {
@@ -22,7 +28,7 @@ fn hello_world(c: &mut Criterion) {
     g.bench_function("hello_world", |b| {
         b.iter_batched(
             || ts.clone(),
-            askama_derive_standalone::derive_template,
+            |input| askama_derive::derive_template(input, extern_crate_askama),
             BatchSize::LargeInput,
         );
     });
@@ -46,7 +52,7 @@ fn librustdoc(c: &mut Criterion) {
             g.bench_function($name, |b| {
                 b.iter_batched(
                     || ts.clone(),
-                    askama_derive_standalone::derive_template,
+                    |input| askama_derive::derive_template(input, extern_crate_askama),
                     BatchSize::LargeInput,
                 )
             });

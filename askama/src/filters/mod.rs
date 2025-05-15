@@ -7,7 +7,7 @@
 //!
 //! All **result types of any filter function** in this module is **subject to change** at any
 //! point, and is **not indicated by as semver breaking** version bump.
-//! The traits [`AutoEscape`] and [`WriteWritable`] are used by [`askama_derive`]'s generated code
+//! The traits [`AutoEscape`] and [`WriteWritable`] are used by [`askama_macros`]'s generated code
 //! to work with all compatible types.
 
 #[cfg(feature = "alloc")]

@@ -1,0 +1,36 @@
+[package]
+name = "askama_macros"
+version = "0.14.0"
+description = "Procedural macro package for Askama"
+homepage = "https://github.com/askama-rs/askama"
+repository = "https://github.com/askama-rs/askama"
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+edition = "2021"
+rust-version = "1.83"
+publish = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--generate-link-to-definition", "--cfg=docsrs"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+askama_derive = { package = "askama_derive", version = "=0.14.0", path = "../askama_derive", default-features = false, features = ["proc-macro"] }
+
+[features]
+default = ["config", "derive", "std", "urlencode"]
+full = ["default", "blocks", "code-in-doc", "serde_json"]
+
+alloc = ["askama_derive/alloc"]
+blocks = ["askama_derive/blocks"]
+code-in-doc = ["askama_derive/code-in-doc"]
+config = ["askama_derive/config"]
+serde_json = ["askama_derive/serde_json"]
+std = ["askama_derive/std"]
+urlencode = ["askama_derive/urlencode"]
+
+# Unused, but we want to have the same features as `askama`.
+derive = []

@@ -19,7 +19,6 @@ jobs:
   Rustfmt:
     runs-on: ubuntu-latest
     steps:
-      # No need to test `askama_derive_standalone`. It has same the `src` folder as `askama_derive`.
       # No need to run the checks in parallel. They are fast enough.
       # No need for caching. No code is compiled at all.
       - uses: actions/checkout@v4
@@ -32,7 +31,7 @@ jobs:
           set -eu
           for PKG in \
             bench-build examples/actix-web-app examples/axum-app examples/poem-app examples/rocket-app examples/salvo-app examples/warp-app fuzzing \
-            askama askama_derive askama_derive_standalone askama_escape askama_parser \
+            askama askama_derive askama_escape askama_macros askama_parser \
             testing testing-alloc testing-no-std testing-renamed
           do
             cd "$PKG"
@@ -136,7 +135,7 @@ jobs:
           set -eu
           for PKG in \
             bench-build examples/actix-web-app examples/axum-app examples/poem-app examples/rocket-app examples/salvo-app examples/warp-app fuzzing \
-            askama askama_derive askama_derive_standalone askama_escape askama_parser \
+            askama askama_derive askama_escape askama_macros askama_parser \
             testing testing-alloc testing-no-std testing-renamed
           do
             cd "$PKG"
@@ -178,7 +177,7 @@ jobs:
       matrix:
         package: [
           bench-build, examples/actix-web-app, examples/axum-app, examples/poem-app, examples/rocket-app, examples/salvo-app, examples/warp-app, fuzzing,
-          askama, askama_derive, askama_derive_standalone, askama_escape, askama_parser,
+          askama, askama_derive, askama_escape, askama_macros, askama_parser,
           testing, testing-alloc, testing-no-std, testing-renamed,
         ]
     runs-on: ubuntu-latest
