@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::fmt::{self, Write};
 use std::mem::replace;
 
-use parser::{Expr, IntKind, Num, Span, StrLit, StrPrefix, TyGenerics, WithSpan};
+use parser::{Expr, IntKind, Num, PathOrIdentifier, Span, StrLit, StrPrefix, TyGenerics, WithSpan};
 
 use super::{DisplayWrap, Generator, TargetIsize, TargetUsize};
 use crate::heritage::Context;
@@ -14,11 +14,17 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: &str,
+        name: &PathOrIdentifier<'_>,
         args: &[WithSpan<'a, Expr<'a>>],
         generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
+        let name = match name {
+            PathOrIdentifier::Path(path) => {
+                return self.visit_custom_filter_with_path(ctx, buf, path, args, generics, node);
+            }
+            PathOrIdentifier::Identifier(name) => *name,
+        };
         let filter = match name {
             "center" => Self::visit_center_filter,
             "deref" => Self::visit_deref_filter,
@@ -53,6 +59,29 @@ impl<'a> Generator<'a, '_> {
 
         ensure_no_generics(ctx, name, node, generics)?;
         filter(self, ctx, buf, args, node)
+    }
+
+    fn visit_custom_filter_with_path(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        path: &[&str],
+        args: &[WithSpan<'a, Expr<'a>>],
+        generics: &[WithSpan<'a, TyGenerics<'a>>],
+        node: Span<'_>,
+    ) -> Result<DisplayWrap, CompileError> {
+        ensure_no_named_arguments(ctx, path.last().unwrap(), args, node)?;
+        self.visit_path(buf, path);
+        self.visit_call_generics(buf, generics);
+        buf.write('(');
+        self.visit_arg(ctx, buf, &args[0])?;
+        buf.write(",__askama_values");
+        if args.len() > 1 {
+            buf.write(',');
+            self.visit_args(ctx, buf, &args[1..])?;
+        }
+        buf.write(")?");
+        Ok(DisplayWrap::Unwrapped)
     }
 
     fn visit_custom_filter(

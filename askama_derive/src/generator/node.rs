@@ -801,7 +801,7 @@ impl<'a> Generator<'a, '_> {
         let display_wrap = self.visit_filter(
             ctx,
             &mut filter_buf,
-            filter.filters.name,
+            &filter.filters.name,
             &filter.filters.arguments,
             &filter.filters.generics,
             filter.span(),

@@ -1182,3 +1182,25 @@ fn test_generated_with_error() {
     let ts = crate::derive_template(ts);
     let _: syn::File = syn::parse2(ts).unwrap();
 }
+
+#[test]
+fn test_filter_with_path() {
+    compare(
+        r"{{ a | b::c::d }}",
+        r#"
+        match (
+            &((&&askama::filters::AutoEscaper::new(
+                &(b::c::d(&(self.a), __askama_values)?),
+                askama::filters::Text,
+            ))
+                .askama_auto_escape()?),
+        ) {
+            (expr0,) => {
+                (&&&askama::filters::Writable(expr0))
+                    .askama_write(__askama_writer, __askama_values)?;
+            }
+        }"#,
+        &[("a", "i8")],
+        3,
+    );
+}

@@ -733,8 +733,12 @@ Prefix with two &nbsp; characters:
 ## Custom Filters
 [#custom-filters]: #custom-filters
 
-To define your own filters, simply have a module named `filters` in scope of the context deriving a `Template` impl 
-and define the filters as functions within this module. 
+To define your own filters, either have a module named `filters` in scope of the context of your
+`#[derive(Template]) struct`, and define the filters as functions within this module;
+or call the filter with a path, e.g. `{{ value | some_module::my_filter }}`.
+The expressions `{{ value | my_filter }}` and `{{ value | filters::my_filter }}` behave identically,
+unless "my_filter" happens to be a built-in filter.
+
 The functions must have at least two arguments and the return type must be `askama::Result<T>`.
 Although there are no restrictions on `T` for a single filter, 
 the final result of a chain of filters must implement `Display`. 

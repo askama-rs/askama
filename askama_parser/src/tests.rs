@@ -1,6 +1,7 @@
 use crate::node::{Lit, Whitespace, Ws};
 use crate::{
-    Ast, Expr, Filter, InnerSyntax, Node, Num, Span, StrLit, Syntax, SyntaxBuilder, WithSpan,
+    Ast, Expr, Filter, InnerSyntax, Node, Num, PathOrIdentifier, Span, StrLit, Syntax,
+    SyntaxBuilder, WithSpan,
 };
 
 impl<T> WithSpan<'static, T> {
@@ -48,7 +49,7 @@ fn test_parse_filter() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
-                name: "e",
+                name: PathOrIdentifier::Identifier("e"),
                 arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
                 generics: vec![],
             })),
@@ -59,7 +60,7 @@ fn test_parse_filter() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
-                name: "abs",
+                name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(int_lit("2"))],
                 generics: vec![],
             })),
@@ -70,7 +71,7 @@ fn test_parse_filter() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
-                name: "abs",
+                name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(Expr::Unary(
                     "-",
                     WithSpan::no_span(int_lit("2")).into()
@@ -86,7 +87,7 @@ fn test_parse_filter() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
-                name: "abs",
+                name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(Expr::Group(
                     WithSpan::no_span(Expr::BinOp(
                         "-",
@@ -718,7 +719,7 @@ fn test_odd_calls() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
-                name: "c",
+                name: PathOrIdentifier::Identifier("c"),
                 arguments: vec![WithSpan::no_span(Expr::Call {
                     path: Box::new(WithSpan::no_span(Expr::Var("a"))),
                     args: vec![WithSpan::no_span(Expr::Var("b"))],
@@ -733,7 +734,7 @@ fn test_odd_calls() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
-                name: "c",
+                name: PathOrIdentifier::Identifier("c"),
                 arguments: vec![WithSpan::no_span(Expr::Call {
                     path: Box::new(WithSpan::no_span(Expr::Var("a"))),
                     args: vec![WithSpan::no_span(Expr::Var("b"))],
@@ -888,7 +889,7 @@ fn test_parse_tuple() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
-                name: "abs",
+                name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(Expr::Tuple(vec![]))],
                 generics: vec![],
             })),
@@ -899,7 +900,7 @@ fn test_parse_tuple() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
-                name: "abs",
+                name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(Expr::Group(Box::new(WithSpan::no_span(
                     int_lit("1")
                 ))))],
@@ -914,7 +915,7 @@ fn test_parse_tuple() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
-                name: "abs",
+                name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(Expr::Tuple(vec![WithSpan::no_span(
                     int_lit("1")
                 )]))],
@@ -929,7 +930,7 @@ fn test_parse_tuple() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
-                name: "abs",
+                name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(Expr::Tuple(vec![
                     WithSpan::no_span(int_lit("1")),
                     WithSpan::no_span(int_lit("2"))
@@ -1026,7 +1027,7 @@ fn test_parse_array() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
-                name: "foo",
+                name: PathOrIdentifier::Identifier("foo"),
                 arguments: vec![WithSpan::no_span(Expr::Array(vec![]))],
                 generics: vec![],
             }))
@@ -1037,7 +1038,7 @@ fn test_parse_array() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
-                name: "foo",
+                name: PathOrIdentifier::Identifier("foo"),
                 arguments: vec![WithSpan::no_span(Expr::Array(vec![]))],
                 generics: vec![],
             }))
@@ -1340,5 +1341,74 @@ fn fuzzed_deeply_tested_if_let() {
     assert_eq!(
         err.to_string().lines().next(),
         Some("your template code is too deeply nested, or the last expression is too complex"),
+    );
+}
+
+#[test]
+fn test_filter_with_path() {
+    let syntax = Syntax::default();
+    assert_eq!(
+        Ast::from_str("{{ strvar|::e }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::Filter(Filter {
+                name: PathOrIdentifier::Path(vec!["", "e"]),
+                arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
+                generics: vec![],
+            })),
+        )],
+    );
+    assert_eq!(
+        Ast::from_str("{{ strvar|::e::f }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::Filter(Filter {
+                name: PathOrIdentifier::Path(vec!["", "e", "f"]),
+                arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
+                generics: vec![],
+            })),
+        )],
+    );
+    assert_eq!(
+        Ast::from_str("{{ strvar|e::f }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::Filter(Filter {
+                name: PathOrIdentifier::Path(vec!["e", "f"]),
+                arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
+                generics: vec![],
+            })),
+        )],
+    );
+    assert_eq!(
+        Ast::from_str("{{ strvar|e::f() }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::Filter(Filter {
+                name: PathOrIdentifier::Path(vec!["e", "f"]),
+                arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
+                generics: vec![],
+            })),
+        )],
+    );
+    assert_eq!(
+        Ast::from_str("{{ strvar|e()::f }}", None, &syntax)
+            .unwrap_err()
+            .to_string(),
+        "failed to parse template source near offset 13",
+    );
+    assert_eq!(
+        Ast::from_str("{{ strvar|e::f()::g }}", None, &syntax)
+            .unwrap_err()
+            .to_string(),
+        "failed to parse template source near offset 16",
     );
 }

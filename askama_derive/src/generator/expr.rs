@@ -40,7 +40,7 @@ impl<'a> Generator<'a, '_> {
             Expr::Attr(ref obj, ref attr) => self.visit_attr(ctx, buf, obj, attr)?,
             Expr::Index(ref obj, ref key) => self.visit_index(ctx, buf, obj, key)?,
             Expr::Filter(Filter {
-                name,
+                ref name,
                 ref arguments,
                 ref generics,
             }) => self.visit_filter(ctx, buf, name, arguments, generics, expr.span())?,
@@ -627,7 +627,7 @@ impl<'a> Generator<'a, '_> {
         Ok(DisplayWrap::Unwrapped)
     }
 
-    fn visit_path(&mut self, buf: &mut Buffer, path: &[&str]) -> DisplayWrap {
+    pub(super) fn visit_path(&mut self, buf: &mut Buffer, path: &[&str]) -> DisplayWrap {
         for (i, part) in path.iter().copied().enumerate() {
             if i > 0 {
                 buf.write("::");

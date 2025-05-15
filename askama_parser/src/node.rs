@@ -12,7 +12,7 @@ use winnow::{ModalParser, Parser};
 use crate::memchr_splitter::{Splitter1, Splitter2, Splitter3};
 use crate::{
     ErrorContext, Expr, Filter, ParseResult, Span, State, Target, WithSpan, filter, identifier,
-    is_rust_keyword, keyword, skip_till, skip_ws0, str_lit_without_prefix, ws,
+    is_rust_keyword, keyword, path_or_identifier, skip_till, skip_ws0, str_lit_without_prefix, ws,
 };
 
 #[derive(Debug, PartialEq)]
@@ -773,7 +773,7 @@ impl<'a> FilterBlock<'a> {
             cut_node(
                 Some("filter"),
                 (
-                    ws(identifier),
+                    ws(path_or_identifier),
                     opt(|i: &mut _| crate::expr::call_generics(i, s.level)),
                     opt(|i: &mut _| Expr::arguments(i, s.level, false)),
                     repeat(0.., |i: &mut _| {

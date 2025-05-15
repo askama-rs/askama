@@ -480,3 +480,64 @@ fn test_whitespace_around_filter_operator() {
 
     assert_eq!(S.render().unwrap(), "12\n8\n4");
 }
+
+pub(crate) fn minus(value: &str, _: &dyn askama::Values) -> askama::Result<i32> {
+    Ok(-value.parse().map_err(askama::Error::custom)?)
+}
+
+#[test]
+fn test_filter_with_path() {
+    // ensure that filters can have a path
+
+    pub(crate) mod b {
+        pub(crate) mod c {
+            pub(crate) mod d {
+                pub(crate) use crate::minus;
+            }
+        }
+    }
+
+    pub(crate) mod filters {
+        pub(crate) use crate::minus;
+    }
+
+    #[derive(Template)]
+    #[template(source = r#"{{ value | b::c::d::minus }}"#, ext = "html")]
+    struct NestedPath<'a> {
+        value: &'a str,
+    }
+
+    assert_eq!(NestedPath { value: "42" }.render().unwrap(), "-42");
+
+    #[derive(Template)]
+    #[template(source = r#"{{ value | self::minus }}"#, ext = "html")]
+    struct SelfPath<'a> {
+        value: &'a str,
+    }
+
+    assert_eq!(SelfPath { value: "42" }.render().unwrap(), "-42");
+
+    #[derive(Template)]
+    #[template(source = r#"{{ value | crate::minus }}"#, ext = "html")]
+    struct CratePath<'a> {
+        value: &'a str,
+    }
+
+    assert_eq!(CratePath { value: "42" }.render().unwrap(), "-42");
+
+    #[derive(Template)]
+    #[template(source = r#"{{ value | filters::minus }}"#, ext = "html")]
+    struct ExplicitPath<'a> {
+        value: &'a str,
+    }
+
+    assert_eq!(ExplicitPath { value: "42" }.render().unwrap(), "-42");
+
+    #[derive(Template)]
+    #[template(source = r#"{{ value | minus }}"#, ext = "html")]
+    struct ImplicitPath<'a> {
+        value: &'a str,
+    }
+
+    assert_eq!(ImplicitPath { value: "42" }.render().unwrap(), "-42");
+}

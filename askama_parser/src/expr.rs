@@ -565,7 +565,7 @@ fn token_bitand<'a>(i: &mut &'a str) -> ParseResult<'a> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Filter<'a> {
-    pub name: &'a str,
+    pub name: PathOrIdentifier<'a>,
     pub arguments: Vec<WithSpan<'a, Expr<'a>>>,
     pub generics: Vec<WithSpan<'a, TyGenerics<'a>>>,
 }

@@ -695,7 +695,8 @@ impl<'a> Char<'a> {
     }
 }
 
-enum PathOrIdentifier<'a> {
+#[derive(Clone, Debug, PartialEq)]
+pub enum PathOrIdentifier<'a> {
     Path(Vec<&'a str>),
     Identifier(&'a str),
 }
@@ -1026,7 +1027,7 @@ fn filter<'a>(
 ) -> ParseResult<
     'a,
     (
-        &'a str,
+        PathOrIdentifier<'a>,
         Vec<WithSpan<'a, TyGenerics<'a>>>,
         Option<Vec<WithSpan<'a, Expr<'a>>>>,
     ),
@@ -1035,7 +1036,7 @@ fn filter<'a>(
 
     let _level_guard = level.nest(i)?;
     cut_err((
-        ws(identifier),
+        ws(path_or_identifier),
         opt(|i: &mut _| expr::call_generics(i, level)).map(|generics| generics.unwrap_or_default()),
         opt(|i: &mut _| Expr::arguments(i, level, true)),
     ))
