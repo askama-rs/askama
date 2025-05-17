@@ -1,6 +1,6 @@
 error: macro `thrice` expected 1 argument, found 2
  --> InvalidNumberOfArgs.html:5:2
-       "- call thrice(2, 3) -%}"
+       "- call thrice(2, 3) -%}{%- endcall -%}"
  --> tests/ui/macro.rs:4:21
   |
 4 |   #[template(source = "{%- macro thrice(param) -%}
@@ -8,12 +8,12 @@ error: macro `thrice` expected 1 argument, found 2
 5 | | {{ param }}
 6 | | {%- endmacro -%}
 7 | |
-8 | | {%- call thrice(2, 3) -%}", ext = "html")]
-  | |__________________________^
+8 | | {%- call thrice(2, 3) -%}{%- endcall -%}", ext = "html")]
+  | |_________________________________________^
 
 error: missing arguments when calling macro `thrice`: `param` and `param2`
  --> InvalidNumberOfArgs2.html:5:2
-       "- call thrice() -%}"
+       "- call thrice() -%}{%- endcall -%}"
   --> tests/ui/macro.rs:12:21
    |
 12 |   #[template(source = "{%- macro thrice(param, param2) -%}
@@ -21,20 +21,20 @@ error: missing arguments when calling macro `thrice`: `param` and `param2`
 13 | | {{ param }} {{ param2 }}
 14 | | {%- endmacro -%}
 15 | |
-16 | | {%- call thrice() -%}", ext = "html")]
-   | |______________________^
+16 | | {%- call thrice() -%}{%- endcall -%}", ext = "html")]
+   | |_____________________________________^
 
 error: macro `thrice` expected 0 argument, found 2
  --> InvalidNumberOfArgs3.html:4:2
-       "- call thrice(1, 2) -%}"
+       "- call thrice(1, 2) -%}{%- endcall -%}"
   --> tests/ui/macro.rs:20:21
    |
 20 |   #[template(source = "{%- macro thrice() -%}
    |  _____________________^
 21 | | {%- endmacro -%}
 22 | |
-23 | | {%- call thrice(1, 2) -%}", ext = "html")]
-   | |__________________________^
+23 | | {%- call thrice(1, 2) -%}{%- endcall -%}", ext = "html")]
+   | |_________________________________________^
 
 error: expected `)` to close macro argument list
  --> <source attribute>:1:17
@@ -70,26 +70,26 @@ error: expected `)` to close macro argument list
 
 error: missing argument when calling macro `example`: `current`
  --> WrongNumberOfParams.txt:4:10
-       " call example(name=\"name\", value=\"\") %}\n    "
+       " call example(name=\"name\", value=\"\") %}{% endcall %}\n    "
   --> tests/ui/macro.rs:44:14
    |
 44 |       source = r#"
    |  ______________^
 45 | |         {% macro example(name, value, current, label="", id="") %}
 46 | |         {% endmacro %}
-47 | |         {% call example(name="name", value="") %}
+47 | |         {% call example(name="name", value="") %}{% endcall %}
 48 | |     "#,
    | |______^
 
 error: argument `name` was passed more than once when calling macro `example`
  --> DuplicatedArg.txt:4:10
-       " call example(0, name=\"name\", value=\"\") %}\n    "
+       " call example(0, name=\"name\", value=\"\") %}{% endcall %}\n    "
   --> tests/ui/macro.rs:55:14
    |
 55 |       source = r#"
    |  ______________^
 56 | |         {% macro example(name, value, arg=12) %}
 57 | |         {% endmacro %}
-58 | |         {% call example(0, name="name", value="") %}
+58 | |         {% call example(0, name="name", value="") %}{% endcall %}
 59 | |     "#,
    | |______^

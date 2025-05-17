@@ -3,7 +3,7 @@
 
 {% block head %}
   {{ title }}
-  {% call super() %}
+  {{ super() }}
 {% endblock %}
 
 {% block body %}
@@ -14,7 +14,7 @@
     {% endblock %}
     </section>
     <section id="nav">
-      {% call libm::thrice("nav") %}
+      {% call libm::thrice("nav") %}{% endcall %}
     </section>
   </div>
 {% endblock %}

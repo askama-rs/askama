@@ -374,7 +374,7 @@ Here's an example child template:
 {% block content %}
   <h1>Index</h1>
   <p>Hello, world!</p>
-  {% call super() %}
+  {{ super() }}
 {% endblock %}
 ```
 
@@ -830,7 +830,7 @@ struct Item<'a> {
 
 You can define macros within your template by using `{% macro name(args) %}`, ending with `{% endmacro %}`.
 
-You can then call it with `{% call name(args) %}`:
+You can then call it with `{% call name(args) %}`, ending with `{% endcall %}`:
 
 ```jinja
 {% macro heading(arg) %}
@@ -839,7 +839,7 @@ You can then call it with `{% call name(args) %}`:
 
 {% endmacro %}
 
-{% call heading(s) %}
+{% call heading(s) %}{% endcall %}
 ```
 
 You can place macros in a separate file and use them in your templates by using `{% import %}`:
@@ -847,7 +847,7 @@ You can place macros in a separate file and use them in your templates by using 
 ```jinja
 {%- import "macro.html" as scope -%}
 
-{% call scope::heading(s) %}
+{% call scope::heading(s) %}{% endcall %}
 ```
 
 You can optionally specify the name of the macro in `endmacro`:
@@ -865,19 +865,19 @@ You can also specify arguments by their name (as defined in the macro):
 
 {% endmacro %}
 
-{% call heading(bold="something", arg="title") %}
+{% call heading(bold="something", arg="title") %}{% endcall%}
 ```
 
 You can use whitespace characters around `=`:
 
 ```jinja
-{% call heading(bold = "something", arg = "title") %}
+{% call heading(bold = "something", arg = "title") %}{% endcall %}
 ```
 
 You can mix named and non-named arguments when calling a macro:
 
 ```
-{% call heading("title", bold="something") %}
+{% call heading("title", bold="something") %}{% endcall %}
 ```
 
 However please note that named arguments must always come **last**.
@@ -889,16 +889,16 @@ be used for a non-named argument, it will error:
 {% macro heading(arg1, arg2, arg3, arg4) %}
 {% endmacro %}
 
-{% call heading("something", "b", arg4="ah", arg2="title") %}
+{% call heading("something", "b", arg4="ah", arg2="title") %}{% endcall %}
 ```
 
 In here it's invalid because `arg2` is the second argument and would be used by
 `"b"`. So either you replace `"b"` with `arg3="b"` or you pass `"title"` before:
 
 ```jinja
-{% call heading("something", arg3="b", arg4="ah", arg2="title") %}
+{% call heading("something", arg3="b", arg4="ah", arg2="title") %}{% endcall %}
 {# Equivalent of: #}
-{% call heading("something", "title", "b", arg4="ah") %}
+{% call heading("something", "title", "b", arg4="ah") %}{% endcall %}
 ```
 
 ### Default value
@@ -914,9 +914,50 @@ Then if you don't pass a value for this argument, its default value will be used
 
 ```jinja
 {# We only specify `arg1`, so `arg2` will be "something" #}
-{% call heading(1) %}
+{% call heading(1) %}{% endcall %}
 {# We specify both `arg1` and `arg2` so no default value is used #}
-{% call heading(1, 2) %}
+{% call heading(1, 2) %}{% endcall %}
+```
+
+### Call
+
+You can use the content in the call block directly inside the macro by using `{{ caller() }}`:
+
+```jinja
+{% macro render_dialog(title, class='dialog') -%}
+    <div class="{{ class }}">
+        <h2>{{ title }}</h2>
+        <div class="contents">
+            {{ caller() }}
+        </div>
+    </div>
+{%- endmacro %}
+
+{% call() render_dialog('Hello World') %}
+    This is a simple dialog rendered by using a macro and
+    a call block.
+{% endcall %}
+```
+
+Here is an example with a call block using arguments:
+
+```jinja
+{% macro dump_users(users) -%}
+    <ul>
+    {%- for user in users %}
+        <li><p>{{ user.username }}</p>{{ caller(user) }}</li>
+    {%- endfor %}
+    </ul>
+{%- endmacro %}
+
+{% call(user) dump_users(list_of_user) %}
+    <dl>
+        <dt>Realname</dt>
+        <dd>{{ user.realname }}</dd>
+        <dt>Description</dt>
+        <dd>{{ user.description }}</dd>
+    </dl>
+{% endcall %}
 ```
 
 ## Calling Rust macros

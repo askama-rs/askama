@@ -1,9 +1,9 @@
 {% macro foo(b) -%}
     {{ b }}
 {%- endmacro -%}
-{% call foo(true) -%}
-{% call foo(true && true) -%}
-{% call foo(true && true && true) -%}
-{% call foo(false) -%}
-{% call foo(false || true) -%}
-{% call foo(false || false || true) -%}
+{% call foo(true) -%}{% endcall %}
+{% call foo(true && true) -%}{% endcall %}
+{% call foo(true && true && true) -%}{% endcall %}
+{% call foo(false) -%}{% endcall %}
+{% call foo(false || true) -%}{% endcall %}
+{% call foo(false || false || true) -%}{% endcall %}
