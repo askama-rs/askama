@@ -78,6 +78,60 @@ Output:
 -  a  -
 ```
 
+### default
+[#default]: #default
+
+<ol><li>
+
+```jinja
+{{ variable | default(default_value) }}
+```
+
+Return a default value if a variable is undefined:
+
+```jinja
+{% let greeting = "Hello" %}
+{{ greeting | default("Hi") }} 
+```
+
+Since the variable `greeting` is defined, the output is its value: `Hello`.
+If you remove the variable:
+
+```jinja
+{{ greeting | default("Hi") }} 
+```
+
+then the output is the default value: `Hi`.
+In this variant, on the left-hand side of the filter must be a variable name.
+
+</li><li>
+
+```jinja
+{{ variable_or_expression | default(default_value, true) }}
+{{ variable_or_expression | default(default_value, boolean = true) }}
+```
+
+If you supply the optional second argument with the literal `true`, then the left-hand side
+can be an expression, too:
+
+```jinja
+{% let greeting = Some("Hello") %}
+{{ greeting.as_ref() | default("Hi", true) }} 
+```
+
+```html
+Hello
+```
+
+The argument to the filter must be an `Option<T>` or a `Result<T, E>` (or a reference to either).
+If the value is `Some()` / `Ok()`, then it is used as result.
+Otherwise, if it's `None` / `Err()`, then the default value is returned.
+
+If a variable name was supplied on the left-hand side of the filter,
+then still it is first checked if the variable is defined.
+
+</li></ol>
+
 ### deref
 [#deref]: #deref
 
