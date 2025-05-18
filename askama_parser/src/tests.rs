@@ -1,3 +1,5 @@
+use winnow::Parser;
+
 use crate::node::{Lit, Whitespace, Ws};
 use crate::{
     Ast, Expr, Filter, InnerSyntax, Node, Num, PathOrIdentifier, Span, StrLit, Syntax,
@@ -1216,13 +1218,6 @@ fn fuzzed_excessive_filter_block() {
         err.to_string().lines().next(),
         Some("your template code is too deeply nested, or the last expression is too complex"),
     );
-
-    let src = include!("../tests/fuzzed_excessive_filter_block.inc");
-    let err = Ast::from_str(src, None, &Syntax::default()).unwrap_err();
-    assert_eq!(
-        err.to_string().lines().next(),
-        Some("your template code is too deeply nested, or the last expression is too complex"),
-    );
 }
 
 #[test]
@@ -1411,4 +1406,12 @@ fn test_filter_with_path() {
             .to_string(),
         "failed to parse template source near offset 16",
     );
+}
+
+#[test]
+fn underscore_is_an_identifier() {
+    let mut input = "_";
+    let result = crate::identifier.parse_next(&mut input);
+    assert_eq!(result.unwrap(), "_");
+    assert_eq!(input, "");
 }

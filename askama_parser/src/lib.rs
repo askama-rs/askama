@@ -21,7 +21,7 @@ use std::{fmt, str};
 use winnow::ascii::take_escaped;
 use winnow::combinator::{alt, cut_err, delimited, fail, not, opt, peek, preceded, repeat};
 use winnow::error::FromExternalError;
-use winnow::stream::{AsChar, Stream as _};
+use winnow::stream::Stream as _;
 use winnow::token::{any, one_of, take_till, take_while};
 use winnow::{ModalParser, Parser};
 
@@ -399,13 +399,9 @@ fn keyword(k: &str) -> impl ModalParser<&str, &str, ErrorContext<'_>> {
 }
 
 fn identifier<'i>(input: &mut &'i str) -> ParseResult<'i> {
-    let start = take_while(1.., |c: char| c.is_alpha() || c == '_' || c >= '\u{0080}');
-
-    let tail = take_while(1.., |c: char| {
-        c.is_alphanum() || c == '_' || c >= '\u{0080}'
-    });
-
-    (start, opt(tail)).take().parse_next(input)
+    let head = any.verify(|&c| c == '_' || unicode_ident::is_xid_start(c));
+    let tail = take_while(.., unicode_ident::is_xid_continue);
+    (head, tail).take().parse_next(input)
 }
 
 fn bool_lit<'i>(i: &mut &'i str) -> ParseResult<'i> {
