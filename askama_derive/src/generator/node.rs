@@ -521,30 +521,40 @@ impl<'a> Generator<'a, '_> {
                 buf.write("let mut __askama_did_loop = false;");
             }
             match &*loop_block.iter {
-                Expr::Range(_, _, _) => buf.write(format_args!("let _iter = {expr_code};")),
-                Expr::Array(..) => buf.write(format_args!("let _iter = {expr_code}.iter();")),
+                Expr::Range(_, _, _) => buf.write(format_args!("let __askama_iter = {expr_code};")),
+                Expr::Array(..) => {
+                    buf.write(format_args!("let __askama_iter = {expr_code}.iter();"));
+                }
                 // If `iter` is a call then we assume it's something that returns
                 // an iterator. If not then the user can explicitly add the needed
                 // call without issues.
                 Expr::Call { .. } | Expr::Index(..) => {
-                    buf.write(format_args!("let _iter = ({expr_code}).into_iter();"));
+                    buf.write(format_args!(
+                        "let __askama_iter = ({expr_code}).into_iter();"
+                    ));
                 }
                 // If accessing `self` then it most likely needs to be
                 // borrowed, to prevent an attempt of moving.
                 _ if expr_code.starts_with("self.") => {
-                    buf.write(format_args!("let _iter = (&{expr_code}).into_iter();"));
+                    buf.write(format_args!(
+                        "let __askama_iter = (&{expr_code}).into_iter();"
+                    ));
                 }
                 // If accessing a field then it most likely needs to be
                 // borrowed, to prevent an attempt of moving.
                 Expr::Attr(..) => {
-                    buf.write(format_args!("let _iter = (&{expr_code}).into_iter();"));
+                    buf.write(format_args!(
+                        "let __askama_iter = (&{expr_code}).into_iter();"
+                    ));
                 }
                 // Otherwise, we borrow `iter` assuming that it implements `IntoIterator`.
-                _ => buf.write(format_args!("let _iter = ({expr_code}).into_iter();")),
+                _ => buf.write(format_args!(
+                    "let __askama_iter = ({expr_code}).into_iter();"
+                )),
             }
             if let Some(cond) = &loop_block.cond {
                 this.push_locals(|this| {
-                    buf.write("let _iter = _iter.filter(|");
+                    buf.write("let __askama_iter = __askama_iter.filter(|");
                     this.visit_target(buf, true, true, &loop_block.var);
                     buf.write("| -> bool {");
                     this.visit_expr(ctx, buf, cond)?;
@@ -556,7 +566,7 @@ impl<'a> Generator<'a, '_> {
             let size_hint1 = this.push_locals(|this| {
                 buf.write("for (");
                 this.visit_target(buf, true, true, &loop_block.var);
-                buf.write(", _loop_item) in askama::helpers::TemplateLoop::new(_iter) {");
+                buf.write(", _loop_item) in askama::helpers::TemplateLoop::new(__askama_iter) {");
 
                 if has_else_nodes {
                     buf.write("__askama_did_loop = true;");
