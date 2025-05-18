@@ -556,7 +556,7 @@ impl<'a> Generator<'a, '_> {
                 this.push_locals(|this| {
                     buf.write("let __askama_iter = __askama_iter.filter(|");
                     this.visit_target(buf, true, true, &loop_block.var);
-                    buf.write("| -> bool {");
+                    buf.write("| -> askama::helpers::core::primitive::bool {");
                     this.visit_expr(ctx, buf, cond)?;
                     buf.write("});");
                     Ok(0)
