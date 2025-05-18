@@ -518,7 +518,7 @@ impl<'a> Generator<'a, '_> {
             let flushed = this.write_buf_writable(ctx, buf)?;
             buf.write('{');
             if has_else_nodes {
-                buf.write("let mut _did_loop = false;");
+                buf.write("let mut __askama_did_loop = false;");
             }
             match &*loop_block.iter {
                 Expr::Range(_, _, _) => buf.write(format_args!("let _iter = {expr_code};")),
@@ -559,7 +559,7 @@ impl<'a> Generator<'a, '_> {
                 buf.write(", _loop_item) in askama::helpers::TemplateLoop::new(_iter) {");
 
                 if has_else_nodes {
-                    buf.write("_did_loop = true;");
+                    buf.write("__askama_did_loop = true;");
                 }
                 let mut size_hint1 = this.handle(ctx, &loop_block.body, buf, AstLevel::Nested)?;
                 this.handle_ws(loop_block.ws2);
@@ -570,7 +570,7 @@ impl<'a> Generator<'a, '_> {
 
             let size_hint2;
             if has_else_nodes {
-                buf.write("if !_did_loop {");
+                buf.write("if !__askama_did_loop {");
                 size_hint2 = this.push_locals(|this| {
                     let mut size_hint =
                         this.handle(ctx, &loop_block.else_nodes, buf, AstLevel::Nested)?;
