@@ -566,7 +566,9 @@ impl<'a> Generator<'a, '_> {
             let size_hint1 = this.push_locals(|this| {
                 buf.write("for (");
                 this.visit_target(buf, true, true, &loop_block.var);
-                buf.write(", _loop_item) in askama::helpers::TemplateLoop::new(__askama_iter) {");
+                buf.write(
+                    ", __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {",
+                );
 
                 if has_else_nodes {
                     buf.write("__askama_did_loop = true;");

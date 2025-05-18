@@ -363,16 +363,16 @@ impl<'a> Generator<'a, '_> {
         if let Expr::Var(name) = **obj {
             if name == "loop" {
                 if attr.name == "index" {
-                    buf.write("(_loop_item.index + 1)");
+                    buf.write("(__askama_item.index + 1)");
                     return Ok(DisplayWrap::Unwrapped);
                 } else if attr.name == "index0" {
-                    buf.write("_loop_item.index");
+                    buf.write("__askama_item.index");
                     return Ok(DisplayWrap::Unwrapped);
                 } else if attr.name == "first" {
-                    buf.write("(_loop_item.index == 0)");
+                    buf.write("(__askama_item.index == 0)");
                     return Ok(DisplayWrap::Unwrapped);
                 } else if attr.name == "last" {
-                    buf.write("_loop_item.last");
+                    buf.write("__askama_item.last");
                     return Ok(DisplayWrap::Unwrapped);
                 } else {
                     return Err(ctx.generate_error("unknown loop variable", obj.span()));
@@ -476,7 +476,7 @@ impl<'a> Generator<'a, '_> {
                                     if _len == 0 {\
                                         return askama::helpers::core::result::Result::Err(askama::Error::Fmt);\
                                     }\
-                                    _cycle[_loop_item.index % _len]\
+                                    _cycle[__askama_item.index % _len]\
                                 })",
                             );
                             }
