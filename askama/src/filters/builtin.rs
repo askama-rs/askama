@@ -473,11 +473,11 @@ impl<S: FastWritable, P: FastWritable> FastWritable for Pluralize<S, P> {
 ///     "b,c,"
 /// );
 /// ```
-pub fn reject<T: PartialEq>(
-    it: impl IntoIterator<Item = T>,
-    filter: T,
-) -> Result<impl Iterator<Item = T>, Infallible> {
-    Ok(it.into_iter().filter(move |v| v != &filter))
+pub fn reject<'a, T: PartialEq, U: IntoIterator<Item = T>>(
+    it: U,
+    filter: &'a T,
+) -> Result<impl Iterator<Item = T> + use<'a, T, U>, Infallible> {
+    Ok(it.into_iter().filter(move |v| v != filter))
 }
 
 /// Returns an iterator without filtered out values.
@@ -505,9 +505,9 @@ pub fn reject<T: PartialEq>(
 ///     );
 /// }
 /// ```
-pub fn reject_with<T: PartialEq, F: Fn(&T) -> bool>(
+pub fn reject_with<T: PartialEq, F: FnMut(&T) -> bool>(
     it: impl IntoIterator<Item = T>,
-    callback: F,
+    mut callback: F,
 ) -> Result<impl Iterator<Item = T>, Infallible> {
     Ok(it.into_iter().filter(move |v| !callback(v)))
 }

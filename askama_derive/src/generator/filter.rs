@@ -271,9 +271,12 @@ impl<'a> Generator<'a, '_> {
         self.visit_arg(ctx, buf, input)?;
         buf.write(',');
         if extra_ampersand {
-            buf.write('&');
+            buf.write("&&(");
         }
         self.visit_arg(ctx, buf, filter)?;
+        if extra_ampersand {
+            buf.write(')');
+        }
         buf.write(")?");
         Ok(DisplayWrap::Wrapped)
     }
