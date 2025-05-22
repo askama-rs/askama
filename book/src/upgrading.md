@@ -15,7 +15,7 @@ list of all changes and improvements that might be useful to you.
 
 * [`FastWritable`](./doc/askama/trait.FastWritable.html) implementations have access to runtime values.
 
-* Custom filters have access to runtime values.
+* Custom filters have access to runtime values, and must add a second `&dyn askama::Values` argument as in [the example](./filters.html#examples).
 
 * `|unique` is a built-in filter; `|titlecase` is an alias for `|title`.
 
