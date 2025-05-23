@@ -1,0 +1,63 @@
+error: `crate` is not a valid macro name
+ --> <source attribute>:1:3
+       "crate!() }}"
+ --> tests/ui/macro-named-crate.rs:5:21
+  |
+5 | #[template(source = "{{ crate!() }}", ext = "txt")]
+  |                     ^^^^^^^^^^^^^^^^
+
+error: `self` is not a valid macro name
+ --> <source attribute>:1:3
+       "self!() }}"
+ --> tests/ui/macro-named-crate.rs:9:21
+  |
+9 | #[template(source = "{{ self!() }}", ext = "txt")]
+  |                     ^^^^^^^^^^^^^^^
+
+error: `Self` is not a valid macro name
+ --> <source attribute>:1:3
+       "Self!() }}"
+  --> tests/ui/macro-named-crate.rs:13:21
+   |
+13 | #[template(source = "{{ Self!() }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^
+
+error: `super` is not a valid macro name
+ --> <source attribute>:1:3
+       "super!() }}"
+  --> tests/ui/macro-named-crate.rs:17:21
+   |
+17 | #[template(source = "{{ super!() }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^
+
+error: `crate` is not a valid macro name
+ --> <source attribute>:1:15
+       "crate!() }}"
+  --> tests/ui/macro-named-crate.rs:21:21
+   |
+21 | #[template(source = "{{ some::path::crate!() }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `self` is not a valid macro name
+ --> <source attribute>:1:15
+       "self!() }}"
+  --> tests/ui/macro-named-crate.rs:25:21
+   |
+25 | #[template(source = "{{ some::path::self!() }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `Self` is not a valid macro name
+ --> <source attribute>:1:15
+       "Self!() }}"
+  --> tests/ui/macro-named-crate.rs:29:21
+   |
+29 | #[template(source = "{{ some::path::Self!() }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `super` is not a valid macro name
+ --> <source attribute>:1:15
+       "super!() }}"
+  --> tests/ui/macro-named-crate.rs:33:21
+   |
+33 | #[template(source = "{{ some::path::super!() }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -692,9 +692,11 @@ impl<'a> Suffix<'a> {
                 Self::Try => expr = WithSpan::new(Expr::Try(expr.into()), before_suffix),
                 Self::MacroCall(args) => match expr.inner {
                     Expr::Path(path) => {
+                        ensure_macro_name(path.last().unwrap())?;
                         expr = WithSpan::new(Expr::RustMacro(path, args), before_suffix)
                     }
                     Expr::Var(name) => {
+                        ensure_macro_name(name)?;
                         expr = WithSpan::new(Expr::RustMacro(vec![name], args), before_suffix)
                     }
                     _ => {
@@ -815,6 +817,16 @@ impl<'a> Suffix<'a> {
 
     fn r#try(i: &mut &'a str) -> ParseResult<'a, Self> {
         preceded(skip_ws0, '?').map(|_| Self::Try).parse_next(i)
+    }
+}
+
+fn ensure_macro_name(name: &str) -> ParseResult<'_, ()> {
+    match name {
+        "crate" | "super" | "Self" | "self" => Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            format!("`{name}` is not a valid macro name"),
+            name,
+        ))),
+        _ => Ok(()),
     }
 }
 
