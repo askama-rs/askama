@@ -232,7 +232,19 @@ impl<'a> Generator<'a, '_> {
     }
 
     fn visit_rust_macro(&mut self, buf: &mut Buffer, path: &[&str], args: &str) -> DisplayWrap {
-        self.visit_path(buf, path);
+        let [path @ .., name] = path else {
+            unreachable!("path cannot be empty");
+        };
+        let name = match normalize_identifier(name) {
+            "loop" => "r#loop",
+            name => name,
+        };
+
+        if !path.is_empty() {
+            self.visit_path(buf, path);
+            buf.write("::");
+        }
+        buf.write(name);
         buf.write("!(");
         buf.write(args);
         buf.write(')');

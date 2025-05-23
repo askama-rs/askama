@@ -1239,3 +1239,40 @@ fn fuzzed_comparator_chain() -> Result<(), syn::Error> {
     let _: syn::File = syn::parse2(output)?;
     Ok(())
 }
+
+#[test]
+fn test_macro_names_that_need_escaping() {
+    // Cannot be raw identifiers: ["crate", "self", "Self", "super"]
+    // Never parsed as identifiers: ["false", "true"]
+
+    const KEYWORDS: &[&str] = &[
+        "abstract", "as", "async", "await", "become", "box", "break", "const", "continue", "do",
+        "dyn", "else", "enum", "extern", "final", "fn", "for", "gen", "if", "impl", "in", "let",
+        "loop", "macro", "match", "mod", "move", "mut", "override", "priv", "pub", "ref", "return",
+        "static", "struct", "trait", "try", "type", "typeof", "unsafe", "unsized", "use",
+        "virtual", "where", "while", "yield",
+    ];
+
+    for keyword in KEYWORDS {
+        compare(
+            &format!(r"{{{{ {keyword}!() }}}}"),
+            &format!(
+                "
+                match (
+                    &((&&askama::filters::AutoEscaper::new(
+                        &(r#{keyword}!()),
+                        askama::filters::Text,
+                    ))
+                        .askama_auto_escape()?),
+                ) {{
+                    (expr0,) => {{
+                        (&&&askama::filters::Writable(expr0))
+                            .askama_write(__askama_writer, __askama_values)?;
+                    }}
+                }}"
+            ),
+            &[],
+            3,
+        );
+    }
+}
