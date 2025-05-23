@@ -127,6 +127,8 @@ give you more in-dept explanations: [docs.rs switching jinja template framework 
 
 * The binary operators `|`, `&` and `^` are now called `bitor`, `bitand` and `xor`, resp.
 
+* Filter `as_ref` is now just `ref`
+
 * The feature `"serde-json"` is now called `"serde_json"`.
 
 * The feature `"markdown"` was removed.

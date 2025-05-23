@@ -90,7 +90,7 @@ Output:
 Dereferences the given argument.
 
 ```jinja
-{% let s = String::from("a") | as_ref %}
+{% let s = String::from("a") | ref %}
 {% if s | deref == String::from("b") %}
 {% endif %}
 ```
