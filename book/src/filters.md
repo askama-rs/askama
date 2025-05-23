@@ -467,6 +467,49 @@ will become:
 &self.x
 ```
 
+### reject
+[#reject]: #reject
+
+This filter filters out values matching the given value/filter.
+
+With this data:
+
+```rust
+vec![1, 2, 3, 1]
+```
+
+And this template:
+
+```jinja
+{% for elem in data|reject(1) %}{{ elem }},{% endfor %}
+```
+
+Output will be:
+
+```text
+2,3,
+```
+
+For more control over the filtering, you can use a callback instead. Declare a function:
+
+```jinja
+fn is_odd(value: &&u32) -> bool {
+    **value % 2 != 0
+}
+```
+
+Then you can pass the path to the `is_odd` function:
+
+```jinja
+{% for elem in data|reject(crate::is_odd) %}{{ elem }},{% endfor %}
+```
+
+Output will be:
+
+```text
+2,
+```
+
 ### safe
 [#safe]: #safe
 
