@@ -1204,6 +1204,7 @@ pub struct Let<'a> {
     pub ws: Ws,
     pub var: Target<'a>,
     pub val: Option<WithSpan<'a, Expr<'a>>>,
+    pub is_mutable: bool,
 }
 
 impl<'a> Let<'a> {
@@ -1212,6 +1213,7 @@ impl<'a> Let<'a> {
         let mut p = (
             opt(Whitespace::parse),
             ws(alt((keyword("let"), keyword("set")))),
+            ws(opt(keyword("mut"))),
             cut_node(
                 Some("let"),
                 (
@@ -1224,7 +1226,7 @@ impl<'a> Let<'a> {
                 ),
             ),
         );
-        let (pws, _, (var, val, nws)) = p.parse_next(i)?;
+        let (pws, _, is_mut, (var, val, nws)) = p.parse_next(i)?;
         if val.is_none() {
             let kind = match &var {
                 Target::Name(_) => None,
@@ -1250,12 +1252,19 @@ impl<'a> Let<'a> {
                 )));
             }
         }
+        if is_mut.is_some() && !matches!(var, Target::Name(_)) {
+            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                "you can only use the `mut` keyword with a variable name",
+                start,
+            )));
+        }
 
         Ok(WithSpan::new(
             Let {
                 ws: Ws(pws, nws),
                 var,
                 val,
+                is_mutable: is_mut.is_some(),
             },
             start,
         ))

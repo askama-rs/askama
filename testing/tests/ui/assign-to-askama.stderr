@@ -247,12 +247,12 @@ error: cannot use `move` as a name: it is a rust keyword
    |               ^^^^^^^^^^^^^^^^
 
 error: cannot use `mut` as a name: it is a rust keyword
- --> <source attribute>:1:7
+ --> <source attribute>:1:11
        "mut %}"
   --> tests/ui/assign-to-askama.rs:48:14
    |
-48 | test_kw!(Mut "{% let mut %}");
-   |              ^^^^^^^^^^^^^^^
+48 | test_kw!(Mut "{% let mut mut %}");
+   |              ^^^^^^^^^^^^^^^^^^^
 
 error: cannot use `override` as a name: it is a rust keyword
  --> <source attribute>:1:7

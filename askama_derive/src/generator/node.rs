@@ -961,6 +961,9 @@ impl<'a> Generator<'a, '_> {
         let Some(val) = &l.val else {
             self.write_buf_writable(ctx, buf)?;
             buf.write("let ");
+            if l.is_mutable {
+                buf.write("mut ");
+            }
             self.visit_target(buf, false, true, &l.var);
             buf.write(';');
             return Ok(());
@@ -980,6 +983,9 @@ impl<'a> Generator<'a, '_> {
             || matches!(&l.var, Target::Name(name) if self.locals.get(name).is_none())
         {
             buf.write("let ");
+            if l.is_mutable {
+                buf.write("mut ");
+            }
         }
 
         self.visit_target(buf, true, true, &l.var);
