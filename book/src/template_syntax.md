@@ -63,6 +63,15 @@ Like Rust, Askama also supports shadowing variables.
 {{ foo }}
 ```
 
+You can declare variables as mutable with the `mut` keyword:
+
+```jinja
+{# In this example, `foo` is an iterator. If you want to be able to iterate it,
+you need it to be mutable #}
+{% let mut foo = [1, 2].iter() %}
+{{ foo.next().unwrap() }}
+```
+
 For compatibility with Jinja, `set` can be used in place of `let`.
 
 ### Borrow rules
