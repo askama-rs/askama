@@ -41,4 +41,4 @@ will be faster.
 
 ## Profile-Guided Optimization (PGO)
 
-To optimize Rinja's performance, you can compile your application with [Profile-Guided Optimization](https://doc.rust-lang.org/rustc/profile-guided-optimization.html). According to the [tests](https://github.com/mitsuhiko/minijinja/pull/588#issuecomment-2387957123), PGO can improve the library performance by 15%.
+To optimize askama's performance, you can compile your application with [Profile-Guided Optimization](https://doc.rust-lang.org/rustc/profile-guided-optimization.html). According to the [tests](https://github.com/mitsuhiko/minijinja/pull/588#issuecomment-2387957123), PGO can improve the library performance by 15%.
