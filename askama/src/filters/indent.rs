@@ -137,10 +137,8 @@ impl<W: fmt::Write> fmt::Write for IndentWriter<'_, W> {
                         self.dest.write_str(self.indent)?;
                     }
                     self.is_first_line = false;
-                } else {
-                    if self.blank || !matches!(line, "\n" | "\r\n") {
-                        self.dest.write_str(self.indent)?;
-                    }
+                } else if self.blank || !matches!(line, "\n" | "\r\n") {
+                    self.dest.write_str(self.indent)?;
                 }
             }
             self.dest.write_str(line)?;
@@ -333,15 +331,21 @@ mod tests {
         }
 
         assert_eq!(
-            indent(Chunked("hello"), 2, false, false).unwrap().to_string(),
+            indent(Chunked("hello"), 2, false, false)
+                .unwrap()
+                .to_string(),
             "hello"
         );
         assert_eq!(
-            indent(Chunked("hello\n"), 2, false, false).unwrap().to_string(),
+            indent(Chunked("hello\n"), 2, false, false)
+                .unwrap()
+                .to_string(),
             "hello\n"
         );
         assert_eq!(
-            indent(Chunked("hello\nfoo"), 2, false, false).unwrap().to_string(),
+            indent(Chunked("hello\nfoo"), 2, false, false)
+                .unwrap()
+                .to_string(),
             "hello\n  foo"
         );
         assert_eq!(
@@ -364,15 +368,21 @@ mod tests {
             "hello\n\n     bar"
         );
         assert_eq!(
-            indent(Chunked("hello\n\n bar"), 4, false, true).unwrap().to_string(),
+            indent(Chunked("hello\n\n bar"), 4, false, true)
+                .unwrap()
+                .to_string(),
             "hello\n    \n     bar"
         );
         assert_eq!(
-            indent(Chunked("hello\n\n bar"), 4, true, false).unwrap().to_string(),
+            indent(Chunked("hello\n\n bar"), 4, true, false)
+                .unwrap()
+                .to_string(),
             "    hello\n\n     bar"
         );
         assert_eq!(
-            indent(Chunked("hello\n\n bar"), 4, true, true).unwrap().to_string(),
+            indent(Chunked("hello\n\n bar"), 4, true, true)
+                .unwrap()
+                .to_string(),
             "    hello\n    \n     bar"
         );
     }
