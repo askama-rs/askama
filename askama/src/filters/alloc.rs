@@ -7,7 +7,6 @@ use core::fmt::{self, Write};
 use core::ops::Deref;
 use core::pin::Pin;
 
-use super::MAX_LEN;
 use super::escape::HtmlSafeOutput;
 use crate::{FastWritable, Result};
 
@@ -579,13 +578,12 @@ pub struct Indent<S, I> {
 impl<S: fmt::Display, I: AsIndent> fmt::Display for Indent<S, I> {
     fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
         let indent = self.indent.as_indent();
-        if indent.len() >= MAX_LEN || indent.is_empty() {
-            write!(dest, "{}", self.source)
-        } else {
-            let mut buffer;
-            let buffer = try_to_str!(self.source => buffer);
-            flush_indent(dest, indent, buffer, self.first, self.blank)
-        }
+        write!(
+            IndentWriter::new(dest, indent, self.first, self.blank),
+            "{}",
+            self.source
+        )?;
+        Ok(())
     }
 }
 
@@ -596,34 +594,51 @@ impl<S: FastWritable, I: AsIndent> FastWritable for Indent<S, I> {
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
         let indent = self.indent.as_indent();
-        if indent.len() >= MAX_LEN || indent.is_empty() {
-            self.source.write_into(dest, values)
-        } else {
-            let mut buffer = String::new();
-            self.source.write_into(&mut buffer, values)?;
-            Ok(flush_indent(dest, indent, &buffer, self.first, self.blank)?)
+        self.source.write_into(
+            &mut IndentWriter::new(dest, indent, self.first, self.blank),
+            values,
+        )?;
+        Ok(())
+    }
+}
+
+struct IndentWriter<'a, W> {
+    dest: W,
+    indent: &'a str,
+    first: bool,
+    blank: bool,
+    is_new_line: bool,
+}
+
+impl<'a, W: fmt::Write> IndentWriter<'a, W> {
+    fn new(dest: W, indent: &'a str, first: bool, blank: bool) -> Self {
+        IndentWriter {
+            dest,
+            indent,
+            first,
+            blank,
+            is_new_line: true,
         }
     }
 }
 
-fn flush_indent(
-    dest: &mut (impl fmt::Write + ?Sized),
-    indent: &str,
-    s: &str,
-    first: bool,
-    blank: bool,
-) -> fmt::Result {
-    if s.len() >= MAX_LEN {
-        return dest.write_str(s);
-    }
-
-    for (idx, line) in s.split_inclusive('\n').enumerate() {
-        if (first || idx > 0) && (blank || !matches!(line, "\n" | "\r\n")) {
-            dest.write_str(indent)?;
+impl<W: fmt::Write> fmt::Write for IndentWriter<'_, W> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        if self.indent.is_empty() {
+            return self.dest.write_str(s);
         }
-        dest.write_str(line)?;
+
+        for (idx, line) in s.split_inclusive('\n').enumerate() {
+            if (self.first || idx > 0 || !self.is_new_line)
+                && (self.blank || !matches!(line, "\n" | "\r\n"))
+            {
+                self.dest.write_str(self.indent)?;
+            }
+            self.dest.write_str(line)?;
+            self.is_new_line = line.ends_with('\n');
+        }
+        Ok(())
     }
-    Ok(())
 }
 
 /// Capitalize a value. The first character will be uppercase, all others lowercase.
@@ -1171,11 +1186,5 @@ mod tests {
                 .to_string(),
             "Fo\x0bOo\x0cOo\u{2002}Oo\u{3000}Bar"
         );
-    }
-
-    #[test]
-    fn fuzzed_indent_filter() {
-        let s = "hello\nfoo\nbar".to_string().repeat(1024);
-        assert_eq!(indent(s.clone(), 4, false, false).unwrap().to_string(), s);
     }
 }
