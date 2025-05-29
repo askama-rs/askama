@@ -15,6 +15,7 @@ mod alloc;
 mod builtin;
 mod escape;
 mod humansize;
+mod indent;
 #[cfg(feature = "serde_json")]
 mod json;
 #[cfg(feature = "std")]
@@ -24,8 +25,8 @@ mod urlencode;
 
 #[cfg(feature = "alloc")]
 pub use self::alloc::{
-    AsIndent, capitalize, fmt, format, indent, linebreaks, linebreaksbr, lower, lowercase,
-    paragraphbreaks, title, titlecase, trim, upper, uppercase, wordcount,
+    capitalize, fmt, format, linebreaks, linebreaksbr, lower, lowercase, paragraphbreaks, title,
+    titlecase, trim, upper, uppercase, wordcount,
 };
 pub use self::builtin::{PluralizeCount, center, join, pluralize, truncate};
 pub use self::escape::{
@@ -33,6 +34,7 @@ pub use self::escape::{
     Unsafe, Writable, WriteWritable, e, escape, safe,
 };
 pub use self::humansize::filesizeformat;
+pub use self::indent::{AsIndent, indent};
 #[cfg(feature = "serde_json")]
 pub use self::json::{json, json_pretty};
 #[cfg(feature = "std")]
