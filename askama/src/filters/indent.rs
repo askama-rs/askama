@@ -108,6 +108,7 @@ struct IndentWriter<'a, W> {
     first: bool,
     blank: bool,
     is_new_line: bool,
+    is_first_line: bool,
 }
 
 impl<'a, W: fmt::Write> IndentWriter<'a, W> {
@@ -118,6 +119,7 @@ impl<'a, W: fmt::Write> IndentWriter<'a, W> {
             first,
             blank,
             is_new_line: true,
+            is_first_line: true,
         }
     }
 }
@@ -128,11 +130,18 @@ impl<W: fmt::Write> fmt::Write for IndentWriter<'_, W> {
             return self.dest.write_str(s);
         }
 
-        for (idx, line) in s.split_inclusive('\n').enumerate() {
-            if (self.first || idx > 0 || !self.is_new_line)
-                && (self.blank || !matches!(line, "\n" | "\r\n"))
-            {
-                self.dest.write_str(self.indent)?;
+        for line in s.split_inclusive('\n') {
+            if self.is_new_line {
+                if self.is_first_line {
+                    if self.first && (self.blank || !matches!(line, "\n" | "\r\n")) {
+                        self.dest.write_str(self.indent)?;
+                    }
+                    self.is_first_line = false;
+                } else {
+                    if self.blank || !matches!(line, "\n" | "\r\n") {
+                        self.dest.write_str(self.indent)?;
+                    }
+                }
             }
             self.dest.write_str(line)?;
             self.is_new_line = line.ends_with('\n');
@@ -306,6 +315,65 @@ mod tests {
                 .unwrap()
                 .to_string(),
             "❗❓hello\n❗❓\n❗❓ bar"
+        );
+    }
+
+    #[test]
+    fn test_indent_chunked() {
+        #[derive(Clone, Copy)]
+        struct Chunked<'a>(&'a str);
+
+        impl<'a> fmt::Display for Chunked<'a> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                for chunk in self.0.chars() {
+                    write!(f, "{}", chunk)?;
+                }
+                Ok(())
+            }
+        }
+
+        assert_eq!(
+            indent(Chunked("hello"), 2, false, false).unwrap().to_string(),
+            "hello"
+        );
+        assert_eq!(
+            indent(Chunked("hello\n"), 2, false, false).unwrap().to_string(),
+            "hello\n"
+        );
+        assert_eq!(
+            indent(Chunked("hello\nfoo"), 2, false, false).unwrap().to_string(),
+            "hello\n  foo"
+        );
+        assert_eq!(
+            indent(Chunked("hello\nfoo\n bar"), 4, false, false)
+                .unwrap()
+                .to_string(),
+            "hello\n    foo\n     bar"
+        );
+        assert_eq!(
+            indent(Chunked("hello"), 267_332_238_858, false, false)
+                .unwrap()
+                .to_string(),
+            "hello"
+        );
+
+        assert_eq!(
+            indent(Chunked("hello\n\n bar"), 4, false, false)
+                .unwrap()
+                .to_string(),
+            "hello\n\n     bar"
+        );
+        assert_eq!(
+            indent(Chunked("hello\n\n bar"), 4, false, true).unwrap().to_string(),
+            "hello\n    \n     bar"
+        );
+        assert_eq!(
+            indent(Chunked("hello\n\n bar"), 4, true, false).unwrap().to_string(),
+            "    hello\n\n     bar"
+        );
+        assert_eq!(
+            indent(Chunked("hello\n\n bar"), 4, true, true).unwrap().to_string(),
+            "    hello\n    \n     bar"
         );
     }
 
