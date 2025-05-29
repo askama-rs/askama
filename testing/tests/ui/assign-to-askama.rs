@@ -45,7 +45,7 @@ test_kw!(Macro "{% let macro %}");
 test_kw!(Match "{% let match %}");
 test_kw!(Mod "{% let mod %}");
 test_kw!(Move "{% let move %}");
-test_kw!(Mut "{% let mut %}");
+test_kw!(Mut "{% let mut mut %}");
 test_kw!(Override "{% let override %}");
 test_kw!(Priv "{% let priv %}");
 test_kw!(Pub "{% let pub %}");

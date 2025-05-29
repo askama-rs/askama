@@ -222,3 +222,20 @@ fn test_variable_from_question_mark_init_expr() {
 
     assert_eq!(X { v: B }.render().unwrap(), "1");
 }
+
+// Test that we can have mutable variable declarations.
+#[test]
+fn mutable_var() {
+    #[derive(Template)]
+    #[template(
+        ext = "html",
+        source = "
+{%- let mut x = [1, 2].iter() %}
+{{- x.next().unwrap() -}}
+{{- x.next().unwrap() -}}
+"
+    )]
+    struct Mut;
+
+    assert_eq!(Mut.render().unwrap(), "12");
+}
