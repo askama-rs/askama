@@ -1,9 +1,8 @@
-use alloc::borrow::Cow;
-use alloc::str;
 use core::convert::Infallible;
 use core::fmt::{self, Write};
 use core::ops::Deref;
 use core::pin::Pin;
+use core::str;
 
 use crate::FastWritable;
 
@@ -202,7 +201,7 @@ fn spaces(width: usize) -> &'static str {
 }
 
 #[cfg(feature = "alloc")]
-impl<T: AsIndent + alloc::borrow::ToOwned + ?Sized> AsIndent for Cow<'_, T> {
+impl<T: AsIndent + alloc::borrow::ToOwned + ?Sized> AsIndent for alloc::borrow::Cow<'_, T> {
     #[inline]
     fn as_indent(&self) -> &str {
         T::as_indent(self)
