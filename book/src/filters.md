@@ -231,11 +231,6 @@ All arguments are passed through to [`format!()`] by the Askama code generator.
 ### indent
 [#indent]: #indent
 
-<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
-enabled by <code>"alloc"</code><br/>
-enabled by <code>"default"</code>
-</blockquote>
-
 ```jinja
 {{ text_to_indent | indent(width, [first], [blank]) }}
 ```
