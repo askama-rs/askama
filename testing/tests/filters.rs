@@ -1,11 +1,7 @@
-#[cfg(feature = "serde_json")]
-#[macro_use]
-extern crate serde_json;
-
 use askama::Template;
 use assert_matches::assert_matches;
 #[cfg(feature = "serde_json")]
-use serde_json::Value;
+use serde_json::{Value, json};
 
 #[test]
 fn filter_escape() {
