@@ -255,6 +255,27 @@ fn test_caller_expr() {
 }
 
 #[test]
+fn test_caller_in_macro_call_before_caller() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+            {%- macro test2() -%}
+                a
+                {{- caller() -}}
+            {%- endmacro -%}
+            {%- macro test() -%}
+               {%- call test2() -%}b{%- endcall -%}
+               {{- caller() -}}
+            {%- endmacro -%}
+            {%- call test() -%}{%- call test2() -%}b{%- endcall -%}{%- endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    struct CallerWithMacro;
+    assert_eq!(CallerWithMacro.render().unwrap(), "abab");
+}
+
+#[test]
 fn test_caller_in_caller() {
     #[derive(Template)]
     #[template(

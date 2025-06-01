@@ -779,7 +779,7 @@ impl<'a> Generator<'a, '_> {
         })?;
         self.prepare_ws(ws2);
         self.seen_callers.pop();
-        self.active_caller = None;
+        self.active_caller = self.seen_callers.last().map(|v| v.0);
         Ok(size_hint)
     }
 
