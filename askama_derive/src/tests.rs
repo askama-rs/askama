@@ -1276,3 +1276,25 @@ fn test_macro_names_that_need_escaping() {
         );
     }
 }
+
+#[test]
+#[rustfmt::skip] // FIXME: rustfmt bug <https://github.com/rust-lang/rustfmt/issues/6565>
+fn test_macro_calls_need_proper_tokens() -> Result<(), syn::Error> {
+    // Regression test for fuzzed error <https://github.com/askama-rs/askama/issues/459>.
+    // Macro calls can contains any valid tokens, but only valid tokens.
+    // Invalid tokens will be rejected by rust, so we must not emit them.
+
+    let input = quote! {
+        #[template(
+            ext = "",
+            source = "\u{c}awtraitaitA{{override\u{c}!  \u{c} (\u{1f}  \u{c}\u{c})\u{c}}}"
+//                                      ^^^^^^^^               ^^^^^^
+//                                      illegal identifier     illegal token
+        )]
+        struct f {}
+    };
+    let output = crate::derive_template(input, import_askama);
+    assert!(output.to_string().contains("expected valid tokens in macro call"));
+    let _: syn::File = syn::parse2(output)?;
+    Ok(())
+}

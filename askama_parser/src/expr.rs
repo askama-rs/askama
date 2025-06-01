@@ -7,7 +7,7 @@ use winnow::combinator::{
     alt, cut_err, fail, not, opt, peek, preceded, repeat, separated, terminated,
 };
 use winnow::error::ParserError as _;
-use winnow::stream::Stream as _;
+use winnow::token::one_of;
 
 use crate::node::CondTest;
 use crate::{
@@ -709,60 +709,118 @@ impl<'a> Suffix<'a> {
     }
 
     fn r#macro(i: &mut &'a str) -> ParseResult<'a, Self> {
-        fn nested_parenthesis<'a>(input: &mut &'a str) -> ParseResult<'a, ()> {
-            let mut nested = 0;
-            let mut last = 0;
-            let mut in_str = false;
-            let mut escaped = false;
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        enum Token {
+            SomeOther,
+            Open(Group),
+            Close(Group),
+        }
 
-            for (i, c) in input.char_indices() {
-                if !(c == '(' || c == ')') || !in_str {
-                    match c {
-                        '(' => nested += 1,
-                        ')' => {
-                            if nested == 0 {
-                                last = i;
-                                break;
-                            }
-                            nested -= 1;
-                        }
-                        '"' => {
-                            if in_str {
-                                if !escaped {
-                                    in_str = false;
-                                }
-                            } else {
-                                in_str = true;
-                            }
-                        }
-                        '\\' => {
-                            escaped = !escaped;
-                        }
-                        _ => (),
-                    }
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        enum Group {
+            Paren,   // `(`
+            Brace,   // `{`
+            Bracket, // `[`
+        }
+
+        impl Group {
+            fn as_close_char(self) -> char {
+                match self {
+                    Group::Paren => ')',
+                    Group::Brace => '}',
+                    Group::Bracket => ']',
                 }
-
-                if escaped && c != '\\' {
-                    escaped = false;
-                }
-            }
-
-            if nested == 0 {
-                let _ = input.next_slice(last);
-                Ok(())
-            } else {
-                fail.parse_next(input)
             }
         }
 
-        preceded(
-            (ws('!'), '('),
-            cut_err(terminated(
-                nested_parenthesis.take().map(Self::MacroCall),
-                ')',
-            )),
-        )
-        .parse_next(i)
+        fn macro_arguments<'a>(i: &mut &'a str, open_token: Group) -> ParseResult<'a, Suffix<'a>> {
+            let start = *i;
+            let mut open_list: Vec<Group> = vec![open_token];
+            loop {
+                let before = *i;
+                let (token, token_span) = ws(opt(token).with_taken()).parse_next(i)?;
+                let Some(token) = token else {
+                    return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                        "expected valid tokens in macro call",
+                        token_span,
+                    )));
+                };
+                let close_token = match token {
+                    Token::SomeOther => continue,
+                    Token::Open(group) => {
+                        open_list.push(group);
+                        continue;
+                    }
+                    Token::Close(close_token) => close_token,
+                };
+                let open_token = open_list.pop().unwrap();
+
+                if open_token != close_token {
+                    return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                        format!(
+                            "expected `{}` but found `{}`",
+                            open_token.as_close_char(),
+                            close_token.as_close_char(),
+                        ),
+                        token_span,
+                    )));
+                } else if open_list.is_empty() {
+                    return Ok(Suffix::MacroCall(&start[..start.len() - before.len()]));
+                }
+            }
+        }
+
+        fn token<'a>(i: &mut &'a str) -> ParseResult<'a, Token> {
+            // <https://doc.rust-lang.org/reference/tokens.html>
+            let some_other = alt((
+                // keywords + identifiers
+                identifier.value(Token::SomeOther),
+                // literals
+                Expr::char.value(Token::SomeOther),
+                Expr::str.value(Token::SomeOther),
+                Expr::num.value(Token::SomeOther),
+                // lifetimes
+                ('\'', identifier, not(peek('\''))).value(Token::SomeOther),
+                // punctuations
+                punctuation.value(Token::SomeOther),
+            ));
+            alt((open.map(Token::Open), close.map(Token::Close), some_other)).parse_next(i)
+        }
+
+        fn punctuation<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
+            // <https://doc.rust-lang.org/reference/tokens.html#punctuation>
+            let one = one_of([
+                '+', '-', '*', '/', '%', '^', '!', '&', '|', '=', '>', '<', '@', '_', '.', ',',
+                ';', ':', '#', '$', '?', '~',
+            ]);
+            let two = alt((
+                "&&", "||", "<<", ">>", "+=", "-=", "*=", "/=", "%=", "^=", "&=", "|=", "==", "!=",
+                ">=", "<=", "..", "::", "->", "=>", "<-",
+            ));
+            let three = alt(("<<=", ">>=", "...", "..="));
+            alt((three.value(()), two.value(()), one.value(()))).parse_next(i)
+        }
+
+        fn open<'a>(i: &mut &'a str) -> ParseResult<'a, Group> {
+            alt((
+                '('.value(Group::Paren),
+                '{'.value(Group::Brace),
+                '['.value(Group::Bracket),
+            ))
+            .parse_next(i)
+        }
+
+        fn close<'a>(i: &mut &'a str) -> ParseResult<'a, Group> {
+            alt((
+                ')'.value(Group::Paren),
+                '}'.value(Group::Brace),
+                ']'.value(Group::Bracket),
+            ))
+            .parse_next(i)
+        }
+
+        let open_token = preceded(ws('!'), open).parse_next(i)?;
+        (|i: &mut _| macro_arguments(i, open_token)).parse_next(i)
     }
 
     fn attr(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, Self> {
