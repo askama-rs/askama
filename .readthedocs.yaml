@@ -28,5 +28,11 @@ build:
 
     # Build and copy the API docs
     - cargo install cargo-docs-rs
-    - RUSTC_BOOTSTRAP=1 cargo docs-rs -p askama
-    - cp -a -r -t $READTHEDOCS_OUTPUT/html/ target/x86_64-unknown-linux-gnu/doc/
+    - mkdir --parents rustdocs/x86_64-unknown-linux-gnu/doc/
+    - ln --relative --symbolic --no-target-directory rustdocs/x86_64-unknown-linux-gnu/doc rustdocs/doc
+    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama
+    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama_derive
+    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama_escape
+    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama_macros
+    - CARGO_BUILD_TARGET_DIR=rustdocs RUSTC_BOOTSTRAP=1 cargo docs-rs --target x86_64-unknown-linux-gnu --package askama_parser
+    - cp --preserve=all --recursive --target-directory $READTHEDOCS_OUTPUT/html/ target/x86_64-unknown-linux-gnu/doc/
