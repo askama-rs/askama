@@ -43,7 +43,7 @@ jobs:
   Docs:
     strategy:
       matrix:
-        package: [askama, askama_derive, askama_macros, askama_parser]
+        package: [askama, askama_derive, askama_escape, askama_macros, askama_parser]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -233,7 +233,7 @@ jobs:
           components: rust-src
       - run: curl --location --silent --show-error --fail https://github.com/cargo-bins/cargo-quickinstall/releases/download/cargo-fuzz-0.12.0/cargo-fuzz-0.12.0-x86_64-unknown-linux-gnu.tar.gz | tar -xzvvf - -C $HOME/.cargo/bin
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fuzz run ${{ matrix.fuzz_target }} --jobs 4 -- -max_total_time=240
+      - run: cargo fuzz run ${{ matrix.fuzz_target }} --jobs 4 -- -max_total_time=600
         working-directory: fuzzing
         env:
           RUSTFLAGS: '-Ctarget-feature=-crt-static'
@@ -242,6 +242,8 @@ jobs:
     needs: ["Test", "Package", "MSRV"]
     runs-on: ubuntu-latest
     permissions:
+      actions: read
+      contents: read
       security-events: write
     steps:
       - name: Build Fuzzers
