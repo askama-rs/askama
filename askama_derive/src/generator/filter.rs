@@ -272,7 +272,7 @@ impl<'a> Generator<'a, '_> {
             buf.write(")) as &_)?");
         }
 
-        Ok(DisplayWrap::Wrapped)
+        Ok(DisplayWrap::Unwrapped)
     }
 
     fn visit_pluralize_filter(
