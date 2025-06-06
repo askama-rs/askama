@@ -258,26 +258,20 @@ impl<'a> Generator<'a, '_> {
         ];
         let [input, filter] = collect_filter_args(ctx, "reject", node, args, ARGUMENTS)?;
 
-        let extra_ampersand = match &**filter {
-            Expr::Path(_) => {
-                buf.write("askama::filters::reject_with(");
-                false
-            }
-            _ => {
-                buf.write("askama::filters::reject(");
-                true
-            }
-        };
-        self.visit_arg(ctx, buf, input)?;
-        buf.write(',');
-        if extra_ampersand {
-            buf.write("&&(");
+        if matches!(&**filter, Expr::Path(_)) {
+            buf.write("askama::filters::reject_with(");
+            self.visit_loop_iter(ctx, buf, input)?;
+            buf.write(',');
+            self.visit_arg(ctx, buf, filter)?;
+            buf.write(")?");
+        } else {
+            buf.write("askama::filters::reject(");
+            self.visit_loop_iter(ctx, buf, input)?;
+            buf.write(",(&&&("); // coerce [T, &T, &&T...] to &T
+            self.visit_arg(ctx, buf, filter)?;
+            buf.write(")) as &_)?");
         }
-        self.visit_arg(ctx, buf, filter)?;
-        if extra_ampersand {
-            buf.write(')');
-        }
-        buf.write(")?");
+
         Ok(DisplayWrap::Wrapped)
     }
 

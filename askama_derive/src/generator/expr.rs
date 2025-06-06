@@ -23,6 +23,36 @@ impl<'a> Generator<'a, '_> {
         Ok(buf.into_string())
     }
 
+    pub(super) fn visit_loop_iter(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        iter: &WithSpan<'a, Expr<'a>>,
+    ) -> Result<DisplayWrap, CompileError> {
+        let expr_code = self.visit_expr_root(ctx, iter)?;
+        match &**iter {
+            Expr::Range(..) => buf.write(expr_code),
+            Expr::Array(..) => buf.write(format_args!("{expr_code}.iter()")),
+            // If `iter` is a call then we assume it's something that returns
+            // an iterator. If not then the user can explicitly add the needed
+            // call without issues.
+            Expr::Call { .. } | Expr::Index(..) => {
+                buf.write(format_args!("({expr_code}).into_iter()"));
+            }
+            // If accessing `self` then it most likely needs to be
+            // borrowed, to prevent an attempt of moving.
+            _ if expr_code.starts_with("self.") => {
+                buf.write(format_args!("(&{expr_code}).into_iter()"));
+            }
+            // If accessing a field then it most likely needs to be
+            // borrowed, to prevent an attempt of moving.
+            Expr::Attr(..) => buf.write(format_args!("(&{expr_code}).into_iter()")),
+            // Otherwise, we borrow `iter` assuming that it implements `IntoIterator`.
+            _ => buf.write(format_args!("({expr_code}).into_iter()")),
+        }
+        Ok(DisplayWrap::Unwrapped)
+    }
+
     pub(super) fn visit_expr(
         &mut self,
         ctx: &Context<'_>,

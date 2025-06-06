@@ -502,7 +502,6 @@ impl<'a> Generator<'a, '_> {
         Ok(flushed + median(&mut arm_sizes))
     }
 
-    #[allow(clippy::too_many_arguments)]
     fn write_loop(
         &mut self,
         ctx: &Context<'a>,
@@ -511,8 +510,6 @@ impl<'a> Generator<'a, '_> {
     ) -> Result<usize, CompileError> {
         self.handle_ws(loop_block.ws1);
         self.push_locals(|this| {
-            let expr_code = this.visit_expr_root(ctx, &loop_block.iter)?;
-
             let has_else_nodes = !loop_block.else_nodes.is_empty();
 
             let flushed = this.write_buf_writable(ctx, buf)?;
@@ -520,38 +517,10 @@ impl<'a> Generator<'a, '_> {
             if has_else_nodes {
                 buf.write("let mut __askama_did_loop = false;");
             }
-            match &*loop_block.iter {
-                Expr::Range(_, _, _) => buf.write(format_args!("let __askama_iter = {expr_code};")),
-                Expr::Array(..) => {
-                    buf.write(format_args!("let __askama_iter = {expr_code}.iter();"));
-                }
-                // If `iter` is a call then we assume it's something that returns
-                // an iterator. If not then the user can explicitly add the needed
-                // call without issues.
-                Expr::Call { .. } | Expr::Index(..) => {
-                    buf.write(format_args!(
-                        "let __askama_iter = ({expr_code}).into_iter();"
-                    ));
-                }
-                // If accessing `self` then it most likely needs to be
-                // borrowed, to prevent an attempt of moving.
-                _ if expr_code.starts_with("self.") => {
-                    buf.write(format_args!(
-                        "let __askama_iter = (&{expr_code}).into_iter();"
-                    ));
-                }
-                // If accessing a field then it most likely needs to be
-                // borrowed, to prevent an attempt of moving.
-                Expr::Attr(..) => {
-                    buf.write(format_args!(
-                        "let __askama_iter = (&{expr_code}).into_iter();"
-                    ));
-                }
-                // Otherwise, we borrow `iter` assuming that it implements `IntoIterator`.
-                _ => buf.write(format_args!(
-                    "let __askama_iter = ({expr_code}).into_iter();"
-                )),
-            }
+
+            buf.write("let __askama_iter =");
+            this.visit_loop_iter(ctx, buf, &loop_block.iter)?;
+            buf.write(';');
             if let Some(cond) = &loop_block.cond {
                 this.push_locals(|this| {
                     buf.write("let __askama_iter = __askama_iter.filter(|");

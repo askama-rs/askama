@@ -473,11 +473,12 @@ impl<S: FastWritable, P: FastWritable> FastWritable for Pluralize<S, P> {
 ///     "b,c,"
 /// );
 /// ```
-pub fn reject<'a, T: PartialEq, U: IntoIterator<Item = T>>(
-    it: U,
+#[inline]
+pub fn reject<'a, T: PartialEq + 'a>(
+    it: impl Iterator<Item = T> + 'a,
     filter: &'a T,
-) -> Result<impl Iterator<Item = T> + use<'a, T, U>, Infallible> {
-    Ok(it.into_iter().filter(move |v| v != filter))
+) -> Result<impl Iterator<Item = T> + 'a, Infallible> {
+    reject_with(it, move |v| v == filter)
 }
 
 /// Returns an iterator without filtered out values.
@@ -492,24 +493,25 @@ pub fn reject<'a, T: PartialEq, U: IntoIterator<Item = T>>(
 /// #[derive(Template)]
 /// #[template(
 ///       ext = "html",
-///       source = r#"{% for elem in numbers|reject(self::is_odd) %}{{ elem }},{% endfor %}"#,
+///       source = r#"{% for elem in numbers | reject(self::is_odd) %}{{ elem }},{% endfor %}"#,
 /// )]
 /// struct Example {
 ///     numbers: Vec<u32>,
 /// }
 ///
-/// fn main() {
-///     assert_eq!(
-///         Example { numbers: vec![1, 2, 3, 4] }.to_string(),
-///         "2,4,"
-///     );
-/// }
+/// # fn main() { // so `self::` can be accessed
+/// assert_eq!(
+///     Example { numbers: vec![1, 2, 3, 4] }.to_string(),
+///     "2,4,"
+/// );
+/// # }
 /// ```
-pub fn reject_with<T: PartialEq, F: FnMut(&T) -> bool>(
-    it: impl IntoIterator<Item = T>,
-    mut callback: F,
+#[inline]
+pub fn reject_with<T: PartialEq>(
+    it: impl Iterator<Item = T>,
+    mut callback: impl FnMut(&T) -> bool,
 ) -> Result<impl Iterator<Item = T>, Infallible> {
-    Ok(it.into_iter().filter(move |v| !callback(v)))
+    Ok(it.filter(move |v| !callback(v)))
 }
 
 #[cfg(all(test, feature = "alloc"))]
