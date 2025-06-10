@@ -684,11 +684,6 @@ With `|urlencode_strict` a forward slash `/` is escaped, too.
 ### wordcount
 [#wordcount]: #wordcount
 
-<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
-enabled by <code>"alloc"</code><br/>
-enabled by <code>"default"</code>
-</blockquote>
-
 ```jinja
 {{ text_with_words | wordcount }}
 ```
