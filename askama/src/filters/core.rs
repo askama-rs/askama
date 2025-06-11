@@ -514,12 +514,114 @@ pub fn reject_with<T: PartialEq>(
     Ok(it.filter(move |v| !callback(v)))
 }
 
+/// Count the words in that string.
+///
+/// ```
+/// # #[cfg(feature = "code-in-doc")] {
+/// # use askama::Template;
+/// /// ```jinja
+/// /// <div>{{ example|wordcount }}</div>
+/// /// ```
+/// #[derive(Template)]
+/// #[template(ext = "html", in_doc = true)]
+/// struct Example<'a> {
+///     example: &'a str,
+/// }
+///
+/// assert_eq!(
+///     Example { example: "askama is sort of cool" }.to_string(),
+///     "<div>5</div>"
+/// );
+/// # }
+/// ```
+#[inline]
+pub fn wordcount<S>(source: S) -> Wordcount<S> {
+    Wordcount {
+        source,
+        count: Cell::new(WordcountInner {
+            count: 0,
+            ends_with_whitespace: true,
+        }),
+    }
+}
+
+pub struct Wordcount<S> {
+    source: S,
+    count: Cell<WordcountInner>,
+}
+
+impl<S> Wordcount<S> {
+    pub fn into_count(self) -> usize {
+        self.count.get().count
+    }
+}
+
+impl<S: fmt::Display> fmt::Display for Wordcount<S> {
+    #[inline]
+    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut inner = self.count.get();
+        write!(WordCountWriter(&mut inner), "{}", self.source,)?;
+        self.count.set(inner);
+        Ok(())
+    }
+}
+
+impl<S: FastWritable> FastWritable for Wordcount<S> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        _: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        let mut inner = self.count.get();
+        self.source
+            .write_into(&mut WordCountWriter(&mut inner), values)?;
+        self.count.set(inner);
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy)]
+struct WordcountInner {
+    count: usize,
+    ends_with_whitespace: bool,
+}
+
+struct WordCountWriter<'a>(&'a mut WordcountInner);
+
+impl<'a> fmt::Write for WordCountWriter<'a> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        if s.is_empty() {
+            // If the input is empty, nothing to be done.
+            return Ok(());
+        } else if s.trim().is_empty() {
+            // If the input only contains whitespace characters, we set `ends_with_whitespace` to
+            // `true`. It is to handle this case: `["a", " ", "b"]`. In total we should have two
+            // words count.
+            self.0.ends_with_whitespace = true;
+            return Ok(());
+        }
+        self.0.count += s.split_whitespace().count();
+        if !self.0.ends_with_whitespace && !s.starts_with(char::is_whitespace) {
+            // This covers this case: `["a", "b c"]`. Here, we have two words ("ab" and "c") so we
+            // need to subtract one from the count on "b c" because it returns 2 whereas "a" word is
+            // not "finished".
+            self.0.count -= 1;
+        }
+        // And again, if the string ends with a whitespace character, we change the value of
+        // `ends_with_whitespace`.
+        self.0.ends_with_whitespace = s.ends_with(char::is_whitespace);
+        Ok(())
+    }
+}
+
 #[cfg(all(test, feature = "alloc"))]
 mod tests {
     use alloc::string::{String, ToString};
     use alloc::vec::Vec;
 
     use super::*;
+    use crate::NO_VALUES;
 
     #[allow(clippy::needless_borrow)]
     #[test]
@@ -569,5 +671,58 @@ mod tests {
             center("foo", 111_669_149_696).unwrap().to_string(),
             "foo".to_string()
         );
+    }
+
+    #[test]
+    fn test_wordcount() {
+        for &(word, count) in &[
+            ("", 0),
+            (" \n\t", 0),
+            ("foo", 1),
+            ("foo bar", 2),
+            ("foo  bar", 2),
+        ] {
+            let w = wordcount(word);
+            let _ = w.to_string();
+            assert_eq!(w.into_count(), count, "fmt: {word:?}");
+
+            let w = wordcount(word);
+            w.write_into(&mut String::new(), NO_VALUES).unwrap();
+            assert_eq!(w.into_count(), count, "FastWritable: {word:?}");
+        }
+    }
+
+    #[test]
+    fn test_wordcount_on_partial_input() {
+        #[derive(Clone, Copy)]
+        struct Chunked<'a>(&'a str);
+
+        impl<'a> fmt::Display for Chunked<'a> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                for chunk in self.0.chars() {
+                    write!(f, "{}", chunk)?;
+                }
+                Ok(())
+            }
+        }
+
+        fn wrap(s: &str) -> usize {
+            let w = wordcount(Chunked(s));
+            // Needed to actually count the words.
+            w.to_string();
+            w.into_count()
+        }
+
+        // This test ensures that if `wordcount` returned value's `Display` impl was not called,
+        // it will always return 0.
+        assert_eq!(wordcount(Chunked("hello")).into_count(), 0);
+
+        assert_eq!(wrap("hello"), 1);
+        assert_eq!(wrap("hello\n"), 1);
+        assert_eq!(wrap("hello\nfoo"), 2);
+        assert_eq!(wrap("hello\nfoo\n bar"), 3);
+
+        assert_eq!(wrap("hello\n\n bar"), 2);
+        assert_eq!(wrap("  hello\n\n bar  "), 2);
     }
 }

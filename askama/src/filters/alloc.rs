@@ -1,6 +1,5 @@
 use alloc::str;
 use alloc::string::String;
-use core::cell::Cell;
 use core::convert::Infallible;
 use core::fmt::{self, Write};
 
@@ -570,77 +569,6 @@ fn flush_capitalize(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Resu
     }
 }
 
-/// Count the words in that string.
-///
-/// ```
-/// # #[cfg(feature = "code-in-doc")] {
-/// # use askama::Template;
-/// /// ```jinja
-/// /// <div>{{ example|wordcount }}</div>
-/// /// ```
-/// #[derive(Template)]
-/// #[template(ext = "html", in_doc = true)]
-/// struct Example<'a> {
-///     example: &'a str,
-/// }
-///
-/// assert_eq!(
-///     Example { example: "askama is sort of cool" }.to_string(),
-///     "<div>5</div>"
-/// );
-/// # }
-/// ```
-#[inline]
-pub fn wordcount<S>(source: S) -> Wordcount<S> {
-    Wordcount(Cell::new(Some(WordcountInner {
-        source,
-        buffer: String::new(),
-    })))
-}
-
-pub struct Wordcount<S>(Cell<Option<WordcountInner<S>>>);
-
-struct WordcountInner<S> {
-    source: S,
-    buffer: String,
-}
-
-impl<S: fmt::Display> fmt::Display for Wordcount<S> {
-    #[inline]
-    fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(mut inner) = self.0.take() {
-            write!(inner.buffer, "{}", inner.source)?;
-            self.0.set(Some(inner));
-        }
-        Ok(())
-    }
-}
-
-impl<S: FastWritable> FastWritable for Wordcount<S> {
-    #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
-        &self,
-        _: &mut W,
-        values: &dyn crate::Values,
-    ) -> crate::Result<()> {
-        if let Some(mut inner) = self.0.take() {
-            inner.source.write_into(&mut inner.buffer, values)?;
-            self.0.set(Some(inner));
-        }
-        Ok(())
-    }
-}
-
-impl<S> Wordcount<S> {
-    pub fn into_count(self) -> usize {
-        if let Some(inner) = self.0.into_inner() {
-            inner.buffer.split_whitespace().count()
-        } else {
-            0
-        }
-    }
-}
-
 /// Return a title cased version of the value. Words will start with uppercase letters, all
 /// remaining characters are lowercase.
 ///
@@ -727,7 +655,6 @@ mod tests {
     use alloc::string::ToString;
 
     use super::*;
-    use crate::NO_VALUES;
 
     #[test]
     fn test_linebreaks() {
@@ -806,25 +733,6 @@ mod tests {
         );
         assert_eq!(capitalize("ß").unwrap().to_string(), "SS".to_string());
         assert_eq!(capitalize("ßß").unwrap().to_string(), "SSß".to_string());
-    }
-
-    #[test]
-    fn test_wordcount() {
-        for &(word, count) in &[
-            ("", 0),
-            (" \n\t", 0),
-            ("foo", 1),
-            ("foo bar", 2),
-            ("foo  bar", 2),
-        ] {
-            let w = wordcount(word);
-            let _ = w.to_string();
-            assert_eq!(w.into_count(), count, "fmt: {word:?}");
-
-            let w = wordcount(word);
-            w.write_into(&mut String::new(), NO_VALUES).unwrap();
-            assert_eq!(w.into_count(), count, "FastWritable: {word:?}");
-        }
     }
 
     #[test]
