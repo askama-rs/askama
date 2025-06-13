@@ -605,7 +605,9 @@ fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
                         continue;
                     } else {
                         return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
-                            r#"bare CR not allowed in string, use `\r` instead"#,
+                            "a bare CR (Mac linebreak) is not allowed in string literals, \
+                            use NL (Unix linebreak) or CRNL (Windows linebreak) instead, \
+                            or type `\\r` explicitly",
                             start,
                         )));
                     }
