@@ -632,13 +632,19 @@ fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
                 }
                 'u' => {
                     contains_unicode_escape = true;
-                    let code = delimited('{', take_while(1..6, AsChar::is_hex_digit), '}')
+                    let code = delimited('{', take_while(1..=6, AsChar::is_hex_digit), '}')
                         .parse_next(i)?;
                     match u32::from_str_radix(code, 16).unwrap() {
                         0 => contains_null = true,
                         0xd800..0xe000 => {
                             return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
                                 "unicode escape must not be a surrogate",
+                                start,
+                            )));
+                        }
+                        0x110000.. => {
+                            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                                "unicode escape must be at most 10FFFF",
                                 start,
                             )));
                         }

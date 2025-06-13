@@ -59,3 +59,26 @@ fn test_prefix_str_literal_in_target() {
     let t = TargetStr { data: *b"hi" };
     assert_eq!(t.render().unwrap(), "bc hoy");
 }
+
+#[test]
+fn test_highest_character() {
+    // U+10FFFF is the highest Unicode codepoint. It must not be reject nor be replaced.
+
+    #[derive(Template)]
+    #[template(
+        ext = "txt",
+        source = "\
+            \u{10ffff}\
+            {{ '\u{10ffff}' }}\
+            {{ \"\u{10ffff}\" }}\
+            {{ '\\u{10ffff}' }}\
+            {{ \"\\u{10ffff}\" }}\
+        "
+    )]
+    struct U10ffff;
+
+    assert_eq!(
+        U10ffff.to_string(),
+        "\u{10ffff}\u{10ffff}\u{10ffff}\u{10ffff}\u{10ffff}"
+    );
+}
