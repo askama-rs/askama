@@ -25,11 +25,11 @@ mod urlencode;
 
 #[cfg(feature = "alloc")]
 pub use self::alloc::{
-    capitalize, fmt, format, linebreaks, linebreaksbr, lower, lowercase, paragraphbreaks, title,
-    titlecase, trim, upper, uppercase,
+    capitalize, fmt, format, lower, lowercase, title, titlecase, trim, upper, uppercase,
 };
 pub use self::core::{
-    PluralizeCount, center, join, pluralize, reject, reject_with, truncate, wordcount,
+    PluralizeCount, center, join, linebreaks, linebreaksbr, paragraphbreaks, pluralize, reject,
+    reject_with, truncate, wordcount,
 };
 pub use self::escape::{
     AutoEscape, AutoEscaper, Escaper, Html, HtmlSafe, HtmlSafeOutput, MaybeSafe, Safe, Text,

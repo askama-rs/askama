@@ -1,10 +1,12 @@
 use core::cell::Cell;
 use core::convert::Infallible;
 use core::fmt::{self, Write};
+use core::mem::replace;
 use core::ops::Deref;
 use core::pin::Pin;
 
 use super::MAX_LEN;
+use crate::filters::HtmlSafeOutput;
 use crate::{Error, FastWritable, Result, Values};
 
 /// Limit string length, appends '...' if truncated
@@ -615,6 +617,213 @@ impl<'a> fmt::Write for WordCountWriter<'a> {
     }
 }
 
+/// Replaces line breaks in plain text with appropriate HTML
+///
+/// A single newline becomes an HTML line break `<br>` and a new line
+/// followed by a blank line becomes a paragraph break `<p>`.
+///
+/// ```
+/// # #[cfg(feature = "code-in-doc")] {
+/// # use askama::Template;
+/// /// ```jinja
+/// /// <div>{{ example|linebreaks }}</div>
+/// /// ```
+/// #[derive(Template)]
+/// #[template(ext = "html", in_doc = true)]
+/// struct Example<'a> {
+///     example: &'a str,
+/// }
+///
+/// assert_eq!(
+///     Example { example: "Foo\nBar\n\nBaz" }.to_string(),
+///     "<div><p>Foo<br/>Bar</p><p>Baz</p></div>"
+/// );
+/// # }
+/// ```
+#[inline]
+pub fn linebreaks<S: fmt::Display>(
+    source: S,
+) -> Result<HtmlSafeOutput<NewlineCounting<S>>, Infallible> {
+    Ok(HtmlSafeOutput(NewlineCounting {
+        source,
+        one: "<br/>",
+    }))
+}
+
+/// Replaces only paragraph breaks in plain text with appropriate HTML
+///
+/// A new line followed by a blank line becomes a paragraph break `<p>`.
+/// Paragraph tags only wrap content; empty paragraphs are removed.
+/// No `<br/>` tags are added.
+///
+/// ```
+/// # #[cfg(feature = "code-in-doc")] {
+/// # use askama::Template;
+/// /// ```jinja
+/// /// {{ lines|paragraphbreaks }}
+/// /// ```
+/// #[derive(Template)]
+/// #[template(ext = "html", in_doc = true)]
+/// struct Example<'a> {
+///     lines: &'a str,
+/// }
+///
+/// assert_eq!(
+///     Example { lines: "Foo\nBar\n\nBaz" }.to_string(),
+///     "<p>Foo\nBar</p><p>Baz</p>"
+/// );
+/// # }
+/// ```
+#[inline]
+pub fn paragraphbreaks<S: fmt::Display>(
+    source: S,
+) -> Result<HtmlSafeOutput<NewlineCounting<S>>, Infallible> {
+    Ok(HtmlSafeOutput(NewlineCounting { source, one: "\n" }))
+}
+
+pub struct NewlineCounting<S> {
+    source: S,
+    one: &'static str,
+}
+
+impl<S> NewlineCounting<S> {
+    #[inline]
+    fn run<'a, F, W, E>(&self, dest: &'a mut W, inner: F) -> Result<(), E>
+    where
+        W: fmt::Write + ?Sized,
+        F: FnOnce(&mut NewlineCountingFormatter<'a, W>) -> Result<(), E>,
+        E: From<fmt::Error>,
+    {
+        let mut formatter = NewlineCountingFormatter {
+            dest,
+            counter: -1,
+            one: self.one,
+        };
+        formatter.dest.write_str("<p>")?;
+        inner(&mut formatter)?;
+        formatter.dest.write_str("</p>")?;
+        Ok(())
+    }
+}
+
+impl<S: fmt::Display> fmt::Display for NewlineCounting<S> {
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.run(dest, |f| write!(f, "{}", self.source))
+    }
+}
+
+impl<S: FastWritable> FastWritable for NewlineCounting<S> {
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        self.run(dest, |f| self.source.write_into(f, values))
+    }
+}
+
+struct NewlineCountingFormatter<'a, W: ?Sized> {
+    dest: &'a mut W,
+    counter: isize,
+    one: &'static str,
+}
+
+impl<W: fmt::Write + ?Sized> fmt::Write for NewlineCountingFormatter<'_, W> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        if s.is_empty() {
+            return Ok(());
+        }
+
+        for line in s.split_inclusive('\n') {
+            let (has_eol, line) = strip_newline_suffix(line);
+            if !line.is_empty() {
+                match replace(&mut self.counter, if has_eol { 1 } else { 0 }) {
+                    ..=0 => {}
+                    1 => self.dest.write_str(self.one)?,
+                    2.. => self.dest.write_str("</p><p>")?,
+                }
+                self.dest.write_str(line)?;
+            } else if has_eol && self.counter >= 0 {
+                self.counter += 1;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Converts all newlines in a piece of plain text to HTML line breaks
+///
+/// ```
+/// # #[cfg(feature = "code-in-doc")] {
+/// # use askama::Template;
+/// /// ```jinja
+/// /// <div>{{ lines|linebreaksbr }}</div>
+/// /// ```
+/// #[derive(Template)]
+/// #[template(ext = "html", in_doc = true)]
+/// struct Example<'a> {
+///     lines: &'a str,
+/// }
+///
+/// assert_eq!(
+///     Example { lines: "a\nb\nc" }.to_string(),
+///     "<div>a<br/>b<br/>c</div>"
+/// );
+/// # }
+/// ```
+#[inline]
+pub fn linebreaksbr<S: fmt::Display>(
+    source: S,
+) -> Result<HtmlSafeOutput<Linebreaksbr<S>>, Infallible> {
+    Ok(HtmlSafeOutput(Linebreaksbr(source)))
+}
+
+pub struct Linebreaksbr<S>(S);
+
+impl<S: fmt::Display> fmt::Display for Linebreaksbr<S> {
+    #[inline]
+    fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(LinebreaksbrFormatter(dest), "{}", self.0)
+    }
+}
+
+struct LinebreaksbrFormatter<'a, W: ?Sized>(&'a mut W);
+
+impl<S: FastWritable> FastWritable for Linebreaksbr<S> {
+    #[inline]
+    fn write_into<W: fmt::Write + ?Sized>(
+        &self,
+        dest: &mut W,
+        values: &dyn crate::Values,
+    ) -> crate::Result<()> {
+        self.0.write_into(&mut LinebreaksbrFormatter(dest), values)
+    }
+}
+
+impl<W: fmt::Write + ?Sized> fmt::Write for LinebreaksbrFormatter<'_, W> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        for line in s.split_inclusive('\n') {
+            let (has_eol, line) = strip_newline_suffix(line);
+            self.0.write_str(line)?;
+            if has_eol {
+                self.0.write_str("<br/>")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Returns whether a newline suffix was stripped and the (maybe stripped) line.
+fn strip_newline_suffix(line: &str) -> (bool, &str) {
+    if let Some(line) = line.strip_suffix("\r\n") {
+        (true, line)
+    } else if let Some(line) = line.strip_suffix('\n') {
+        (true, line)
+    } else {
+        (false, line)
+    }
+}
+
 #[cfg(all(test, feature = "alloc"))]
 mod tests {
     use alloc::string::{String, ToString};
@@ -724,5 +933,44 @@ mod tests {
 
         assert_eq!(wrap("hello\n\n bar"), 2);
         assert_eq!(wrap("  hello\n\n bar  "), 2);
+    }
+
+    #[test]
+    fn test_linebreaks() {
+        assert_eq!(
+            linebreaks("Foo\nBar Baz").unwrap().to_string(),
+            "<p>Foo<br/>Bar Baz</p>"
+        );
+        assert_eq!(
+            linebreaks("Foo\nBar\n\nBaz").unwrap().to_string(),
+            "<p>Foo<br/>Bar</p><p>Baz</p>"
+        );
+    }
+
+    #[test]
+    fn test_paragraphbreaks() {
+        assert_eq!(
+            paragraphbreaks("Foo\nBar Baz").unwrap().to_string(),
+            "<p>Foo\nBar Baz</p>"
+        );
+        assert_eq!(
+            paragraphbreaks("Foo\nBar\n\nBaz").unwrap().to_string(),
+            "<p>Foo\nBar</p><p>Baz</p>"
+        );
+        assert_eq!(
+            paragraphbreaks("Foo\n\n\n\n\nBar\n\nBaz")
+                .unwrap()
+                .to_string(),
+            "<p>Foo</p><p>Bar</p><p>Baz</p>"
+        );
+    }
+
+    #[test]
+    fn test_linebreaksbr() {
+        assert_eq!(linebreaksbr("Foo\nBar").unwrap().to_string(), "Foo<br/>Bar");
+        assert_eq!(
+            linebreaksbr("Foo\nBar\n\nBaz").unwrap().to_string(),
+            "Foo<br/>Bar<br/><br/>Baz"
+        );
     }
 }

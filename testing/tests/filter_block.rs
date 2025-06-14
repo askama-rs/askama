@@ -302,11 +302,9 @@ fn filter_nested_filter_blocks() {
     };
     assert_eq!(
         template.render().unwrap(),
-        r"[
-&#60;P&#62;HELLO &#38;#38;&#60;/P&#62;&#60;P&#62;GOODBYE!
-&#60;/P&#62;
-&#60;P&#62;HELLO &#38;#38;&#60;/P&#62;&#60;P&#62;GOODBYE!
-&#60;/P&#62;]
+        "[
+&#60;P&#62;HELLO &#38;#38;&#60;/P&#62;&#60;P&#62;GOODBYE!&#60;/P&#62;
+&#60;P&#62;HELLO &#38;#38;&#60;/P&#62;&#60;P&#62;GOODBYE!&#60;/P&#62;]
 2"
     );
 }

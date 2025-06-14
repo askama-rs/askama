@@ -297,11 +297,6 @@ foo, bar, bazz
 ### linebreaks
 [#linebreaks]: #linebreaks
 
-<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
-enabled by <code>"alloc"</code><br/>
-enabled by <code>"default"</code>
-</blockquote>
-
 ```jinja
 {{ text_to_break | linebreaks }}
 ```
@@ -325,11 +320,6 @@ Output:
 ### linebreaksbr
 [#linebreaksbr]: #linebreaksbr
 
-<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
-enabled by <code>"alloc"</code><br/>
-enabled by <code>"default"</code>
-</blockquote>
-
 ```jinja
 {{ text_to_break | linebreaksbr }}
 ```
@@ -350,11 +340,6 @@ hello<br />world<br /><br />from<br />askama
 
 ### paragraphbreaks
 [#paragraphbreaks]: #paragraphbreaks
-
-<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
-enabled by <code>"alloc"</code><br/>
-enabled by <code>"default"</code>
-</blockquote>
 
 ```jinja
 {{ text_to_break | paragraphbreaks }}

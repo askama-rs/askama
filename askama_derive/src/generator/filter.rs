@@ -323,9 +323,9 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         args: &[WithSpan<'a, Expr<'a>>],
-        node: Span<'_>,
+        _node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        self.visit_linebreaks_filters(ctx, buf, "paragraphbreaks", args, node)
+        self.visit_linebreaks_filters(ctx, buf, "paragraphbreaks", args)
     }
 
     fn visit_linebreaksbr_filter(
@@ -333,9 +333,9 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         args: &[WithSpan<'a, Expr<'a>>],
-        node: Span<'_>,
+        _node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        self.visit_linebreaks_filters(ctx, buf, "linebreaksbr", args, node)
+        self.visit_linebreaks_filters(ctx, buf, "linebreaksbr", args)
     }
 
     fn visit_linebreaks_filter(
@@ -343,9 +343,9 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         args: &[WithSpan<'a, Expr<'a>>],
-        node: Span<'_>,
+        _node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        self.visit_linebreaks_filters(ctx, buf, "linebreaks", args, node)
+        self.visit_linebreaks_filters(ctx, buf, "linebreaks", args)
     }
 
     fn visit_linebreaks_filters(
@@ -354,9 +354,7 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         name: &str,
         args: &[WithSpan<'a, Expr<'a>>],
-        node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_filter_has_feature_alloc(ctx, name, node)?;
         let arg = no_arguments(ctx, name, args)?;
         buf.write(format_args!(
             "askama::filters::{name}(&(&&askama::filters::AutoEscaper::new(&(",
