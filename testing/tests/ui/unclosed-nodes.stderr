@@ -63,32 +63,32 @@ error: failed to parse template source
    |                     ^^^^^^^^^^^^^
 
 error: unclosed comment, missing "#}"
- --> <source attribute>:1:2
-       " comment"
+ --> <source attribute>:1:0
+       "{# comment"
   --> tests/ui/unclosed-nodes.rs:36:21
    |
 36 | #[template(source = "{# comment", ext = "txt")]
    |                     ^^^^^^^^^^^^
 
 error: unclosed comment, missing "#}"
- --> <source attribute>:1:2
-       " comment "
+ --> <source attribute>:1:0
+       "{# comment "
   --> tests/ui/unclosed-nodes.rs:40:21
    |
 40 | #[template(source = "{# comment ", ext = "txt")]
    |                     ^^^^^^^^^^^^^
 
 error: unclosed comment, missing "#}"
- --> <source attribute>:1:2
-       " comment -"
+ --> <source attribute>:1:0
+       "{# comment -"
   --> tests/ui/unclosed-nodes.rs:44:21
    |
 44 | #[template(source = "{# comment -", ext = "txt")]
    |                     ^^^^^^^^^^^^^^
 
 error: unclosed comment, missing "#}"
- --> <source attribute>:1:2
-       " comment -#"
+ --> <source attribute>:1:0
+       "{# comment -#"
   --> tests/ui/unclosed-nodes.rs:48:21
    |
 48 | #[template(source = "{# comment -#", ext = "txt")]

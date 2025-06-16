@@ -6,10 +6,10 @@ use winnow::combinator::{
     terminated,
 };
 use winnow::stream::Stream as _;
-use winnow::token::{any, literal, rest};
+use winnow::token::{any, literal, rest, take_until};
 use winnow::{ModalParser, Parser};
 
-use crate::memchr_splitter::{Splitter1, Splitter2, Splitter3};
+use crate::memchr_splitter::{Splitter1, Splitter3};
 use crate::{
     ErrorContext, Expr, Filter, ParseResult, Span, State, Target, WithSpan, filter, identifier,
     is_rust_keyword, keyword, path_or_identifier, skip_till, skip_ws0, str_lit_without_prefix, ws,
@@ -1385,60 +1385,34 @@ pub struct Comment<'a> {
 
 impl<'a> Comment<'a> {
     fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
-        #[derive(Debug, Clone, Copy)]
-        enum Tag {
-            Open,
-            Close,
-        }
-
-        fn tag<'a>(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Tag> {
-            alt((
-                (|i: &mut _| s.tag_comment_start(i)).value(Tag::Open),
-                (|i: &mut _| s.tag_comment_end(i)).value(Tag::Close),
-            ))
-            .parse_next(i)
-        }
-
-        fn content<'a>(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a> {
+        fn content<'a>(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, ()> {
             let mut depth = 0usize;
-            let start = *i;
             loop {
-                let splitter = Splitter2::new(s.syntax.comment_start, s.syntax.comment_end);
-                let tag = opt(skip_till(splitter, |i: &mut _| tag(i, s))).parse_next(i)?;
-                let Some((inclusive, tag)) = tag else {
-                    return Err(
-                        ErrorContext::unclosed("comment", s.syntax.comment_end, start).cut(),
-                    );
-                };
-                match tag {
-                    Tag::Open => match depth.checked_add(1) {
-                        Some(new_depth) => depth = new_depth,
-                        None => {
-                            return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
-                                "too deeply nested comments",
-                                start,
-                            )));
-                        }
-                    },
-                    Tag::Close => match depth.checked_sub(1) {
-                        Some(new_depth) => depth = new_depth,
-                        None => {
-                            let exclusive = *i;
-                            *i = inclusive;
-                            return Ok(&start[..start.len() - exclusive.len()]);
-                        }
-                    },
+                take_until(.., (s.syntax.comment_start, s.syntax.comment_end)).parse_next(i)?;
+                let is_open = opt(s.syntax.comment_start).parse_next(i)?.is_some();
+                if is_open {
+                    // cannot overflow: `i` cannot be longer than `isize::MAX`, cf. [std::alloc::Layout]
+                    depth += 1;
+                } else if let Some(new_depth) = depth.checked_sub(1) {
+                    s.tag_comment_end(i)?;
+                    depth = new_depth;
+                } else {
+                    return Ok(());
                 }
-                *i = inclusive;
             }
         }
 
         let start = *i;
-        let content = preceded(
+        let mut content = preceded(
             |i: &mut _| s.tag_comment_start(i),
-            cut_node(Some("comment"), |i: &mut _| content(i, s)),
-        )
-        .parse_next(i)?;
+            opt(terminated(
+                (|i: &mut _| content(i, s)).take(),
+                |i: &mut _| s.tag_comment_end(i),
+            )),
+        );
+        let Some(content) = content.parse_next(i)? else {
+            return Err(ErrorContext::unclosed("comment", s.syntax.comment_end, start).cut());
+        };
 
         let mut ws = Ws(None, None);
         if content.len() == 1 && matches!(content, "-" | "+" | "~") {
