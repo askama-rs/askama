@@ -1441,3 +1441,70 @@ fn macro_calls_can_have_raw_prefixes() {
         )],
     );
 }
+
+#[test]
+fn macro_comments_in_macro_calls() {
+    // Related to issue <https://github.com/askama-rs/askama/issues/475>.
+    let syntax = Syntax::default();
+
+    assert!(Ast::from_str("{{ e!(// hello) }}", None, &syntax).is_err());
+    assert!(Ast::from_str("{{ e!(/// hello) }}", None, &syntax).is_err());
+    assert!(Ast::from_str("{{ e!(// hello)\n }}", None, &syntax).is_err());
+    assert!(Ast::from_str("{{ e!(/// hello)\n }}", None, &syntax).is_err());
+
+    assert_eq!(
+        Ast::from_str("{{ e!(// hello\n) }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::RustMacro(vec!["e"], "// hello\n")),
+        )],
+    );
+    assert_eq!(
+        Ast::from_str("{{ e!(/// hello\n) }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::RustMacro(vec!["e"], "/// hello\n")),
+        )],
+    );
+    assert_eq!(
+        Ast::from_str("{{ e!(//! hello\n) }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::RustMacro(vec!["e"], "//! hello\n")),
+        )],
+    );
+
+    assert_eq!(
+        Ast::from_str("{{ e!(/* hello */) }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::RustMacro(vec!["e"], "/* hello */")),
+        )],
+    );
+    assert_eq!(
+        Ast::from_str("{{ e!(/** hello */) }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::RustMacro(vec!["e"], "/** hello */")),
+        )],
+    );
+    assert_eq!(
+        Ast::from_str("{{ e!(/*! hello */) }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::RustMacro(vec!["e"], "/*! hello */")),
+        )],
+    );
+}

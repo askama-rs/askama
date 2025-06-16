@@ -4,9 +4,10 @@ use std::str;
 use winnow::Parser;
 use winnow::ascii::digit1;
 use winnow::combinator::{
-    alt, cut_err, fail, not, opt, peek, preceded, repeat, separated, terminated,
+    alt, cut_err, empty, fail, not, opt, peek, preceded, repeat, separated, terminated,
 };
 use winnow::error::ParserError as _;
+use winnow::token::take_until;
 
 use crate::node::CondTest;
 use crate::{
@@ -780,11 +781,54 @@ impl<'a> Suffix<'a> {
                 identifier_or_prefixed_string.value(Token::SomeOther),
                 // lifetimes
                 ('\'', identifier, not(peek('\''))).value(Token::SomeOther),
+                // comments
+                line_comment.value(Token::SomeOther),
+                block_comment.value(Token::SomeOther),
                 // punctuations
                 punctuation.value(Token::SomeOther),
                 hash,
             ));
             alt((open.map(Token::Open), close.map(Token::Close), some_other)).parse_next(i)
+        }
+
+        fn line_comment<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
+            let start = "//".parse_next(i)?;
+            let is_doc_comment = alt((
+                ('/', not(peek('/'))).value(true),
+                '!'.value(true),
+                empty.value(false),
+            ))
+            .parse_next(i)?;
+            if opt(take_until(.., '\n')).parse_next(i)?.is_none() {
+                return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                    format!(
+                        "you are probably missing a line break to end {}comment",
+                        if is_doc_comment { "doc " } else { "" }
+                    ),
+                    start,
+                )));
+            }
+            Ok(())
+        }
+
+        fn block_comment<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
+            let start = "/*".parse_next(i)?;
+            let is_doc_comment = alt((
+                ('*', not(peek('*'))).value(true),
+                '!'.value(true),
+                empty.value(false),
+            ))
+            .parse_next(i)?;
+            if opt(take_until(.., "*/")).parse_next(i)?.is_none() {
+                return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+                    format!(
+                        "missing `*/` to close block {}comment",
+                        if is_doc_comment { "doc " } else { "" }
+                    ),
+                    start,
+                )));
+            }
+            Ok(())
         }
 
         fn identifier_or_prefixed_string<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {

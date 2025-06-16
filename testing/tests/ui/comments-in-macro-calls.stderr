@@ -1,0 +1,71 @@
+error: you are probably missing a line break to end comment
+ --> <source attribute>:1:6
+       "// hello) }}"
+ --> tests/ui/comments-in-macro-calls.rs:6:35
+  |
+6 | #[template(ext = "html", source = "{{ e!(// hello) }}")]
+  |                                   ^^^^^^^^^^^^^^^^^^^^
+
+error: expected `)` but found `}`
+ --> <source attribute>:1:15
+       "}}"
+  --> tests/ui/comments-in-macro-calls.rs:10:35
+   |
+10 | #[template(ext = "html", source = "{{ e!(// hello)\n}}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^
+
+error: missing `*/` to close block comment
+ --> <source attribute>:1:6
+       "/* hello) }}"
+  --> tests/ui/comments-in-macro-calls.rs:14:35
+   |
+14 | #[template(ext = "html", source = "{{ e!(/* hello) }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^
+
+error: you are probably missing a line break to end doc comment
+ --> <source attribute>:1:6
+       "/// hello) }}"
+  --> tests/ui/comments-in-macro-calls.rs:18:35
+   |
+18 | #[template(ext = "html", source = "{{ e!(/// hello) }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `)` but found `}`
+ --> <source attribute>:1:16
+       "}}"
+  --> tests/ui/comments-in-macro-calls.rs:22:35
+   |
+22 | #[template(ext = "html", source = "{{ e!(/// hello)\n}}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^
+
+error: missing `*/` to close block doc comment
+ --> <source attribute>:1:6
+       "/** hello) }}"
+  --> tests/ui/comments-in-macro-calls.rs:26:35
+   |
+26 | #[template(ext = "html", source = "{{ e!(/** hello) }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^
+
+error: you are probably missing a line break to end doc comment
+ --> <source attribute>:1:6
+       "//! hello) }}"
+  --> tests/ui/comments-in-macro-calls.rs:30:35
+   |
+30 | #[template(ext = "html", source = "{{ e!(//! hello) }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^
+
+error: expected `)` but found `}`
+ --> <source attribute>:1:16
+       "}}"
+  --> tests/ui/comments-in-macro-calls.rs:34:35
+   |
+34 | #[template(ext = "html", source = "{{ e!(//! hello)\n}}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^
+
+error: missing `*/` to close block doc comment
+ --> <source attribute>:1:6
+       "/*! hello) }}"
+  --> tests/ui/comments-in-macro-calls.rs:38:35
+   |
+38 | #[template(ext = "html", source = "{{ e!(/*! hello) }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^
