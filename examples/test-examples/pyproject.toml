@@ -1,0 +1,20 @@
+[project]
+name = "test-examples"
+version = "0.1.0"
+description = "This folder contains tests that ensure that our example applications generate the expected HTML code."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pexpect >= 4.9, == 4.*",
+    "pytest >= 8.3, == 8.*",
+    "requests >= 2.32, == 2.*",
+]
+license.text = "MIT OR Apache-2.0"
+classifiers = ["Private :: Do Not Upload"]
+
+[build-system]
+requires = ["setuptools >= 75"]
+
+[tool.pytest.ini_options]
+addopts = ["--import-mode=importlib"]
+pythonpath = ["."]
