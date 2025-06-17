@@ -1176,8 +1176,10 @@ impl<'a> Raw<'a> {
 
                 // We found `{% endraw`. Do we find `%}`, too?
                 *i = i.trim_ascii_start();
+                let i_before_nws = *i;
                 let nws = opt(Whitespace::parse).parse_next(i)?;
                 if opt(peek(s.syntax.block_end)).parse_next(i)?.is_none() {
+                    *i = i_before_nws; // `block_start` might start with the `nws` character
                     continue;
                 }
 

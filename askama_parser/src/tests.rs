@@ -1531,4 +1531,28 @@ fn test_raw() {
             ws2: Ws(Some(Whitespace::Minimize), Some(Whitespace::Minimize)),
         }))],
     );
+
+    // We must make sure that the character for whitespace handling, e.g. `-` is not consumed,
+    // unless `{% endraw %}` was actually found. Otherwise opening block delimiters that begin with
+    // `-`, `~` or `+` may break.
+    let syntax = SyntaxBuilder {
+        block_start: Some("-$"),
+        block_end: Some("$-"),
+        ..SyntaxBuilder::default()
+    };
+    let syntax = syntax.to_syntax().unwrap();
+    assert_eq!(
+        Ast::from_str("-$- raw -$- -$- endraw -$ endraw -$-", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Raw(WithSpan::no_span(Raw {
+            ws1: Ws(Some(Whitespace::Suppress), Some(Whitespace::Suppress)),
+            lit: Lit {
+                lws: " ",
+                val: "-$- endraw",
+                rws: " ",
+            },
+            ws2: Ws(None, Some(Whitespace::Suppress)),
+        }))],
+    );
 }
