@@ -624,7 +624,7 @@ If used, it must come last, after all other `{% when %}` blocks:
 ```
 
 A `{% match %}` must be exhaustive, i.e. all possible inputs must have a case.
-This is most easily done by using proving an `{% else %}` case,
+This is most easily done by providing an `{% else %}` case,
 if not all possible values need an individual handling.
 
 Because a `{% match %}` block could not generate valid code otherwise,
@@ -736,7 +736,7 @@ will in turn evaluate the expression and yield `self` again.
 
 In Askama, the binary AND, OR, and XOR operators (called `&`, `|`, `^` in Rust, resp.),
 are renamed to `bitand`, `bitor`, `xor` to avoid confusion with filter expressions.
-They still have the same operator precedende as in Rust.
+They still have the same operator precedence as in Rust.
 E.g. to test if the least significant bit is set in an integer field:
 
 ```jinja
