@@ -10,10 +10,6 @@ publish = false
 name = "all"
 harness = false
 
-[[bench]]
-name = "normalize_identifier"
-harness = false
-
 [dependencies]
 askama = { path = "../askama", version = "0.14.0" }
 
@@ -27,7 +23,6 @@ askama = { path = "../askama", version = "0.14.0", features = ["blocks", "code-i
 
 assert_matches = "1.5.0"
 criterion = "0.6"
-phf = { version = "0.11", features = ["macros" ] }
 trybuild = "1.0.100"
 
 [features]
