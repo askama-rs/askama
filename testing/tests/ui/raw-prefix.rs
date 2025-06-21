@@ -105,4 +105,19 @@ struct MacroCallReservedPrefix2;
 #[template(path = "macro-call-raw-string-many-hashes.html")]
 struct MacroCallManyHashes;
 
+// Need a space between (guarded) string literal and next prefixed string literal.
+// Regression test for <https://issues.oss-fuzz.com/issues/426509683>.
+
+#[derive(Template)]
+#[template(source = r##"{{ z!(r""r#""#) }}"##, ext = "txt")]
+struct UnseparatedPrefixedStrings1;
+
+#[derive(Template)]
+#[template(source = r##"{{ z!(r#""#x#"") }}"##, ext = "txt")]
+struct UnseparatedPrefixedStrings2;
+
+#[derive(Template)]
+#[template(source = r##"{{ z!(c""r#""#) }}"##, ext = "txt")]
+struct UnseparatedPrefixedStrings3;
+
 fn main() {}
