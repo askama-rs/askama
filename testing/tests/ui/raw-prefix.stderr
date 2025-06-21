@@ -109,3 +109,27 @@ error: a maximum of 255 hashes `#` are allowed with raw strings
     |
 105 | #[template(path = "macro-call-raw-string-many-hashes.html")]
     |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: you are missing a space to separate two string literals
+ --> <source attribute>:1:9
+       "r#\"\"#) }}"
+   --> tests/ui/raw-prefix.rs:112:21
+    |
+112 | #[template(source = r##"{{ z!(r""r#""#) }}"##, ext = "txt")]
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: you are missing a space to separate two string literals
+ --> <source attribute>:1:11
+       "x#\"\") }}"
+   --> tests/ui/raw-prefix.rs:116:21
+    |
+116 | #[template(source = r##"{{ z!(r#""#x#"") }}"##, ext = "txt")]
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: you are missing a space to separate two string literals
+ --> <source attribute>:1:9
+       "r#\"\"#) }}"
+   --> tests/ui/raw-prefix.rs:120:21
+    |
+120 | #[template(source = r##"{{ z!(c""r#""#) }}"##, ext = "txt")]
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^

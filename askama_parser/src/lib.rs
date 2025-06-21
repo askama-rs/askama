@@ -680,7 +680,18 @@ fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
         return Err(winnow::error::ErrMode::Cut(ErrorContext::new(msg, start)));
     }
 
+    not_suffix_with_hash(i)?;
     Ok(lit)
+}
+
+fn not_suffix_with_hash<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
+    if let Some(suffix) = opt((identifier, '#').take()).parse_next(i)? {
+        return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
+            "you are missing a space to separate two string literals",
+            suffix,
+        )));
+    }
+    Ok(())
 }
 
 fn str_lit_without_prefix<'a>(i: &mut &'a str) -> ParseResult<'a> {

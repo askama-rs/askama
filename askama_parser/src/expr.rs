@@ -12,8 +12,8 @@ use winnow::token::take_until;
 use crate::node::CondTest;
 use crate::{
     CharLit, ErrorContext, Level, Num, ParseErr, ParseResult, PathOrIdentifier, Span, StrLit,
-    StrPrefix, WithSpan, char_lit, filter, identifier, keyword, num_lit, path_or_identifier,
-    skip_ws0, skip_ws1, str_lit, ws,
+    StrPrefix, WithSpan, char_lit, filter, identifier, keyword, not_suffix_with_hash, num_lit,
+    path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
 };
 
 macro_rules! expr_prec_layer {
@@ -774,9 +774,9 @@ impl<'a> Suffix<'a> {
             // <https://doc.rust-lang.org/reference/tokens.html>
             let some_other = alt((
                 // literals
-                Expr::char.value(Token::SomeOther),
-                Expr::str.value(Token::SomeOther),
-                Expr::num.value(Token::SomeOther),
+                char_lit.value(Token::SomeOther),
+                str_lit.value(Token::SomeOther),
+                num_lit.value(Token::SomeOther),
                 // keywords + (raw) identifiers + raw strings
                 identifier_or_prefixed_string.value(Token::SomeOther),
                 // lifetimes
@@ -886,6 +886,7 @@ impl<'a> Suffix<'a> {
                     return Err(winnow::error::ErrMode::Cut(ErrorContext::new(msg, prefix)));
                 }
 
+                not_suffix_with_hash(i)?;
                 Ok(())
             } else if hashes == 0 {
                 // a simple identifier
