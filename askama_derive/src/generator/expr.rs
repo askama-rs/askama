@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 
 use parser::node::CondTest;
-use parser::{Attr, CharLit, CharPrefix, Expr, Filter, Span, StrLit, Target, TyGenerics, WithSpan};
+use parser::{Attr, CharLit, CharPrefix, Expr, Span, StrLit, Target, TyGenerics, WithSpan};
 use quote::quote;
 
 use super::{
@@ -69,11 +69,9 @@ impl<'a> Generator<'a, '_> {
             Expr::Array(ref elements) => self.visit_array(ctx, buf, elements)?,
             Expr::Attr(ref obj, ref attr) => self.visit_attr(ctx, buf, obj, attr)?,
             Expr::Index(ref obj, ref key) => self.visit_index(ctx, buf, obj, key)?,
-            Expr::Filter(Filter {
-                ref name,
-                ref arguments,
-                ref generics,
-            }) => self.visit_filter(ctx, buf, name, arguments, generics, expr.span())?,
+            Expr::Filter(ref v) => {
+                self.visit_filter(ctx, buf, &v.name, &v.arguments, &v.generics, expr.span())?
+            }
             Expr::Unary(op, ref inner) => self.visit_unary(ctx, buf, op, inner)?,
             Expr::BinOp(ref v) => self.visit_binop(ctx, buf, v.op, &v.lhs, &v.rhs)?,
             Expr::Range(ref v) => {

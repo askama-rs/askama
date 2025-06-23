@@ -70,36 +70,36 @@ fn test_parse_filter() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Identifier("e"),
                 arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
                 generics: vec![],
-            })),
+            }))),
         )],
     );
     assert_eq!(
         Ast::from_str("{{ 2|abs }}", None, &syntax).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(int_lit("2"))],
                 generics: vec![],
-            })),
+            }))),
         )],
     );
     assert_eq!(
         Ast::from_str("{{ -2|abs }}", None, &syntax).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(Expr::Unary(
                     "-",
                     WithSpan::no_span(int_lit("2")).into()
                 ))],
                 generics: vec![],
-            })),
+            }))),
         )],
     );
     assert_eq!(
@@ -108,7 +108,7 @@ fn test_parse_filter() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(Expr::Group(Box::new(bin_op(
                     "-",
@@ -116,7 +116,7 @@ fn test_parse_filter() {
                     WithSpan::no_span(int_lit("2")),
                 ))))],
                 generics: vec![],
-            })),
+            }))),
         )],
     );
 }
@@ -705,7 +705,7 @@ fn test_odd_calls() {
         Ast::from_str("{{ a(b)|c }}", None, &syntax).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Identifier("c"),
                 arguments: vec![call(
                     WithSpan::no_span(Expr::Var("a")),
@@ -713,14 +713,14 @@ fn test_odd_calls() {
                     vec![],
                 )],
                 generics: vec![],
-            }))
+            })))
         )]
     );
     assert_eq!(
         Ast::from_str("{{ a(b)| c }}", None, &syntax).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Identifier("c"),
                 arguments: vec![call(
                     WithSpan::no_span(Expr::Var("a")),
@@ -728,7 +728,7 @@ fn test_odd_calls() {
                     vec![],
                 )],
                 generics: vec![],
-            })),
+            }))),
         )]
     );
 }
@@ -875,24 +875,24 @@ fn test_parse_tuple() {
         Ast::from_str("{{ ()|abs }}", None, &syntax).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(Expr::Tuple(vec![]))],
                 generics: vec![],
-            })),
+            }))),
         )],
     );
     assert_eq!(
         Ast::from_str("{{ (1)|abs }}", None, &syntax).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(Expr::Group(Box::new(WithSpan::no_span(
                     int_lit("1")
                 ))))],
                 generics: vec![],
-            })),
+            }))),
         )],
     );
     assert_eq!(
@@ -901,13 +901,13 @@ fn test_parse_tuple() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(Expr::Tuple(vec![WithSpan::no_span(
                     int_lit("1")
                 )]))],
                 generics: vec![],
-            })),
+            }))),
         )],
     );
     assert_eq!(
@@ -916,14 +916,14 @@ fn test_parse_tuple() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
                 arguments: vec![WithSpan::no_span(Expr::Tuple(vec![
                     WithSpan::no_span(int_lit("1")),
                     WithSpan::no_span(int_lit("2"))
                 ]))],
                 generics: vec![],
-            })),
+            }))),
         )],
     );
 }
@@ -1013,22 +1013,22 @@ fn test_parse_array() {
         Ast::from_str("{{ []|foo }}", None, &syntax).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Identifier("foo"),
                 arguments: vec![WithSpan::no_span(Expr::Array(vec![]))],
                 generics: vec![],
-            }))
+            })))
         )],
     );
     assert_eq!(
         Ast::from_str("{{ []| foo }}", None, &syntax).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Identifier("foo"),
                 arguments: vec![WithSpan::no_span(Expr::Array(vec![]))],
                 generics: vec![],
-            }))
+            })))
         )],
     );
 
@@ -1333,11 +1333,11 @@ fn test_filter_with_path() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Path(vec!["", "e"]),
                 arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
                 generics: vec![],
-            })),
+            }))),
         )],
     );
     assert_eq!(
@@ -1346,11 +1346,11 @@ fn test_filter_with_path() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Path(vec!["", "e", "f"]),
                 arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
                 generics: vec![],
-            })),
+            }))),
         )],
     );
     assert_eq!(
@@ -1359,11 +1359,11 @@ fn test_filter_with_path() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Path(vec!["e", "f"]),
                 arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
                 generics: vec![],
-            })),
+            }))),
         )],
     );
     assert_eq!(
@@ -1372,11 +1372,11 @@ fn test_filter_with_path() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Filter {
+            WithSpan::no_span(Expr::Filter(Box::new(Filter {
                 name: PathOrIdentifier::Path(vec!["e", "f"]),
                 arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
                 generics: vec![],
-            })),
+            }))),
         )],
     );
     assert_eq!(

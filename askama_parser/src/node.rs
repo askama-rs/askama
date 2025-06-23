@@ -804,7 +804,7 @@ impl<'a> FilterBlock<'a> {
                 name: filter_name,
                 arguments: {
                     let mut args = args.unwrap_or_default();
-                    args.insert(0, WithSpan::new(Expr::Filter(filters), span));
+                    args.insert(0, WithSpan::new(Expr::Filter(Box::new(filters)), span));
                     args
                 },
                 generics,

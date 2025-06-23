@@ -165,7 +165,7 @@ pub enum Expr<'a> {
     Array(Vec<WithSpan<'a, Expr<'a>>>),
     Attr(Box<WithSpan<'a, Expr<'a>>>, Attr<'a>),
     Index(Box<WithSpan<'a, Expr<'a>>>, Box<WithSpan<'a, Expr<'a>>>),
-    Filter(Filter<'a>),
+    Filter(Box<Filter<'a>>),
     As(Box<WithSpan<'a, Expr<'a>>>, &'a str),
     NamedArgument(&'a str, Box<WithSpan<'a, Expr<'a>>>),
     Unary(&'a str, Box<WithSpan<'a, Expr<'a>>>),
@@ -487,11 +487,11 @@ impl<'a> Expr<'a> {
             arguments.insert(0, res);
 
             res = WithSpan::new(
-                Self::Filter(Filter {
+                Self::Filter(Box::new(Filter {
                     name,
                     arguments,
                     generics,
-                }),
+                })),
                 start,
             );
         }

@@ -8,7 +8,7 @@ use parser::node::{
     Call, Comment, Cond, CondTest, FilterBlock, If, Include, Let, Lit, Loop, Macro, Match,
     Whitespace, Ws,
 };
-use parser::{Expr, Filter, Node, Span, Target, WithSpan};
+use parser::{Expr, Node, Span, Target, WithSpan};
 use rustc_hash::FxBuildHasher;
 
 use super::{
@@ -1641,7 +1641,7 @@ fn is_cacheable(expr: &WithSpan<'_, Expr<'_>>) -> bool {
         Expr::Array(args) => args.iter().all(is_cacheable),
         Expr::Attr(lhs, _) => is_cacheable(lhs),
         Expr::Index(lhs, rhs) => is_cacheable(lhs) && is_cacheable(rhs),
-        Expr::Filter(Filter { arguments, .. }) => arguments.iter().all(is_cacheable),
+        Expr::Filter(v) => v.arguments.iter().all(is_cacheable),
         Expr::Unary(_, arg) => is_cacheable(arg),
         Expr::BinOp(v) => is_cacheable(&v.lhs) && is_cacheable(&v.rhs),
         Expr::IsDefined(_) | Expr::IsNotDefined(_) => true,
