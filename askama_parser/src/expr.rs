@@ -19,19 +19,29 @@ use crate::{
 macro_rules! expr_prec_layer {
     ( $name:ident, $inner:ident, $op:expr ) => {
         fn $name(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, WithSpan<'a, Self>> {
-            let mut level_guard = level.guard();
-            let start = *i;
-            let mut expr = Self::$inner(i, level)?;
-            let mut i_before = *i;
-            let mut right = opt((ws($op), |i: &mut _| Self::$inner(i, level)));
-            while let Some((op, right)) = right.parse_next(i)? {
-                level_guard.nest(i_before)?;
-                i_before = *i;
-                expr = WithSpan::new(Self::BinOp(op, Box::new(expr), Box::new(right)), start);
-            }
-            Ok(expr)
+            expr_prec_layer(i, level, Expr::$inner, |i: &mut _| $op.parse_next(i))
         }
     };
+}
+
+fn expr_prec_layer<'a>(
+    i: &mut &'a str,
+    level: Level<'_>,
+    inner: fn(&mut &'a str, Level<'_>) -> ParseResult<'a, WithSpan<'a, Expr<'a>>>,
+    op: fn(&mut &'a str) -> ParseResult<'a>,
+) -> ParseResult<'a, WithSpan<'a, Expr<'a>>> {
+    let start = *i;
+    let mut expr = inner(i, level)?;
+
+    let mut i_before = *i;
+    let mut level_guard = level.guard();
+    while let Some((op, rhs)) = opt((ws(op), |i: &mut _| inner(i, level))).parse_next(i)? {
+        level_guard.nest(i_before)?;
+        i_before = *i;
+        expr = WithSpan::new(Expr::BinOp(Box::new(BinOp { op, lhs: expr, rhs })), start);
+    }
+
+    Ok(expr)
 }
 
 #[derive(Clone, Copy, Default)]
@@ -83,9 +93,13 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> Result<(),
                 check_expr(elem, Allowed::default())
             }
         }
-        Expr::Index(elem1, elem2) | Expr::BinOp(_, elem1, elem2) => {
+        Expr::Index(elem1, elem2) => {
             check_expr(elem1, Allowed::default())?;
             check_expr(elem2, Allowed::default())
+        }
+        Expr::BinOp(v) => {
+            check_expr(&v.lhs, Allowed::default())?;
+            check_expr(&v.rhs, Allowed::default())
         }
         Expr::Range(_, elem1, elem2) => {
             if let Some(elem1) = elem1 {
@@ -155,11 +169,7 @@ pub enum Expr<'a> {
     As(Box<WithSpan<'a, Expr<'a>>>, &'a str),
     NamedArgument(&'a str, Box<WithSpan<'a, Expr<'a>>>),
     Unary(&'a str, Box<WithSpan<'a, Expr<'a>>>),
-    BinOp(
-        &'a str,
-        Box<WithSpan<'a, Expr<'a>>>,
-        Box<WithSpan<'a, Expr<'a>>>,
-    ),
+    BinOp(Box<BinOp<'a>>),
     Range(
         &'a str,
         Option<Box<WithSpan<'a, Expr<'a>>>>,
@@ -184,6 +194,13 @@ pub enum Expr<'a> {
     /// This variant should never be used directly.
     /// It is used for the handling of named arguments in the generator, esp. with filters.
     ArgumentPlaceholder,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct BinOp<'a> {
+    pub op: &'a str,
+    pub lhs: WithSpan<'a, Expr<'a>>,
+    pub rhs: WithSpan<'a, Expr<'a>>,
 }
 
 impl<'a> Expr<'a> {
@@ -320,7 +337,7 @@ impl<'a> Expr<'a> {
         let Some((op, rhs)) = opt(right).parse_next(i)? else {
             return Ok(expr);
         };
-        let expr = WithSpan::new(Self::BinOp(op, Box::new(expr), Box::new(rhs)), start);
+        let expr = WithSpan::new(Expr::BinOp(Box::new(BinOp { op, lhs: expr, rhs })), start);
 
         if let Some((op2, _)) = opt(right).parse_next(i)? {
             return Err(ErrMode::Cut(ErrorContext::new(
@@ -583,8 +600,8 @@ impl<'a> Expr<'a> {
         match self {
             Self::BoolLit(_) | Self::IsDefined(_) | Self::IsNotDefined(_) => true,
             Self::Unary(_, expr) | Self::Group(expr) => expr.contains_bool_lit_or_is_defined(),
-            Self::BinOp("&&" | "||", left, right) => {
-                left.contains_bool_lit_or_is_defined() || right.contains_bool_lit_or_is_defined()
+            Self::BinOp(v) if matches!(v.op, "&&" | "||") => {
+                v.lhs.contains_bool_lit_or_is_defined() || v.rhs.contains_bool_lit_or_is_defined()
             }
             Self::NumLit(_, _)
             | Self::StrLit(_)
@@ -602,7 +619,7 @@ impl<'a> Expr<'a> {
             | Self::Index(_, _)
             | Self::Tuple(_)
             | Self::Array(_)
-            | Self::BinOp(_, _, _)
+            | Self::BinOp(_)
             | Self::Path(_)
             | Self::Concat(_)
             | Self::LetCond(_)

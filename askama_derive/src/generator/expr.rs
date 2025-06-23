@@ -75,7 +75,7 @@ impl<'a> Generator<'a, '_> {
                 ref generics,
             }) => self.visit_filter(ctx, buf, name, arguments, generics, expr.span())?,
             Expr::Unary(op, ref inner) => self.visit_unary(ctx, buf, op, inner)?,
-            Expr::BinOp(op, ref left, ref right) => self.visit_binop(ctx, buf, op, left, right)?,
+            Expr::BinOp(ref v) => self.visit_binop(ctx, buf, v.op, &v.lhs, &v.rhs)?,
             Expr::Range(op, ref left, ref right) => {
                 self.visit_range(ctx, buf, op, left.as_deref(), right.as_deref())?
             }
@@ -113,9 +113,9 @@ impl<'a> Generator<'a, '_> {
         expr: &WithSpan<'a, Expr<'a>>,
     ) -> Result<DisplayWrap, CompileError> {
         match **expr {
-            Expr::BinOp(op @ ("||" | "&&"), ref left, _) => {
-                let ret = self.visit_expr(ctx, buf, left)?;
-                buf.write(format_args!(" {op} "));
+            Expr::BinOp(ref v) if matches!(v.op, "&&" | "||") => {
+                let ret = self.visit_expr(ctx, buf, &v.lhs)?;
+                buf.write(format_args!(" {} ", &v.op));
                 return Ok(ret);
             }
             Expr::Unary(op, ref inner) => {
@@ -135,8 +135,8 @@ impl<'a> Generator<'a, '_> {
         prev_display_wrap: DisplayWrap,
     ) -> Result<DisplayWrap, CompileError> {
         match **expr {
-            Expr::BinOp("||" | "&&", _, ref right) => {
-                self.visit_condition(ctx, buf, right)?;
+            Expr::BinOp(ref v) if matches!(v.op, "&&" | "||") => {
+                self.visit_condition(ctx, buf, &v.rhs)?;
                 Ok(DisplayWrap::Unwrapped)
             }
             Expr::Unary(_, ref inner) => {
@@ -160,10 +160,10 @@ impl<'a> Generator<'a, '_> {
                 buf.write('!');
                 self.visit_condition(ctx, buf, expr)?;
             }
-            Expr::BinOp(op @ ("&&" | "||"), left, right) => {
-                self.visit_condition(ctx, buf, left)?;
-                buf.write(format_args!(" {op} "));
-                self.visit_condition(ctx, buf, right)?;
+            Expr::BinOp(v) if matches!(v.op, "&&" | "||") => {
+                self.visit_condition(ctx, buf, &v.lhs)?;
+                buf.write(format_args!(" {} ", v.op));
+                self.visit_condition(ctx, buf, &v.rhs)?;
             }
             Expr::Group(expr) => {
                 buf.write('(');

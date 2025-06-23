@@ -581,9 +581,9 @@ fn is_copyable_within_op(expr: &Expr<'_>, within_op: bool) -> bool {
         | Expr::NumLit(_, _)
         | Expr::StrLit(_)
         | Expr::CharLit(_)
-        | Expr::BinOp(_, _, _) => true,
+        | Expr::BinOp(_)
+        | Expr::Range(..) => true,
         Expr::Unary(.., expr) => is_copyable_within_op(expr, true),
-        Expr::Range(..) => true,
         // The result of a call likely doesn't need to be borrowed,
         // as in that case the call is more likely to return a
         // reference in the first place then.

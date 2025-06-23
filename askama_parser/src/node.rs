@@ -423,13 +423,13 @@ impl<'a> CondTest<'a> {
             ws(|i: &mut _| {
                 let start = *i;
                 let mut expr = Expr::parse(i, s.level, false)?;
-                if let Expr::BinOp(_, _, ref mut right) = expr.inner {
-                    if matches!(right.inner, Expr::Var("set" | "let")) {
+                if let Expr::BinOp(v) = &mut expr.inner {
+                    if matches!(v.rhs.inner, Expr::Var("set" | "let")) {
                         let _level_guard = s.level.nest(i)?;
-                        *i = right.span.as_suffix_of(start).unwrap();
+                        *i = v.rhs.span.as_suffix_of(start).unwrap();
                         let start_span = Span::from(*i);
                         let new_right = Self::parse_cond(i, s)?;
-                        right.inner = Expr::LetCond(Box::new(WithSpan::new(new_right, start_span)));
+                        v.rhs.inner = Expr::LetCond(Box::new(WithSpan::new(new_right, start_span)));
                     }
                 }
                 Ok(expr)

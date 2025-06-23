@@ -41,6 +41,14 @@ fn int_lit(i: &str) -> Expr<'_> {
     Expr::NumLit(i, Num::Int(i, None))
 }
 
+fn bin_op<'a>(
+    op: &'a str,
+    lhs: WithSpan<'a, Expr<'a>>,
+    rhs: WithSpan<'a, Expr<'a>>,
+) -> WithSpan<'a, Expr<'a>> {
+    WithSpan::new_without_span(Expr::BinOp(Box::new(crate::expr::BinOp { op, lhs, rhs })))
+}
+
 #[test]
 fn test_parse_filter() {
     let syntax = Syntax::default();
@@ -90,14 +98,11 @@ fn test_parse_filter() {
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
-                arguments: vec![WithSpan::no_span(Expr::Group(
-                    WithSpan::no_span(Expr::BinOp(
-                        "-",
-                        WithSpan::no_span(int_lit("1")).into(),
-                        WithSpan::no_span(int_lit("2")).into()
-                    ))
-                    .into()
-                ))],
+                arguments: vec![WithSpan::no_span(Expr::Group(Box::new(bin_op(
+                    "-",
+                    WithSpan::no_span(int_lit("1")),
+                    WithSpan::no_span(int_lit("2")),
+                ))))],
                 generics: vec![],
             })),
         )],
@@ -445,16 +450,15 @@ fn test_precedence() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::BinOp(
+            bin_op(
                 "==",
-                WithSpan::no_span(Expr::BinOp(
+                bin_op(
                     "+",
-                    WithSpan::no_span(Expr::Var("a")).into(),
-                    WithSpan::no_span(Expr::Var("b")).into()
-                ))
-                .into(),
-                WithSpan::no_span(Expr::Var("c")).into()
-            ))
+                    WithSpan::no_span(Expr::Var("a")),
+                    WithSpan::no_span(Expr::Var("b"))
+                ),
+                WithSpan::no_span(Expr::Var("c"))
+            )
         )],
     );
     assert_eq!(
@@ -463,26 +467,23 @@ fn test_precedence() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::BinOp(
+            bin_op(
                 "-",
-                WithSpan::no_span(Expr::BinOp(
+                bin_op(
                     "+",
-                    WithSpan::no_span(Expr::Var("a")).into(),
-                    WithSpan::no_span(Expr::BinOp(
+                    WithSpan::no_span(Expr::Var("a")),
+                    bin_op(
                         "*",
-                        WithSpan::no_span(Expr::Var("b")).into(),
-                        WithSpan::no_span(Expr::Var("c")).into()
-                    ))
-                    .into()
-                ))
-                .into(),
-                WithSpan::no_span(Expr::BinOp(
+                        WithSpan::no_span(Expr::Var("b")),
+                        WithSpan::no_span(Expr::Var("c"))
+                    )
+                ),
+                bin_op(
                     "/",
-                    WithSpan::no_span(Expr::Var("d")).into(),
-                    WithSpan::no_span(Expr::Var("e")).into()
-                ))
-                .into(),
-            ))
+                    WithSpan::no_span(Expr::Var("d")),
+                    WithSpan::no_span(Expr::Var("e"))
+                ),
+            )
         )],
     );
     assert_eq!(
@@ -491,24 +492,22 @@ fn test_precedence() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::BinOp(
+            bin_op(
                 "/",
-                Box::new(WithSpan::no_span(Expr::BinOp(
+                bin_op(
                     "*",
-                    Box::new(WithSpan::no_span(Expr::Var("a"))),
-                    Box::new(WithSpan::no_span(Expr::Group(Box::new(WithSpan::no_span(
-                        Expr::BinOp(
-                            "+",
-                            Box::new(WithSpan::no_span(Expr::Var("b"))),
-                            Box::new(WithSpan::no_span(Expr::Var("c")))
-                        )
-                    )))))
-                ))),
-                Box::new(WithSpan::no_span(Expr::Unary(
+                    WithSpan::no_span(Expr::Var("a")),
+                    WithSpan::no_span(Expr::Group(Box::new(bin_op(
+                        "+",
+                        WithSpan::no_span(Expr::Var("b")),
+                        WithSpan::no_span(Expr::Var("c"))
+                    ))))
+                ),
+                WithSpan::no_span(Expr::Unary(
                     "-",
                     Box::new(WithSpan::no_span(Expr::Var("d")))
-                )))
-            ))
+                ))
+            )
         )],
     );
     assert_eq!(
@@ -517,23 +516,23 @@ fn test_precedence() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::BinOp(
+            bin_op(
                 "||",
-                Box::new(WithSpan::no_span(Expr::BinOp(
+                bin_op(
                     "||",
-                    Box::new(WithSpan::no_span(Expr::Var("a"))),
-                    Box::new(WithSpan::no_span(Expr::BinOp(
+                    WithSpan::no_span(Expr::Var("a")),
+                    bin_op(
                         "&&",
-                        Box::new(WithSpan::no_span(Expr::Var("b"))),
-                        Box::new(WithSpan::no_span(Expr::Var("c")))
-                    ))),
-                ))),
-                Box::new(WithSpan::no_span(Expr::BinOp(
+                        WithSpan::no_span(Expr::Var("b")),
+                        WithSpan::no_span(Expr::Var("c"))
+                    ),
+                ),
+                bin_op(
                     "&&",
-                    Box::new(WithSpan::no_span(Expr::Var("d"))),
-                    Box::new(WithSpan::no_span(Expr::Var("e")))
-                ))),
-            ))
+                    WithSpan::no_span(Expr::Var("d")),
+                    WithSpan::no_span(Expr::Var("e"))
+                ),
+            )
         )],
     );
 }
@@ -547,15 +546,15 @@ fn test_associativity() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::BinOp(
+            bin_op(
                 "+",
-                Box::new(WithSpan::no_span(Expr::BinOp(
+                bin_op(
                     "+",
-                    Box::new(WithSpan::no_span(Expr::Var("a"))),
-                    Box::new(WithSpan::no_span(Expr::Var("b")))
-                ))),
-                Box::new(WithSpan::no_span(Expr::Var("c")))
-            ))
+                    WithSpan::no_span(Expr::Var("a")),
+                    WithSpan::no_span(Expr::Var("b"))
+                ),
+                WithSpan::no_span(Expr::Var("c"))
+            )
         )],
     );
     assert_eq!(
@@ -564,15 +563,15 @@ fn test_associativity() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::BinOp(
+            bin_op(
                 "*",
-                Box::new(WithSpan::no_span(Expr::BinOp(
+                bin_op(
                     "*",
-                    Box::new(WithSpan::no_span(Expr::Var("a"))),
-                    Box::new(WithSpan::no_span(Expr::Var("b")))
-                ))),
-                Box::new(WithSpan::no_span(Expr::Var("c")))
-            ))
+                    WithSpan::no_span(Expr::Var("a")),
+                    WithSpan::no_span(Expr::Var("b"))
+                ),
+                WithSpan::no_span(Expr::Var("c"))
+            )
         )],
     );
     assert_eq!(
@@ -581,15 +580,15 @@ fn test_associativity() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::BinOp(
+            bin_op(
                 "&&",
-                Box::new(WithSpan::no_span(Expr::BinOp(
+                bin_op(
                     "&&",
-                    Box::new(WithSpan::no_span(Expr::Var("a"))),
-                    Box::new(WithSpan::no_span(Expr::Var("b")))
-                ))),
-                Box::new(WithSpan::no_span(Expr::Var("c")))
-            ))
+                    WithSpan::no_span(Expr::Var("a")),
+                    WithSpan::no_span(Expr::Var("b"))
+                ),
+                WithSpan::no_span(Expr::Var("c"))
+            )
         )],
     );
     assert_eq!(
@@ -598,19 +597,19 @@ fn test_associativity() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::BinOp(
+            bin_op(
                 "+",
-                Box::new(WithSpan::no_span(Expr::BinOp(
+                bin_op(
                     "-",
-                    Box::new(WithSpan::no_span(Expr::BinOp(
+                    bin_op(
                         "+",
-                        Box::new(WithSpan::no_span(Expr::Var("a"))),
-                        Box::new(WithSpan::no_span(Expr::Var("b")))
-                    ))),
-                    Box::new(WithSpan::no_span(Expr::Var("c")))
-                ))),
-                Box::new(WithSpan::no_span(Expr::Var("d")))
-            ))
+                        WithSpan::no_span(Expr::Var("a")),
+                        WithSpan::no_span(Expr::Var("b"))
+                    ),
+                    WithSpan::no_span(Expr::Var("c"))
+                ),
+                WithSpan::no_span(Expr::Var("d"))
+            )
         )],
     );
 }
@@ -639,12 +638,10 @@ fn test_odd_calls() {
         vec![Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Expr::Call {
-                path: Box::new(WithSpan::no_span(Expr::Group(Box::new(WithSpan::no_span(
-                    Expr::BinOp(
-                        "+",
-                        Box::new(WithSpan::no_span(Expr::Var("a"))),
-                        Box::new(WithSpan::no_span(Expr::Var("b")))
-                    )
+                path: Box::new(WithSpan::no_span(Expr::Group(Box::new(bin_op(
+                    "+",
+                    WithSpan::no_span(Expr::Var("a")),
+                    WithSpan::no_span(Expr::Var("b"))
                 ))))),
                 args: vec![WithSpan::no_span(Expr::Var("c"))],
                 generics: vec![],
@@ -657,15 +654,15 @@ fn test_odd_calls() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::BinOp(
+            bin_op(
                 "+",
-                Box::new(WithSpan::no_span(Expr::Var("a"))),
-                Box::new(WithSpan::no_span(Expr::Call {
+                WithSpan::no_span(Expr::Var("a")),
+                WithSpan::no_span(Expr::Call {
                     path: Box::new(WithSpan::no_span(Expr::Var("b"))),
                     args: vec![WithSpan::no_span(Expr::Var("c"))],
                     generics: vec![],
-                })),
-            )),
+                }),
+            ),
         )],
     );
     assert_eq!(

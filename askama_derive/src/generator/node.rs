@@ -3,6 +3,7 @@ use std::collections::hash_map::{Entry, HashMap};
 use std::fmt::{self, Debug, Write};
 use std::mem;
 
+use parser::expr::BinOp;
 use parser::node::{
     Call, Comment, Cond, CondTest, FilterBlock, If, Include, Let, Lit, Loop, Macro, Match,
     Whitespace, Ws,
@@ -232,15 +233,15 @@ impl<'a> Generator<'a, '_> {
                 }
             }
             Expr::Unary(_, _) => (EvaluatedResult::Unknown, WithSpan::new(expr, span)),
-            Expr::BinOp("&&", left, right) => {
+            Expr::BinOp(v) if v.op == "&&" => {
                 let (result_left, expr_left) =
-                    self.evaluate_condition(*left, only_contains_is_defined);
+                    self.evaluate_condition(v.lhs, only_contains_is_defined);
                 if result_left == EvaluatedResult::AlwaysFalse {
                     // The right side of the `&&` won't be evaluated, no need to go any further.
                     return (result_left, WithSpan::new(Expr::BoolLit(false), ""));
                 }
                 let (result_right, expr_right) =
-                    self.evaluate_condition(*right, only_contains_is_defined);
+                    self.evaluate_condition(v.rhs, only_contains_is_defined);
                 match (result_left, result_right) {
                     (EvaluatedResult::AlwaysTrue, EvaluatedResult::AlwaysTrue) => (
                         EvaluatedResult::AlwaysTrue,
@@ -248,31 +249,25 @@ impl<'a> Generator<'a, '_> {
                     ),
                     (_, EvaluatedResult::AlwaysFalse) => (
                         EvaluatedResult::AlwaysFalse,
-                        WithSpan::new(
-                            Expr::BinOp("&&", Box::new(expr_left), Box::new(expr_right)),
-                            span,
-                        ),
+                        bin_op(span, "&&", expr_left, expr_right),
                     ),
                     (EvaluatedResult::AlwaysTrue, _) => (result_right, expr_right),
                     (_, EvaluatedResult::AlwaysTrue) => (result_left, expr_left),
                     _ => (
                         EvaluatedResult::Unknown,
-                        WithSpan::new(
-                            Expr::BinOp("&&", Box::new(expr_left), Box::new(expr_right)),
-                            span,
-                        ),
+                        bin_op(span, "&&", expr_left, expr_right),
                     ),
                 }
             }
-            Expr::BinOp("||", left, right) => {
+            Expr::BinOp(v) if v.op == "||" => {
                 let (result_left, expr_left) =
-                    self.evaluate_condition(*left, only_contains_is_defined);
+                    self.evaluate_condition(v.lhs, only_contains_is_defined);
                 if result_left == EvaluatedResult::AlwaysTrue {
                     // The right side of the `||` won't be evaluated, no need to go any further.
                     return (result_left, WithSpan::new(Expr::BoolLit(true), ""));
                 }
                 let (result_right, expr_right) =
-                    self.evaluate_condition(*right, only_contains_is_defined);
+                    self.evaluate_condition(v.rhs, only_contains_is_defined);
                 match (result_left, result_right) {
                     (EvaluatedResult::AlwaysFalse, EvaluatedResult::AlwaysFalse) => (
                         EvaluatedResult::AlwaysFalse,
@@ -280,23 +275,17 @@ impl<'a> Generator<'a, '_> {
                     ),
                     (_, EvaluatedResult::AlwaysTrue) => (
                         EvaluatedResult::AlwaysTrue,
-                        WithSpan::new(
-                            Expr::BinOp("||", Box::new(expr_left), Box::new(expr_right)),
-                            span,
-                        ),
+                        bin_op(span, "||", expr_left, expr_right),
                     ),
                     (EvaluatedResult::AlwaysFalse, _) => (result_right, expr_right),
                     (_, EvaluatedResult::AlwaysFalse) => (result_left, expr_left),
                     _ => (
                         EvaluatedResult::Unknown,
-                        WithSpan::new(
-                            Expr::BinOp("||", Box::new(expr_left), Box::new(expr_right)),
-                            span,
-                        ),
+                        bin_op(span, "||", expr_left, expr_right),
                     ),
                 }
             }
-            Expr::BinOp(_, _, _) => {
+            Expr::BinOp(_) => {
                 *only_contains_is_defined = false;
                 (EvaluatedResult::Unknown, WithSpan::new(expr, span))
             }
@@ -386,14 +375,18 @@ impl<'a> Generator<'a, '_> {
                         // left expression has been handled but before the right expression is handled
                         // but this one should have access to the let-bound variable.
                         match &**expr {
-                            Expr::BinOp(op @ ("||" | "&&"), ref left, ref right) => {
+                            Expr::BinOp(v) if matches!(v.op, "||" | "&&") => {
                                 let display_wrap =
-                                    this.visit_expr_first(ctx, &mut expr_buf, left)?;
+                                    this.visit_expr_first(ctx, &mut expr_buf, &v.lhs)?;
                                 this.visit_target(buf, true, true, target);
-                                this.visit_expr_not_first(ctx, &mut expr_buf, left, display_wrap)?;
-                                buf.write(format_args!("= &{expr_buf}"));
-                                buf.write(format_args!(" {op} "));
-                                this.visit_condition(ctx, buf, right)?;
+                                this.visit_expr_not_first(
+                                    ctx,
+                                    &mut expr_buf,
+                                    &v.lhs,
+                                    display_wrap,
+                                )?;
+                                buf.write(format_args!("= &{expr_buf} {} ", v.op));
+                                this.visit_condition(ctx, buf, &v.rhs)?;
                             }
                             _ => {
                                 let display_wrap =
@@ -1392,6 +1385,15 @@ impl<'a> Generator<'a, '_> {
     }
 }
 
+fn bin_op<'a>(
+    span: impl Into<Span<'a>>,
+    op: &'a str,
+    lhs: WithSpan<'a, Expr<'a>>,
+    rhs: WithSpan<'a, Expr<'a>>,
+) -> WithSpan<'a, Expr<'a>> {
+    WithSpan::new(Expr::BinOp(Box::new(BinOp { op, lhs, rhs })), span)
+}
+
 struct CondInfo<'a> {
     cond: &'a WithSpan<'a, Cond<'a>>,
     cond_expr: Option<WithSpan<'a, Expr<'a>>>,
@@ -1645,7 +1647,7 @@ fn is_cacheable(expr: &WithSpan<'_, Expr<'_>>) -> bool {
         Expr::Index(lhs, rhs) => is_cacheable(lhs) && is_cacheable(rhs),
         Expr::Filter(Filter { arguments, .. }) => arguments.iter().all(is_cacheable),
         Expr::Unary(_, arg) => is_cacheable(arg),
-        Expr::BinOp(_, lhs, rhs) => is_cacheable(lhs) && is_cacheable(rhs),
+        Expr::BinOp(v) => is_cacheable(&v.lhs) && is_cacheable(&v.rhs),
         Expr::IsDefined(_) | Expr::IsNotDefined(_) => true,
         Expr::Range(_, lhs, rhs) => {
             lhs.as_ref().is_none_or(|v| is_cacheable(v))
