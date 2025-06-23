@@ -76,8 +76,8 @@ impl<'a> Generator<'a, '_> {
             }) => self.visit_filter(ctx, buf, name, arguments, generics, expr.span())?,
             Expr::Unary(op, ref inner) => self.visit_unary(ctx, buf, op, inner)?,
             Expr::BinOp(ref v) => self.visit_binop(ctx, buf, v.op, &v.lhs, &v.rhs)?,
-            Expr::Range(op, ref left, ref right) => {
-                self.visit_range(ctx, buf, op, left.as_deref(), right.as_deref())?
+            Expr::Range(ref v) => {
+                self.visit_range(ctx, buf, v.op, v.lhs.as_ref(), v.rhs.as_ref())?
             }
             Expr::Group(ref inner) => self.visit_group(ctx, buf, inner)?,
             Expr::Call {

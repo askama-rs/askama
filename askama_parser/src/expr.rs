@@ -101,11 +101,11 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> Result<(),
             check_expr(&v.lhs, Allowed::default())?;
             check_expr(&v.rhs, Allowed::default())
         }
-        Expr::Range(_, elem1, elem2) => {
-            if let Some(elem1) = elem1 {
+        Expr::Range(v) => {
+            if let Some(elem1) = v.lhs.as_ref() {
                 check_expr(elem1, Allowed::default())?;
             }
-            if let Some(elem2) = elem2 {
+            if let Some(elem2) = v.rhs.as_ref() {
                 check_expr(elem2, Allowed::default())?;
             }
             Ok(())
@@ -170,11 +170,7 @@ pub enum Expr<'a> {
     NamedArgument(&'a str, Box<WithSpan<'a, Expr<'a>>>),
     Unary(&'a str, Box<WithSpan<'a, Expr<'a>>>),
     BinOp(Box<BinOp<'a>>),
-    Range(
-        &'a str,
-        Option<Box<WithSpan<'a, Expr<'a>>>>,
-        Option<Box<WithSpan<'a, Expr<'a>>>>,
-    ),
+    Range(Box<Range<'a>>),
     Group(Box<WithSpan<'a, Expr<'a>>>),
     Tuple(Vec<WithSpan<'a, Expr<'a>>>),
     Call {
@@ -194,6 +190,13 @@ pub enum Expr<'a> {
     /// This variant should never be used directly.
     /// It is used for the handling of named arguments in the generator, esp. with filters.
     ArgumentPlaceholder,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Range<'a> {
+    pub op: &'a str,
+    pub lhs: Option<WithSpan<'a, Expr<'a>>>,
+    pub rhs: Option<WithSpan<'a, Expr<'a>>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -300,12 +303,23 @@ impl<'a> Expr<'a> {
         };
         let expr = alt((
             range_right.map(move |(op, right)| {
-                WithSpan::new(Self::Range(op, None, right.map(Box::new)), start)
+                WithSpan::new(
+                    Self::Range(Box::new(Range {
+                        op,
+                        lhs: None,
+                        rhs: right,
+                    })),
+                    start,
+                )
             }),
             (move |i: &mut _| Self::or(i, level), opt(range_right)).map(move |(left, right)| {
                 match right {
                     Some((op, right)) => WithSpan::new(
-                        Self::Range(op, Some(Box::new(left)), right.map(Box::new)),
+                        Self::Range(Box::new(Range {
+                            op,
+                            lhs: Some(left),
+                            rhs: right,
+                        })),
                         start,
                     ),
                     None => left,
@@ -611,7 +625,7 @@ impl<'a> Expr<'a> {
             | Self::RustMacro(_, _)
             | Self::As(_, _)
             | Self::Call { .. }
-            | Self::Range(_, _, _)
+            | Self::Range(_)
             | Self::Try(_)
             | Self::NamedArgument(_, _)
             | Self::Filter(_)

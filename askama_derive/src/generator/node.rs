@@ -199,7 +199,7 @@ impl<'a> Generator<'a, '_> {
             | Expr::Attr(_, _)
             | Expr::Index(_, _)
             | Expr::Filter(_)
-            | Expr::Range(_, _, _)
+            | Expr::Range(_)
             | Expr::Call { .. }
             | Expr::RustMacro(_, _)
             | Expr::Try(_)
@@ -1649,9 +1649,8 @@ fn is_cacheable(expr: &WithSpan<'_, Expr<'_>>) -> bool {
         Expr::Unary(_, arg) => is_cacheable(arg),
         Expr::BinOp(v) => is_cacheable(&v.lhs) && is_cacheable(&v.rhs),
         Expr::IsDefined(_) | Expr::IsNotDefined(_) => true,
-        Expr::Range(_, lhs, rhs) => {
-            lhs.as_ref().is_none_or(|v| is_cacheable(v))
-                && rhs.as_ref().is_none_or(|v| is_cacheable(v))
+        Expr::Range(v) => {
+            v.lhs.as_ref().is_none_or(is_cacheable) && v.rhs.as_ref().is_none_or(is_cacheable)
         }
         Expr::Group(arg) => is_cacheable(arg),
         Expr::Tuple(args) => args.iter().all(is_cacheable),
