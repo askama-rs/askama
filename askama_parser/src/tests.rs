@@ -3,7 +3,7 @@ use winnow::Parser;
 use crate::node::{Lit, Raw, Whitespace, Ws};
 use crate::{
     Ast, Expr, Filter, InnerSyntax, Node, Num, PathOrIdentifier, Span, StrLit, Syntax,
-    SyntaxBuilder, WithSpan,
+    SyntaxBuilder, TyGenerics, WithSpan,
 };
 
 impl<T> WithSpan<'static, T> {
@@ -47,6 +47,18 @@ fn bin_op<'a>(
     rhs: WithSpan<'a, Expr<'a>>,
 ) -> WithSpan<'a, Expr<'a>> {
     WithSpan::new_without_span(Expr::BinOp(Box::new(crate::expr::BinOp { op, lhs, rhs })))
+}
+
+fn call<'a>(
+    path: WithSpan<'a, Expr<'a>>,
+    args: Vec<WithSpan<'a, Expr<'a>>>,
+    generics: Vec<WithSpan<'a, TyGenerics<'a>>>,
+) -> WithSpan<'a, Expr<'a>> {
+    WithSpan::new_without_span(Expr::Call(Box::new(crate::expr::Call {
+        path,
+        args,
+        generics,
+    })))
 }
 
 #[test]
@@ -196,11 +208,11 @@ fn test_parse_path() {
         Ast::from_str("{{ Some(123) }}", None, &s).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Call {
-                path: Box::new(WithSpan::no_span(Expr::Path(vec!["Some"]))),
-                args: vec![WithSpan::no_span(int_lit("123"))],
-                generics: vec![],
-            }),
+            call(
+                WithSpan::no_span(Expr::Path(vec!["Some"])),
+                vec![WithSpan::no_span(int_lit("123"))],
+                vec![],
+            ),
         )],
     );
 
@@ -208,22 +220,22 @@ fn test_parse_path() {
         Ast::from_str("{{ Ok(123) }}", None, &s).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Call {
-                path: Box::new(WithSpan::no_span(Expr::Path(vec!["Ok"]))),
-                args: vec![WithSpan::no_span(int_lit("123"))],
-                generics: vec![],
-            }),
+            call(
+                WithSpan::no_span(Expr::Path(vec!["Ok"])),
+                vec![WithSpan::no_span(int_lit("123"))],
+                vec![],
+            ),
         )],
     );
     assert_eq!(
         Ast::from_str("{{ Err(123) }}", None, &s).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Call {
-                path: Box::new(WithSpan::no_span(Expr::Path(vec!["Err"]))),
-                args: vec![WithSpan::no_span(int_lit("123"))],
-                generics: vec![],
-            }),
+            call(
+                WithSpan::no_span(Expr::Path(vec!["Err"])),
+                vec![WithSpan::no_span(int_lit("123"))],
+                vec![],
+            ),
         )],
     );
 }
@@ -236,9 +248,9 @@ fn test_parse_var_call() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Call {
-                path: Box::new(WithSpan::no_span(Expr::Var("function"))),
-                args: vec![
+            call(
+                WithSpan::no_span(Expr::Var("function")),
+                vec![
                     WithSpan::no_span(Expr::StrLit(StrLit {
                         content: "123",
                         prefix: None,
@@ -249,8 +261,8 @@ fn test_parse_var_call() {
                     })),
                     WithSpan::no_span(int_lit("3"))
                 ],
-                generics: vec![],
-            }),
+                vec![],
+            ),
         )],
     );
 }
@@ -272,11 +284,11 @@ fn test_parse_path_call() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Call {
-                path: Box::new(WithSpan::no_span(Expr::Path(vec!["Option", "Some"]))),
-                args: vec![WithSpan::no_span(int_lit("123"))],
-                generics: vec![],
-            })
+            call(
+                WithSpan::no_span(Expr::Path(vec!["Option", "Some"])),
+                vec![WithSpan::no_span(int_lit("123"))],
+                vec![],
+            )
         )],
     );
 
@@ -286,9 +298,9 @@ fn test_parse_path_call() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Call {
-                path: Box::new(WithSpan::no_span(Expr::Path(vec!["self", "function"]))),
-                args: vec![
+            call(
+                WithSpan::no_span(Expr::Path(vec!["self", "function"])),
+                vec![
                     WithSpan::no_span(Expr::StrLit(StrLit {
                         content: "123",
                         prefix: None,
@@ -299,8 +311,8 @@ fn test_parse_path_call() {
                     })),
                     WithSpan::no_span(int_lit("3"))
                 ],
-                generics: vec![],
-            })
+                vec![],
+            )
         )],
     );
 }
@@ -314,13 +326,11 @@ fn test_parse_root_path() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Call {
-                path: Box::new(WithSpan::no_span(Expr::Path(vec![
-                    "std", "string", "String", "new"
-                ]))),
-                args: vec![],
-                generics: vec![],
-            }),
+            call(
+                WithSpan::no_span(Expr::Path(vec!["std", "string", "String", "new"])),
+                vec![],
+                vec![],
+            ),
         )],
     );
     assert_eq!(
@@ -329,13 +339,11 @@ fn test_parse_root_path() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Call {
-                path: Box::new(WithSpan::no_span(Expr::Path(vec![
-                    "", "std", "string", "String", "new"
-                ]))),
-                args: vec![],
-                generics: vec![],
-            }),
+            call(
+                WithSpan::no_span(Expr::Path(vec!["", "std", "string", "String", "new"])),
+                vec![],
+                vec![],
+            ),
         )],
     );
 }
@@ -621,14 +629,14 @@ fn test_odd_calls() {
         Ast::from_str("{{ a[b](c) }}", None, &syntax).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Call {
-                path: Box::new(WithSpan::no_span(Expr::Index(
+            call(
+                WithSpan::no_span(Expr::Index(
                     Box::new(WithSpan::no_span(Expr::Var("a"))),
                     Box::new(WithSpan::no_span(Expr::Var("b")))
-                ))),
-                args: vec![WithSpan::no_span(Expr::Var("c"))],
-                generics: vec![],
-            })
+                )),
+                vec![WithSpan::no_span(Expr::Var("c"))],
+                vec![],
+            )
         )],
     );
     assert_eq!(
@@ -637,15 +645,15 @@ fn test_odd_calls() {
             .nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Call {
-                path: Box::new(WithSpan::no_span(Expr::Group(Box::new(bin_op(
+            call(
+                WithSpan::no_span(Expr::Group(Box::new(bin_op(
                     "+",
                     WithSpan::no_span(Expr::Var("a")),
                     WithSpan::no_span(Expr::Var("b"))
-                ))))),
-                args: vec![WithSpan::no_span(Expr::Var("c"))],
-                generics: vec![],
-            })
+                )))),
+                vec![WithSpan::no_span(Expr::Var("c"))],
+                vec![],
+            )
         )],
     );
     assert_eq!(
@@ -657,11 +665,11 @@ fn test_odd_calls() {
             bin_op(
                 "+",
                 WithSpan::no_span(Expr::Var("a")),
-                WithSpan::no_span(Expr::Call {
-                    path: Box::new(WithSpan::no_span(Expr::Var("b"))),
-                    args: vec![WithSpan::no_span(Expr::Var("c"))],
-                    generics: vec![],
-                }),
+                call(
+                    WithSpan::no_span(Expr::Var("b")),
+                    vec![WithSpan::no_span(Expr::Var("c"))],
+                    vec![],
+                ),
             ),
         )],
     );
@@ -669,13 +677,14 @@ fn test_odd_calls() {
         Ast::from_str("{{ (-a)(b) }}", None, &syntax).unwrap().nodes,
         vec![Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Call {
-                path: Box::new(WithSpan::no_span(Expr::Group(Box::new(WithSpan::no_span(
-                    Expr::Unary("-", Box::new(WithSpan::no_span(Expr::Var("a"))))
+            call(
+                WithSpan::no_span(Expr::Group(Box::new(WithSpan::no_span(Expr::Unary(
+                    "-",
+                    Box::new(WithSpan::no_span(Expr::Var("a")))
                 ))))),
-                args: vec![WithSpan::no_span(Expr::Var("b"))],
-                generics: vec![],
-            })
+                vec![WithSpan::no_span(Expr::Var("b"))],
+                vec![],
+            )
         )],
     );
     assert_eq!(
@@ -684,11 +693,11 @@ fn test_odd_calls() {
             Ws(None, None),
             WithSpan::no_span(Expr::Unary(
                 "-",
-                Box::new(WithSpan::no_span(Expr::Call {
-                    path: Box::new(WithSpan::no_span(Expr::Var("a"))),
-                    args: vec![WithSpan::no_span(Expr::Var("b"))],
-                    generics: vec![],
-                }))
+                Box::new(call(
+                    WithSpan::no_span(Expr::Var("a")),
+                    vec![WithSpan::no_span(Expr::Var("b"))],
+                    vec![],
+                ))
             ))
         )],
     );
@@ -698,11 +707,11 @@ fn test_odd_calls() {
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("c"),
-                arguments: vec![WithSpan::no_span(Expr::Call {
-                    path: Box::new(WithSpan::no_span(Expr::Var("a"))),
-                    args: vec![WithSpan::no_span(Expr::Var("b"))],
-                    generics: vec![],
-                })],
+                arguments: vec![call(
+                    WithSpan::no_span(Expr::Var("a")),
+                    vec![WithSpan::no_span(Expr::Var("b"))],
+                    vec![],
+                )],
                 generics: vec![],
             }))
         )]
@@ -713,11 +722,11 @@ fn test_odd_calls() {
             Ws(None, None),
             WithSpan::no_span(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("c"),
-                arguments: vec![WithSpan::no_span(Expr::Call {
-                    path: Box::new(WithSpan::no_span(Expr::Var("a"))),
-                    args: vec![WithSpan::no_span(Expr::Var("b"))],
-                    generics: vec![],
-                })],
+                arguments: vec![call(
+                    WithSpan::no_span(Expr::Var("a")),
+                    vec![WithSpan::no_span(Expr::Var("b"))],
+                    vec![],
+                )],
                 generics: vec![],
             })),
         )]

@@ -113,15 +113,15 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> Result<(),
         Expr::As(elem, _) | Expr::Unary(_, elem) | Expr::Group(elem) => {
             check_expr(elem, Allowed::default())
         }
-        Expr::Call { path, args, .. } => {
+        Expr::Call(v) => {
             check_expr(
-                path,
+                &v.path,
                 Allowed {
                     underscore: false,
                     super_keyword: true,
                 },
             )?;
-            for arg in args {
+            for arg in &v.args {
                 check_expr(arg, Allowed::default())?;
             }
             Ok(())
@@ -173,11 +173,7 @@ pub enum Expr<'a> {
     Range(Box<Range<'a>>),
     Group(Box<WithSpan<'a, Expr<'a>>>),
     Tuple(Vec<WithSpan<'a, Expr<'a>>>),
-    Call {
-        path: Box<WithSpan<'a, Expr<'a>>>,
-        args: Vec<WithSpan<'a, Expr<'a>>>,
-        generics: Vec<WithSpan<'a, TyGenerics<'a>>>,
-    },
+    Call(Box<Call<'a>>),
     RustMacro(Vec<&'a str>, &'a str),
     Try(Box<WithSpan<'a, Expr<'a>>>),
     /// This variant should never be used directly. It is created when generating filter blocks.
@@ -190,6 +186,13 @@ pub enum Expr<'a> {
     /// This variant should never be used directly.
     /// It is used for the handling of named arguments in the generator, esp. with filters.
     ArgumentPlaceholder,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Call<'a> {
+    pub path: WithSpan<'a, Expr<'a>>,
+    pub args: Vec<WithSpan<'a, Expr<'a>>>,
+    pub generics: Vec<WithSpan<'a, TyGenerics<'a>>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -719,11 +722,11 @@ impl<'a> Suffix<'a> {
                 }
                 Self::Call { args, generics } => {
                     expr = WithSpan::new(
-                        Expr::Call {
-                            path: expr.into(),
+                        Expr::Call(Box::new(Call {
+                            path: expr,
                             args,
                             generics,
-                        },
+                        })),
                         before_suffix,
                     )
                 }

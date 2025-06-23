@@ -1084,12 +1084,7 @@ impl<'a> Generator<'a, '_> {
         ws: Ws,
         s: &'a WithSpan<'a, Expr<'a>>,
     ) -> Result<usize, CompileError> {
-        if let Expr::Call {
-            ref path,
-            args: expr_args,
-            ..
-        } = &**s
-        {
+        if let Expr::Call(v) = &**s {
             fn check_num_args<'a>(
                 s: &'a WithSpan<'a, Expr<'a>>,
                 ctx: &Context<'a>,
@@ -1109,10 +1104,11 @@ impl<'a> Generator<'a, '_> {
                     Ok(())
                 }
             }
-            if ***path == Expr::Var("super") {
-                check_num_args(s, ctx, 0, expr_args.len(), "super")?;
+
+            if *v.path == Expr::Var("super") {
+                check_num_args(s, ctx, 0, v.args.len(), "super")?;
                 return self.write_block(ctx, buf, None, ws, s.span());
-            } else if ***path == Expr::Var("caller") {
+            } else if *v.path == Expr::Var("caller") {
                 let def = self.active_caller.ok_or_else(|| {
                     ctx.generate_error(format_args!("block is not defined for `caller`"), s.span())
                 })?;
@@ -1123,16 +1119,16 @@ impl<'a> Generator<'a, '_> {
                     buf.write('{');
                     this.prepare_ws(def.ws1);
                     let mut value = Buffer::new();
-                    check_num_args(s, ctx, def.caller_args.len(), expr_args.len(), "caller")?;
+                    check_num_args(s, ctx, def.caller_args.len(), v.args.len(), "caller")?;
                     for (index, arg) in def.caller_args.iter().enumerate() {
-                        match expr_args.get(index) {
+                        match v.args.get(index) {
                             Some(expr) => {
                                 value.clear();
                                 match &**expr {
                                     // If `expr` is already a form of variable then
                                     // don't reintroduce a new variable. This is
                                     // to avoid moving non-copyable values.
-                                    Expr::Var(name) if *name != "self" => {
+                                    &Expr::Var(name) if name != "self" => {
                                         let var = this.locals.resolve_or_self(name);
                                         this.locals
                                             .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));

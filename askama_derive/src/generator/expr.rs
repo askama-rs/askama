@@ -80,11 +80,7 @@ impl<'a> Generator<'a, '_> {
                 self.visit_range(ctx, buf, v.op, v.lhs.as_ref(), v.rhs.as_ref())?
             }
             Expr::Group(ref inner) => self.visit_group(ctx, buf, inner)?,
-            Expr::Call {
-                ref path,
-                ref args,
-                ref generics,
-            } => self.visit_call(ctx, buf, path, args, generics)?,
+            Expr::Call(ref v) => self.visit_call(ctx, buf, &v.path, &v.args, &v.generics)?,
             Expr::RustMacro(ref path, args) => self.visit_rust_macro(buf, path, args),
             Expr::Try(ref expr) => self.visit_try(ctx, buf, expr)?,
             Expr::Tuple(ref exprs) => self.visit_tuple(ctx, buf, exprs)?,
@@ -355,7 +351,7 @@ impl<'a> Generator<'a, '_> {
             buf.write("&(");
         }
         match **arg {
-            Expr::Call { ref path, .. } if !matches!(***path, Expr::Path(_)) => {
+            Expr::Call(ref v) if !matches!(*v.path, Expr::Path(_)) => {
                 buf.write('{');
                 self.visit_expr(ctx, buf, arg)?;
                 buf.write('}');
