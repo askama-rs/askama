@@ -293,3 +293,83 @@ error: `self` cannot be used as an identifier
     |
 176 | #[template(ext = "html", source = "{{ self.self.4 }}")]
     |                                   ^^^^^^^^^^^^^^^^^^^
+
+error: reserved keyword `_` cannot be used here
+ --> <source attribute>:1:22
+       "_>() }}"
+   --> tests/ui/crate_identifier.rs:180:35
+    |
+180 | #[template(ext = "html", source = "{{ func::<some::path::_>() }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `crate` cannot be used as an identifier
+ --> <source attribute>:1:22
+       "crate>() }}"
+   --> tests/ui/crate_identifier.rs:184:35
+    |
+184 | #[template(ext = "html", source = "{{ func::<some::path::crate>() }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `self` cannot be used as an identifier
+ --> <source attribute>:1:22
+       "self>() }}"
+   --> tests/ui/crate_identifier.rs:188:35
+    |
+188 | #[template(ext = "html", source = "{{ func::<some::path::self>() }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `Self` cannot be used as an identifier
+ --> <source attribute>:1:22
+       "Self>() }}"
+   --> tests/ui/crate_identifier.rs:192:35
+    |
+192 | #[template(ext = "html", source = "{{ func::<some::path::Self>() }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `super` cannot be used as an identifier
+ --> <source attribute>:1:22
+       "super>() }}"
+   --> tests/ui/crate_identifier.rs:196:35
+    |
+196 | #[template(ext = "html", source = "{{ func::<some::path::super>() }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: reserved keyword `_` cannot be used here
+ --> <source attribute>:1:26
+       "_>>() }}"
+   --> tests/ui/crate_identifier.rs:200:35
+    |
+200 | #[template(ext = "html", source = "{{ func::<xyz<some::path::_>>() }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `crate` cannot be used as an identifier
+ --> <source attribute>:1:26
+       "crate>>() }}"
+   --> tests/ui/crate_identifier.rs:204:35
+    |
+204 | #[template(ext = "html", source = "{{ func::<xyz<some::path::crate>>() }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `self` cannot be used as an identifier
+ --> <source attribute>:1:26
+       "self>>() }}"
+   --> tests/ui/crate_identifier.rs:208:35
+    |
+208 | #[template(ext = "html", source = "{{ func::<xyz<some::path::self>>() }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `Self` cannot be used as an identifier
+ --> <source attribute>:1:26
+       "Self>>() }}"
+   --> tests/ui/crate_identifier.rs:212:35
+    |
+212 | #[template(ext = "html", source = "{{ func::<xyz<some::path::Self>>() }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `super` cannot be used as an identifier
+ --> <source attribute>:1:26
+       "super>>() }}"
+   --> tests/ui/crate_identifier.rs:216:35
+    |
+216 | #[template(ext = "html", source = "{{ func::<xyz<some::path::super>>() }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

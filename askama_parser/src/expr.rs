@@ -1075,13 +1075,32 @@ pub struct TyGenerics<'a> {
 impl<'i> TyGenerics<'i> {
     fn parse(i: &mut &'i str, level: Level<'_>) -> ParseResult<'i, WithSpan<'i, Self>> {
         let start = *i;
-        (
+        let (refs, path, args): (_, Vec<_>, _) = (
             repeat(0.., ws('&')),
             separated(1.., ws(identifier), "::"),
             opt(|i: &mut _| Self::args(i, level)).map(|generics| generics.unwrap_or_default()),
         )
-            .map(|(refs, path, args)| WithSpan::new(TyGenerics { refs, path, args }, start))
-            .parse_next(i)
+            .parse_next(i)?;
+
+        if let &[name] = path.as_slice() {
+            if matches!(name, "super" | "self" | "crate") {
+                // `Self` and `_` are allowed
+                return Err(err_reserved_identifier(name));
+            }
+        } else {
+            for (idx, &name) in path.iter().enumerate() {
+                if name == "_" {
+                    // `_` is never allowed
+                    return Err(err_underscore_identifier(name));
+                } else if idx > 0 && matches!(name, "super" | "self" | "Self" | "crate") {
+                    // At the front of the path, "super" | "self" | "Self" | "crate" are allowed.
+                    // Inside the path, they are not allowed.
+                    return Err(err_reserved_identifier(name));
+                }
+            }
+        }
+
+        Ok(WithSpan::new(TyGenerics { refs, path, args }, start))
     }
 
     fn args(

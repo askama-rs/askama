@@ -176,4 +176,44 @@ struct InvalidRawIdentifierCrateInAttr2;
 #[template(ext = "html", source = "{{ self.self.4 }}")]
 struct InvalidRawIdentifierSelfInAttr;
 
+#[derive(Template)]
+#[template(ext = "html", source = "{{ func::<some::path::_>() }}")]
+struct InvalidUnderscoreInGenerics;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ func::<some::path::crate>() }}")]
+struct InvalidPathElemCrateInGenerics;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ func::<some::path::self>() }}")]
+struct InvalidPathElemSelfInGenerics;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ func::<some::path::Self>() }}")]
+struct InvalidPathElemSelfTyInGenerics;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ func::<some::path::super>() }}")]
+struct InvalidPathElemSuperInGenerics;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ func::<xyz<some::path::_>>() }}")]
+struct InvalidUnderscoreInGenerics2;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ func::<xyz<some::path::crate>>() }}")]
+struct InvalidPathElemCrateInGenerics2;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ func::<xyz<some::path::self>>() }}")]
+struct InvalidPathElemSelfInGenerics2;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ func::<xyz<some::path::Self>>() }}")]
+struct InvalidPathElemSelfTyInGenerics2;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ func::<xyz<some::path::super>>() }}")]
+struct InvalidPathElemSuperInGenerics2;
+
 fn main() {}
