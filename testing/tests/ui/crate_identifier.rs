@@ -148,4 +148,32 @@ struct PathElemSelfType2 {
     a: u8,
 }
 
+#[derive(Template)]
+#[template(ext = "html", source = "{{ Self.4 }}")]
+struct InvalidRawIdentifierSelfTyInAttr1;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ super.4 }}")]
+struct InvalidRawIdentifierSuperInAttr1;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ crate.4 }}")]
+struct InvalidRawIdentifierCrateInAttr1;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ self.Self.4 }}")]
+struct InvalidRawIdentifierSelfTyInAttr2;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ self.super.4 }}")]
+struct InvalidRawIdentifierSuperInAttr2;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ self.crate.4 }}")]
+struct InvalidRawIdentifierCrateInAttr2;
+
+#[derive(Template)]
+#[template(ext = "html", source = "{{ self.self.4 }}")]
+struct InvalidRawIdentifierSelfInAttr;
+
 fn main() {}

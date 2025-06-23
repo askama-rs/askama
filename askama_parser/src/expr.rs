@@ -42,60 +42,46 @@ struct Allowed {
 
 fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> Result<(), ParseErr<'a>> {
     match &expr.inner {
-        Expr::Var(name) => {
+        &Expr::Var(name) => {
             // List can be found in rust compiler "can_be_raw" function (although in our case, it's
             // also used in cases like `match`, so `self` is allowed in this case).
-            if (!allowed.super_keyword && *name == "super") || matches!(*name, "crate" | "Self") {
-                Err(winnow::error::ErrMode::Cut(ErrorContext::new(
-                    format!("`{name}` cannot be used as an identifier"),
-                    expr.span,
-                )))
-            } else if !allowed.underscore && *name == "_" {
-                Err(winnow::error::ErrMode::Cut(ErrorContext::new(
-                    "reserved keyword `_` cannot be used here",
-                    expr.span,
-                )))
+            if (!allowed.super_keyword && name == "super") || matches!(name, "crate" | "Self") {
+                Err(err_reserved_identifier(name))
+            } else if !allowed.underscore && name == "_" {
+                Err(err_underscore_identifier(name))
             } else {
                 Ok(())
             }
         }
-        Expr::IsDefined(var) | Expr::IsNotDefined(var) => {
-            if *var == "_" {
-                Err(winnow::error::ErrMode::Cut(ErrorContext::new(
-                    "reserved keyword `_` cannot be used here",
-                    expr.span,
-                )))
+        &Expr::IsDefined(var) | &Expr::IsNotDefined(var) => {
+            if var == "_" {
+                Err(err_underscore_identifier(var))
             } else {
                 Ok(())
             }
         }
         Expr::Path(path) => {
-            if let [name] = path.as_slice() {
+            if let &[name] = path.as_slice() {
                 if !crate::can_be_variable_name(name) {
-                    return Err(winnow::error::ErrMode::Cut(ErrorContext::new(
-                        format!("`{name}` cannot be used as an identifier"),
-                        *name,
-                    )));
+                    return Err(err_reserved_identifier(name));
                 }
             }
             Ok(())
         }
-        Expr::BoolLit(_)
-        | Expr::NumLit(_, _)
-        | Expr::StrLit(_)
-        | Expr::CharLit(_)
-        | Expr::Attr(_, _)
-        | Expr::Filter(_)
-        | Expr::NamedArgument(_, _)
-        | Expr::RustMacro(_, _)
-        | Expr::Try(_)
-        | Expr::FilterSource
-        | Expr::LetCond(_) => Ok(()),
         Expr::Array(elems) | Expr::Tuple(elems) | Expr::Concat(elems) => {
             for elem in elems {
                 check_expr(elem, allowed)?;
             }
             Ok(())
+        }
+        Expr::Attr(elem, attr) => {
+            if attr.name == "_" {
+                Err(err_underscore_identifier(attr.name))
+            } else if !crate::can_be_variable_name(attr.name) {
+                Err(err_reserved_identifier(attr.name))
+            } else {
+                check_expr(elem, Allowed::default())
+            }
         }
         Expr::Index(elem1, elem2) | Expr::BinOp(_, elem1, elem2) => {
             check_expr(elem1, Allowed::default())?;
@@ -130,7 +116,31 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> Result<(),
             "unreachable",
             expr.span,
         ))),
+        Expr::BoolLit(_)
+        | Expr::NumLit(_, _)
+        | Expr::StrLit(_)
+        | Expr::CharLit(_)
+        | Expr::Filter(_)
+        | Expr::NamedArgument(_, _)
+        | Expr::RustMacro(_, _)
+        | Expr::Try(_)
+        | Expr::FilterSource
+        | Expr::LetCond(_) => Ok(()),
     }
+}
+
+fn err_underscore_identifier(name: &str) -> winnow::error::ErrMode<ErrorContext<'_>> {
+    winnow::error::ErrMode::Cut(ErrorContext::new(
+        "reserved keyword `_` cannot be used here",
+        name,
+    ))
+}
+
+fn err_reserved_identifier(name: &str) -> winnow::error::ErrMode<ErrorContext<'_>> {
+    winnow::error::ErrMode::Cut(ErrorContext::new(
+        format!("`{name}` cannot be used as an identifier"),
+        name,
+    ))
 }
 
 #[derive(Clone, Debug, PartialEq)]

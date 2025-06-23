@@ -237,3 +237,59 @@ error: `Self` cannot be used as an identifier
     |
 146 | #[template(ext = "html", source = "{% match a %}{% when self::a::b::Self %}{% endmatch %}")]
     |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `Self` cannot be used as an identifier
+ --> <source attribute>:1:3
+       "Self.4 }}"
+   --> tests/ui/crate_identifier.rs:152:35
+    |
+152 | #[template(ext = "html", source = "{{ Self.4 }}")]
+    |                                   ^^^^^^^^^^^^^^
+
+error: `super` cannot be used as an identifier
+ --> <source attribute>:1:3
+       "super.4 }}"
+   --> tests/ui/crate_identifier.rs:156:35
+    |
+156 | #[template(ext = "html", source = "{{ super.4 }}")]
+    |                                   ^^^^^^^^^^^^^^^
+
+error: `crate` cannot be used as an identifier
+ --> <source attribute>:1:3
+       "crate.4 }}"
+   --> tests/ui/crate_identifier.rs:160:35
+    |
+160 | #[template(ext = "html", source = "{{ crate.4 }}")]
+    |                                   ^^^^^^^^^^^^^^^
+
+error: `Self` cannot be used as an identifier
+ --> <source attribute>:1:8
+       "Self.4 }}"
+   --> tests/ui/crate_identifier.rs:164:35
+    |
+164 | #[template(ext = "html", source = "{{ self.Self.4 }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^
+
+error: `super` cannot be used as an identifier
+ --> <source attribute>:1:8
+       "super.4 }}"
+   --> tests/ui/crate_identifier.rs:168:35
+    |
+168 | #[template(ext = "html", source = "{{ self.super.4 }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^
+
+error: `crate` cannot be used as an identifier
+ --> <source attribute>:1:8
+       "crate.4 }}"
+   --> tests/ui/crate_identifier.rs:172:35
+    |
+172 | #[template(ext = "html", source = "{{ self.crate.4 }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^^
+
+error: `self` cannot be used as an identifier
+ --> <source attribute>:1:8
+       "self.4 }}"
+   --> tests/ui/crate_identifier.rs:176:35
+    |
+176 | #[template(ext = "html", source = "{{ self.self.4 }}")]
+    |                                   ^^^^^^^^^^^^^^^^^^^
