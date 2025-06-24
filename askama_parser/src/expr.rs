@@ -33,11 +33,11 @@ fn expr_prec_layer<'a>(
     let start = *i;
     let mut expr = inner(i, level)?;
 
-    let mut i_before = *i;
     let mut level_guard = level.guard();
-    while let Some((op, rhs)) = opt((ws(op), |i: &mut _| inner(i, level))).parse_next(i)? {
+    while let Some(((op, rhs), i_before)) =
+        opt((ws(op), |i: &mut _| inner(i, level)).with_taken()).parse_next(i)?
+    {
         level_guard.nest(i_before)?;
-        i_before = *i;
         expr = WithSpan::new(Expr::BinOp(Box::new(BinOp { op, lhs: expr, rhs })), start);
     }
 
@@ -480,12 +480,12 @@ impl<'a> Expr<'a> {
         let mut res = Self::prefix(i, level)?;
 
         let mut level_guard = level.guard();
-        let mut i_before = *i;
-        while let Some(mut filter) = opt(|i: &mut _| filter(i, level)).parse_next(i)? {
+        while let Some((mut filter, i_before)) =
+            opt(ws((|i: &mut _| filter(i, level)).with_taken())).parse_next(i)?
+        {
             level_guard.nest(i_before)?;
             filter.arguments.insert(0, res);
             res = WithSpan::new(Self::Filter(Box::new(filter)), i_before);
-            i_before = *i;
         }
         Ok(res)
     }
@@ -498,11 +498,11 @@ impl<'a> Expr<'a> {
         // to stack overflows in drop glue when the AST is very deep.
         let mut level_guard = level.guard();
         let mut ops = vec![];
-        let mut i_before = *i;
-        while let Some(op) = opt(ws(alt(("!", "-", "*", "&")))).parse_next(i)? {
+        while let Some((op, i_before)) =
+            opt(ws(alt(("!", "-", "*", "&")).with_taken())).parse_next(i)?
+        {
             level_guard.nest(i_before)?;
             ops.push(op);
-            i_before = *i;
         }
 
         let mut expr = Suffix::parse(i, level)?;
@@ -706,30 +706,22 @@ impl<'a> Suffix<'a> {
     fn parse(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, WithSpan<'a, Expr<'a>>> {
         let mut level_guard = level.guard();
         let mut expr = Expr::single(i, level)?;
-        let mut right = opt(alt((
+        let mut right = alt((
             |i: &mut _| Self::associated_item(i, level),
             |i: &mut _| Self::index(i, level),
             |i: &mut _| Self::call(i, level),
             Self::r#try,
             Self::r#macro,
-        )));
-        loop {
-            let before_suffix = *i;
-            let suffix = right.parse_next(i)?;
-            let Some(suffix) = suffix else {
-                break;
-            };
-            level_guard.nest(before_suffix)?;
-
+        ));
+        while let Some((suffix, i_before)) = opt(right.by_ref().with_taken()).parse_next(i)? {
+            level_guard.nest(i_before)?;
             match suffix {
                 Self::AssociatedItem(associated_item) => {
-                    expr = WithSpan::new(
-                        Expr::AssociatedItem(expr.into(), associated_item),
-                        before_suffix,
-                    )
+                    expr =
+                        WithSpan::new(Expr::AssociatedItem(expr.into(), associated_item), i_before)
                 }
                 Self::Index(index) => {
-                    expr = WithSpan::new(Expr::Index(expr.into(), index.into()), before_suffix);
+                    expr = WithSpan::new(Expr::Index(expr.into(), index.into()), i_before);
                 }
                 Self::Call { args, generics } => {
                     expr = WithSpan::new(
@@ -738,21 +730,21 @@ impl<'a> Suffix<'a> {
                             args,
                             generics,
                         })),
-                        before_suffix,
+                        i_before,
                     )
                 }
-                Self::Try => expr = WithSpan::new(Expr::Try(expr.into()), before_suffix),
+                Self::Try => expr = WithSpan::new(Expr::Try(expr.into()), i_before),
                 Self::MacroCall(args) => match expr.inner {
                     Expr::Path(path) => {
                         ensure_macro_name(path.last().unwrap())?;
-                        expr = WithSpan::new(Expr::RustMacro(path, args), before_suffix)
+                        expr = WithSpan::new(Expr::RustMacro(path, args), i_before)
                     }
                     Expr::Var(name) => {
                         ensure_macro_name(name)?;
-                        expr = WithSpan::new(Expr::RustMacro(vec![name], args), before_suffix)
+                        expr = WithSpan::new(Expr::RustMacro(vec![name], args), i_before)
                     }
                     _ => {
-                        return Err(ErrMode::from_input(&before_suffix).cut());
+                        return Err(ErrMode::from_input(&i_before).cut());
                     }
                 },
             }

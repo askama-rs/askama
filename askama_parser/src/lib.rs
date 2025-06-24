@@ -1163,7 +1163,7 @@ impl LevelGuard<'_> {
 
 fn filter<'a>(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, Filter<'a>> {
     preceded(
-        ws(('|', not('|'))),
+        ('|', not('|')),
         cut_err(|i: &mut _| Filter::parse(i, level)),
     )
     .parse_next(i)

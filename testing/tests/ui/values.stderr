@@ -1,14 +1,14 @@
 error: `value` filter expects one generic, found 0
- --> A.html:1:18
-       "\"a\"|value %}{% endif %}"
+ --> A.html:1:21
+       "|value %}{% endif %}"
  --> tests/ui/values.rs:6:14
   |
 6 |     source = r#"{% if let Ok(x) = "a"|value %}{% endif %}"#,
   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: `value` filter expects one generic, found 2
- --> B.html:1:18
-       "\"a\"|value::<u8, u8> %}{% endif %}"
+ --> B.html:1:21
+       "|value::<u8, u8> %}{% endif %}"
   --> tests/ui/values.rs:13:14
    |
 13 |     source = r#"{% if let Ok(x) = "a"|value::<u8, u8> %}{% endif %}"#,

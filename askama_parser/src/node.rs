@@ -771,14 +771,14 @@ impl<'a> FilterBlock<'a> {
                 .insert(0, WithSpan::new(Expr::FilterSource, start));
 
             let mut level_guard = s.level.guard();
-            let mut i_before = *i;
-            while let Some(mut filter) = opt(|i: &mut _| filter(i, s.level)).parse_next(i)? {
+            while let Some((mut filter, i_before)) =
+                opt(ws((|i: &mut _| filter(i, s.level)).with_taken())).parse_next(i)?
+            {
                 level_guard.nest(i_before)?;
                 filter
                     .arguments
                     .insert(0, WithSpan::new(Expr::Filter(Box::new(res)), i_before));
                 res = filter;
-                i_before = *i;
             }
             Ok(res)
         }

@@ -1,6 +1,6 @@
 error: `length` argument is missing when calling `truncate` filter; its arguments are: (length)
- --> NoArgument.html:1:3
-       "text | truncate }}"
+ --> NoArgument.html:1:8
+       "| truncate }}"
  --> tests/ui/truncate.rs:4:21
   |
 4 | #[template(source = r#"{{ text | truncate }}"#, ext = "html")]
