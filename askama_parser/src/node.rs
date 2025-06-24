@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::str::{self, FromStr};
 
 use winnow::combinator::{
-    alt, cut_err, delimited, empty, eof, fail, not, opt, peek, preceded, repeat, separated,
+    alt, cut_err, delimited, eof, fail, not, opt, peek, preceded, repeat, separated,
     separated_pair, terminated,
 };
 use winnow::stream::Stream as _;
@@ -11,7 +11,7 @@ use winnow::{ModalParser, Parser};
 
 use crate::{
     ErrorContext, Expr, Filter, ParseResult, Span, State, Target, WithSpan, filter, identifier,
-    is_rust_keyword, keyword, path_or_identifier, skip_ws0, str_lit_without_prefix, ws,
+    is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
 };
 
 #[derive(Debug, PartialEq)]
@@ -764,69 +764,49 @@ pub struct FilterBlock<'a> {
 
 impl<'a> FilterBlock<'a> {
     fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
-        let start_s = *i;
-        let mut level_guard = s.level.guard();
-        let mut start = (
+        fn filters<'a>(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Filter<'a>> {
+            let start = *i;
+            let mut res = Filter::parse(i, s.level)?;
+            res.arguments
+                .insert(0, WithSpan::new(Expr::FilterSource, start));
+
+            let mut level_guard = s.level.guard();
+            let mut i_before = *i;
+            while let Some(mut filter) = opt(|i: &mut _| filter(i, s.level)).parse_next(i)? {
+                level_guard.nest(i_before)?;
+                filter
+                    .arguments
+                    .insert(0, WithSpan::new(Expr::Filter(Box::new(res)), i_before));
+                res = filter;
+                i_before = *i;
+            }
+            Ok(res)
+        }
+
+        let start = *i;
+        let (pws1, _, (filters, nws1, _), nodes, (_, pws2, _, nws2)) = (
             opt(Whitespace::parse),
             ws(keyword("filter")),
             cut_node(
                 Some("filter"),
                 (
-                    ws(path_or_identifier),
-                    opt(|i: &mut _| crate::expr::call_generics(i, s.level)),
-                    opt(|i: &mut _| Expr::arguments(i, s.level, false)),
-                    repeat(0.., |i: &mut _| {
-                        #[allow(clippy::explicit_auto_deref)] // false positive
-                        level_guard.nest(*i)?;
-                        let start = *i;
-                        filter(i, s.level)
-                            .map(|(name, generics, params)| (name, generics, params, start))
-                    })
-                    .map(|v: Vec<_>| v),
-                    ws(empty),
+                    ws(|i: &mut _| filters(i, s)),
                     opt(Whitespace::parse),
                     |i: &mut _| s.tag_block_end(i),
                 ),
             ),
-        );
-        let (pws1, _, (filter_name, generics, params, extra_filters, (), nws1, _)) =
-            start.parse_next(i)?;
-
-        let mut arguments = params.unwrap_or_default();
-        arguments.insert(0, WithSpan::new(Expr::FilterSource, start_s));
-        let mut filters = Filter {
-            name: filter_name,
-            arguments,
-            generics: generics.unwrap_or_default(),
-        };
-        for (filter_name, generics, args, span) in extra_filters {
-            filters = Filter {
-                name: filter_name,
-                arguments: {
-                    let mut args = args.unwrap_or_default();
-                    args.insert(0, WithSpan::new(Expr::Filter(Box::new(filters)), span));
-                    args
-                },
-                generics,
-            };
-        }
-
-        let mut end = cut_node(
-            Some("filter"),
-            (
-                |i: &mut _| Node::many(i, s),
-                cut_node(
-                    Some("filter"),
-                    (
-                        |i: &mut _| check_block_start(i, start_s, s, "filter", "endfilter"),
-                        opt(Whitespace::parse),
-                        end_node("filter", "endfilter"),
-                        opt(Whitespace::parse),
-                    ),
+            cut_node(Some("filter"), |i: &mut _| Node::many(i, s)),
+            cut_node(
+                Some("filter"),
+                (
+                    |i: &mut _| check_block_start(i, start, s, "filter", "endfilter"),
+                    opt(Whitespace::parse),
+                    end_node("filter", "endfilter"),
+                    opt(Whitespace::parse),
                 ),
             ),
-        );
-        let (nodes, (_, pws2, _, nws2)) = end.parse_next(i)?;
+        )
+            .parse_next(i)?;
 
         Ok(WithSpan::new(
             Self {
@@ -835,7 +815,7 @@ impl<'a> FilterBlock<'a> {
                 nodes,
                 ws2: Ws(pws2, nws2),
             },
-            start_s,
+            start,
         ))
     }
 }

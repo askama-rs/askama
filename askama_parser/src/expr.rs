@@ -477,23 +477,15 @@ impl<'a> Expr<'a> {
     }
 
     fn filtered(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, WithSpan<'a, Self>> {
-        let mut level_guard = level.guard();
-        let start = *i;
         let mut res = Self::prefix(i, level)?;
-        while let Some((name, generics, args)) = opt(|i: &mut _| filter(i, level)).parse_next(i)? {
-            level_guard.nest(i)?;
 
-            let mut arguments = args.unwrap_or_else(|| Vec::with_capacity(1));
-            arguments.insert(0, res);
-
-            res = WithSpan::new(
-                Self::Filter(Box::new(Filter {
-                    name,
-                    arguments,
-                    generics,
-                })),
-                start,
-            );
+        let mut level_guard = level.guard();
+        let mut i_before = *i;
+        while let Some(mut filter) = opt(|i: &mut _| filter(i, level)).parse_next(i)? {
+            level_guard.nest(i_before)?;
+            filter.arguments.insert(0, res);
+            res = WithSpan::new(Self::Filter(Box::new(filter)), i_before);
+            i_before = *i;
         }
         Ok(res)
     }
@@ -674,6 +666,22 @@ pub struct Filter<'a> {
     pub name: PathOrIdentifier<'a>,
     pub arguments: Vec<WithSpan<'a, Expr<'a>>>,
     pub generics: Vec<WithSpan<'a, TyGenerics<'a>>>,
+}
+
+impl<'a> Filter<'a> {
+    pub(crate) fn parse(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, Self> {
+        let (name, generics, arguments) = (
+            ws(path_or_identifier),
+            opt(|i: &mut _| call_generics(i, level)),
+            opt(|i: &mut _| Expr::arguments(i, level, true)),
+        )
+            .parse_next(i)?;
+        Ok(Self {
+            name,
+            arguments: arguments.unwrap_or_default(),
+            generics: generics.unwrap_or_default(),
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]

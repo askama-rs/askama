@@ -1161,26 +1161,11 @@ impl LevelGuard<'_> {
     }
 }
 
-#[allow(clippy::type_complexity)]
-fn filter<'a>(
-    i: &mut &'a str,
-    level: Level<'_>,
-) -> ParseResult<
-    'a,
-    (
-        PathOrIdentifier<'a>,
-        Vec<WithSpan<'a, TyGenerics<'a>>>,
-        Option<Vec<WithSpan<'a, Expr<'a>>>>,
-    ),
-> {
-    ws(('|', not('|'))).parse_next(i)?;
-
-    let _level_guard = level.nest(i)?;
-    cut_err((
-        ws(path_or_identifier),
-        opt(|i: &mut _| expr::call_generics(i, level)).map(|generics| generics.unwrap_or_default()),
-        opt(|i: &mut _| Expr::arguments(i, level, true)),
-    ))
+fn filter<'a>(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, Filter<'a>> {
+    preceded(
+        ws(('|', not('|'))),
+        cut_err(|i: &mut _| Filter::parse(i, level)),
+    )
     .parse_next(i)
 }
 
