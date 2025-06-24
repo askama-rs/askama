@@ -1,7 +1,9 @@
 use std::borrow::Cow;
 
 use parser::node::CondTest;
-use parser::{Attr, CharLit, CharPrefix, Expr, Span, StrLit, Target, TyGenerics, WithSpan};
+use parser::{
+    AssociatedItem, CharLit, CharPrefix, Expr, Span, StrLit, Target, TyGenerics, WithSpan,
+};
 use quote::quote;
 
 use super::{
@@ -46,7 +48,7 @@ impl<'a> Generator<'a, '_> {
             }
             // If accessing a field then it most likely needs to be
             // borrowed, to prevent an attempt of moving.
-            Expr::Attr(..) => buf.write(format_args!("(&{expr_code}).into_iter()")),
+            Expr::AssociatedItem(..) => buf.write(format_args!("(&{expr_code}).into_iter()")),
             // Otherwise, we borrow `iter` assuming that it implements `IntoIterator`.
             _ => buf.write(format_args!("({expr_code}).into_iter()")),
         }
@@ -67,7 +69,9 @@ impl<'a> Generator<'a, '_> {
             Expr::Var(s) => self.visit_var(buf, s),
             Expr::Path(ref path) => self.visit_path(buf, path),
             Expr::Array(ref elements) => self.visit_array(ctx, buf, elements)?,
-            Expr::Attr(ref obj, ref attr) => self.visit_attr(ctx, buf, obj, attr)?,
+            Expr::AssociatedItem(ref obj, ref associated_item) => {
+                self.visit_associated_item(ctx, buf, obj, associated_item)?
+            }
             Expr::Index(ref obj, ref key) => self.visit_index(ctx, buf, obj, key)?,
             Expr::Filter(ref v) => {
                 self.visit_filter(ctx, buf, &v.name, &v.arguments, &v.generics, expr.span())?
@@ -389,15 +393,15 @@ impl<'a> Generator<'a, '_> {
         Ok(())
     }
 
-    pub(crate) fn visit_attr(
+    pub(crate) fn visit_associated_item(
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
         obj: &WithSpan<'a, Expr<'a>>,
-        attr: &Attr<'a>,
+        associated_item: &AssociatedItem<'a>,
     ) -> Result<DisplayWrap, CompileError> {
         if let Expr::Var("loop") = **obj {
-            buf.write(match attr.name {
+            buf.write(match associated_item.name {
                 "index0" => "__askama_item.index0",
                 "index" => "(__askama_item.index0 + 1)",
                 "first" => "(__askama_item.index0 == 0)",
@@ -413,8 +417,11 @@ impl<'a> Generator<'a, '_> {
         }
 
         self.visit_expr(ctx, buf, obj)?;
-        buf.write(format_args!(".{}", normalize_identifier(attr.name)));
-        self.visit_call_generics(buf, &attr.generics);
+        buf.write(format_args!(
+            ".{}",
+            normalize_identifier(associated_item.name)
+        ));
+        self.visit_call_generics(buf, &associated_item.generics);
         Ok(DisplayWrap::Unwrapped)
     }
 
@@ -479,7 +486,9 @@ impl<'a> Generator<'a, '_> {
         generics: &[WithSpan<'a, TyGenerics<'a>>],
     ) -> Result<DisplayWrap, CompileError> {
         match &**left {
-            Expr::Attr(sub_left, Attr { name, .. }) if ***sub_left == Expr::Var("loop") => {
+            Expr::AssociatedItem(sub_left, AssociatedItem { name, .. })
+                if ***sub_left == Expr::Var("loop") =>
+            {
                 match *name {
                     "cycle" => {
                         if let [generic, ..] = generics {

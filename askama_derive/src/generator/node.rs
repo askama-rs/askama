@@ -196,7 +196,7 @@ impl<'a> Generator<'a, '_> {
             | Expr::Var(_)
             | Expr::Path(_)
             | Expr::Array(_)
-            | Expr::Attr(_, _)
+            | Expr::AssociatedItem(_, _)
             | Expr::Index(_, _)
             | Expr::Filter(_)
             | Expr::Range(_)
@@ -702,12 +702,12 @@ impl<'a> Generator<'a, '_> {
                         this.locals
                             .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
                     }
-                    Expr::Attr(obj, attr) => {
-                        let mut attr_buf = Buffer::new();
-                        this.visit_attr(ctx, &mut attr_buf, obj, attr)?;
+                    Expr::AssociatedItem(obj, associated_item) => {
+                        let mut associated_item_buf = Buffer::new();
+                        this.visit_associated_item(ctx, &mut associated_item_buf, obj, associated_item)?;
 
-                        let attr = attr_buf.into_string();
-                        let var = this.locals.resolve(&attr).unwrap_or(attr);
+                        let associated_item = associated_item_buf.into_string();
+                        let var = this.locals.resolve(&associated_item).unwrap_or(associated_item);
                         this.locals
                             .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
                     }
@@ -1133,12 +1133,20 @@ impl<'a> Generator<'a, '_> {
                                         this.locals
                                             .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
                                     }
-                                    Expr::Attr(obj, attr) => {
-                                        let mut attr_buf = Buffer::new();
-                                        this.visit_attr(ctx, &mut attr_buf, obj, attr)?;
+                                    Expr::AssociatedItem(obj, associated_item) => {
+                                        let mut associated_item_buf = Buffer::new();
+                                        this.visit_associated_item(
+                                            ctx,
+                                            &mut associated_item_buf,
+                                            obj,
+                                            associated_item,
+                                        )?;
 
-                                        let attr = attr_buf.into_string();
-                                        let var = this.locals.resolve(&attr).unwrap_or(attr);
+                                        let associated_item = associated_item_buf.into_string();
+                                        let var = this
+                                            .locals
+                                            .resolve(&associated_item)
+                                            .unwrap_or(associated_item);
                                         this.locals
                                             .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
                                     }
@@ -1639,7 +1647,7 @@ fn is_cacheable(expr: &WithSpan<'_, Expr<'_>>) -> bool {
         Expr::Path(_) => true,
         // Check recursively:
         Expr::Array(args) => args.iter().all(is_cacheable),
-        Expr::Attr(lhs, _) => is_cacheable(lhs),
+        Expr::AssociatedItem(lhs, _) => is_cacheable(lhs),
         Expr::Index(lhs, rhs) => is_cacheable(lhs) && is_cacheable(rhs),
         Expr::Filter(v) => v.arguments.iter().all(is_cacheable),
         Expr::Unary(_, arg) => is_cacheable(arg),

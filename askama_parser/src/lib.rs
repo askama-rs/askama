@@ -27,7 +27,7 @@ use winnow::token::{any, none_of, one_of, take_till, take_while};
 use winnow::{ModalParser, Parser};
 
 use crate::ascii_str::{AsciiChar, AsciiStr};
-pub use crate::expr::{Attr, Expr, Filter, TyGenerics};
+pub use crate::expr::{AssociatedItem, Expr, Filter, TyGenerics};
 pub use crate::node::Node;
 pub use crate::target::Target;
 

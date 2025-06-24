@@ -594,16 +594,18 @@ fn is_copyable_within_op(expr: &Expr<'_>, within_op: bool) -> bool {
         // will solve that issue. However, if the operand is
         // implicitly borrowed, then it's likely not even possible
         // to get the template to compile.
-        _ => within_op && is_attr_self(expr),
+        _ => within_op && is_associated_item_self(expr),
     }
 }
 
-/// Returns `true` if this is an `Attr` where the `obj` is `"self"`.
-fn is_attr_self(mut expr: &Expr<'_>) -> bool {
+/// Returns `true` if this is an `AssociatedItem` where the `obj` is `"self"`.
+fn is_associated_item_self(mut expr: &Expr<'_>) -> bool {
     loop {
         match expr {
-            Expr::Attr(obj, _) if matches!(***obj, Expr::Var("self")) => return true,
-            Expr::Attr(obj, _) if matches!(***obj, Expr::Attr(..)) => expr = obj,
+            Expr::AssociatedItem(obj, _) if matches!(***obj, Expr::Var("self")) => return true,
+            Expr::AssociatedItem(obj, _) if matches!(***obj, Expr::AssociatedItem(..)) => {
+                expr = obj
+            }
             _ => return false,
         }
     }

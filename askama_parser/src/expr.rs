@@ -84,11 +84,11 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> Result<(),
             }
             Ok(())
         }
-        Expr::Attr(elem, attr) => {
-            if attr.name == "_" {
-                Err(err_underscore_identifier(attr.name))
-            } else if !crate::can_be_variable_name(attr.name) {
-                Err(err_reserved_identifier(attr.name))
+        Expr::AssociatedItem(elem, associated_item) => {
+            if associated_item.name == "_" {
+                Err(err_underscore_identifier(associated_item.name))
+            } else if !crate::can_be_variable_name(associated_item.name) {
+                Err(err_reserved_identifier(associated_item.name))
             } else {
                 check_expr(elem, Allowed::default())
             }
@@ -163,7 +163,7 @@ pub enum Expr<'a> {
     Var(&'a str),
     Path(Vec<&'a str>),
     Array(Vec<WithSpan<'a, Expr<'a>>>),
-    Attr(Box<WithSpan<'a, Expr<'a>>>, Attr<'a>),
+    AssociatedItem(Box<WithSpan<'a, Expr<'a>>>, AssociatedItem<'a>),
     Index(Box<WithSpan<'a, Expr<'a>>>, Box<WithSpan<'a, Expr<'a>>>),
     Filter(Box<Filter<'a>>),
     As(Box<WithSpan<'a, Expr<'a>>>, &'a str),
@@ -460,7 +460,7 @@ impl<'a> Expr<'a> {
         };
         let var_name = match *lhs {
             Self::Var(var_name) => var_name,
-            Self::Attr(_, _) => {
+            Self::AssociatedItem(_, _) => {
                 return Err(ErrMode::Cut(ErrorContext::new(
                     "`is defined` operator can only be used on variables, not on their fields",
                     start,
@@ -632,7 +632,7 @@ impl<'a> Expr<'a> {
             | Self::Try(_)
             | Self::NamedArgument(_, _)
             | Self::Filter(_)
-            | Self::Attr(_, _)
+            | Self::AssociatedItem(_, _)
             | Self::Index(_, _)
             | Self::Tuple(_)
             | Self::Array(_)
@@ -677,13 +677,13 @@ pub struct Filter<'a> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Attr<'a> {
+pub struct AssociatedItem<'a> {
     pub name: &'a str,
     pub generics: Vec<WithSpan<'a, TyGenerics<'a>>>,
 }
 
 enum Suffix<'a> {
-    Attr(Attr<'a>),
+    AssociatedItem(AssociatedItem<'a>),
     Index(WithSpan<'a, Expr<'a>>),
     Call {
         args: Vec<WithSpan<'a, Expr<'a>>>,
@@ -699,7 +699,7 @@ impl<'a> Suffix<'a> {
         let mut level_guard = level.guard();
         let mut expr = Expr::single(i, level)?;
         let mut right = opt(alt((
-            |i: &mut _| Self::attr(i, level),
+            |i: &mut _| Self::associated_item(i, level),
             |i: &mut _| Self::index(i, level),
             |i: &mut _| Self::call(i, level),
             Self::r#try,
@@ -714,8 +714,11 @@ impl<'a> Suffix<'a> {
             level_guard.nest(before_suffix)?;
 
             match suffix {
-                Self::Attr(attr) => {
-                    expr = WithSpan::new(Expr::Attr(expr.into(), attr), before_suffix)
+                Self::AssociatedItem(associated_item) => {
+                    expr = WithSpan::new(
+                        Expr::AssociatedItem(expr.into(), associated_item),
+                        before_suffix,
+                    )
                 }
                 Self::Index(index) => {
                     expr = WithSpan::new(Expr::Index(expr.into(), index.into()), before_suffix);
@@ -1034,7 +1037,7 @@ impl<'a> Suffix<'a> {
         (|i: &mut _| macro_arguments(i, open_token)).parse_next(i)
     }
 
-    fn attr(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, Self> {
+    fn associated_item(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, Self> {
         preceded(
             ws(('.', not('.'))),
             cut_err((
@@ -1053,7 +1056,7 @@ impl<'a> Suffix<'a> {
             )),
         )
         .map(|(name, generics)| {
-            Self::Attr(Attr {
+            Self::AssociatedItem(AssociatedItem {
                 name,
                 generics: generics.unwrap_or_default(),
             })
