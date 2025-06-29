@@ -1561,3 +1561,34 @@ fn test_raw() {
         }))],
     );
 }
+
+#[test]
+fn test_macro_call_nested_comments() {
+    // Regression test for <https://issues.oss-fuzz.com/issues/427825995>.
+    let syntax = Syntax::default();
+
+    assert_eq!(
+        Ast::from_str("{{ x!(/*/*/*)*/*/*/) }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::RustMacro(vec!["x"], "/*/*/*)*/*/*/")),
+        )],
+    );
+
+    let msg = Ast::from_str("{{ x!(/*/*/) }}", None, &syntax)
+        .unwrap_err()
+        .to_string();
+    assert!(msg.contains("missing `*/` to close block comment"));
+
+    assert_eq!(
+        Ast::from_str("{{ x!(/**/) }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        vec![Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Expr::RustMacro(vec!["x"], "/**/")),
+        )],
+    );
+}

@@ -7,7 +7,7 @@ use winnow::combinator::{
     alt, cut_err, empty, fail, not, opt, peek, preceded, repeat, separated, terminated,
 };
 use winnow::error::{ErrMode, ParserError as _};
-use winnow::token::take_until;
+use winnow::token::{one_of, take_until};
 
 use crate::node::CondTest;
 use crate::{
@@ -839,21 +839,31 @@ impl<'a> Suffix<'a> {
         fn block_comment<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
             let start = "/*".parse_next(i)?;
             let is_doc_comment = alt((
-                ('*', not(peek('*'))).value(true),
+                ('*', not(peek(one_of(['*', '/'])))).value(true),
                 '!'.value(true),
                 empty.value(false),
             ))
             .parse_next(i)?;
-            if opt(take_until(.., "*/")).parse_next(i)?.is_none() {
-                return cut_error!(
-                    format!(
-                        "missing `*/` to close block {}comment",
-                        if is_doc_comment { "doc " } else { "" }
-                    ),
-                    start,
-                );
+
+            let mut depth = 0usize;
+            loop {
+                if opt(take_until(.., ("/*", "*/"))).parse_next(i)?.is_none() {
+                    return cut_error!(
+                        format!(
+                            "missing `*/` to close block {}comment",
+                            if is_doc_comment { "doc " } else { "" }
+                        ),
+                        start,
+                    );
+                } else if alt(("/*".value(true), "*/".value(false))).parse_next(i)? {
+                    // cannot overflow: `i` cannot be longer than `isize::MAX`, cf. [std::alloc::Layout]
+                    depth += 1;
+                } else if let Some(new_depth) = depth.checked_sub(1) {
+                    depth = new_depth;
+                } else {
+                    return Ok(());
+                }
             }
-            Ok(())
         }
 
         fn identifier_or_prefixed_string<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
