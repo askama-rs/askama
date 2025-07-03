@@ -88,6 +88,11 @@ struct Generator<'a, 'h> {
     seen_callers: Vec<(&'a Call<'a>, &'a Macro<'a>, Option<FileInfo<'a>>)>,
     /// the active caller within the macro.
     active_caller: Option<&'a Call<'a>>,
+    /// This is a callstack to keep track of the context where a call block started.
+    /// This is required, since the {{caller()}} basically calls from the macro's context
+    /// back into the call-site's context.
+    /// For every call-block, we push the current context into this and then pop it after.
+    caller_stack: Vec<Context<'a>>,
 }
 
 impl<'a, 'h> Generator<'a, 'h> {
@@ -114,6 +119,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             is_in_filter_block,
             seen_callers: Vec::new(),
             active_caller: None,
+            caller_stack: vec![contexts[&input.path].clone()],
         }
     }
 

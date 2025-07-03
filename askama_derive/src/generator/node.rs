@@ -577,6 +577,7 @@ impl<'a> Generator<'a, '_> {
             ws2,
             ..
         } = **call;
+        self.caller_stack.push(ctx.clone());
 
         let (def, own_ctx) = if let Some(s) = scope {
             let path = ctx.imports.get(s).ok_or_else(|| {
@@ -741,6 +742,7 @@ impl<'a> Generator<'a, '_> {
         })?;
         self.prepare_ws(ws2);
         self.seen_callers.pop();
+        self.caller_stack.pop();
         self.active_caller = self.seen_callers.last().map(|v| v.0);
         Ok(size_hint)
     }
@@ -1109,17 +1111,19 @@ impl<'a> Generator<'a, '_> {
                 check_num_args(s, ctx, 0, v.args.len(), "super")?;
                 return self.write_block(ctx, buf, None, ws, s.span());
             } else if *v.path == Expr::Var("caller") {
+                let call_ctx = self.caller_stack.last().unwrap().clone();
                 let def = self.active_caller.ok_or_else(|| {
-                    ctx.generate_error(format_args!("block is not defined for `caller`"), s.span())
+                    call_ctx
+                        .generate_error(format_args!("block is not defined for `caller`"), s.span())
                 })?;
                 self.active_caller = None;
                 self.handle_ws(ws);
                 let size_hint = self.push_locals(|this| {
-                    this.write_buf_writable(ctx, buf)?;
+                    this.write_buf_writable(&call_ctx, buf)?;
                     buf.write('{');
                     this.prepare_ws(def.ws1);
                     let mut value = Buffer::new();
-                    check_num_args(s, ctx, def.caller_args.len(), v.args.len(), "caller")?;
+                    check_num_args(s, &call_ctx, def.caller_args.len(), v.args.len(), "caller")?;
                     for (index, arg) in def.caller_args.iter().enumerate() {
                         match v.args.get(index) {
                             Some(expr) => {
@@ -1136,7 +1140,7 @@ impl<'a> Generator<'a, '_> {
                                     Expr::AssociatedItem(obj, associated_item) => {
                                         let mut associated_item_buf = Buffer::new();
                                         this.visit_associated_item(
-                                            ctx,
+                                            &call_ctx,
                                             &mut associated_item_buf,
                                             obj,
                                             associated_item,
@@ -1160,7 +1164,7 @@ impl<'a> Generator<'a, '_> {
                                         } else {
                                             ("", "")
                                         };
-                                        value.write(this.visit_expr_root(ctx, expr)?);
+                                        value.write(this.visit_expr_root(&call_ctx, expr)?);
                                         // We need to normalize the arg to write it, thus we need to add it to
                                         // locals in the normalized manner
                                         let normalized_arg = normalize_identifier(arg);
@@ -1173,17 +1177,18 @@ impl<'a> Generator<'a, '_> {
                                 }
                             }
                             None => {
-                                return Err(ctx.generate_error(
+                                return Err(call_ctx.generate_error(
                                     format_args!("missing `{arg}` argument in `caller`"),
                                     s.span(),
                                 ));
                             }
                         }
                     }
-                    let mut size_hint = this.handle(ctx, &def.nodes, buf, AstLevel::Nested)?;
+                    let mut size_hint =
+                        this.handle(&call_ctx, &def.nodes, buf, AstLevel::Nested)?;
 
                     this.flush_ws(def.ws2);
-                    size_hint += this.write_buf_writable(ctx, buf)?;
+                    size_hint += this.write_buf_writable(&call_ctx, buf)?;
                     buf.write('}');
                     Ok(size_hint)
                 })?;
