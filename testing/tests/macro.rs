@@ -75,6 +75,24 @@ fn test_nested_macro_with_args() {
 }
 
 #[test]
+fn test_macro_caller_context_is_declaration_site() {
+    #[derive(Template)]
+    #[template(
+        ext = "html",
+        source = r#"
+{%- import "macro-with-caller.html" as parentscope -%}
+{%- call parentscope::outer() -%}
+    {%- call parentscope::intermediate() -%}{%- endcall -%}
+{%- endcall -%}
+    "#
+    )]
+    struct CallsiteContextIsDeclarationSiteTemplate {}
+
+    let t = CallsiteContextIsDeclarationSiteTemplate {};
+    assert_eq!(t.render().unwrap(), "<div>intermediatecontent</div>");
+}
+
+#[test]
 fn str_cmp() {
     #[derive(Template)]
     #[template(path = "macro-import-str-cmp.html")]
