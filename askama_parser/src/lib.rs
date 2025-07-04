@@ -918,7 +918,7 @@ impl State<'_, '_> {
     }
 }
 
-#[derive(Default, Hash, PartialEq, Clone, Copy)]
+#[derive(Hash, PartialEq, Clone, Copy)]
 pub struct Syntax<'a>(InnerSyntax<'a>);
 
 // This abstraction ensures that the fields are readable, but not writable.
@@ -941,16 +941,38 @@ impl<'a> Deref for Syntax<'a> {
     }
 }
 
-impl Default for InnerSyntax<'static> {
+impl Default for Syntax<'_> {
+    #[inline]
     fn default() -> Self {
-        Self {
+        *<&Syntax<'_>>::default()
+    }
+}
+
+impl Default for InnerSyntax<'_> {
+    #[inline]
+    fn default() -> Self {
+        Syntax::default().0
+    }
+}
+
+impl Default for &Syntax<'_> {
+    #[inline]
+    fn default() -> Self {
+        &Syntax(InnerSyntax {
             block_start: "{%",
             block_end: "%}",
             expr_start: "{{",
             expr_end: "}}",
             comment_start: "{#",
             comment_end: "#}",
-        }
+        })
+    }
+}
+
+impl Default for &InnerSyntax<'_> {
+    #[inline]
+    fn default() -> Self {
+        &<&Syntax<'_>>::default().0
     }
 }
 
@@ -993,7 +1015,7 @@ pub struct SyntaxBuilder<'a> {
 
 impl<'a> SyntaxBuilder<'a> {
     pub fn to_syntax(&self) -> Result<Syntax<'a>, String> {
-        let default = InnerSyntax::default();
+        let default = <&Syntax<'_>>::default();
         let syntax = Syntax(InnerSyntax {
             block_start: self.block_start.unwrap_or(default.block_start),
             block_end: self.block_end.unwrap_or(default.block_end),
