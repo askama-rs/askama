@@ -147,6 +147,59 @@ nested
 }
 
 #[test]
+fn test_nested_caller_aliasing1() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro inner() -%}
+    inner before|{{- caller(1) -}}|inner after
+{%- endmacro -%}
+{%- macro outer() -%}
+    outer before|
+    {%- set caller_ = caller -%}
+    {%- call(c) inner() -%}
+        {{c}}
+        {{- caller_(3, 4) -}}
+    {%- endcall -%}
+    |outer after
+{%- endmacro -%}
+{%- call(a, b) outer() -%}
+    content{{a}}-{{b}}
+{%- endcall -%}
+"#,
+        ext = "html"
+    )]
+    struct NestedCallerAliasing;
+    assert_eq!(
+        NestedCallerAliasing.render().unwrap(),
+        "outer before|inner before|1content3-4|inner after|outer after"
+    );
+}
+
+#[test]
+fn test_nested_caller_aliasing2() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro layer0() -%}A{{ caller() }}a{%- endmacro -%}
+{%- macro layer1() -%}B
+    {%- set caller_layer1 = caller -%}
+    {%- call layer0() -%}{{ caller_layer1() }}{%- endcall -%}
+b{%- endmacro -%}
+{%- macro layer2() -%}C
+    {%- set caller_layer2 = caller -%}
+    {%- call layer1() -%}{{ caller_layer2() }}{%- endcall -%}
+c{%- endmacro -%}
+
+{%- call layer2() -%}_CONTENT_{%- endcall -%}
+"#,
+        ext = "html"
+    )]
+    struct NestedCallerAliasing;
+    assert_eq!(NestedCallerAliasing.render().unwrap(), "CBA_CONTENT_abc");
+}
+
+#[test]
 fn test_caller_struct() {
     struct TestInput<'a> {
         a: &'a str,

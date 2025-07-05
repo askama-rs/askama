@@ -114,7 +114,7 @@ impl TemplateInput<'_> {
         let empty_punctuated = Punctuated::new();
         let fields = match ast.data {
             syn::Data::Struct(ref struct_) => {
-                if let syn::Fields::Named(ref fields) = &struct_.fields {
+                if let syn::Fields::Named(fields) = &struct_.fields {
                     &fields.named
                 } else {
                     &empty_punctuated

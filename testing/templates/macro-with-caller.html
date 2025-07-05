@@ -1,0 +1,12 @@
+{%- macro outer() -%}
+    <div>{{caller()}}</div>
+{%- endmacro -%}
+
+{%- macro inner() -%}
+    content
+{%- endmacro -%}
+
+{%- macro intermediate() -%}
+    intermediate
+    {%- call inner() -%}{%- endcall -%}
+{%- endmacro -%}

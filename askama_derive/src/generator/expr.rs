@@ -295,7 +295,7 @@ impl<'a> Generator<'a, '_> {
                 node,
             ));
         };
-        let [gen] = generics else {
+        let [r#gen] = generics else {
             return Err(ctx.generate_error(
                 format_args!("{kind} expects one generic, found {}", generics.len()),
                 node,
@@ -303,7 +303,7 @@ impl<'a> Generator<'a, '_> {
         };
         buf.write("askama::helpers::get_value");
         buf.write("::<");
-        self.visit_ty_generic(buf, gen);
+        self.visit_ty_generic(buf, r#gen);
         buf.write('>');
         buf.write("(&__askama_values, &(");
         self.visit_arg(ctx, buf, key)?;
@@ -746,7 +746,7 @@ impl<'a> Generator<'a, '_> {
             Target::Rest(s) => {
                 if let Some(var_name) = &**s {
                     self.locals
-                        .insert(Cow::Borrowed(var_name), LocalMeta::initialized());
+                        .insert(Cow::Borrowed(var_name), LocalMeta::var_def());
                     buf.write(var_name);
                     buf.write(" @ ");
                 }
@@ -757,7 +757,7 @@ impl<'a> Generator<'a, '_> {
                 match initialized {
                     true => self
                         .locals
-                        .insert(Cow::Borrowed(name), LocalMeta::initialized()),
+                        .insert(Cow::Borrowed(name), LocalMeta::var_def()),
                     false => self.locals.insert_with_default(Cow::Borrowed(name)),
                 }
                 buf.write(name);

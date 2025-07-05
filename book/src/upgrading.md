@@ -4,6 +4,10 @@ This file **only lists breaking changes** you need to be aware of when you upgra
 version. Please see [our release notes](<https://github.com/askama-rs/askama/releases>) to get a
 list of all changes and improvements that might be useful to you.
 
+## From askama v0.14 to askama v0.15
+
+* The <abbr title="minimum supported rust version">MSRV</abbr> of this release is 1.88.
+
 ## From askama v0.13 to askama v0.14
 
 * The <abbr title="minimum supported rust version">MSRV</abbr> of this release is 1.83.

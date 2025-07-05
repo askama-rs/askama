@@ -15,7 +15,7 @@ use super::{
     DisplayWrap, FILTER_SOURCE, Generator, LocalMeta, MapChain, compile_time_escape, is_copyable,
     normalize_identifier,
 };
-use crate::generator::Writable;
+use crate::generator::{LocalCallerMeta, Writable};
 use crate::heritage::{Context, Heritage};
 use crate::integration::Buffer;
 use crate::{CompileError, FileInfo, fmt_left, fmt_right};
@@ -41,9 +41,9 @@ impl<'a> Generator<'a, '_> {
     where
         F: FnOnce(&mut Self) -> Result<T, CompileError>,
     {
-        self.locals.scopes.push(HashMap::default());
+        self.locals.stack_push();
         let res = callback(self);
-        self.locals.scopes.pop().unwrap();
+        self.locals.stack_pop();
         res
     }
 
@@ -55,7 +55,7 @@ impl<'a> Generator<'a, '_> {
     where
         F: FnOnce(&mut Generator<'a, 'b>) -> Result<T, CompileError>,
     {
-        self.locals.scopes.push(HashMap::default());
+        self.locals.stack_push();
 
         let buf_writable = mem::take(&mut self.buf_writable);
         let locals = mem::replace(&mut self.locals, MapChain::new_empty());
@@ -76,7 +76,7 @@ impl<'a> Generator<'a, '_> {
             ..
         } = child;
 
-        self.locals.scopes.pop().unwrap();
+        self.locals.stack_pop();
         res
     }
 
@@ -617,9 +617,10 @@ impl<'a> Generator<'a, '_> {
             self.seen_callers
                 .push((call, def, ctx.file_info_of(call.span())));
         }
-        self.active_caller = self.seen_callers.last().map(|v| v.0);
         self.flush_ws(ws1); // Cannot handle_ws() here: whitespace from macro definition comes first
         let size_hint = self.push_locals(|this| {
+            this.locals.insert("caller".into(), LocalMeta::caller(call, ctx.clone()));
+
             macro_call_ensure_arg_count(call, def, ctx)?;
 
             this.write_buf_writable(ctx, buf)?;
@@ -700,7 +701,7 @@ impl<'a> Generator<'a, '_> {
                     Expr::Var(name) if *name != "self" => {
                         let var = this.locals.resolve_or_self(name);
                         this.locals
-                            .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
+                            .insert(Cow::Borrowed(arg), LocalMeta::var_with_ref(var));
                     }
                     Expr::AssociatedItem(obj, associated_item) => {
                         let mut associated_item_buf = Buffer::new();
@@ -709,7 +710,7 @@ impl<'a> Generator<'a, '_> {
                         let associated_item = associated_item_buf.into_string();
                         let var = this.locals.resolve(&associated_item).unwrap_or(associated_item);
                         this.locals
-                            .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
+                            .insert(Cow::Borrowed(arg), LocalMeta::var_with_ref(var));
                     }
                     // Everything else still needs to become variables,
                     // to avoid having the same logic be executed
@@ -741,7 +742,6 @@ impl<'a> Generator<'a, '_> {
         })?;
         self.prepare_ws(ws2);
         self.seen_callers.pop();
-        self.active_caller = self.seen_callers.last().map(|v| v.0);
         Ok(size_hint)
     }
 
@@ -931,6 +931,16 @@ impl<'a> Generator<'a, '_> {
             return Ok(());
         };
 
+        // Handle when this statement creates a new alias of a caller variable (or of another alias),
+        if let Target::Name(dstvar) = l.var
+            && let Expr::Var(srcvar) = **val
+            && let Some(caller_alias) = self.locals.get_caller(srcvar)
+        {
+            self.locals
+                .insert(dstvar.into(), LocalMeta::CallerAlias(caller_alias.clone()));
+            return Ok(());
+        }
+
         let mut expr_buf = Buffer::new();
         self.visit_expr(ctx, &mut expr_buf, val)?;
 
@@ -995,7 +1005,7 @@ impl<'a> Generator<'a, '_> {
             // A block definition contains a definition of another block
             (Some(cur_name), Some((_, _))) => (cur_name, 0),
             // `super()` was called inside a block
-            (None, Some((prev_name, gen))) => (prev_name, gen + 1),
+            (None, Some((prev_name, r#gen))) => (prev_name, r#gen + 1),
             // `super()` is called from outside a block
             (None, None) => {
                 return Err(ctx.generate_error("cannot call 'super()' outside block", node));
@@ -1105,21 +1115,32 @@ impl<'a> Generator<'a, '_> {
                 }
             }
 
-            if *v.path == Expr::Var("super") {
+            let var_name = match *v.path {
+                Expr::Var(var_name) => Some(var_name),
+                _ => None,
+            };
+            let caller_alias = var_name.and_then(|vn| self.locals.get_caller(vn));
+
+            if let Some("super") = var_name {
                 check_num_args(s, ctx, 0, v.args.len(), "super")?;
                 return self.write_block(ctx, buf, None, ws, s.span());
-            } else if *v.path == Expr::Var("caller") {
-                let def = self.active_caller.ok_or_else(|| {
-                    ctx.generate_error(format_args!("block is not defined for `caller`"), s.span())
-                })?;
-                self.active_caller = None;
+            } else if let Some("caller") = var_name
+                && caller_alias.is_none()
+            {
+                // attempted to use keyword `caller` - but no caller is currently in scope
+                return Err(ctx.generate_error("block is not defined for `caller`", s.span()));
+            } else if let Some(LocalCallerMeta { call_ctx, def }) = caller_alias.cloned() {
                 self.handle_ws(ws);
                 let size_hint = self.push_locals(|this| {
-                    this.write_buf_writable(ctx, buf)?;
+                    // Block-out the special caller() variable from this scope onward until it is defined by a
+                    // new call-block again. This prohibits a caller from calling itself.
+                    this.locals.insert("caller".into(), LocalMeta::Negative);
+
+                    this.write_buf_writable(&call_ctx, buf)?;
                     buf.write('{');
                     this.prepare_ws(def.ws1);
                     let mut value = Buffer::new();
-                    check_num_args(s, ctx, def.caller_args.len(), v.args.len(), "caller")?;
+                    check_num_args(s, &call_ctx, def.caller_args.len(), v.args.len(), "caller")?;
                     for (index, arg) in def.caller_args.iter().enumerate() {
                         match v.args.get(index) {
                             Some(expr) => {
@@ -1130,13 +1151,15 @@ impl<'a> Generator<'a, '_> {
                                     // to avoid moving non-copyable values.
                                     &Expr::Var(name) if name != "self" => {
                                         let var = this.locals.resolve_or_self(name);
-                                        this.locals
-                                            .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
+                                        this.locals.insert(
+                                            Cow::Borrowed(arg),
+                                            LocalMeta::var_with_ref(var),
+                                        );
                                     }
                                     Expr::AssociatedItem(obj, associated_item) => {
                                         let mut associated_item_buf = Buffer::new();
                                         this.visit_associated_item(
-                                            ctx,
+                                            &call_ctx,
                                             &mut associated_item_buf,
                                             obj,
                                             associated_item,
@@ -1147,8 +1170,10 @@ impl<'a> Generator<'a, '_> {
                                             .locals
                                             .resolve(&associated_item)
                                             .unwrap_or(associated_item);
-                                        this.locals
-                                            .insert(Cow::Borrowed(arg), LocalMeta::with_ref(var));
+                                        this.locals.insert(
+                                            Cow::Borrowed(arg),
+                                            LocalMeta::var_with_ref(var),
+                                        );
                                     }
                                     // Everything else still needs to become variables,
                                     // to avoid having the same logic be executed
@@ -1160,7 +1185,7 @@ impl<'a> Generator<'a, '_> {
                                         } else {
                                             ("", "")
                                         };
-                                        value.write(this.visit_expr_root(ctx, expr)?);
+                                        value.write(this.visit_expr_root(&call_ctx, expr)?);
                                         // We need to normalize the arg to write it, thus we need to add it to
                                         // locals in the normalized manner
                                         let normalized_arg = normalize_identifier(arg);
@@ -1173,21 +1198,21 @@ impl<'a> Generator<'a, '_> {
                                 }
                             }
                             None => {
-                                return Err(ctx.generate_error(
+                                return Err(call_ctx.generate_error(
                                     format_args!("missing `{arg}` argument in `caller`"),
                                     s.span(),
                                 ));
                             }
                         }
                     }
-                    let mut size_hint = this.handle(ctx, &def.nodes, buf, AstLevel::Nested)?;
+                    let mut size_hint =
+                        this.handle(&call_ctx, &def.nodes, buf, AstLevel::Nested)?;
 
                     this.flush_ws(def.ws2);
-                    size_hint += this.write_buf_writable(ctx, buf)?;
+                    size_hint += this.write_buf_writable(&call_ctx, buf)?;
                     buf.write('}');
                     Ok(size_hint)
                 })?;
-                self.active_caller = self.seen_callers.last().map(|v| v.0);
                 return Ok(size_hint);
             }
         }

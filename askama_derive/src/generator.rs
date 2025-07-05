@@ -86,8 +86,6 @@ struct Generator<'a, 'h> {
     is_in_filter_block: usize,
     /// Set of called macros we are currently in. Used to prevent (indirect) recursions.
     seen_callers: Vec<(&'a Call<'a>, &'a Macro<'a>, Option<FileInfo<'a>>)>,
-    /// the active caller within the macro.
-    active_caller: Option<&'a Call<'a>>,
 }
 
 impl<'a, 'h> Generator<'a, 'h> {
@@ -113,7 +111,6 @@ impl<'a, 'h> Generator<'a, 'h> {
             },
             is_in_filter_block,
             seen_callers: Vec::new(),
-            active_caller: None,
         }
     }
 
@@ -493,29 +490,64 @@ fn compile_time_escape<'a>(expr: &Expr<'a>, escaper: &str) -> Option<Writable<'a
 }
 
 #[derive(Clone, Default)]
-struct LocalMeta {
+struct LocalVariableMeta {
     refs: Option<String>,
     initialized: bool,
 }
 
-impl LocalMeta {
-    fn initialized() -> Self {
-        Self {
+#[derive(Clone)]
+struct LocalCallerMeta<'a> {
+    def: &'a Call<'a>,
+    call_ctx: Context<'a>,
+}
+
+#[derive(Clone)]
+enum LocalMeta<'a> {
+    /// Normal variable
+    Variable(LocalVariableMeta),
+
+    /// This special variable is a caller alias. It's another name for caller().
+    CallerAlias(LocalCallerMeta<'a>),
+
+    /// Represents a "negative" local variable. Meaning: When the resolve methods
+    /// encounters a negative on its path down the stack of scopes, it will immediately
+    /// return without result. This is required to "block out" variables outside of a certain scope
+    Negative,
+}
+
+impl<'a> LocalMeta<'a> {
+    /// Variable declaration only - no value yet.
+    const fn var_decl() -> Self {
+        Self::Variable(LocalVariableMeta {
             refs: None,
-            initialized: true,
-        }
+            initialized: false,
+        })
     }
 
-    fn with_ref(refs: String) -> Self {
-        Self {
+    /// Variable definition - fully initialized.
+    const fn var_def() -> Self {
+        Self::Variable(LocalVariableMeta {
+            refs: None,
+            initialized: true,
+        })
+    }
+
+    /// Variable referencing another
+    const fn var_with_ref(refs: String) -> Self {
+        Self::Variable(LocalVariableMeta {
             refs: Some(refs),
             initialized: true,
-        }
+        })
+    }
+
+    /// Special variable aliasing a `caller()`
+    const fn caller(def: &'a Call<'a>, call_ctx: Context<'a>) -> Self {
+        Self::CallerAlias(LocalCallerMeta { def, call_ctx })
     }
 }
 
 struct MapChain<'a> {
-    scopes: Vec<HashMap<Cow<'a, str>, LocalMeta, FxBuildHasher>>,
+    scopes: Vec<HashMap<Cow<'a, str>, LocalMeta<'a>, FxBuildHasher>>,
 }
 
 impl<'a> MapChain<'a> {
@@ -523,17 +555,35 @@ impl<'a> MapChain<'a> {
         Self { scopes: vec![] }
     }
 
-    /// Iterates the scopes in reverse and returns `Some(LocalMeta)`
-    /// from the first scope where `key` exists.
-    fn get<'b>(&'b self, key: &str) -> Option<&'b LocalMeta> {
-        self.scopes.iter().rev().find_map(|set| set.get(key))
+    /// Iterates the scopes in reverse and searches for a local variable with the given key.
+    ///
+    /// # Returns
+    /// - `Some(LocalVariableMeta)` if the first encountered entry for key was a variable
+    /// - `None` otherwise
+    fn get<'b>(&'b self, key: &str) -> Option<&'b LocalVariableMeta> {
+        match self.scopes.iter().rev().find_map(|set| set.get(key)) {
+            Some(LocalMeta::Variable(var)) => Some(var),
+            _ => None,
+        }
+    }
+
+    /// Iterates the scopes in reverse and searches for a `CallerAlias`
+    ///
+    /// # Returns
+    /// - `Some(LocalCallerMeta)` if the first encountered entry for key was a caller alias
+    /// - `None` otherwise
+    fn get_caller<'b>(&'b self, key: &str) -> Option<&'b LocalCallerMeta<'a>> {
+        match self.scopes.iter().rev().find_map(|set| set.get(key)) {
+            Some(LocalMeta::CallerAlias(caller)) => Some(caller),
+            _ => None,
+        }
     }
 
     fn is_current_empty(&self) -> bool {
         self.scopes.last().unwrap().is_empty()
     }
 
-    fn insert(&mut self, key: Cow<'a, str>, val: LocalMeta) {
+    fn insert(&mut self, key: Cow<'a, str>, val: LocalMeta<'a>) {
         self.scopes.last_mut().unwrap().insert(key, val);
 
         // Note that if `insert` returns `Some` then it implies
@@ -544,7 +594,7 @@ impl<'a> MapChain<'a> {
     }
 
     fn insert_with_default(&mut self, key: Cow<'a, str>) {
-        self.insert(key, LocalMeta::default());
+        self.insert(key, LocalMeta::var_decl());
     }
 
     fn resolve(&self, name: &str) -> Option<String> {
@@ -558,6 +608,14 @@ impl<'a> MapChain<'a> {
     fn resolve_or_self(&self, name: &str) -> String {
         let name = normalize_identifier(name);
         self.resolve(name).unwrap_or_else(|| format!("self.{name}"))
+    }
+
+    fn stack_push(&mut self) {
+        self.scopes.push(HashMap::default());
+    }
+
+    fn stack_pop(&mut self) {
+        self.scopes.pop().unwrap();
     }
 }
 
