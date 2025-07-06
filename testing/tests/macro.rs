@@ -472,3 +472,25 @@ fn test_rust_keywords_as_args_with_default_expr() {
     // primarily checking for compilation
     assert_eq!(MacroRustKwArgsDefaultExpr.render().unwrap(), "3\n1\n1\n");
 }
+
+// This test ensures that default values can be paths with generics.
+#[test]
+fn test_macro_default_value_generics() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test(title = Option::<String>::None, b = Option::<u32>::Some(0)) -%}
+    {%- if let Some(title) = title -%}
+        Title: {{title}}
+    {%- endif -%}
+    {%- if let Some(b) = b -%}---> {{b}}{% endif -%}
+{%- endmacro -%}
+
+{% call test(b = Option::<u32>::Some(3)) %}{% endcall -%}
+"#,
+        ext = "html"
+    )]
+    struct Example;
+
+    assert_eq!(Example.render().unwrap(), "---> 3");
+}
