@@ -2,7 +2,10 @@ use std::borrow::Cow;
 use std::fmt::{self, Write};
 use std::mem::replace;
 
-use parser::{Expr, IntKind, Num, PathOrIdentifier, Span, StrLit, StrPrefix, TyGenerics, WithSpan};
+use parser::{
+    Expr, IntKind, Num, PathComponent, PathOrIdentifier, Span, StrLit, StrPrefix, TyGenerics,
+    WithSpan,
+};
 
 use super::{DisplayWrap, Generator, TargetIsize, TargetUsize};
 use crate::heritage::Context;
@@ -14,16 +17,16 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: &PathOrIdentifier<'_>,
+        name: &PathOrIdentifier<'a>,
         args: &[WithSpan<'a, Expr<'a>>],
-        generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        let name = match name {
-            PathOrIdentifier::Path(path) => {
-                return self.visit_custom_filter_with_path(ctx, buf, path, args, generics, node);
-            }
-            PathOrIdentifier::Identifier(name) => *name,
+        let (name, generics): (&str, &[WithSpan<'_, TyGenerics<'_>>]) = match name {
+            PathOrIdentifier::Path(path) => match path.as_slice() {
+                [arg] => (arg.name, arg.generics.as_slice()),
+                _ => return self.visit_custom_filter_with_path(ctx, buf, path, args, node),
+            },
+            PathOrIdentifier::Identifier(name) => (*name, &[]),
         };
         let filter = match name {
             "center" => Self::visit_center_filter,
@@ -66,14 +69,12 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        path: &[&str],
+        path: &[WithSpan<'a, PathComponent<'a>>],
         args: &[WithSpan<'a, Expr<'a>>],
-        generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_no_named_arguments(ctx, path.last().unwrap(), args, node)?;
+        ensure_no_named_arguments(ctx, path.last().unwrap().name, args, node)?;
         self.visit_path(buf, path);
-        self.visit_call_generics(buf, generics);
         buf.write('(');
         self.visit_arg(ctx, buf, &args[0])?;
         buf.write(",__askama_values");
@@ -89,19 +90,28 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: &str,
+        name: &'a str,
         args: &[WithSpan<'a, Expr<'a>>],
-        generics: &[WithSpan<'a, TyGenerics<'a>>],
+        _: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        self.visit_custom_filter_with_path(ctx, buf, &["filters", name], args, generics, node)
+        self.visit_custom_filter_with_path(
+            ctx,
+            buf,
+            &[
+                WithSpan::new_without_span(PathComponent::new_with_name("filters")),
+                WithSpan::new_without_span(PathComponent::new_with_name(name)),
+            ],
+            args,
+            node,
+        )
     }
 
     fn visit_builtin_filter_alloc(
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: &str,
+        name: &'a str,
         args: &[WithSpan<'a, Expr<'a>>],
         generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
@@ -114,7 +124,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: &str,
+        name: &'a str,
         args: &[WithSpan<'a, Expr<'a>>],
         generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,
@@ -127,7 +137,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: &str,
+        name: &'a str,
         args: &[WithSpan<'a, Expr<'a>>],
         generics: &[WithSpan<'a, TyGenerics<'a>>],
         node: Span<'_>,

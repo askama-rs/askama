@@ -27,7 +27,7 @@ use winnow::token::{any, none_of, one_of, take_till, take_while};
 use winnow::{ModalParser, Parser};
 
 use crate::ascii_str::{AsciiChar, AsciiStr};
-pub use crate::expr::{AssociatedItem, Expr, Filter, TyGenerics};
+pub use crate::expr::{AssociatedItem, Expr, Filter, PathComponent, TyGenerics};
 pub use crate::node::Node;
 pub use crate::target::Target;
 
@@ -834,41 +834,59 @@ impl<'a> Char<'a> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PathOrIdentifier<'a> {
-    Path(Vec<&'a str>),
+    Path(Vec<WithSpan<'a, PathComponent<'a>>>),
     Identifier(&'a str),
 }
 
-fn path_or_identifier<'a>(i: &mut &'a str) -> ParseResult<'a, PathOrIdentifier<'a>> {
+fn path_or_identifier<'a>(
+    i: &mut &'a str,
+    level: Level<'_>,
+) -> ParseResult<'a, PathOrIdentifier<'a>> {
+    let start_i = *i;
     let root = ws(opt("::"));
-    let tail = opt(repeat(1.., preceded(ws("::"), identifier)).map(|v: Vec<_>| v));
+    let tail = opt(repeat(
+        1..,
+        preceded(ws("::"), move |i: &mut _| PathComponent::parse(i, level)),
+    )
+    .map(|v: Vec<_>| v));
 
-    let (root, start, rest) = (root, identifier, tail).parse_next(i)?;
-    let rest = rest.as_deref().unwrap_or_default();
+    let (root, start, rest) =
+        (root, move |i: &mut _| PathComponent::parse(i, level), tail).parse_next(i)?;
+    let rest = rest.unwrap_or_default();
 
     // The returned identifier can be assumed to be path if:
     // - it is an absolute path (starts with `::`), or
     // - it has multiple components (at least one `::`), or
     // - the first letter is uppercase
-    match (root, start, rest) {
-        (Some(_), start, tail) => {
-            let mut path = Vec::with_capacity(2 + tail.len());
-            path.push("");
-            path.push(start);
-            path.extend(rest);
-            Ok(PathOrIdentifier::Path(path))
-        }
-        (None, name, [])
-            if name
-                .chars()
-                .next()
-                .is_none_or(|c| c == '_' || c.is_lowercase()) =>
+    match (root.is_some(), start, rest) {
+        (false, arg, tail)
+            if tail.is_empty()
+                && arg.generics.is_empty()
+                && arg
+                    .name
+                    .chars()
+                    .next()
+                    .is_none_or(|c| c == '_' || c.is_lowercase()) =>
         {
-            Ok(PathOrIdentifier::Identifier(name))
+            Ok(PathOrIdentifier::Identifier(arg.name))
         }
-        (None, start, tail) => {
-            let mut path = Vec::with_capacity(1 + tail.len());
+        (has_root, start, tail) => {
+            let mut path = if has_root {
+                let mut path = Vec::with_capacity(2 + tail.len());
+                path.push(WithSpan::new(
+                    PathComponent {
+                        name: "",
+                        generics: Vec::new(),
+                    },
+                    start_i,
+                    i,
+                ));
+                path
+            } else {
+                Vec::with_capacity(1 + tail.len())
+            };
             path.push(start);
-            path.extend(rest);
+            path.extend(tail);
             Ok(PathOrIdentifier::Path(path))
         }
     }

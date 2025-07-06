@@ -11,9 +11,9 @@ use winnow::token::{one_of, take_until};
 
 use crate::node::CondTest;
 use crate::{
-    CharLit, Level, Num, ParseResult, PathOrIdentifier, StrLit, StrPrefix, WithSpan, char_lit,
-    cut_error, filter, identifier, keyword, not_suffix_with_hash, num_lit, path_or_identifier,
-    skip_ws0, skip_ws1, str_lit, ws,
+    CharLit, ErrorContext, Level, Num, ParseResult, PathOrIdentifier, StrLit, StrPrefix, WithSpan,
+    char_lit, cut_error, filter, identifier, keyword, not_suffix_with_hash, num_lit,
+    path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
 };
 
 macro_rules! expr_prec_layer {
@@ -75,10 +75,10 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> ParseResul
             }
         }
         Expr::Path(path) => {
-            if let &[name] = path.as_slice()
-                && !crate::can_be_variable_name(name)
+            if let [arg] = path.as_slice()
+                && !crate::can_be_variable_name(arg.name)
             {
-                return err_reserved_identifier(name);
+                return err_reserved_identifier(arg.name);
             }
             Ok(())
         }
@@ -160,13 +160,47 @@ fn err_reserved_identifier<T>(name: &str) -> ParseResult<'_, T> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+pub struct PathComponent<'a> {
+    pub name: &'a str,
+    pub generics: Vec<WithSpan<'a, TyGenerics<'a>>>,
+}
+
+impl<'a> PathComponent<'a> {
+    pub fn new_with_name(name: &'a str) -> Self {
+        Self {
+            name,
+            generics: Vec::new(),
+        }
+    }
+
+    pub(crate) fn parse(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+        let start = *i;
+        (
+            identifier,
+            opt((ws("::"), |i: &mut _| TyGenerics::args(i, level))),
+        )
+            .parse_next(i)
+            .map(|(name, generics)| {
+                WithSpan::new(
+                    Self {
+                        name,
+                        generics: generics.map(|(_, generics)| generics).unwrap_or_default(),
+                    },
+                    start,
+                    i,
+                )
+            })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expr<'a> {
     BoolLit(bool),
     NumLit(&'a str, Num<'a>),
     StrLit(StrLit<'a>),
     CharLit(CharLit<'a>),
     Var(&'a str),
-    Path(Vec<&'a str>),
+    Path(Vec<WithSpan<'a, PathComponent<'a>>>),
     Array(Vec<WithSpan<'a, Expr<'a>>>),
     AssociatedItem(Box<WithSpan<'a, Expr<'a>>>, AssociatedItem<'a>),
     Index(Box<WithSpan<'a, Expr<'a>>>, Box<WithSpan<'a, Expr<'a>>>),
@@ -197,7 +231,6 @@ pub enum Expr<'a> {
 pub struct Call<'a> {
     pub path: WithSpan<'a, Expr<'a>>,
     pub args: Vec<WithSpan<'a, Expr<'a>>>,
-    pub generics: Vec<WithSpan<'a, TyGenerics<'a>>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -523,7 +556,7 @@ impl<'a> Expr<'a> {
             Self::num,
             Self::str,
             Self::char,
-            Self::path_var_bool,
+            move |i: &mut _| Self::path_var_bool(i, level),
             move |i: &mut _| Self::array(i, level),
             move |i: &mut _| Self::group(i, level),
         ))
@@ -580,17 +613,15 @@ impl<'a> Expr<'a> {
         ))
     }
 
-    fn path_var_bool(i: &mut &'a str) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn path_var_bool(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, WithSpan<'a, Self>> {
         let start = *i;
-        path_or_identifier
-            .map(|v| match v {
-                PathOrIdentifier::Path(v) => Self::Path(v),
-                PathOrIdentifier::Identifier("true") => Self::BoolLit(true),
-                PathOrIdentifier::Identifier("false") => Self::BoolLit(false),
-                PathOrIdentifier::Identifier(v) => Self::Var(v),
-            })
-            .parse_next(i)
-            .map(|expr| WithSpan::new(expr, start, i))
+        let ret = match path_or_identifier(i, level)? {
+            PathOrIdentifier::Path(v) => Self::Path(v),
+            PathOrIdentifier::Identifier("true") => Self::BoolLit(true),
+            PathOrIdentifier::Identifier("false") => Self::BoolLit(false),
+            PathOrIdentifier::Identifier(v) => Self::Var(v),
+        };
+        Ok(WithSpan::new(ret, start, i))
     }
 
     fn str(i: &mut &'a str) -> ParseResult<'a, WithSpan<'a, Self>> {
@@ -666,21 +697,18 @@ fn token_bitand<'a>(i: &mut &'a str) -> ParseResult<'a> {
 pub struct Filter<'a> {
     pub name: PathOrIdentifier<'a>,
     pub arguments: Vec<WithSpan<'a, Expr<'a>>>,
-    pub generics: Vec<WithSpan<'a, TyGenerics<'a>>>,
 }
 
 impl<'a> Filter<'a> {
     pub(crate) fn parse(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, Self> {
-        let (name, generics, arguments) = (
-            ws(path_or_identifier),
-            opt(|i: &mut _| call_generics(i, level)),
+        let (name, arguments) = (
+            ws(|i: &mut _| path_or_identifier(i, level)),
             opt(|i: &mut _| Expr::arguments(i, level, true)),
         )
             .parse_next(i)?;
         Ok(Self {
             name,
             arguments: arguments.unwrap_or_default(),
-            generics: generics.unwrap_or_default(),
         })
     }
 }
@@ -694,10 +722,7 @@ pub struct AssociatedItem<'a> {
 enum Suffix<'a> {
     AssociatedItem(AssociatedItem<'a>),
     Index(WithSpan<'a, Expr<'a>>),
-    Call {
-        args: Vec<WithSpan<'a, Expr<'a>>>,
-        generics: Vec<WithSpan<'a, TyGenerics<'a>>>,
-    },
+    Call { args: Vec<WithSpan<'a, Expr<'a>>> },
     // The value is the arguments of the macro call.
     MacroCall(&'a str),
     Try,
@@ -705,6 +730,7 @@ enum Suffix<'a> {
 
 impl<'a> Suffix<'a> {
     fn parse(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, WithSpan<'a, Expr<'a>>> {
+        let i_start = *i;
         let mut level_guard = level.guard();
         let mut expr = Expr::single(i, level)?;
         let mut right = alt((
@@ -725,22 +751,25 @@ impl<'a> Suffix<'a> {
                 Self::Index(index) => {
                     expr = WithSpan::new(Expr::Index(expr.into(), index.into()), start, i);
                 }
-                Self::Call { args, generics } => {
-                    expr = WithSpan::new(
-                        Expr::Call(Box::new(Call {
-                            path: expr,
-                            args,
-                            generics,
-                        })),
-                        start,
-                        i,
-                    )
+                Self::Call { args } => {
+                    expr = WithSpan::new(Expr::Call(Box::new(Call { path: expr, args })), start, i)
                 }
                 Self::Try => expr = WithSpan::new(Expr::Try(expr.into()), start, i),
                 Self::MacroCall(args) => match expr.inner {
                     Expr::Path(path) => {
-                        ensure_macro_name(path.last().unwrap())?;
-                        expr = WithSpan::new(Expr::RustMacro(path, args), start, i)
+                        ensure_macro_name(path.last().unwrap().name)?;
+                        if path.iter().any(|r| !r.generics.is_empty()) {
+                            return Err(ErrorContext::new(
+                                "macro paths cannot have generics",
+                                i_start,
+                            )
+                            .backtrack());
+                        }
+                        expr = WithSpan::new(
+                            Expr::RustMacro(path.into_iter().map(|c| c.name).collect(), args),
+                            start,
+                            i,
+                        )
                     }
                     Expr::Var(name) => {
                         ensure_macro_name(name)?;
@@ -1102,10 +1131,7 @@ impl<'a> Suffix<'a> {
         (opt(|i: &mut _| call_generics(i, level)), |i: &mut _| {
             Expr::arguments(i, level, false)
         })
-            .map(|(generics, args)| Self::Call {
-                args,
-                generics: generics.unwrap_or_default(),
-            })
+            .map(|(_generics, args)| Self::Call { args })
             .parse_next(i)
     }
 

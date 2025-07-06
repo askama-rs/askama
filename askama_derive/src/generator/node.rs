@@ -803,7 +803,6 @@ impl<'a> Generator<'a, '_> {
             &mut filter_buf,
             &filter.filters.name,
             &filter.filters.arguments,
-            &filter.filters.generics,
             filter.span(),
         )?;
         let filter_buf = match display_wrap {

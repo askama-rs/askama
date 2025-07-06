@@ -4,22 +4,25 @@ use winnow::token::one_of;
 use winnow::{ModalParser, Parser};
 
 use crate::{
-    CharLit, ErrorContext, Num, ParseErr, ParseResult, PathOrIdentifier, State, StrLit, WithSpan,
-    bool_lit, can_be_variable_name, char_lit, cut_error, identifier, is_rust_keyword, keyword,
-    num_lit, path_or_identifier, str_lit, ws,
+    CharLit, ErrorContext, Num, ParseErr, ParseResult, PathComponent, PathOrIdentifier, State,
+    StrLit, WithSpan, bool_lit, can_be_variable_name, char_lit, cut_error, identifier,
+    is_rust_keyword, keyword, num_lit, path_or_identifier, str_lit, ws,
 };
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Target<'a> {
     Name(&'a str),
-    Tuple(Vec<&'a str>, Vec<Target<'a>>),
-    Array(Vec<&'a str>, Vec<Target<'a>>),
-    Struct(Vec<&'a str>, Vec<(&'a str, Target<'a>)>),
+    Tuple(Vec<WithSpan<'a, PathComponent<'a>>>, Vec<Target<'a>>),
+    Array(Vec<WithSpan<'a, PathComponent<'a>>>, Vec<Target<'a>>),
+    Struct(
+        Vec<WithSpan<'a, PathComponent<'a>>>,
+        Vec<(&'a str, Target<'a>)>,
+    ),
     NumLit(&'a str, Num<'a>),
     StrLit(StrLit<'a>),
     CharLit(CharLit<'a>),
     BoolLit(&'a str),
-    Path(Vec<&'a str>),
+    Path(Vec<WithSpan<'a, PathComponent<'a>>>),
     OrChain(Vec<Target<'a>>),
     Placeholder(WithSpan<'a, ()>),
     /// The `Option` is the variable name (if any) in `var_name @ ..`.
@@ -83,7 +86,8 @@ impl<'a> Target<'a> {
             ));
         }
 
-        let path = path_or_identifier.try_map(|v| match v {
+        let path = |i: &mut _| path_or_identifier(i, s.level);
+        let path = path.try_map(|r| match r {
             PathOrIdentifier::Path(v) => Ok(v),
             PathOrIdentifier::Identifier(v) => Err(v),
         });
@@ -109,15 +113,21 @@ impl<'a> Target<'a> {
                 return Ok(Self::Struct(path, targets));
             }
 
-            if let [name] = path.as_slice() {
+            if let [arg] = path.as_slice() {
                 // If the path only contains one item, we need to check the name.
-                if !can_be_variable_name(name) {
-                    return cut_error!(format!("`{name}` cannot be used as an identifier"), *name);
+                if !can_be_variable_name(arg.name) {
+                    return cut_error!(
+                        format!("`{}` cannot be used as an identifier", arg.name),
+                        arg.name
+                    );
                 }
             } else {
                 // Otherwise we need to check every element but the first.
-                if let Some(name) = path.iter().skip(1).find(|n| !can_be_variable_name(n)) {
-                    return cut_error!(format!("`{name}` cannot be used as an identifier"), *name);
+                if let Some(arg) = path.iter().skip(1).find(|n| !can_be_variable_name(n.name)) {
+                    return cut_error!(
+                        format!("`{}` cannot be used as an identifier", arg.name),
+                        arg.name
+                    );
                 }
             }
 

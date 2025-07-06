@@ -1,5 +1,6 @@
 use std::fmt::{Arguments, Display, Write};
 
+use parser::{PathComponent, WithSpan};
 use proc_macro2::{TokenStream, TokenTree};
 use quote::{ToTokens, quote};
 use syn::spanned::Spanned;
@@ -127,7 +128,7 @@ impl Buffer {
         src.append_to(&mut self.buf);
     }
 
-    pub(crate) fn write_separated_path(&mut self, path: &[&str]) {
+    pub(crate) fn write_separated_path(&mut self, path: &[WithSpan<'_, PathComponent<'_>>]) {
         if self.discard {
             return;
         }
@@ -137,7 +138,7 @@ impl Buffer {
             if idx > 0 {
                 self.buf.push_str("::");
             }
-            self.buf.push_str(item);
+            self.buf.push_str(item.name);
         }
     }
 

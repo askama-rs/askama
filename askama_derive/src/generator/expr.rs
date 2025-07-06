@@ -2,7 +2,8 @@ use std::borrow::Cow;
 
 use parser::node::CondTest;
 use parser::{
-    AssociatedItem, CharLit, CharPrefix, Expr, Span, StrLit, Target, TyGenerics, WithSpan,
+    AssociatedItem, CharLit, CharPrefix, Expr, PathComponent, Span, StrLit, Target, TyGenerics,
+    WithSpan,
 };
 use quote::quote;
 
@@ -74,7 +75,7 @@ impl<'a> Generator<'a, '_> {
             }
             Expr::Index(ref obj, ref key) => self.visit_index(ctx, buf, obj, key)?,
             Expr::Filter(ref v) => {
-                self.visit_filter(ctx, buf, &v.name, &v.arguments, &v.generics, expr.span())?
+                self.visit_filter(ctx, buf, &v.name, &v.arguments, expr.span())?
             }
             Expr::Unary(op, ref inner) => self.visit_unary(ctx, buf, op, inner)?,
             Expr::BinOp(ref v) => self.visit_binop(ctx, buf, v.op, &v.lhs, &v.rhs)?,
@@ -82,7 +83,7 @@ impl<'a> Generator<'a, '_> {
                 self.visit_range(ctx, buf, v.op, v.lhs.as_ref(), v.rhs.as_ref())?
             }
             Expr::Group(ref inner) => self.visit_group(ctx, buf, inner)?,
-            Expr::Call(ref v) => self.visit_call(ctx, buf, &v.path, &v.args, &v.generics)?,
+            Expr::Call(ref v) => self.visit_call(ctx, buf, &v.path, &v.args)?,
             Expr::RustMacro(ref path, args) => self.visit_rust_macro(buf, path, args),
             Expr::Try(ref expr) => self.visit_try(ctx, buf, expr)?,
             Expr::Tuple(ref exprs) => self.visit_tuple(ctx, buf, exprs)?,
@@ -269,7 +270,7 @@ impl<'a> Generator<'a, '_> {
         };
 
         if !path.is_empty() {
-            self.visit_path(buf, path);
+            self.visit_macro_path(buf, path);
             buf.write("::");
         }
         buf.write(name);
@@ -458,7 +459,7 @@ impl<'a> Generator<'a, '_> {
         for _ in 0..*refs {
             buf.write('&');
         }
-        self.visit_path(buf, path);
+        self.visit_macro_path(buf, path);
         self.visit_ty_generics(buf, args);
     }
 
@@ -483,15 +484,14 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         left: &WithSpan<'a, Expr<'a>>,
         args: &[WithSpan<'a, Expr<'a>>],
-        generics: &[WithSpan<'a, TyGenerics<'a>>],
     ) -> Result<DisplayWrap, CompileError> {
         match &**left {
-            Expr::AssociatedItem(sub_left, AssociatedItem { name, .. })
+            Expr::AssociatedItem(sub_left, AssociatedItem { name, generics })
                 if ***sub_left == Expr::Var("loop") =>
             {
                 match *name {
                     "cycle" => {
-                        if let [generic, ..] = generics {
+                        if let [generic, ..] = generics.as_slice() {
                             return Err(ctx.generate_error(
                                 "loop.cycle(…) doesn't use generics",
                                 generic.span(),
@@ -539,12 +539,14 @@ impl<'a> Generator<'a, '_> {
                 }
             }
             // We special-case "askama::get_value".
-            Expr::Path(path) if path == &["askama", "get_value"] => {
+            Expr::Path(path) if matches!(path.as_slice(), [part1, part2] if part1.generics.is_empty() && part1.name == "askama" && part2.name == "get_value") =>
+            {
                 self.visit_value(
                     ctx,
                     buf,
                     args,
-                    generics,
+                    // Generics of the `get_value` call.
+                    &path[1].generics,
                     left.span(),
                     "`get_value` function",
                 )?;
@@ -559,7 +561,6 @@ impl<'a> Generator<'a, '_> {
                         self.visit_expr(ctx, buf, left)?;
                     }
                 }
-                self.visit_call_generics(buf, generics);
                 buf.write('(');
                 self.visit_args(ctx, buf, args)?;
                 buf.write(')');
@@ -669,7 +670,7 @@ impl<'a> Generator<'a, '_> {
         Ok(DisplayWrap::Unwrapped)
     }
 
-    pub(super) fn visit_path(&mut self, buf: &mut Buffer, path: &[&str]) -> DisplayWrap {
+    pub(super) fn visit_macro_path(&mut self, buf: &mut Buffer, path: &[&str]) -> DisplayWrap {
         for (i, part) in path.iter().copied().enumerate() {
             if i > 0 {
                 buf.write("::");
@@ -683,6 +684,32 @@ impl<'a> Generator<'a, '_> {
                 continue;
             }
             buf.write(part);
+        }
+        DisplayWrap::Unwrapped
+    }
+
+    pub(super) fn visit_path(
+        &mut self,
+        buf: &mut Buffer,
+        path: &[WithSpan<'a, PathComponent<'a>>],
+    ) -> DisplayWrap {
+        for (i, part) in path.iter().enumerate() {
+            if i > 0 {
+                buf.write("::");
+            } else if let Some(enum_ast) = self.input.enum_ast {
+                if part.name == "Self" {
+                    let this = &enum_ast.ident;
+                    let (_, generics, _) = enum_ast.generics.split_for_impl();
+                    let generics = generics.as_turbofish();
+                    buf.write(quote!(#this #generics));
+                    continue;
+                }
+            }
+            buf.write(part.name);
+            if !part.generics.is_empty() {
+                buf.write("::");
+                self.visit_ty_generics(buf, &part.generics);
+            }
         }
         DisplayWrap::Unwrapped
     }
