@@ -9,8 +9,8 @@ homepage = "https://github.com/askama-rs/askama"
 repository = "https://github.com/askama-rs/askama"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-edition = "2021"
-rust-version = "1.83"
+edition = "2024"
+rust-version = "1.88"
 
 [package.metadata.docs.rs]
 all-features = true
