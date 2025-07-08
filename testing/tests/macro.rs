@@ -472,3 +472,114 @@ fn test_rust_keywords_as_args_with_default_expr() {
     // primarily checking for compilation
     assert_eq!(MacroRustKwArgsDefaultExpr.render().unwrap(), "3\n1\n1\n");
 }
+
+#[test]
+fn test_expr_macro_call_same_ctx() {
+    #[derive(Template)]
+    #[template(
+        source = "
+{%- macro samescope(optarg=1+2) -%}
+{{ optarg }}
+{% endmacro -%}
+
+{{- samescope() -}}
+{{- samescope(1) -}}
+",
+        ext = "html"
+    )]
+    struct ExprMacroCall;
+
+    // primarily checking for compilation
+    assert_eq!(ExprMacroCall.render().unwrap(), "3\n1\n");
+}
+
+#[test]
+fn test_expr_macro_call_imported() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- import "macro.html" as otherscope -%}
+{{- otherscope::twice("xxx") -}}
+"#,
+        ext = "html"
+    )]
+    struct ExprMacroCall;
+
+    // primarily checking for compilation
+    assert_eq!(ExprMacroCall.render().unwrap(), "xxx xxx");
+}
+
+#[test]
+fn test_expr_macro_call_imported_nested() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- import "nested-macro.html" as otherscope -%}
+{{- otherscope::parent() -}}
+"#,
+        ext = "html"
+    )]
+    struct ExprMacroCall;
+
+    // primarily checking for compilation
+    assert_eq!(ExprMacroCall.render().unwrap(), "foo");
+}
+
+#[test]
+fn test_expr_macro_call_imported_nested2() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- import "nested-macro-callexpr.html" as otherscope -%}
+{% let child1 = "Test: Macros scoped by file" %}
+{{- otherscope::parent() -}}
+"#,
+        ext = "html"
+    )]
+    struct ExprMacroCall;
+
+    // primarily checking for compilation
+    assert_eq!(ExprMacroCall.render().unwrap(), "foo");
+}
+
+#[test]
+fn test_expr_macro_call_importchain_nested() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- import "macro-import-callexpr.html" as otherscope -%}
+{{- otherscope::intermediate() -}}
+"#,
+        ext = "html"
+    )]
+    struct ExprMacroCall;
+
+    // primarily checking for compilation
+    assert_eq!(ExprMacroCall.render().unwrap(), "foo");
+}
+
+#[test]
+fn test_macro_caller_is_defined_check() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro testmacro() -%}
+    {%- if caller is defined -%}
+        {{- caller() -}}
+    {%- else -%}
+        no caller defined
+    {%- endif -%}
+{%- endmacro -%}
+{{- testmacro() -}}
+{%- call testmacro() -%}|this time with caller{%- endcall -%}
+"#,
+        ext = "html"
+    )]
+    struct ExprMacroCall;
+
+    // primarily checking for compilation
+    assert_eq!(
+        ExprMacroCall.render().unwrap(),
+        "no caller defined|this time with caller"
+    );
+}

@@ -1,0 +1,11 @@
+{%- macro child0() -%}
+    foo
+{%- endmacro -%}
+
+{%- macro child1() -%}
+    {{ child0() }}
+{%- endmacro -%}
+
+{%- macro parent() -%}
+    {{ child1() }}
+{%- endmacro -%}
