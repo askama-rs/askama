@@ -147,9 +147,9 @@ pub struct WithSpan<'a, T> {
     span: Span<'a>,
 }
 
-/// An location in `&'a str`
+/// A location in `&'a str`
 #[derive(Debug, Clone, Copy)]
-pub struct Span<'a>(&'a [u8; 0]);
+pub struct Span<'a>(&'a str);
 
 impl Default for Span<'static> {
     #[inline]
@@ -161,12 +161,12 @@ impl Default for Span<'static> {
 impl<'a> Span<'a> {
     #[inline]
     pub const fn empty() -> Self {
-        Self(&[])
+        Self("")
     }
 
     pub fn offset_from(self, start: &'a str) -> Option<usize> {
         let start_range = start.as_bytes().as_ptr_range();
-        let this_ptr = self.0.as_slice().as_ptr();
+        let this_ptr = self.0.as_ptr();
         match start_range.contains(&this_ptr) {
             // SAFETY: we just checked that `this_ptr` is inside `start_range`
             true => Some(unsafe { this_ptr.offset_from(start_range.start) as usize }),
@@ -181,18 +181,33 @@ impl<'a> Span<'a> {
             false => None,
         }
     }
+
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl<'a> From<&'a str> for Span<'a> {
     #[inline]
     fn from(value: &'a str) -> Self {
-        Self(value.as_bytes()[..0].try_into().unwrap())
+        Self(value)
     }
 }
 
 impl<'a, T> WithSpan<'a, T> {
     #[inline]
-    pub fn new(inner: T, span: impl Into<Span<'a>>) -> Self {
+    pub fn new(inner: T, span_begin: &'a str, span_end: &'a str) -> Self {
+        assert!(span_begin.len() >= span_end.len());
+        let len = span_begin.len() - span_end.len();
+        Self {
+            inner,
+            span: Span(&span_begin[..len]),
+        }
+    }
+
+    #[inline]
+    pub fn new_with_full<I: Into<Span<'a>>>(inner: T, span: I) -> Self {
         Self {
             inner,
             span: span.into(),
@@ -1641,7 +1656,7 @@ mod test {
     fn assert_span_size() {
         assert_eq!(
             std::mem::size_of::<Span<'static>>(),
-            std::mem::size_of::<*const ()>()
+            std::mem::size_of::<*const ()>() * 2,
         );
     }
 

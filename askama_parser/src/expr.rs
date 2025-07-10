@@ -11,9 +11,9 @@ use winnow::token::{one_of, take_until};
 
 use crate::node::CondTest;
 use crate::{
-    CharLit, Level, Num, ParseResult, PathOrIdentifier, Span, StrLit, StrPrefix, WithSpan,
-    char_lit, cut_error, filter, identifier, keyword, not_suffix_with_hash, num_lit,
-    path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
+    CharLit, Level, Num, ParseResult, PathOrIdentifier, StrLit, StrPrefix, WithSpan, char_lit,
+    cut_error, filter, identifier, keyword, not_suffix_with_hash, num_lit, path_or_identifier,
+    skip_ws0, skip_ws1, str_lit, ws,
 };
 
 macro_rules! expr_prec_layer {
@@ -38,7 +38,11 @@ fn expr_prec_layer<'a>(
         opt((ws(op), |i: &mut _| inner(i, level)).with_taken()).parse_next(i)?
     {
         level_guard.nest(i_before)?;
-        expr = WithSpan::new(Expr::BinOp(Box::new(BinOp { op, lhs: expr, rhs })), start);
+        expr = WithSpan::new(
+            Expr::BinOp(Box::new(BinOp { op, lhs: expr, rhs })),
+            start,
+            i,
+        );
     }
 
     Ok(expr)
@@ -279,6 +283,7 @@ impl<'a> Expr<'a> {
             Ok(WithSpan::new(
                 Self::NamedArgument(argument, Box::new(value)),
                 start,
+                i,
             ))
         } else {
             cut_error!(
@@ -294,7 +299,6 @@ impl<'a> Expr<'a> {
         allow_underscore: bool,
     ) -> ParseResult<'a, WithSpan<'a, Self>> {
         let _level_guard = level.nest(i)?;
-        let start = Span::from(*i);
         let range_right = move |i: &mut _| {
             (
                 ws(alt(("..=", ".."))),
@@ -303,29 +307,29 @@ impl<'a> Expr<'a> {
                 .parse_next(i)
         };
         let expr = alt((
-            range_right.map(move |(op, right)| {
-                WithSpan::new(
+            range_right.with_taken().map(move |((op, right), i)| {
+                WithSpan::new_with_full(
                     Self::Range(Box::new(Range {
                         op,
                         lhs: None,
                         rhs: right,
                     })),
-                    start,
+                    i,
                 )
             }),
-            (move |i: &mut _| Self::or(i, level), opt(range_right)).map(move |(left, right)| {
-                match right {
-                    Some((op, right)) => WithSpan::new(
+            (move |i: &mut _| Self::or(i, level), opt(range_right))
+                .with_taken()
+                .map(move |((left, right), i)| match right {
+                    Some((op, right)) => WithSpan::new_with_full(
                         Self::Range(Box::new(Range {
                             op,
                             lhs: Some(left),
                             rhs: right,
                         })),
-                        start,
+                        i,
                     ),
                     None => left,
-                }
-            }),
+                }),
         ))
         .parse_next(i)?;
         check_expr(
@@ -352,7 +356,11 @@ impl<'a> Expr<'a> {
         let Some((op, rhs)) = opt(right).parse_next(i)? else {
             return Ok(expr);
         };
-        let expr = WithSpan::new(Expr::BinOp(Box::new(BinOp { op, lhs: expr, rhs })), start);
+        let expr = WithSpan::new(
+            Expr::BinOp(Box::new(BinOp { op, lhs: expr, rhs })),
+            start,
+            i,
+        );
 
         if let Some((op2, _)) = opt(right).parse_next(i)? {
             return cut_error!(
@@ -403,7 +411,7 @@ impl<'a> Expr<'a> {
             while let Some(expr) = concat_expr(i, level)? {
                 exprs.push(expr);
             }
-            Ok(WithSpan::new(Self::Concat(exprs), start))
+            Ok(WithSpan::new(Self::Concat(exprs), start, i))
         } else {
             Ok(expr)
         }
@@ -422,7 +430,7 @@ impl<'a> Expr<'a> {
                 let target = opt(identifier).parse_next(i)?;
                 let target = target.unwrap_or_default();
                 if crate::PRIMITIVE_TYPES.contains(&target) {
-                    return Ok(WithSpan::new(Self::As(Box::new(lhs), target), start));
+                    return Ok(WithSpan::new(Self::As(Box::new(lhs), target), start, i));
                 } else if target.is_empty() {
                     return cut_error!(
                         "`as` operator expects the name of a primitive type on its right-hand side",
@@ -468,19 +476,21 @@ impl<'a> Expr<'a> {
                 return cut_error!("`is defined` operator can only be used on variables", start);
             }
         };
-        Ok(WithSpan::new(ctor(var_name), start))
+        Ok(WithSpan::new(ctor(var_name), start, i))
     }
 
     fn filtered(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, WithSpan<'a, Self>> {
         let mut res = Self::prefix(i, level)?;
 
         let mut level_guard = level.guard();
+        let mut start = *i;
         while let Some((mut filter, i_before)) =
             opt(ws((|i: &mut _| filter(i, level)).with_taken())).parse_next(i)?
         {
             level_guard.nest(i_before)?;
             filter.arguments.insert(0, res);
-            res = WithSpan::new(Self::Filter(Box::new(filter)), i_before);
+            res = WithSpan::new(Self::Filter(Box::new(filter)), start.trim_start(), i);
+            start = *i;
         }
         Ok(res)
     }
@@ -502,7 +512,7 @@ impl<'a> Expr<'a> {
 
         let mut expr = Suffix::parse(i, level)?;
         for op in ops.iter().rev() {
-            expr = WithSpan::new(Self::Unary(op, Box::new(expr)), start);
+            expr = WithSpan::new(Self::Unary(op, Box::new(expr)), start, i);
         }
 
         Ok(expr)
@@ -525,13 +535,13 @@ impl<'a> Expr<'a> {
         let expr = preceded(ws('('), opt(|i: &mut _| Self::parse(i, level, true))).parse_next(i)?;
         let Some(expr) = expr else {
             let _ = ')'.parse_next(i)?;
-            return Ok(WithSpan::new(Self::Tuple(vec![]), start));
+            return Ok(WithSpan::new(Self::Tuple(vec![]), start, i));
         };
 
         let comma = ws(opt(peek(','))).parse_next(i)?;
         if comma.is_none() {
             let _ = ')'.parse_next(i)?;
-            return Ok(WithSpan::new(Self::Group(Box::new(expr)), start));
+            return Ok(WithSpan::new(Self::Group(Box::new(expr)), start, i));
         }
 
         let mut exprs = vec![expr];
@@ -547,7 +557,7 @@ impl<'a> Expr<'a> {
         )
         .parse_next(i)?;
         let _ = (ws(opt(',')), ')').parse_next(i)?;
-        Ok(WithSpan::new(Self::Tuple(exprs), start))
+        Ok(WithSpan::new(Self::Tuple(exprs), start, i))
     }
 
     fn array(i: &mut &'a str, level: Level<'_>) -> ParseResult<'a, WithSpan<'a, Self>> {
@@ -563,7 +573,11 @@ impl<'a> Expr<'a> {
             )),
         )
         .parse_next(i)?;
-        Ok(WithSpan::new(Self::Array(array.unwrap_or_default()), start))
+        Ok(WithSpan::new(
+            Self::Array(array.unwrap_or_default()),
+            start,
+            i,
+        ))
     }
 
     fn path_var_bool(i: &mut &'a str) -> ParseResult<'a, WithSpan<'a, Self>> {
@@ -576,27 +590,25 @@ impl<'a> Expr<'a> {
                 PathOrIdentifier::Identifier(v) => Self::Var(v),
             })
             .parse_next(i)
-            .map(|expr| WithSpan::new(expr, start))
+            .map(|expr| WithSpan::new(expr, start, i))
     }
 
     fn str(i: &mut &'a str) -> ParseResult<'a, WithSpan<'a, Self>> {
         let start = *i;
-        str_lit
-            .map(|i| WithSpan::new(Self::StrLit(i), start))
-            .parse_next(i)
+        let s = str_lit.parse_next(i)?;
+        Ok(WithSpan::new(Self::StrLit(s), start, i))
     }
 
     fn num(i: &mut &'a str) -> ParseResult<'a, WithSpan<'a, Self>> {
         let start = *i;
         let (num, full) = num_lit.with_taken().parse_next(i)?;
-        Ok(WithSpan::new(Expr::NumLit(full, num), start))
+        Ok(WithSpan::new(Expr::NumLit(full, num), start, i))
     }
 
     fn char(i: &mut &'a str) -> ParseResult<'a, WithSpan<'a, Self>> {
         let start = *i;
-        char_lit
-            .map(|i| WithSpan::new(Self::CharLit(i), start))
-            .parse_next(i)
+        let c = char_lit.parse_next(i)?;
+        Ok(WithSpan::new(Self::CharLit(c), start, i))
     }
 
     #[must_use]
@@ -702,15 +714,16 @@ impl<'a> Suffix<'a> {
             Self::r#try,
             Self::r#macro,
         ));
+        let start = *i;
         while let Some((suffix, i_before)) = opt(right.by_ref().with_taken()).parse_next(i)? {
             level_guard.nest(i_before)?;
             match suffix {
                 Self::AssociatedItem(associated_item) => {
                     expr =
-                        WithSpan::new(Expr::AssociatedItem(expr.into(), associated_item), i_before)
+                        WithSpan::new(Expr::AssociatedItem(expr.into(), associated_item), start, i)
                 }
                 Self::Index(index) => {
-                    expr = WithSpan::new(Expr::Index(expr.into(), index.into()), i_before);
+                    expr = WithSpan::new(Expr::Index(expr.into(), index.into()), start, i);
                 }
                 Self::Call { args, generics } => {
                     expr = WithSpan::new(
@@ -719,18 +732,19 @@ impl<'a> Suffix<'a> {
                             args,
                             generics,
                         })),
-                        i_before,
+                        start,
+                        i,
                     )
                 }
-                Self::Try => expr = WithSpan::new(Expr::Try(expr.into()), i_before),
+                Self::Try => expr = WithSpan::new(Expr::Try(expr.into()), start, i),
                 Self::MacroCall(args) => match expr.inner {
                     Expr::Path(path) => {
                         ensure_macro_name(path.last().unwrap())?;
-                        expr = WithSpan::new(Expr::RustMacro(path, args), i_before)
+                        expr = WithSpan::new(Expr::RustMacro(path, args), start, i)
                     }
                     Expr::Var(name) => {
                         ensure_macro_name(name)?;
-                        expr = WithSpan::new(Expr::RustMacro(vec![name], args), i_before)
+                        expr = WithSpan::new(Expr::RustMacro(vec![name], args), start, i)
                     }
                     _ => {
                         return Err(ErrMode::from_input(&i_before).cut());
@@ -1160,7 +1174,7 @@ impl<'i> TyGenerics<'i> {
             }
         }
 
-        Ok(WithSpan::new(TyGenerics { refs, path, args }, start))
+        Ok(WithSpan::new(TyGenerics { refs, path, args }, start, i))
     }
 
     fn args(
