@@ -315,7 +315,12 @@ pub(crate) fn build_template(
     let err_span;
     let mut result = match args {
         AnyTemplateArgs::Struct(item) => {
-            err_span = item.source.1.or(item.template_span);
+            err_span = item
+                .source
+                .1
+                .as_ref()
+                .map(|l| l.span())
+                .or(item.template_span);
             build_template_item(buf, ast, None, &item, TmplKind::Struct)
         }
         AnyTemplateArgs::Enum {
@@ -362,7 +367,10 @@ fn build_template_item(
 
     let mut contexts = HashMap::default();
     for (path, parsed) in &templates {
-        contexts.insert(path, Context::new(input.config, path, parsed)?);
+        contexts.insert(
+            path,
+            Context::new(input.config, path, parsed, input.source_span.clone())?,
+        );
     }
 
     let ctx = &contexts[&input.path];
@@ -413,9 +421,9 @@ impl CompileError {
         file_info: Option<FileInfo<'_>>,
         span: Option<Span>,
     ) -> Self {
-        let msg = match file_info {
-            Some(file_info) => format!("{msg}{file_info}"),
-            None => msg.to_string(),
+        let msg = match (span, file_info) {
+            (None, Some(file_info)) => format!("{msg}{file_info}"),
+            _ => msg.to_string(),
         };
         Self { msg, span }
     }

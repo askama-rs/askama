@@ -22,7 +22,7 @@ pub(crate) struct TemplateInput<'a> {
     pub(crate) config: &'a Config,
     pub(crate) syntax: &'a SyntaxAndCache<'a>,
     pub(crate) source: &'a Source,
-    pub(crate) source_span: Option<Span>,
+    pub(crate) source_span: Option<proc_macro2::Literal>,
     pub(crate) block: Option<(&'a str, Span)>,
     #[cfg(feature = "blocks")]
     pub(crate) blocks: &'a [Block],
@@ -136,7 +136,7 @@ impl TemplateInput<'_> {
             config,
             syntax,
             source,
-            source_span: *source_span,
+            source_span: source_span.clone(),
             block: block.as_ref().map(|(block, span)| (block.as_str(), *span)),
             #[cfg(feature = "blocks")]
             blocks: blocks.as_slice(),
@@ -412,7 +412,7 @@ pub(crate) struct Block {
 }
 
 pub(crate) struct TemplateArgs {
-    pub(crate) source: (Source, Option<Span>),
+    pub(crate) source: (Source, Option<proc_macro2::Literal>),
     block: Option<(String, Span)>,
     #[cfg(feature = "blocks")]
     blocks: Vec<Block>,
@@ -448,13 +448,13 @@ impl TemplateArgs {
             source: match args.source {
                 #[cfg(feature = "external-sources")]
                 Some(PartialTemplateArgsSource::Path(s)) => {
-                    (Source::Path(s.value().into()), Some(s.span()))
+                    (Source::Path(s.value().into()), Some(s.token()))
                 }
                 Some(PartialTemplateArgsSource::Source(s)) => {
-                    (Source::Source(s.value().into()), Some(s.span()))
+                    (Source::Source(s.value().into()), Some(s.token()))
                 }
                 #[cfg(feature = "code-in-doc")]
-                Some(PartialTemplateArgsSource::InDoc(span, source)) => (source, Some(span)),
+                Some(PartialTemplateArgsSource::InDoc(_span, source)) => (source, None),
                 None => {
                     return Err(CompileError::no_file_info(
                         #[cfg(not(feature = "code-in-doc"))]
