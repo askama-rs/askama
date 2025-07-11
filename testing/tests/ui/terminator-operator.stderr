@@ -1,12 +1,10 @@
 error: closing delimiters may not start with operators. The closing expression delimiter (">>") starts with operator `>`
-        --> testing/issue-128.toml
  --> tests/ui/terminator-operator.rs:4:49
   |
 4 | #[template(source = "<<a>> and <<b>>", config = "issue-128.toml", syntax = "mwe", ext="")]
   |                                                 ^^^^^^^^^^^^^^^^
 
 error: closing delimiters may not start with operators. The closing expression delimiter (">>>") starts with operator `>`
-        --> testing/issue-128-2.toml
   --> tests/ui/terminator-operator.rs:11:49
    |
 11 | #[template(source = "<<a>> and <<b>>", config = "issue-128-2.toml", syntax = "mwe", ext="")]

@@ -11,28 +11,24 @@ error: unable to read $WORKSPACE/target/tests/trybuild/askama_testing/folder-con
   |                                               ^^^^^^^^^^^^^^^^^^^^
 
 error: an opening delimiter may not be the prefix of another delimiter. The block delimiter ("<<<") clashes with the expression delimiter ("<<<<")
-        --> testing/delim-clash.toml
   --> tests/ui/broken-config.rs:12:47
    |
 12 | #[template(source = "", ext = "txt", config = "delim-clash.toml")]
    |                                               ^^^^^^^^^^^^^^^^^^
 
 error: delimiters must be at least two characters long. The opening block delimiter ("<") is too short
-        --> testing/delim-too-short.toml
   --> tests/ui/broken-config.rs:16:47
    |
 16 | #[template(source = "", ext = "txt", config = "delim-too-short.toml")]
    |                                               ^^^^^^^^^^^^^^^^^^^^^^
 
 error: closing delimiters may not start with operators. The closing expression delimiter ("+>") starts with operator `+`
-        --> testing/operator-plus-config.toml
   --> tests/ui/broken-config.rs:20:49
    |
 20 | #[template(source = "<+a+> and <+b+>", config = "operator-plus-config.toml", syntax = "plus", ext = "txt")]
    |                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: closing delimiters may not start with operators. The closing expression delimiter ("(>") starts with operator `(`
-        --> testing/operator-paren-config.toml
   --> tests/ui/broken-config.rs:24:49
    |
 24 | #[template(source = "<)a(> and <)b(>", config = "operator-paren-config.toml", syntax = "paren", ext = "txt")]
