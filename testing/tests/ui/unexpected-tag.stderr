@@ -1,47 +1,47 @@
 error: node `end` was not expected in the current context
  --> <source attribute>:1:2
        " end %}"
- --> tests/ui/unexpected-tag.rs:5:1
+ --> tests/ui/unexpected-tag.rs:4:3
   |
-5 | /// ```askama
-  | ^^^^^^^^^^^^^
+4 | #[template(in_doc = true, ext = "html")]
+  |   ^^^^^^^^
 
 error: node `elif` was not expected in the current context: `for` block
  --> <source attribute>:3:2
        " elif %}\n    what?\n{% endfor %}"
-  --> tests/ui/unexpected-tag.rs:12:1
+  --> tests/ui/unexpected-tag.rs:11:3
    |
-12 | /// ```askama
-   | ^^^^^^^^^^^^^
+11 | #[template(in_doc = true, ext = "html")]
+   |   ^^^^^^^^
 
 error: node `else` was not expected in the current context: `block` block
  --> <source attribute>:3:2
        " else %}\n    else\n{% endblock meta %}"
-  --> tests/ui/unexpected-tag.rs:23:1
+  --> tests/ui/unexpected-tag.rs:22:3
    |
-23 | /// ```askama
-   | ^^^^^^^^^^^^^
+22 | #[template(in_doc = true, ext = "html")]
+   |   ^^^^^^^^
 
 error: node `when` was not expected in the current context
  --> <source attribute>:1:2
        " when condition %}\n    true\n{% endwhen %}"
-  --> tests/ui/unexpected-tag.rs:34:1
+  --> tests/ui/unexpected-tag.rs:33:3
    |
-34 | /// ```askama
-   | ^^^^^^^^^^^^^
+33 | #[template(in_doc = true, ext = "html")]
+   |   ^^^^^^^^
 
 error: unexpected closing tag `endlet`
  --> <source attribute>:1:20
        " endlet %}"
-  --> tests/ui/unexpected-tag.rs:43:1
+  --> tests/ui/unexpected-tag.rs:42:3
    |
-43 | /// ```askama
-   | ^^^^^^^^^^^^^
+42 | #[template(in_doc = true, ext = "html")]
+   |   ^^^^^^^^
 
 error: unknown node `syntax`
  --> <source attribute>:1:2
        " syntax error %}"
-  --> tests/ui/unexpected-tag.rs:50:1
+  --> tests/ui/unexpected-tag.rs:49:3
    |
-50 | /// ```askama
-   | ^^^^^^^^^^^^^
+49 | #[template(in_doc = true, ext = "html")]
+   |   ^^^^^^^^
