@@ -1,10 +1,10 @@
 error: unknown node `fail`
  --> <source attribute>:2:6
        " fail %}\n{% endif %}"
- --> tests/ui/askama-block.rs:5:1
+ --> tests/ui/askama-block.rs:4:3
   |
-5 | /// Some documentation
-  | ^^^^^^^^^^^^^^^^^^^^^^
+4 | #[template(ext = "txt", in_doc = true)]
+  |   ^^^^^^^^
 
 error: when using `in_doc` with the value `true`, the struct's documentation needs a `askama` code block
   --> tests/ui/askama-block.rs:15:34
