@@ -1,0 +1,5 @@
+{% import "nested-macro-callexpr.html" as otherscope %}
+
+{% macro intermediate() %}
+    {{- otherscope::parent() -}}
+{% endmacro %}
