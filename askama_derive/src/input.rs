@@ -16,13 +16,29 @@ use crate::config::{Config, SyntaxAndCache};
 use crate::{CompileError, FileInfo, MsgValidEscapers};
 
 #[derive(Clone)]
+pub(crate) enum LiteralOrSpan {
+    Literal(proc_macro2::Literal),
+    #[cfg_attr(not(feature = "code-in-doc"), allow(dead_code))]
+    Span(Span),
+}
+
+impl LiteralOrSpan {
+    pub(crate) fn span(&self) -> Span {
+        match self {
+            Self::Literal(lit) => lit.span(),
+            Self::Span(span) => *span,
+        }
+    }
+}
+
+#[derive(Clone)]
 pub(crate) struct TemplateInput<'a> {
     pub(crate) ast: &'a syn::DeriveInput,
     pub(crate) enum_ast: Option<&'a syn::DeriveInput>,
     pub(crate) config: &'a Config,
     pub(crate) syntax: &'a SyntaxAndCache<'a>,
     pub(crate) source: &'a Source,
-    pub(crate) source_span: Option<Span>,
+    pub(crate) source_span: Option<LiteralOrSpan>,
     pub(crate) block: Option<(&'a str, Span)>,
     #[cfg(feature = "blocks")]
     pub(crate) blocks: &'a [Block],
@@ -136,7 +152,7 @@ impl TemplateInput<'_> {
             config,
             syntax,
             source,
-            source_span: *source_span,
+            source_span: source_span.clone(),
             block: block.as_ref().map(|(block, span)| (block.as_str(), *span)),
             #[cfg(feature = "blocks")]
             blocks: blocks.as_slice(),
@@ -412,7 +428,7 @@ pub(crate) struct Block {
 }
 
 pub(crate) struct TemplateArgs {
-    pub(crate) source: (Source, Option<Span>),
+    pub(crate) source: (Source, Option<LiteralOrSpan>),
     block: Option<(String, Span)>,
     #[cfg(feature = "blocks")]
     blocks: Vec<Block>,
@@ -447,14 +463,18 @@ impl TemplateArgs {
         Ok(Self {
             source: match args.source {
                 #[cfg(feature = "external-sources")]
-                Some(PartialTemplateArgsSource::Path(s)) => {
-                    (Source::Path(s.value().into()), Some(s.span()))
-                }
-                Some(PartialTemplateArgsSource::Source(s)) => {
-                    (Source::Source(s.value().into()), Some(s.span()))
-                }
+                Some(PartialTemplateArgsSource::Path(s)) => (
+                    Source::Path(s.value().into()),
+                    Some(LiteralOrSpan::Literal(s.token())),
+                ),
+                Some(PartialTemplateArgsSource::Source(s)) => (
+                    Source::Source(s.value().into()),
+                    Some(LiteralOrSpan::Literal(s.token())),
+                ),
                 #[cfg(feature = "code-in-doc")]
-                Some(PartialTemplateArgsSource::InDoc(span, source)) => (source, Some(span)),
+                Some(PartialTemplateArgsSource::InDoc(span, source)) => {
+                    (source, Some(LiteralOrSpan::Span(span)))
+                }
                 None => {
                     return Err(CompileError::no_file_info(
                         #[cfg(not(feature = "code-in-doc"))]

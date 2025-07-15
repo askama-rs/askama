@@ -134,7 +134,7 @@ impl<'a> Node<'a> {
         if !s.is_in_loop() {
             return cut_error!("you can only `break` inside a `for` loop", start);
         }
-        Ok(Self::Break(WithSpan::new(Ws(pws, nws), start)))
+        Ok(Self::Break(WithSpan::new(Ws(pws, nws), start, i)))
     }
 
     fn r#continue(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Self> {
@@ -149,7 +149,7 @@ impl<'a> Node<'a> {
         if !s.is_in_loop() {
             return cut_error!("you can only `continue` inside a `for` loop", start);
         }
-        Ok(Self::Continue(WithSpan::new(Ws(pws, nws), start)))
+        Ok(Self::Continue(WithSpan::new(Ws(pws, nws), start, i)))
     }
 
     fn expr(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Self> {
@@ -281,10 +281,11 @@ impl<'a> When<'a> {
         Ok(WithSpan::new(
             Self {
                 ws: Ws(pws, nws),
-                target: vec![Target::Placeholder(WithSpan::new((), start))],
+                target: vec![Target::Placeholder(WithSpan::new((), start, i))],
                 nodes,
             },
             start,
+            i,
         ))
     }
 
@@ -306,8 +307,7 @@ impl<'a> When<'a> {
                 ),
             ),
         ))
-        .with_taken()
-        .map(|((pws, _), span)| {
+        .map(|(pws, _)| {
             // A comment node is used to pass the whitespace suppressing information to the
             // generator. This way we don't have to fix up the next `when` node or the closing
             // `endmatch`. Any whitespaces after `endwhen` are to be suppressed. Actually, they
@@ -317,7 +317,8 @@ impl<'a> When<'a> {
                     ws: Ws(pws, Some(Whitespace::Suppress)),
                     content: "",
                 },
-                span,
+                start,
+                i,
             ))
         });
         let mut p = (
@@ -346,6 +347,7 @@ impl<'a> When<'a> {
                 nodes,
             },
             start,
+            i,
         ))
     }
 }
@@ -384,6 +386,7 @@ impl<'a> Cond<'a> {
                 nodes,
             },
             start,
+            i,
         ))
     }
 }
@@ -419,9 +422,9 @@ impl<'a> CondTest<'a> {
                 {
                     let _level_guard = s.level.nest(i)?;
                     *i = v.rhs.span.as_suffix_of(start).unwrap();
-                    let start_span = Span::from(*i);
+                    let start_span = *i;
                     let new_right = Self::parse_cond(i, s)?;
-                    v.rhs.inner = Expr::LetCond(Box::new(WithSpan::new(new_right, start_span)));
+                    v.rhs.inner = Expr::LetCond(Box::new(WithSpan::new(new_right, start_span, i)));
                 }
                 Ok(expr)
             }),
@@ -597,6 +600,7 @@ impl<'a> Loop<'a> {
                 ws3: Ws(pws3, nws2),
             },
             start,
+            i,
         ))
     }
 }
@@ -732,6 +736,7 @@ impl<'a> Macro<'a> {
                 ws2: Ws(pws2, nws2),
             },
             start_s,
+            i,
         ))
     }
 }
@@ -747,20 +752,22 @@ pub struct FilterBlock<'a> {
 impl<'a> FilterBlock<'a> {
     fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
         fn filters<'a>(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Filter<'a>> {
-            let start = *i;
+            let mut start = *i;
             let mut res = Filter::parse(i, s.level)?;
             res.arguments
-                .insert(0, WithSpan::new(Expr::FilterSource, start));
+                .insert(0, WithSpan::new(Expr::FilterSource, start, i));
 
             let mut level_guard = s.level.guard();
             while let Some((mut filter, i_before)) =
                 opt(ws((|i: &mut _| filter(i, s.level)).with_taken())).parse_next(i)?
             {
                 level_guard.nest(i_before)?;
-                filter
-                    .arguments
-                    .insert(0, WithSpan::new(Expr::Filter(Box::new(res)), i_before));
+                filter.arguments.insert(
+                    0,
+                    WithSpan::new(Expr::Filter(Box::new(res)), start.trim_start(), i),
+                );
                 res = filter;
+                start = *i;
             }
             Ok(res)
         }
@@ -798,6 +805,7 @@ impl<'a> FilterBlock<'a> {
                 ws2: Ws(pws2, nws2),
             },
             start,
+            i,
         ))
     }
 }
@@ -832,6 +840,7 @@ impl<'a> Import<'a> {
                 scope,
             },
             start,
+            i,
         ))
     }
 }
@@ -913,6 +922,7 @@ impl<'a> Call<'a> {
                 ws2: Ws(pws2, nws2),
             },
             start_s,
+            i,
         ))
     }
 }
@@ -985,6 +995,7 @@ impl<'a> Match<'a> {
                 ws2: Ws(pws2, nws2),
             },
             start,
+            i,
         ))
     }
 }
@@ -1047,6 +1058,7 @@ impl<'a> BlockDef<'a> {
                 ws2: Ws(pws2, nws2),
             },
             start_s,
+            i,
         ))
     }
 }
@@ -1080,6 +1092,7 @@ pub struct Lit<'a> {
 impl<'a> Lit<'a> {
     fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
         not(eof).parse_next(i)?;
+        let start = *i;
         let mut content = opt(take_until(
             ..,
             (
@@ -1093,7 +1106,7 @@ impl<'a> Lit<'a> {
             Some(content) => content,
             None => rest(i)?, // there is no {block,comment,expr}_start: take everything
         };
-        Ok(WithSpan::new(Self::split_ws_parts(content), content))
+        Ok(WithSpan::new(Self::split_ws_parts(content), start, i))
     }
 
     pub(crate) fn split_ws_parts(s: &'a str) -> Self {
@@ -1165,7 +1178,7 @@ impl<'a> Raw<'a> {
         let (pws, (nws, (ws2, content))) = p.parse_next(i)?;
         let lit = Lit::split_ws_parts(content);
         let ws1 = Ws(pws, nws);
-        Ok(WithSpan::new(Self { ws1, lit, ws2 }, start))
+        Ok(WithSpan::new(Self { ws1, lit, ws2 }, start, i))
     }
 }
 
@@ -1237,6 +1250,7 @@ impl<'a> Let<'a> {
                 is_mutable: is_mut.is_some(),
             },
             start,
+            i,
         ))
     }
 }
@@ -1286,6 +1300,7 @@ impl<'a> If<'a> {
                 nodes,
             },
             start,
+            i,
         )];
         branches.extend(elifs);
 
@@ -1295,6 +1310,7 @@ impl<'a> If<'a> {
                 branches,
             },
             start,
+            i,
         ))
     }
 }
@@ -1323,6 +1339,7 @@ impl<'a> Include<'a> {
                 path,
             },
             start,
+            i,
         ))
     }
 }
@@ -1342,7 +1359,7 @@ impl<'a> Extends<'a> {
                 terminated(ws(str_lit_without_prefix), opt(Whitespace::parse)),
             ),
         )
-        .map(|path| WithSpan::new(Self { path }, start))
+        .map(|path| WithSpan::new(Self { path }, start, i))
         .parse_next(i)
     }
 }
@@ -1400,7 +1417,7 @@ impl<'a> Comment<'a> {
             ws.1 = Whitespace::parse_char(content.chars().next_back().unwrap_or_default());
         }
 
-        Ok(WithSpan::new(Self { ws, content }, start))
+        Ok(WithSpan::new(Self { ws, content }, start, i))
     }
 }
 

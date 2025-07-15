@@ -129,7 +129,7 @@ impl<'a> Target<'a> {
         let i_before_identifier = *i;
         let name = identifier.parse_next(i)?;
         let target = match name {
-            "_" => Self::Placeholder(WithSpan::new((), i_before_identifier)),
+            "_" => Self::Placeholder(WithSpan::new((), i_before_identifier, i)),
             _ => verify_name(i_before_identifier, name)?,
         };
         Ok(target)
@@ -198,6 +198,7 @@ impl<'a> Target<'a> {
         Ok(Self::Rest(WithSpan::new(
             ident.map(|(ident, _)| ident),
             start,
+            i,
         )))
     }
 }

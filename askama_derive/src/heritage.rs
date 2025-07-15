@@ -8,6 +8,7 @@ use parser::{Node, Parsed, Span};
 use rustc_hash::FxBuildHasher;
 
 use crate::config::Config;
+use crate::input::LiteralOrSpan;
 use crate::{CompileError, FileInfo};
 
 pub(crate) struct Heritage<'a, 'h> {
@@ -49,6 +50,7 @@ pub(crate) struct Context<'a> {
     pub(crate) imports: HashMap<&'a str, Arc<Path>, FxBuildHasher>,
     pub(crate) path: Option<&'a Path>,
     pub(crate) parsed: &'a Parsed,
+    pub(crate) literal: Option<LiteralOrSpan>,
 }
 
 impl<'a> Context<'a> {
@@ -61,6 +63,7 @@ impl<'a> Context<'a> {
             imports: HashMap::default(),
             path: None,
             parsed,
+            literal: None,
         }
     }
 
@@ -68,6 +71,7 @@ impl<'a> Context<'a> {
         config: &Config,
         path: &'a Path,
         parsed: &'a Parsed,
+        literal: Option<LiteralOrSpan>,
     ) -> Result<Self, CompileError> {
         let mut extends = None;
         let mut blocks = HashMap::default();
@@ -138,11 +142,27 @@ impl<'a> Context<'a> {
             imports,
             parsed,
             path: Some(path),
+            literal,
         })
     }
 
     pub(crate) fn generate_error(&self, msg: impl fmt::Display, node: Span<'_>) -> CompileError {
-        CompileError::new(msg, self.file_info_of(node))
+        let file_info = self.file_info_of(node);
+        if let Some(LiteralOrSpan::Literal(ref literal)) = self.literal
+            && let source = self.parsed.source()
+            && let Some(mut offset) = node.offset_from(source)
+            && let Some(original_code) = literal.span().source_text()
+            && let Some(extra) = original_code.find('"')
+        {
+            offset += extra + 1;
+            CompileError::new_with_span(
+                msg,
+                file_info,
+                literal.subspan(offset..offset + node.len()),
+            )
+        } else {
+            CompileError::new(msg, file_info)
+        }
     }
 
     pub(crate) fn file_info_of(&self, node: Span<'a>) -> Option<FileInfo<'a>> {
