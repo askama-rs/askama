@@ -1,0 +1,13 @@
+warning: unused import: `askama::Template`
+ --> tests/ui/fuzzing.rs:3:5
+  |
+3 | use askama::Template;
+  |     ^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` on by default
+
+error[E0601]: `main` function not found in crate `$CRATE`
+  --> tests/ui/fuzzing.rs:13:2
+   |
+13 | }
+   |  ^ consider adding a `main` function to `$DIR/tests/ui/fuzzing.rs`
