@@ -1,0 +1,7 @@
+error: macro arguments should be separated
+ --> <source attribute>:1:6
+       "r#\"\"#r\"  \\ \"}}}"
+ --> tests/ui/macro-args.rs:7:14
+  |
+7 |     source = r###"{{e!{ r#""#r"  \ "}}}"###,
+  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

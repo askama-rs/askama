@@ -745,6 +745,7 @@ impl<'a> Suffix<'a> {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         enum Token {
             SomeOther,
+            Separation,
             Open(Group),
             Close(Group),
         }
@@ -769,6 +770,7 @@ impl<'a> Suffix<'a> {
         fn macro_arguments<'a>(i: &mut &'a str, open_token: Group) -> ParseResult<'a, Suffix<'a>> {
             let start = *i;
             let mut open_list: Vec<Group> = vec![open_token];
+            let mut prev: Option<(_, *const u8)> = None;
             loop {
                 let before = *i;
                 let (token, token_span) = ws(opt(token).with_taken()).parse_next(i)?;
@@ -776,12 +778,36 @@ impl<'a> Suffix<'a> {
                     return cut_error!("expected valid tokens in macro call", token_span);
                 };
                 let close_token = match token {
-                    Token::SomeOther => continue,
+                    Token::SomeOther => {
+                        if let Some((prev_span, prev_end)) = prev {
+                            if token_span.as_ptr() <= prev_end {
+                                return cut_error!(
+                                    "macro arguments should be separated",
+                                    prev_span
+                                );
+                            }
+                        }
+                        prev = Some((
+                            token_span,
+                            // We store the end of the string to ensure the new token doesn't
+                            // overlap.
+                            token_span.as_ptr().wrapping_add(token_span.len()),
+                        ));
+                        continue;
+                    }
+                    Token::Separation => {
+                        prev = None;
+                        continue;
+                    }
                     Token::Open(group) => {
+                        prev = None;
                         open_list.push(group);
                         continue;
                     }
-                    Token::Close(close_token) => close_token,
+                    Token::Close(close_token) => {
+                        prev = None;
+                        close_token
+                    }
                 };
                 let open_token = open_list.pop().unwrap();
 
@@ -802,7 +828,9 @@ impl<'a> Suffix<'a> {
 
         fn token<'a>(i: &mut &'a str) -> ParseResult<'a, Token> {
             // <https://doc.rust-lang.org/reference/tokens.html>
-            let some_other = alt((
+            alt((
+                open.map(Token::Open),
+                close.map(Token::Close),
                 // literals
                 char_lit.value(Token::SomeOther),
                 str_lit.value(Token::SomeOther),
@@ -812,13 +840,13 @@ impl<'a> Suffix<'a> {
                 // lifetimes
                 ('\'', identifier, not(peek('\''))).value(Token::SomeOther),
                 // comments
-                line_comment.value(Token::SomeOther),
-                block_comment.value(Token::SomeOther),
+                line_comment.value(Token::Separation),
+                block_comment.value(Token::Separation),
                 // punctuations
-                punctuation.value(Token::SomeOther),
+                punctuation.value(Token::Separation),
                 hash,
-            ));
-            alt((open.map(Token::Open), close.map(Token::Close), some_other)).parse_next(i)
+            ))
+            .parse_next(i)
         }
 
         fn line_comment<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
