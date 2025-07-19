@@ -261,8 +261,9 @@ pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -
                     Error: {err}\n\n\
                     Generated source:\n\
                     ------------------------------------------------\n\
-                    {src}\n\
-                    ------------------------------------------------\n\n"
+                    {}\n\
+                    ------------------------------------------------\n\n",
+                    src.replace('\u{1b}', " "),
                 ),
             }
         })
