@@ -1,0 +1,7 @@
+error: you are missing a space to separate two string literals
+ --> <source attribute>:1:11
+       "r\"  \\ \"}}}"
+ --> tests/ui/macro-args.rs:7:14
+  |
+7 |     source = r###"{{e!{ r#""#r"  \ "}}}"###,
+  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

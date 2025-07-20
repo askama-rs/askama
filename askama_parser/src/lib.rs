@@ -672,7 +672,7 @@ fn str_lit<'a>(i: &mut &'a str) -> ParseResult<'a, StrLit<'a>> {
 }
 
 fn not_suffix_with_hash<'a>(i: &mut &'a str) -> ParseResult<'a, ()> {
-    if let Some(suffix) = opt((identifier, '#').take()).parse_next(i)? {
+    if let Some(suffix) = opt(identifier.take()).parse_next(i)? {
         return cut_error!(
             "you are missing a space to separate two string literals",
             suffix,
