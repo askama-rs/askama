@@ -190,7 +190,7 @@ impl<T: DefaultFilterable> DefaultFilterable for Saturating<T> {
 }
 
 macro_rules! impl_for_int {
-    ($($ty:ty)*) => { $(
+    ($($name:ident : $ty:ty)*) => { $(
         #[doc = concat!("A [`", stringify!($ty), "`] has a value if it is not `0`.")]
         impl DefaultFilterable for $ty {
             type Filtered<'a> = $ty;
@@ -204,16 +204,7 @@ macro_rules! impl_for_int {
                 }
             }
         }
-    )* };
-}
 
-impl_for_int!(
-    u8 u16 u32 u64 u128 usize
-    i8 i16 i32 i64 i128 isize
-);
-
-macro_rules! impl_for_non_zero {
-    ($($name:ident : $ty:ty)*) => { $(
         #[doc = concat!("A [`", stringify!($name), "`][num::", stringify!($name),"] always has a value.")]
         impl DefaultFilterable for num::$name {
             type Filtered<'a> = $ty;
@@ -227,7 +218,7 @@ macro_rules! impl_for_non_zero {
     )* };
 }
 
-impl_for_non_zero!(
+impl_for_int!(
     NonZeroU8:u8 NonZeroU16:u16 NonZeroU32:u32 NonZeroU64:u64 NonZeroU128:u128 NonZeroUsize:usize
     NonZeroI8:i8 NonZeroI16:i16 NonZeroI32:i32 NonZeroI64:i64 NonZeroI128:i128 NonZeroIsize:isize
 );
@@ -246,37 +237,31 @@ impl DefaultFilterable for bool {
     }
 }
 
-/// An `f32` has a value if it is [`Normal`][FpCategory::Normal], i.e. it is not zero,
-/// not sub-normal, not infinite and not NaN.
-impl DefaultFilterable for f32 {
-    type Filtered<'a>
-        = Self
-    where
-        Self: 'a;
+macro_rules! impl_for_float {
+    ($($ty:ty)*) => { $(
+        #[doc = concat!(
+            "An [`",
+            stringify!($ty),
+            "`] has a value if it is [`Normal`][FpCategory::Normal], i.e. it is not zero, \
+            not sub-normal, not infinite and not NaN."
+        )]
+        impl DefaultFilterable for $ty {
+            type Filtered<'a>
+                = Self
+            where
+                Self: 'a;
 
-    type Error = Infallible;
+            type Error = Infallible;
 
-    #[inline]
-    fn as_filtered(&self) -> Result<Option<Self::Filtered<'_>>, Self::Error> {
-        Ok((self.classify() == FpCategory::Normal).then_some(*self))
-    }
+            #[inline]
+            fn as_filtered(&self) -> Result<Option<Self::Filtered<'_>>, Self::Error> {
+                Ok((self.classify() == FpCategory::Normal).then_some(*self))
+            }
+        }
+    )* }
 }
 
-/// An `f64` has a value if it is [`Normal`](FpCategory::Normal), i.e. it is not zero,
-/// not sub-normal, not infinite and not NaN.
-impl DefaultFilterable for f64 {
-    type Filtered<'a>
-        = Self
-    where
-        Self: 'a;
-
-    type Error = Infallible;
-
-    #[inline]
-    fn as_filtered(&self) -> Result<Option<Self::Filtered<'_>>, Self::Error> {
-        Ok((self.classify() == FpCategory::Normal).then_some(*self))
-    }
-}
+impl_for_float!(f32 f64);
 
 #[test]
 #[cfg(feature = "std")]

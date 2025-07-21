@@ -110,12 +110,12 @@ Output:
 ```
 
 This filter works like the Jinja filter of the [same name](https://jinja.palletsprojects.com/en/stable/templates/#jinja-filters.default).
-If the second argument is not an boolean `true`, then the filter behaves like [`|defined_or`][#defined_or].
+If the second argument is not a boolean `true`, then the filter behaves like [`|defined_or`][#defined_or].
 If it is supplied and `true`, then the filter behaves like [`|assigned_or`][#assigned_or].
 
 **This filter exists for compatibility with Jinja.**
 Askama provides [`|defined_or`][#defined_or] and [`|assigned_or`][#assigned_or] which both
-better express the intention and should generally usually be used instead of this filter.
+better express the intention and should generally be used instead of this filter.
 
 ### defined_or
 [#defined_or]: #defined_or
