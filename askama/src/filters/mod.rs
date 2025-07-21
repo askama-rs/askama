@@ -13,6 +13,7 @@
 #[cfg(feature = "alloc")]
 mod alloc;
 mod core;
+mod default;
 mod escape;
 mod humansize;
 mod indent;
@@ -28,9 +29,10 @@ pub use self::alloc::{
     capitalize, fmt, format, lower, lowercase, title, titlecase, trim, upper, uppercase,
 };
 pub use self::core::{
-    DefaultFilterable, Either, PluralizeCount, assigned_or, center, join, linebreaks, linebreaksbr,
-    paragraphbreaks, pluralize, reject, reject_with, truncate, wordcount,
+    Either, PluralizeCount, center, join, linebreaks, linebreaksbr, paragraphbreaks, pluralize,
+    reject, reject_with, truncate, wordcount,
 };
+pub use self::default::{DefaultFilterable, assigned_or};
 pub use self::escape::{
     AutoEscape, AutoEscaper, Escaper, Html, HtmlSafe, HtmlSafeOutput, MaybeSafe, Safe, Text,
     Unsafe, Writable, WriteWritable, e, escape, safe,
