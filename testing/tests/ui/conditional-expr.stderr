@@ -1,0 +1,79 @@
+error: conditional expression (`.. if .. else ..`) expects an expression after the keyword `if`
+ --> <source attribute>:1:9
+       "if }}"
+ --> tests/ui/conditional-expr.rs:6:35
+  |
+6 | #[template(ext = "html", source = "{{ 1 + 2 if }}")]
+  |                                   ^^^^^^^^^^^^^^^^
+
+error: conditional expression (`.. if .. else ..`) expects an expression after the keyword `if`
+ --> <source attribute>:1:9
+       "if 🦀 }}"
+  --> tests/ui/conditional-expr.rs:10:35
+   |
+10 | #[template(ext = "html", source = "{{ 1 + 2 if 🦀 }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^
+
+error: in Askama, the else-case of a conditional expression (`.. if .. else ..`) is not optional
+ --> <source attribute>:1:12
+       "3 + }}"
+  --> tests/ui/conditional-expr.rs:14:35
+   |
+14 | #[template(ext = "html", source = "{{ 1 + 2 if 3 + }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^
+
+error: in Askama, the else-case of a conditional expression (`.. if .. else ..`) is not optional
+ --> <source attribute>:1:12
+       "3 + 4 }}"
+  --> tests/ui/conditional-expr.rs:18:35
+   |
+18 | #[template(ext = "html", source = "{{ 1 + 2 if 3 + 4 }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^
+
+error: conditional expression (`.. if .. else ..`) expects an expression after the keyword `else`
+ --> <source attribute>:1:18
+       "else }}"
+  --> tests/ui/conditional-expr.rs:22:35
+   |
+22 | #[template(ext = "html", source = "{{ 1 + 2 if 3 + 4 else }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: conditional expression (`.. if .. else ..`) expects an expression after the keyword `else`
+ --> <source attribute>:1:18
+       "else 🦀 }}"
+  --> tests/ui/conditional-expr.rs:26:35
+   |
+26 | #[template(ext = "html", source = "{{ 1 + 2 if 3 + 4 else 🦀 }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unknown node `r`
+ --> <source attribute>:1:8
+       "r#if condition else otherwise }}"
+  --> tests/ui/conditional-expr.rs:32:35
+   |
+32 | #[template(ext = "html", source = "{{ then r#if condition else otherwise }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: in Askama, the else-case of a conditional expression (`.. if .. else ..`) is not optional
+ --> <source attribute>:1:11
+       "condition r#else otherwise }}"
+  --> tests/ui/conditional-expr.rs:36:35
+   |
+36 | #[template(ext = "html", source = "{{ then if condition r#else otherwise }}")]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: failed to parse template source
+ --> <source attribute>:1:8
+       "\"if\" condition else otherwise }}"
+  --> tests/ui/conditional-expr.rs:40:35
+   |
+40 | #[template(ext = "html", source = r#"{{ then "if" condition else otherwise }}"#)]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: in Askama, the else-case of a conditional expression (`.. if .. else ..`) is not optional
+ --> <source attribute>:1:11
+       "condition \"else\" otherwise }}"
+  --> tests/ui/conditional-expr.rs:44:35
+   |
+44 | #[template(ext = "html", source = r#"{{ then if condition "else" otherwise }}"#)]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

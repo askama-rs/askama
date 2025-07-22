@@ -581,7 +581,7 @@ impl<'a> Loop<'a> {
                     cut_node(
                         Some("for"),
                         (
-                            ws(|i: &mut _| Expr::parse(i, s.level, true)),
+                            ws(|i: &mut _| Expr::parse_no_if_else(i, s.level, true)),
                             opt(if_cond),
                             opt(Whitespace::parse),
                             |i: &mut _| s.tag_block_end(i),

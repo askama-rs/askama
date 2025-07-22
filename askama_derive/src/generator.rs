@@ -756,6 +756,19 @@ enum DisplayWrap {
     Unwrapped,
 }
 
+/// `Wrapped & Wrapped == Wrapped`, otherwise `Unwrapped`
+impl std::ops::BitAnd for DisplayWrap {
+    type Output = Self;
+
+    #[inline]
+    fn bitand(self, rhs: Self) -> Self::Output {
+        match self {
+            DisplayWrap::Wrapped => rhs,
+            DisplayWrap::Unwrapped => self,
+        }
+    }
+}
+
 #[derive(Default, Debug)]
 struct WritableBuffer<'a> {
     buf: Vec<Writable<'a>>,

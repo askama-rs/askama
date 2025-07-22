@@ -1,6 +1,7 @@
 use std::borrow::Cow;
 use std::str::FromStr;
 
+use parser::expr::Conditional;
 use parser::node::CondTest;
 use parser::{
     AssociatedItem, CharLit, CharPrefix, Expr, PathComponent, Span, StrLit, StrPrefix, Target,
@@ -14,6 +15,7 @@ use super::{
     DisplayWrap, Generator, LocalMeta, Writable, binary_op, compile_time_escape, is_copyable,
     logic_op, range_op, unary_op,
 };
+use crate::generator::node::EvaluatedResult;
 use crate::heritage::Context;
 use crate::integration::Buffer;
 use crate::{CompileError, field_new, quote_into};
@@ -103,6 +105,7 @@ impl<'a> Generator<'a, '_> {
             Expr::Concat(ref exprs) => self.visit_concat(ctx, buf, exprs)?,
             Expr::LetCond(ref cond) => self.visit_let_cond(ctx, buf, cond)?,
             Expr::ArgumentPlaceholder => DisplayWrap::Unwrapped,
+            Expr::Conditional(ref cond) => self.visit_conditional_expr(ctx, buf, cond)?,
         })
     }
 
@@ -249,6 +252,37 @@ impl<'a> Generator<'a, '_> {
                 Ok(DisplayWrap::Unwrapped)
             }
         }
+    }
+
+    fn visit_conditional_expr(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        cond: &Conditional<'a>,
+    ) -> Result<DisplayWrap, CompileError> {
+        let result;
+        let expr = if cond.test.contains_bool_lit_or_is_defined() {
+            result = self.evaluate_condition(WithSpan::clone(&cond.test), &mut true);
+            match &result {
+                EvaluatedResult::AlwaysTrue => return self.visit_expr(ctx, buf, &cond.then),
+                EvaluatedResult::AlwaysFalse => return self.visit_expr(ctx, buf, &cond.otherwise),
+                EvaluatedResult::Unknown(expr) => expr,
+            }
+        } else {
+            &cond.test
+        };
+
+        let mut then_buf = Buffer::new();
+        let then = self.visit_expr(ctx, &mut then_buf, &cond.then)?;
+        let mut otherwise_buf = Buffer::new();
+        let otherwise = self.visit_expr(ctx, &mut otherwise_buf, &cond.otherwise)?;
+
+        let span = ctx.span_for_node(expr.span());
+        buf.write_token(Token![if], span);
+        self.visit_condition(ctx, buf, expr)?;
+        quote_into!(buf, span, { { #then_buf } else { #otherwise_buf } });
+
+        Ok(then & otherwise)
     }
 
     fn visit_let_cond(

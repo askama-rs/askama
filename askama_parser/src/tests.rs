@@ -1,5 +1,6 @@
 use winnow::Parser;
 
+use crate::expr::Conditional;
 use crate::node::{Lit, Raw, Whitespace, Ws};
 use crate::{
     Ast, Expr, Filter, InnerSyntax, Node, Num, PathComponent, PathOrIdentifier, Span, StrLit,
@@ -1646,4 +1647,78 @@ fn test_macro_call_illegal_raw_identifier() {
                 .contains("cannot be a raw identifier"),
         );
     }
+}
+
+#[test]
+fn test_cond_expr() {
+    let syntax = Syntax::default();
+
+    assert_eq!(
+        Ast::from_str("{{ a if b else c }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        [Box::new(Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Box::new(Expr::Conditional(Conditional {
+                then: WithSpan::no_span(Box::new(Expr::Var("a"))),
+                test: WithSpan::no_span(Box::new(Expr::Var("b"))),
+                otherwise: WithSpan::no_span(Box::new(Expr::Var("c"))),
+            }))),
+        ))],
+    );
+    assert_eq!(
+        Ast::from_str("{{ a if b if c else d else e }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        [Box::new(Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Box::new(Expr::Conditional(Conditional {
+                then: WithSpan::no_span(Box::new(Expr::Var("a"))),
+                test: WithSpan::no_span(Box::new(Expr::Conditional(Conditional {
+                    then: WithSpan::no_span(Box::new(Expr::Var("b"))),
+                    test: WithSpan::no_span(Box::new(Expr::Var("c"))),
+                    otherwise: WithSpan::no_span(Box::new(Expr::Var("d"))),
+                }))),
+                otherwise: WithSpan::no_span(Box::new(Expr::Var("e"))),
+            }))),
+        ))],
+    );
+    assert_eq!(
+        Ast::from_str("{{ a if b else c if d else e }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        [Box::new(Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Box::new(Expr::Conditional(Conditional {
+                then: WithSpan::no_span(Box::new(Expr::Var("a"))),
+                test: WithSpan::no_span(Box::new(Expr::Var("b"))),
+                otherwise: WithSpan::no_span(Box::new(Expr::Conditional(Conditional {
+                    then: WithSpan::no_span(Box::new(Expr::Var("c"))),
+                    test: WithSpan::no_span(Box::new(Expr::Var("d"))),
+                    otherwise: WithSpan::no_span(Box::new(Expr::Var("e"))),
+                }))),
+            }))),
+        ))],
+    );
+    assert_eq!(
+        Ast::from_str("{{ a if b if c else d else e if f else g }}", None, &syntax)
+            .unwrap()
+            .nodes,
+        [Box::new(Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Box::new(Expr::Conditional(Conditional {
+                then: WithSpan::no_span(Box::new(Expr::Var("a"))),
+                test: WithSpan::no_span(Box::new(Expr::Conditional(Conditional {
+                    then: WithSpan::no_span(Box::new(Expr::Var("b"))),
+                    test: WithSpan::no_span(Box::new(Expr::Var("c"))),
+                    otherwise: WithSpan::no_span(Box::new(Expr::Var("d"))),
+                }))),
+                otherwise: WithSpan::no_span(Box::new(Expr::Conditional(Conditional {
+                    then: WithSpan::no_span(Box::new(Expr::Var("e"))),
+                    test: WithSpan::no_span(Box::new(Expr::Var("f"))),
+                    otherwise: WithSpan::no_span(Box::new(Expr::Var("g"))),
+                }))),
+            }))),
+        ))],
+    );
 }
