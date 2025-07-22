@@ -51,10 +51,11 @@ pub(crate) struct Context<'a> {
     pub(crate) path: Option<&'a Path>,
     pub(crate) parsed: &'a Parsed,
     pub(crate) literal: Option<LiteralOrSpan>,
+    pub(crate) template_span: proc_macro2::Span,
 }
 
 impl<'a> Context<'a> {
-    pub(crate) fn empty(parsed: &Parsed) -> Context<'_> {
+    pub(crate) fn empty(parsed: &Parsed, template_span: proc_macro2::Span) -> Context<'_> {
         Context {
             nodes: &[],
             extends: None,
@@ -64,6 +65,7 @@ impl<'a> Context<'a> {
             path: None,
             parsed,
             literal: None,
+            template_span,
         }
     }
 
@@ -72,13 +74,15 @@ impl<'a> Context<'a> {
         path: &'a Path,
         parsed: &'a Parsed,
         literal: Option<LiteralOrSpan>,
+        template_span: proc_macro2::Span,
     ) -> Result<Self, CompileError> {
         let mut extends = None;
         let mut blocks = HashMap::default();
         let mut macros = HashMap::default();
-        let mut imports = HashMap::default();
         let mut nested = vec![parsed.nodes()];
         let mut top = true;
+
+        let mut imports = Vec::new();
 
         while let Some(nodes) = nested.pop() {
             for n in nodes {
@@ -91,11 +95,7 @@ impl<'a> Context<'a> {
                                 Some(FileInfo::of(e.span(), path, parsed)),
                             ));
                         }
-                        extends = Some(config.find_template(
-                            e.path,
-                            Some(path),
-                            Some(FileInfo::of(e.span(), path, parsed)),
-                        )?);
+                        extends = Some(e);
                     }
                     Node::Macro(m) => {
                         ensure_top(top, m.span(), path, parsed, "macro")?;
@@ -103,12 +103,7 @@ impl<'a> Context<'a> {
                     }
                     Node::Import(import) => {
                         ensure_top(top, import.span(), path, parsed, "import")?;
-                        let path = config.find_template(
-                            import.path,
-                            Some(path),
-                            Some(FileInfo::of(import.span(), path, parsed)),
-                        )?;
-                        imports.insert(import.scope, path);
+                        imports.push(import);
                     }
                     Node::BlockDef(b) => {
                         blocks.insert(b.name, &**b);
@@ -134,20 +129,45 @@ impl<'a> Context<'a> {
             top = false;
         }
 
-        Ok(Context {
+        let mut ctx = Context {
             nodes: parsed.nodes(),
-            extends,
+            extends: None,
             blocks,
             macros,
-            imports,
+            imports: HashMap::default(),
             parsed,
             path: Some(path),
             literal,
-        })
+            template_span,
+        };
+        if let Some(extends) = extends {
+            ctx.extends = Some(config.find_template(
+                extends.path,
+                Some(path),
+                Some(FileInfo::of(extends.span(), path, parsed)),
+                Some(ctx.span_for_node(extends.span())),
+            )?);
+        }
+        for import in imports {
+            let path = config.find_template(
+                import.path,
+                Some(path),
+                Some(FileInfo::of(import.span(), path, parsed)),
+                Some(ctx.span_for_node(import.span())),
+            )?;
+            ctx.imports.insert(import.scope, path);
+        }
+
+        Ok(ctx)
     }
 
     pub(crate) fn generate_error(&self, msg: impl fmt::Display, node: Span<'_>) -> CompileError {
         let file_info = self.file_info_of(node);
+        CompileError::new_with_span(msg, file_info, Some(self.span_for_node(node)))
+    }
+
+    pub(crate) fn span_for_node(&self, node: Span<'_>) -> proc_macro2::Span {
+        let call_site_span = proc_macro2::Span::call_site();
         if let Some(LiteralOrSpan::Literal(ref literal)) = self.literal
             && let source = self.parsed.source()
             && let Some(mut offset) = node.offset_from(source)
@@ -155,13 +175,12 @@ impl<'a> Context<'a> {
             && let Some(extra) = original_code.find('"')
         {
             offset += extra + 1;
-            CompileError::new_with_span(
-                msg,
-                file_info,
-                literal.subspan(offset..offset + node.len()),
-            )
+            literal
+                .subspan(offset..offset + node.len())
+                .map(|span| span.resolved_at(call_site_span))
+                .unwrap_or(call_site_span)
         } else {
-            CompileError::new(msg, file_info)
+            call_site_span
         }
     }
 

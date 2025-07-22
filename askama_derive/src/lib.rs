@@ -4,6 +4,9 @@
 
 extern crate proc_macro;
 
+#[macro_use]
+mod macros;
+
 mod config;
 mod generator;
 mod heritage;
@@ -30,8 +33,9 @@ use std::sync::Mutex;
 
 use parser::{Parsed, ascii_str, strip_common};
 use proc_macro2::{Span, TokenStream};
-use quote::{quote, quote_spanned};
+use quote::quote;
 use rustc_hash::FxBuildHasher;
+use syn::spanned::Spanned;
 
 use crate::config::{Config, read_config_file};
 use crate::generator::{TmplKind, template_to_string};
@@ -249,41 +253,27 @@ pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -
         .map(|a| a.take_crate_name())
         .unwrap_or_default();
 
-    let ts = args
-        .and_then(|args| build_template(&mut buf, &ast, args))
-        .map(|_| {
-            let src = buf.as_str();
-            match src.parse() {
-                Ok(ts) => ts,
-                Err(err) => panic!(
-                    "Unparsable code was generated. Please report this bug to us: \
-                    <https://github.com/askama-rs/askama/issues>\n\n\
-                    Error: {err}\n\n\
-                    Generated source:\n\
-                    ------------------------------------------------\n\
-                    {}\n\
-                    ------------------------------------------------\n\n",
-                    src.replace('\u{1b}', " "),
-                ),
-            }
-        })
-        .unwrap_or_else(|CompileError { msg, span }| {
-            let mut ts = quote_spanned! {
+    let ts = match args.and_then(|args| build_template(&mut buf, &ast, args)) {
+        Ok(_) => buf.into_token_stream(),
+        Err(CompileError { msg, span }) => {
+            let mut ts = quote::quote_spanned! {
                 span.unwrap_or(ast.ident.span()) =>
                 askama::helpers::core::compile_error!(#msg);
             };
             buf.clear();
             if build_skeleton(&mut buf, &ast).is_ok() {
-                let source: TokenStream = buf.into_string().parse().unwrap();
+                let source: TokenStream = buf.into_token_stream();
                 ts.extend(source);
             }
             ts
-        });
+        }
+    };
     let import_askama = match crate_name {
         Some(crate_name) => quote!(use #crate_name as askama;),
         None => import_askama(),
     };
     quote! {
+        #[allow(dead_code, non_camel_case_types, non_snake_case)]
         const _: () = {
             #import_askama
             #ts
@@ -297,7 +287,7 @@ fn build_skeleton(buf: &mut Buffer, ast: &syn::DeriveInput) -> Result<usize, Com
     let input = TemplateInput::new(ast, None, config, &template_args)?;
     let mut contexts = HashMap::default();
     let parsed = parser::Parsed::default();
-    contexts.insert(&input.path, Context::empty(&parsed));
+    contexts.insert(&input.path, Context::empty(&parsed, ast.span()));
     template_to_string(buf, &input, &contexts, None, TmplKind::Struct)
 }
 
@@ -320,7 +310,7 @@ pub(crate) fn build_template(
                 .source
                 .1
                 .as_ref()
-                .map(|l| l.span())
+                .and_then(|l| l.span())
                 .or(item.template_span);
             build_template_item(buf, ast, None, &item, TmplKind::Struct)
         }
@@ -370,7 +360,13 @@ fn build_template_item(
     for (path, parsed) in &templates {
         contexts.insert(
             path,
-            Context::new(input.config, path, parsed, input.source_span.clone())?,
+            Context::new(
+                input.config,
+                path,
+                parsed,
+                input.source_span.clone(),
+                ast.span(),
+            )?,
         );
     }
 
@@ -398,10 +394,9 @@ fn build_template_item(
         eprintln!("{:?}", templates[&input.path].nodes());
     }
 
-    let mark = buf.get_mark();
     let size_hint = template_to_string(buf, &input, &contexts, heritage.as_ref(), tmpl_kind)?;
     if input.print == Print::Code || input.print == Print::All {
-        eprintln!("{}", buf.marked_text(mark));
+        eprintln!("{}", buf.to_string());
     }
     Ok(size_hint)
 }
@@ -414,10 +409,27 @@ struct CompileError {
 
 impl CompileError {
     fn new<S: fmt::Display>(msg: S, file_info: Option<FileInfo<'_>>) -> Self {
-        Self::new_with_span(msg, file_info, None)
+        Self::new_with_span_stable(msg, file_info, None)
     }
 
     fn new_with_span<S: fmt::Display>(
+        msg: S,
+        file_info: Option<FileInfo<'_>>,
+        span: Option<Span>,
+    ) -> Self {
+        // `Span::join` always return `None` if not on nightly. We use it to prevent not showing a
+        // nice error message when not on nightly.
+        let span = if let Some(span) = span
+            && span.join(proc_macro2::Span::call_site()).is_none()
+        {
+            None
+        } else {
+            span
+        };
+        Self::new_with_span_stable(msg, file_info, span)
+    }
+
+    fn new_with_span_stable<S: fmt::Display>(
         msg: S,
         file_info: Option<FileInfo<'_>>,
         span: Option<Span>,

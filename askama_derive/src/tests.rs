@@ -17,7 +17,7 @@ fn build_template(ast: &syn::DeriveInput) -> Result<String, crate::CompileError>
     let mut buf = Buffer::new();
     let args = AnyTemplateArgs::new(ast)?;
     crate::build_template(&mut buf, ast, args)?;
-    Ok(buf.into_string())
+    Ok(buf.to_string())
 }
 
 fn import_askama() -> TokenStream {

@@ -26,6 +26,7 @@ pub(crate) struct MacroInvocation<'a, 'b> {
 }
 
 impl<'a, 'b> MacroInvocation<'a, 'b> {
+    // FIXME: add missing spans
     pub(crate) fn write<'h>(
         &self,
         buf: &'b mut Buffer,
@@ -65,18 +66,31 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             self.ensure_arg_count()?;
 
             this.flush_ws(self.callsite_ws); // Cannot handle_ws() here: whitespace from macro definition comes first
-            this.write_buf_writable(self.callsite_ctx, buf)?;
-            buf.write('{');
+            let mut content = Buffer::new();
+            this.write_buf_writable(self.callsite_ctx, &mut content)?;
+
             this.prepare_ws(self.macro_def.ws1);
 
-            self.write_preamble(buf, this)?;
+            self.write_preamble(&mut content, this)?;
 
-            let mut size_hint =
-                this.handle(self.macro_ctx, &self.macro_def.nodes, buf, AstLevel::Nested)?;
+            let mut size_hint = this.handle(
+                self.macro_ctx,
+                &self.macro_def.nodes,
+                &mut content,
+                AstLevel::Nested,
+            )?;
 
             this.flush_ws(self.macro_def.ws2);
-            size_hint += this.write_buf_writable(self.callsite_ctx, buf)?;
-            buf.write('}');
+            size_hint += this.write_buf_writable(self.callsite_ctx, &mut content)?;
+            let content = content.into_token_stream();
+            buf.write(
+                quote::quote!(
+                    {
+                        #content
+                    }
+                ),
+                self.callsite_ctx.template_span,
+            );
 
             this.prepare_ws(self.callsite_ws);
             this.seen_callers.pop();
@@ -174,7 +188,9 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                         associated_item,
                     )?;
 
-                    let associated_item = associated_item_buf.into_string();
+                    // FIXME: Too many steps to get a string. Also, `visit_associated_item` returns
+                    // stuff like `x.y`, how is this supposed to match a variable? O.o
+                    let associated_item = associated_item_buf.into_token_stream().to_string();
                     let var = generator
                         .locals
                         .resolve(&associated_item)
@@ -194,13 +210,14 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     } else {
                         ("", "")
                     };
-                    value.write(generator.visit_expr_root(self.callsite_ctx, expr)?);
+                    value.write_tokens(generator.visit_expr_root(self.callsite_ctx, expr)?);
                     // We need to normalize the arg to write it, thus we need to add it to
                     // locals in the normalized manner
                     let normalized_arg = normalize_identifier(arg);
-                    buf.write(format_args!(
-                        "let {normalized_arg} = {before}{value}{after};"
-                    ));
+                    buf.write(
+                        format_args!("let {normalized_arg} = {before}{value}{after};"),
+                        self.callsite_ctx.template_span,
+                    );
                     generator
                         .locals
                         .insert_with_default(Cow::Borrowed(normalized_arg));

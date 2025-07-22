@@ -139,7 +139,7 @@ impl Config {
                 match syntaxes.entry(name.to_string()) {
                     Entry::Vacant(entry) => {
                         entry.insert(raw_s.to_syntax().map(SyntaxAndCache::new).map_err(
-                            |err| CompileError::new_with_span(err, file_info, config_span),
+                            |err| CompileError::new_with_span_stable(err, file_info, config_span),
                         )?);
                     }
                     Entry::Occupied(_) => {
@@ -188,6 +188,7 @@ impl Config {
         path: &str,
         start_at: Option<&Path>,
         file_info: Option<FileInfo<'_>>,
+        span: Option<proc_macro2::Span>,
     ) -> Result<Arc<Path>, CompileError> {
         let path = 'find_path: {
             if let Some(root) = start_at {
@@ -202,19 +203,21 @@ impl Config {
                     break 'find_path rooted;
                 }
             }
-            return Err(CompileError::new(
+            return Err(CompileError::new_with_span(
                 format_args!(
                     "template {:?} not found in directories {:?}",
                     path, self.dirs,
                 ),
                 file_info,
+                span,
             ));
         };
         match path.canonicalize() {
             Ok(path) => Ok(path.into()),
-            Err(err) => Err(CompileError::new(
+            Err(err) => Err(CompileError::new_with_span(
                 format_args!("could not canonicalize path {path:?}: {err}"),
                 file_info,
+                span,
             )),
         }
     }
@@ -420,9 +423,9 @@ mod tests {
     #[test]
     fn find_absolute() {
         let config = Config::new("", None, None, None, None).unwrap();
-        let root = config.find_template("a.html", None, None).unwrap();
+        let root = config.find_template("a.html", None, None, None).unwrap();
         let path = config
-            .find_template("sub/b.html", Some(&root), None)
+            .find_template("sub/b.html", Some(&root), None, None)
             .unwrap();
         assert_eq_rooted(&path, "sub/b.html");
     }
@@ -431,24 +434,32 @@ mod tests {
     #[should_panic]
     fn find_relative_nonexistent() {
         let config = Config::new("", None, None, None, None).unwrap();
-        let root = config.find_template("a.html", None, None).unwrap();
-        config.find_template("c.html", Some(&root), None).unwrap();
+        let root = config.find_template("a.html", None, None, None).unwrap();
+        config
+            .find_template("c.html", Some(&root), None, None)
+            .unwrap();
     }
 
     #[test]
     fn find_relative() {
         let config = Config::new("", None, None, None, None).unwrap();
-        let root = config.find_template("sub/b.html", None, None).unwrap();
-        let path = config.find_template("c.html", Some(&root), None).unwrap();
+        let root = config
+            .find_template("sub/b.html", None, None, None)
+            .unwrap();
+        let path = config
+            .find_template("c.html", Some(&root), None, None)
+            .unwrap();
         assert_eq_rooted(&path, "sub/c.html");
     }
 
     #[test]
     fn find_relative_sub() {
         let config = Config::new("", None, None, None, None).unwrap();
-        let root = config.find_template("sub/b.html", None, None).unwrap();
+        let root = config
+            .find_template("sub/b.html", None, None, None)
+            .unwrap();
         let path = config
-            .find_template("sub1/d.html", Some(&root), None)
+            .find_template("sub1/d.html", Some(&root), None, None)
             .unwrap();
         assert_eq_rooted(&path, "sub/sub1/d.html");
     }

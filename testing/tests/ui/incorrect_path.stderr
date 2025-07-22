@@ -1,5 +1,5 @@
 error: template "thisdoesnotexist.html" not found in directories ["$WORKSPACE/target/tests/trybuild/askama_testing/templates"]
- --> tests/ui/incorrect_path.rs:4:19
+ --> tests/ui/incorrect_path.rs:4:3
   |
 4 | #[template(path = "thisdoesnotexist.html")]
-  |                   ^^^^^^^^^^^^^^^^^^^^^^^
+  |   ^^^^^^^^

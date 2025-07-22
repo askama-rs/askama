@@ -15,17 +15,28 @@ use syn::{Attribute, Expr, ExprLit, ExprPath, Ident, Lit, LitBool, LitStr, Meta,
 use crate::config::{Config, SyntaxAndCache};
 use crate::{CompileError, FileInfo, MsgValidEscapers};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub(crate) enum LiteralOrSpan {
     Literal(proc_macro2::Literal),
+    #[allow(dead_code)]
+    Path(proc_macro2::Literal),
     #[cfg_attr(not(feature = "code-in-doc"), allow(dead_code))]
     Span(Span),
 }
 
 impl LiteralOrSpan {
-    pub(crate) fn span(&self) -> Span {
+    pub(crate) fn span(&self) -> Option<Span> {
         match self {
-            Self::Literal(lit) => lit.span(),
+            Self::Literal(lit) => Some(lit.span()),
+            // FIXME: How do we get the span of the included file?
+            Self::Path(_) => None,
+            Self::Span(span) => Some(*span),
+        }
+    }
+
+    pub(crate) fn inner(&self) -> Span {
+        match self {
+            Self::Literal(lit) | Self::Path(lit) => lit.span(),
             Self::Span(span) => *span,
         }
     }
@@ -76,7 +87,9 @@ impl TemplateInput<'_> {
         // of `ext` is merged into a synthetic `path` value here.
         let path: Arc<Path> = match (&source, &ext) {
             #[cfg(feature = "external-sources")]
-            (Source::Path(path), _) => config.find_template(path, None, None)?,
+            (Source::Path(path), _) => {
+                config.find_template(path, None, None, source_span.as_ref().map(|s| s.inner()))?
+            }
             (&Source::Source(_), Some(ext)) => {
                 PathBuf::from(format!("{}.{}", ast.ident, ext)).into()
             }
@@ -239,6 +252,7 @@ impl TemplateInput<'_> {
                                     extends.path,
                                     Some(&path),
                                     Some(FileInfo::of(extends.span(), &path, &parsed)),
+                                    self.source_span.as_ref().map(|s| s.inner()),
                                 )?;
                                 let dependency_path = (path.clone(), extends.clone());
                                 if path == extends {
@@ -271,6 +285,7 @@ impl TemplateInput<'_> {
                                     import.path,
                                     Some(&path),
                                     Some(FileInfo::of(import.span(), &path, &parsed)),
+                                    self.source_span.as_ref().map(|s| s.inner()),
                                 )?;
                                 add_to_check(import)?;
                             }
@@ -294,6 +309,7 @@ impl TemplateInput<'_> {
                                     include.path,
                                     Some(&path),
                                     Some(FileInfo::of(include.span(), &path, &parsed)),
+                                    self.source_span.as_ref().map(|s| s.inner()),
                                 )?;
                                 add_to_check(include)?;
                             }
@@ -465,7 +481,7 @@ impl TemplateArgs {
                 #[cfg(feature = "external-sources")]
                 Some(PartialTemplateArgsSource::Path(s)) => (
                     Source::Path(s.value().into()),
-                    Some(LiteralOrSpan::Literal(s.token())),
+                    Some(LiteralOrSpan::Path(s.token())),
                 ),
                 Some(PartialTemplateArgsSource::Source(s)) => (
                     Source::Source(s.value().into()),
@@ -821,7 +837,7 @@ const _: () = {
     ) -> Result<Option<PartialTemplateArgs>, CompileError> {
         // FIXME: implement once <https://github.com/rust-lang/rfcs/pull/3715> is stable
         if let syn::Data::Union(data) = &ast.data {
-            return Err(CompileError::new_with_span(
+            return Err(CompileError::new_with_span_stable(
                 "askama templates are not supported for `union` types, only `struct` and `enum`",
                 None,
                 Some(data.union_token.span),
@@ -1132,7 +1148,7 @@ const JINJA_EXTENSIONS: &[&str] = &["askama", "j2", "jinja", "jinja2", "rinja"];
 #[cfg(feature = "external-sources")]
 fn get_source() {
     let path = Config::new("", None, None, None, None)
-        .and_then(|config| config.find_template("b.html", None, None))
+        .and_then(|config| config.find_template("b.html", None, None, None))
         .unwrap();
     assert_eq!(get_template_source(&path, None).unwrap(), "bar".into());
 }
