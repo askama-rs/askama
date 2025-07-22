@@ -317,10 +317,16 @@ pub(crate) struct ErrorContext<'a> {
 }
 
 impl<'a> ErrorContext<'a> {
+    #[cold]
     fn unclosed(kind: &str, tag: &str, span: impl Into<Span<'a>>) -> Self {
-        Self::new(format!("unclosed {kind}, missing {tag:?}"), span)
+        Self {
+            span: span.into(),
+            message: Some(format!("unclosed {kind}, missing {tag:?}").into()),
+        }
     }
 
+    #[cold]
+    #[inline]
     fn new(message: impl Into<Cow<'static, str>>, span: impl Into<Span<'a>>) -> Self {
         Self {
             span: span.into(),
@@ -328,10 +334,12 @@ impl<'a> ErrorContext<'a> {
         }
     }
 
+    #[inline]
     fn backtrack(self) -> ErrMode<Self> {
         ErrMode::Backtrack(self)
     }
 
+    #[inline]
     fn cut(self) -> ErrMode<Self> {
         ErrMode::Cut(self)
     }
@@ -911,12 +919,15 @@ impl State<'_, '_> {
         ))
         .parse_next(i)?;
         if let Some(control) = control {
-            let message = format!(
-                "unclosed block, you likely meant to apply whitespace control: \"{}{}\"",
-                control.escape_default(),
-                self.syntax.block_end.escape_default(),
+            let err = ErrorContext::new(
+                format!(
+                    "unclosed block, you likely meant to apply whitespace control: \"{}{}\"",
+                    control.escape_default(),
+                    self.syntax.block_end.escape_default(),
+                ),
+                *i,
             );
-            Err(ErrorContext::new(message, *i).backtrack())
+            Err(err.backtrack())
         } else {
             Ok(())
         }

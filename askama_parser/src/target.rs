@@ -251,11 +251,13 @@ fn collect_targets<'a, T>(
 
     let (has_comma, has_end) = (opt_comma, opt_end).parse_next(i)?;
     if !has_end {
-        let msg = match has_comma {
-            true => format!("expected member, or `{delim}` as terminator"),
-            false => format!("expected `,` for more members, or `{delim}` as terminator"),
-        };
-        return cut_error!(msg, *i);
+        return cut_error!(
+            match has_comma {
+                true => format!("expected member, or `{delim}` as terminator"),
+                false => format!("expected `,` for more members, or `{delim}` as terminator"),
+            },
+            *i
+        );
     }
 
     let singleton = !has_comma && targets.len() == 1;
