@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use parser::expr::Conditional;
 use parser::node::CondTest;
 use parser::{
     AssociatedItem, CharLit, CharPrefix, Expr, PathComponent, Span, StrLit, Target, TyGenerics,
@@ -12,6 +13,7 @@ use super::{
     normalize_identifier,
 };
 use crate::CompileError;
+use crate::generator::node::EvaluatedResult;
 use crate::heritage::Context;
 use crate::integration::Buffer;
 
@@ -95,6 +97,7 @@ impl<'a> Generator<'a, '_> {
             Expr::Concat(ref exprs) => self.visit_concat(ctx, buf, exprs)?,
             Expr::LetCond(ref cond) => self.visit_let_cond(ctx, buf, cond)?,
             Expr::ArgumentPlaceholder => DisplayWrap::Unwrapped,
+            Expr::Conditional(ref cond) => self.visit_conditional_expr(ctx, buf, cond)?,
         })
     }
 
@@ -228,6 +231,34 @@ impl<'a> Generator<'a, '_> {
                 Ok(DisplayWrap::Unwrapped)
             }
         }
+    }
+
+    fn visit_conditional_expr(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        cond: &Conditional<'a>,
+    ) -> Result<DisplayWrap, CompileError> {
+        let result;
+        let expr = if cond.test.contains_bool_lit_or_is_defined() {
+            result = self.evaluate_condition(WithSpan::clone(&cond.test), &mut true);
+            match &result {
+                EvaluatedResult::AlwaysTrue => return self.visit_expr(ctx, buf, &cond.then),
+                EvaluatedResult::AlwaysFalse => return self.visit_expr(ctx, buf, &cond.otherwise),
+                EvaluatedResult::Unknown(expr) => expr,
+            }
+        } else {
+            &cond.test
+        };
+
+        buf.write("if ");
+        self.visit_condition(ctx, buf, expr)?;
+        buf.write('{');
+        let then = self.visit_expr(ctx, buf, &cond.then)?;
+        buf.write("} else {");
+        let otherwise = self.visit_expr(ctx, buf, &cond.otherwise)?;
+        buf.write('}');
+        Ok(then & otherwise)
     }
 
     fn visit_let_cond(

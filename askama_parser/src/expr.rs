@@ -140,6 +140,11 @@ fn check_expr<'a>(expr: &WithSpan<'a, Expr<'a>>, allowed: Allowed) -> ParseResul
         }
         Expr::LetCond(cond) => check_expr(&cond.expr, Allowed::default()),
         Expr::ArgumentPlaceholder => cut_error!("unreachable", expr.span),
+        Expr::Conditional(cond) => {
+            check_expr(&cond.then, Allowed::default())?;
+            check_expr(&cond.test, Allowed::default())?;
+            check_expr(&cond.otherwise, Allowed::default())
+        }
         Expr::BoolLit(_)
         | Expr::NumLit(_, _)
         | Expr::StrLit(_)
@@ -225,6 +230,14 @@ pub enum Expr<'a> {
     /// This variant should never be used directly.
     /// It is used for the handling of named arguments in the generator, esp. with filters.
     ArgumentPlaceholder,
+    Conditional(Conditional<'a>),
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Conditional<'a> {
+    pub then: Box<WithSpan<'a, Expr<'a>>>,
+    pub test: Box<WithSpan<'a, Expr<'a>>>,
+    pub otherwise: Box<WithSpan<'a, Expr<'a>>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -316,6 +329,84 @@ impl<'a> Expr<'a> {
         allow_underscore: bool,
     ) -> ParseResult<'a, WithSpan<'a, Self>> {
         let _level_guard = level.nest(i)?;
+        Self::if_else(i, level, allow_underscore)
+    }
+
+    /// Like [`Expr::parse()`], but does not parse conditional expressions,
+    /// i.e. the token `if` is not consumed.
+    pub(super) fn parse_no_if_else(
+        i: &mut &'a str,
+        level: Level<'_>,
+        allow_underscore: bool,
+    ) -> ParseResult<'a, WithSpan<'a, Self>> {
+        let _level_guard = level.nest(i)?;
+        Self::range(i, level, allow_underscore)
+    }
+
+    fn if_else(
+        i: &mut &'a str,
+        level: Level<'_>,
+        allow_underscore: bool,
+    ) -> ParseResult<'a, WithSpan<'a, Self>> {
+        #[inline(never)] // very unlikely case
+        fn actually_cond<'a>(
+            i: &mut &'a str,
+            level: Level<'_>,
+            allow_underscore: bool,
+            then: Box<WithSpan<'a, Expr<'a>>>,
+            start: &'a str,
+            if_span: &'a str,
+        ) -> ParseResult<'a, WithSpan<'a, Expr<'a>>> {
+            let Some(test) =
+                opt(|i: &mut _| Expr::parse(i, level, allow_underscore)).parse_next(i)?
+            else {
+                return cut_error!(
+                    "conditional expression (`then if cond else otherwise`) expects an expression \
+                after the keyword `if`",
+                    if_span,
+                );
+            };
+
+            let Some(else_span) = opt(ws(keyword("else")).take()).parse_next(i)? else {
+                return cut_error!(
+                    "conditional expression (`then if cond else otherwise`) expects the keyword \
+                    `else` after its condition",
+                    test.span(),
+                );
+            };
+
+            let Some(otherwise) =
+                opt(|i: &mut _| Expr::if_else(i, level, allow_underscore)).parse_next(i)?
+            else {
+                return cut_error!(
+                    "conditional expression (`then if cond else otherwise`) expects an expression \
+                    after the keyword `else`",
+                    else_span,
+                );
+            };
+
+            let expr = Expr::Conditional(Conditional {
+                test: Box::new(test),
+                then,
+                otherwise: Box::new(otherwise),
+            });
+            Ok(WithSpan::new(expr, start, i))
+        }
+
+        let start = *i;
+        let expr = Self::range(i, level, allow_underscore)?;
+        if let Some(if_span) = opt(ws(keyword("if")).take()).parse_next(i)? {
+            actually_cond(i, level, allow_underscore, expr.into(), start, if_span)
+        } else {
+            Ok(expr)
+        }
+    }
+
+    fn range(
+        i: &mut &'a str,
+        level: Level<'_>,
+        allow_underscore: bool,
+    ) -> ParseResult<'a, WithSpan<'a, Self>> {
         let range_right = move |i: &mut _| {
             (
                 ws(alt(("..=", ".."))),
@@ -634,6 +725,7 @@ impl<'a> Expr<'a> {
             Self::BinOp(v) if matches!(v.op, "&&" | "||") => {
                 v.lhs.contains_bool_lit_or_is_defined() || v.rhs.contains_bool_lit_or_is_defined()
             }
+            Self::Conditional(cond) => cond.test.contains_bool_lit_or_is_defined(),
             Self::NumLit(_, _)
             | Self::StrLit(_)
             | Self::CharLit(_)
