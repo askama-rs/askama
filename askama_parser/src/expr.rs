@@ -1035,18 +1035,21 @@ impl<'a> Suffix<'a> {
             // hash '#' omitted
 
             const ONE_CHAR: &[u8] = b"+-*/%^!&|=><@_.,;:$?~";
-            const TWO_CHARS: &[&str] = &[
-                "&&", "||", "<<", ">>", "+=", "-=", "*=", "/=", "%=", "^=", "&=", "|=", "==", "!=",
-                ">=", "<=", "..", "::", "->", "=>", "<-",
+            const TWO_CHARS: &[[u8; 2]] = &[
+                *b"&&", *b"||", *b"<<", *b">>", *b"+=", *b"-=", *b"*=", *b"/=", *b"%=", *b"^=",
+                *b"&=", *b"|=", *b"==", *b"!=", *b">=", *b"<=", *b"..", *b"::", *b"->", *b"=>",
+                *b"<-",
             ];
-            const THREE_CHARS: &[&str] = &["<<=", ">>=", "...", "..="];
+            const THREE_CHARS: &[[u8; 3]] = &[*b"<<=", *b">>=", *b"...", *b"..="];
 
             // need to check long to short
             *i = if let Some((head, tail)) = i.split_at_checked(3)
-                && THREE_CHARS.contains(&head)
+                && let Ok(head) = head.as_bytes().try_into()
+                && THREE_CHARS.contains(head)
             {
                 tail
             } else if let Some((head, tail)) = i.split_at_checked(2)
+                && let Ok(head) = head.as_bytes().try_into()
                 && TWO_CHARS.contains(&head)
             {
                 tail
