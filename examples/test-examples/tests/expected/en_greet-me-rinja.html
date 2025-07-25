@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+<title>Hello, rinja!</title>
+
+        <meta http-equiv="expires" content="Sat, 01 Dec 2001 00:00:00 GMT" />
+        <meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate" />
+        <meta http-equiv="pragma" content="no-cache" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="robots" content="noindex, nofollow" />
+<style>
+        /*<![CDATA[*/
+html {
+    background-color: #eee;
+    color: #111;
+    font-size: 62.5%;
+    min-height: 100vh;
+    color-scheme: light;
+}
+* {
+    line-height: 1.2em;
+}
+body {
+    background-color: #fff;
+    font-size: 1.8rem;
+    max-width: 40em;
+    margin: 1em auto;
+    padding: 2em;
+}
+h1 { font-size: 2.4rem; }
+h2 { font-size: 2.2rem; }
+h3 { font-size: 2.0rem; }
+a:link, a:visited {
+    color: #36c;
+    text-decoration: none;
+}
+a:active, a:hover, a:focus {
+    text-decoration: underline;
+    text-underline-offset: 0.3em;
+}
+#lang-select {
+    font-size: 80%;
+    width: max-content;
+    margin: 2em 0 0 auto;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+}
+#lang-select li {
+    flex-grow: 1;
+    flex-basis: auto;
+    margin: .25em 0 0 0;
+    padding: 0 1em;
+    text-align: center;
+    list-style-type: none;
+    border-left: 0.1rem solid currentColor;
+}
+#lang-select li:first-of-type {
+    border-left: 0 none transparent;
+}
+#lang-select li:last-of-type {
+    padding-right: 0;
+}
+/*]]>*/
+        </style>
+    </head>
+    <body>
+<h1>Hello!</h1>
+    <p>Hello, <strong>rinja</strong>, nice to meet you!
+I'm a <a href="https://rinja.readthedocs.io/">Rinja</a> example application.</p>
+    <h2>
+        <a href="/en/index.html?name=rinja">Back to the first page.</a>
+    </h2><ul id="lang-select"><li><a href="/de/greet-me.html?name=rinja">Diese Seite auf deutsch.</a></li><li><a href="/fr/greet-me.html?name=rinja">Cette page est en français.</a></li></ul>
+</body>
+</html>
