@@ -82,13 +82,13 @@ impl<'a> Generator<'a, '_> {
     pub(crate) fn handle(
         &mut self,
         ctx: &Context<'a>,
-        nodes: &'a [Node<'_>],
+        nodes: &'a [Box<Node<'_>>],
         buf: &mut Buffer,
         level: AstLevel,
     ) -> Result<usize, CompileError> {
         let mut size_hint = 0;
         for n in nodes {
-            match *n {
+            match **n {
                 Node::Lit(ref lit) => {
                     self.write_lit(lit);
                 }
@@ -183,12 +183,12 @@ impl<'a> Generator<'a, '_> {
 
     fn evaluate_condition(
         &self,
-        expr: WithSpan<'a, Expr<'a>>,
+        expr: WithSpan<'a, Box<Expr<'a>>>,
         only_contains_is_defined: &mut bool,
     ) -> EvaluatedResult<'a> {
         let (expr, span) = expr.deconstruct();
 
-        match expr {
+        match *expr {
             Expr::NumLit(_, _)
             | Expr::StrLit(_)
             | Expr::CharLit(_)
@@ -215,11 +215,11 @@ impl<'a> Generator<'a, '_> {
             Expr::BoolLit(true) => EvaluatedResult::AlwaysTrue,
             Expr::BoolLit(false) => EvaluatedResult::AlwaysFalse,
             Expr::Unary("!", inner) => {
-                match self.evaluate_condition(*inner, only_contains_is_defined) {
+                match self.evaluate_condition(inner, only_contains_is_defined) {
                     EvaluatedResult::AlwaysTrue => EvaluatedResult::AlwaysFalse,
                     EvaluatedResult::AlwaysFalse => EvaluatedResult::AlwaysTrue,
                     EvaluatedResult::Unknown(expr) => EvaluatedResult::Unknown(
-                        WithSpan::new_with_full(Expr::Unary("!", Box::new(expr)), span),
+                        WithSpan::new_with_full(Box::new(Expr::Unary("!", expr)), span),
                     ),
                 }
             }
@@ -243,7 +243,7 @@ impl<'a> Generator<'a, '_> {
                     }
                     EvaluatedResult::AlwaysFalse => {
                         // Keep the side effect.
-                        let rhs = WithSpan::new_without_span(Expr::BoolLit(false));
+                        let rhs = WithSpan::new_without_span(Box::new(Expr::BoolLit(false)));
                         EvaluatedResult::Unknown(bin_op(span, v.op, lhs, rhs))
                     }
                     EvaluatedResult::Unknown(rhs) => {
@@ -266,7 +266,7 @@ impl<'a> Generator<'a, '_> {
                 match self.evaluate_condition(v.rhs, only_contains_is_defined) {
                     EvaluatedResult::AlwaysTrue => {
                         // Keep the side effect.
-                        let rhs = WithSpan::new_without_span(Expr::BoolLit(true));
+                        let rhs = WithSpan::new_without_span(Box::new(Expr::BoolLit(true)));
                         EvaluatedResult::Unknown(bin_op(span, v.op, lhs, rhs))
                     }
                     EvaluatedResult::AlwaysFalse => {
@@ -282,9 +282,9 @@ impl<'a> Generator<'a, '_> {
                 *only_contains_is_defined = false;
                 EvaluatedResult::Unknown(WithSpan::new_with_full(expr, span))
             }
-            Expr::Group(inner) => match self.evaluate_condition(*inner, only_contains_is_defined) {
+            Expr::Group(inner) => match self.evaluate_condition(inner, only_contains_is_defined) {
                 EvaluatedResult::Unknown(expr) => EvaluatedResult::Unknown(
-                    WithSpan::new_with_full(Expr::Group(Box::new(expr)), span),
+                    WithSpan::new_with_full(Box::new(Expr::Group(expr)), span),
                 ),
                 known => known,
             },
@@ -357,7 +357,7 @@ impl<'a> Generator<'a, '_> {
                         // If this is a chain condition, then we need to declare the variable after the
                         // left expression has been handled but before the right expression is handled
                         // but this one should have access to the let-bound variable.
-                        match &**expr {
+                        match &***expr {
                             Expr::BinOp(v) if matches!(v.op, "||" | "&&") => {
                                 let display_wrap =
                                     this.visit_expr_first(ctx, &mut expr_buf, &v.lhs)?;
@@ -784,7 +784,7 @@ impl<'a> Generator<'a, '_> {
 
         // Handle when this statement creates a new alias of a caller variable (or of another alias),
         if let Target::Name(dstvar) = l.var
-            && let Expr::Var(srcvar) = **val
+            && let Expr::Var(srcvar) = ***val
             && let Some(caller_alias) = self.locals.get_caller(srcvar)
         {
             self.locals
@@ -814,8 +814,8 @@ impl<'a> Generator<'a, '_> {
         self.visit_target(buf, true, true, &l.var);
         // If it's not taking the ownership of a local variable or copyable, then we need to add
         // a reference.
-        let (before, after) = if !matches!(**val, Expr::Try(..))
-            && !matches!(**val, Expr::Var(name) if self.locals.get(name).is_some())
+        let (before, after) = if !matches!(***val, Expr::Try(..))
+            && !matches!(***val, Expr::Var(name) if self.locals.get(name).is_some())
             && !is_copyable(val)
         {
             ("&(", ")")
@@ -943,13 +943,13 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'a>,
         buf: &mut Buffer,
         ws: Ws,
-        mut expr: &'a WithSpan<'a, Expr<'a>>,
+        mut expr: &'a WithSpan<'a, Box<Expr<'a>>>,
     ) -> Result<usize, CompileError> {
-        while let Expr::Group(inner) = &**expr {
+        while let Expr::Group(inner) = &***expr {
             expr = inner;
         }
 
-        if let Expr::Call(call) = &**expr
+        if let Expr::Call(call) = &***expr
             && let ControlFlow::Break(size_hint) =
                 self.write_expr_call(ctx, buf, ws, expr.span(), call)?
         {
@@ -961,8 +961,8 @@ impl<'a> Generator<'a, '_> {
         Ok(0)
     }
 
-    fn write_expr_item(&mut self, expr: &'a WithSpan<'a, Expr<'a>>) {
-        match &**expr {
+    fn write_expr_item(&mut self, expr: &'a WithSpan<'a, Box<Expr<'a>>>) {
+        match &***expr {
             Expr::Group(expr) => self.write_expr_item(expr),
             Expr::Concat(items) => {
                 for expr in items {
@@ -1005,7 +1005,7 @@ impl<'a> Generator<'a, '_> {
             }
         }
 
-        if let Expr::Var(var_name) = *call.path {
+        if let Expr::Var(var_name) = **call.path {
             let caller_alias = self.locals.get_caller(var_name);
 
             // use of special keyword `super`:
@@ -1060,7 +1060,7 @@ impl<'a> Generator<'a, '_> {
                         match call.args.get(index) {
                             Some(expr) => {
                                 value.clear();
-                                match &**expr {
+                                match &***expr {
                                     // If `expr` is already a form of variable then
                                     // don't reintroduce a new variable. This is
                                     // to avoid moving non-copyable values.
@@ -1132,7 +1132,7 @@ impl<'a> Generator<'a, '_> {
             }
         }
 
-        if let Expr::Path(path_components) = &*call.path
+        if let Expr::Path(path_components) = &**call.path
             && let [scope, macro_name] = path_components.as_slice()
             && scope.generics.is_empty()
             && macro_name.generics.is_empty()
@@ -1342,15 +1342,15 @@ impl<'a> Generator<'a, '_> {
 fn bin_op<'a>(
     span: impl Into<Span<'a>>,
     op: &'a str,
-    lhs: WithSpan<'a, Expr<'a>>,
-    rhs: WithSpan<'a, Expr<'a>>,
-) -> WithSpan<'a, Expr<'a>> {
-    WithSpan::new_with_full(Expr::BinOp(Box::new(BinOp { op, lhs, rhs })), span)
+    lhs: WithSpan<'a, Box<Expr<'a>>>,
+    rhs: WithSpan<'a, Box<Expr<'a>>>,
+) -> WithSpan<'a, Box<Expr<'a>>> {
+    WithSpan::new_with_full(Box::new(Expr::BinOp(BinOp { op, lhs, rhs })), span)
 }
 
 struct CondInfo<'a> {
     cond: &'a WithSpan<'a, Cond<'a>>,
-    cond_expr: Option<WithSpan<'a, Expr<'a>>>,
+    cond_expr: Option<WithSpan<'a, Box<Expr<'a>>>>,
     generate_condition: bool,
     generate_content: bool,
 }
@@ -1366,7 +1366,7 @@ struct Conds<'a> {
 enum EvaluatedResult<'a> {
     AlwaysTrue,
     AlwaysFalse,
-    Unknown(WithSpan<'a, Expr<'a>>),
+    Unknown(WithSpan<'a, Box<Expr<'a>>>),
 }
 
 impl<'a> Conds<'a> {
@@ -1415,7 +1415,10 @@ impl<'a> Conds<'a> {
                         nb_conds += 1;
                         conds.push(CondInfo {
                             cond,
-                            cond_expr: Some(WithSpan::new_with_full(Expr::BoolLit(false), span)),
+                            cond_expr: Some(WithSpan::new_with_full(
+                                Box::new(Expr::BoolLit(false)),
+                                span,
+                            )),
                             generate_condition: true,
                             generate_content: false,
                         });
@@ -1431,7 +1434,10 @@ impl<'a> Conds<'a> {
                         }
                         conds.push(CondInfo {
                             cond,
-                            cond_expr: Some(WithSpan::new_with_full(Expr::BoolLit(true), span)),
+                            cond_expr: Some(WithSpan::new_with_full(
+                                Box::new(Expr::BoolLit(true)),
+                                span,
+                            )),
                             generate_condition,
                             generate_content: true,
                         });
@@ -1501,8 +1507,8 @@ pub(crate) enum AstLevel {
 /// Returns `true` if the outcome of this expression may be used multiple times in the same
 /// `write!()` call, without evaluating the expression again, i.e. the expression should be
 /// side-effect free.
-fn is_cacheable(expr: &WithSpan<'_, Expr<'_>>) -> bool {
-    match &**expr {
+fn is_cacheable(expr: &WithSpan<'_, Box<Expr<'_>>>) -> bool {
+    match &***expr {
         // Literals are the definition of pure:
         Expr::BoolLit(_) => true,
         Expr::NumLit(_, _) => true,

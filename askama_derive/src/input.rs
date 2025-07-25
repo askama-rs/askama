@@ -222,7 +222,7 @@ impl TemplateInput<'_> {
                         Ok(())
                     };
 
-                    match n {
+                    match &**n {
                         Node::Extends(extends) if top => {
                             #[cfg(not(feature = "external-sources"))]
                             {

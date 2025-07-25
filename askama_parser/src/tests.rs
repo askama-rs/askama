@@ -48,23 +48,23 @@ fn test_invalid_block() {
     Ast::from_str("{% extend \"blah\" %}", None, &Syntax::default()).unwrap();
 }
 
-fn int_lit(i: &str) -> Expr<'_> {
-    Expr::NumLit(i, Num::Int(i, None))
+fn int_lit<'a>(i: &'a str) -> WithSpan<'a, Box<Expr<'a>>> {
+    WithSpan::new_without_span(Box::new(Expr::NumLit(i, Num::Int(i, None))))
 }
 
 fn bin_op<'a>(
     op: &'a str,
-    lhs: WithSpan<'a, Expr<'a>>,
-    rhs: WithSpan<'a, Expr<'a>>,
-) -> WithSpan<'a, Expr<'a>> {
-    WithSpan::new_without_span(Expr::BinOp(Box::new(crate::expr::BinOp { op, lhs, rhs })))
+    lhs: WithSpan<'a, Box<Expr<'a>>>,
+    rhs: WithSpan<'a, Box<Expr<'a>>>,
+) -> WithSpan<'a, Box<Expr<'a>>> {
+    WithSpan::new_without_span(Box::new(Expr::BinOp(crate::expr::BinOp { op, lhs, rhs })))
 }
 
 fn call<'a>(
-    path: WithSpan<'a, Expr<'a>>,
-    args: Vec<WithSpan<'a, Expr<'a>>>,
-) -> WithSpan<'a, Expr<'a>> {
-    WithSpan::new_without_span(Expr::Call(Box::new(crate::expr::Call { path, args })))
+    path: WithSpan<'a, Box<Expr<'a>>>,
+    args: Vec<WithSpan<'a, Box<Expr<'a>>>>,
+) -> WithSpan<'a, Box<Expr<'a>>> {
+    WithSpan::new_without_span(Box::new(Expr::Call(crate::expr::Call { path, args })))
 }
 
 #[test]
@@ -74,52 +74,49 @@ fn test_parse_filter() {
         Ast::from_str("{{ strvar|e }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("e"),
-                arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Var("strvar")))],
             }))),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ 2|abs }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
-                arguments: vec![WithSpan::no_span(int_lit("2"))],
+                arguments: vec![int_lit("2")],
             }))),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ -2|abs }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
-                arguments: vec![WithSpan::no_span(Expr::Unary(
-                    "-",
-                    WithSpan::no_span(int_lit("2")).into()
-                ))],
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Unary("-", int_lit("2"))))],
             }))),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1 - 2)|abs }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
-                arguments: vec![WithSpan::no_span(Expr::Group(Box::new(bin_op(
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Group(bin_op(
                     "-",
-                    WithSpan::no_span(int_lit("1")),
-                    WithSpan::no_span(int_lit("2")),
+                    int_lit("1"),
+                    int_lit("2"),
                 ))))],
             }))),
-        )],
+        ))],
     );
 }
 
@@ -128,14 +125,14 @@ fn test_parse_numbers() {
     let syntax = Syntax::default();
     assert_eq!(
         Ast::from_str("{{ 2 }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(Ws(None, None), WithSpan::no_span(int_lit("2")))],
+        [Box::new(Node::Expr(Ws(None, None), int_lit("2")))],
     );
     assert_eq!(
         Ast::from_str("{{ 2.5 }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::NumLit("2.5", Num::Float("2.5", None)))
-        )],
+            WithSpan::no_span(Box::new(Expr::NumLit("2.5", Num::Float("2.5", None))))
+        ))],
     );
 }
 
@@ -145,25 +142,25 @@ fn test_parse_var() {
 
     assert_eq!(
         Ast::from_str("{{ foo }}", None, &s).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Var("foo"))
-        )]
+            WithSpan::no_span(Box::new(Expr::Var("foo")))
+        ))]
     );
     assert_eq!(
         Ast::from_str("{{ foo_bar }}", None, &s).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Var("foo_bar"))
-        )],
+            WithSpan::no_span(Box::new(Expr::Var("foo_bar")))
+        ))],
     );
 
     assert_eq!(
         Ast::from_str("{{ none }}", None, &s).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Var("none"))
-        )]
+            WithSpan::no_span(Box::new(Expr::Var("none")))
+        ))]
     );
 }
 
@@ -173,25 +170,25 @@ fn test_parse_const() {
 
     assert_eq!(
         Ast::from_str("{{ FOO }}", None, &s).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Path(as_path(&["FOO"])))
-        )]
+            WithSpan::no_span(Box::new(Expr::Path(as_path(&["FOO"]))))
+        ))]
     );
     assert_eq!(
         Ast::from_str("{{ FOO_BAR }}", None, &s).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Path(as_path(&["FOO_BAR"])))
-        )],
+            WithSpan::no_span(Box::new(Expr::Path(as_path(&["FOO_BAR"]))))
+        ))],
     );
 
     assert_eq!(
         Ast::from_str("{{ NONE }}", None, &s).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Path(as_path(&["NONE"])))
-        )]
+            WithSpan::no_span(Box::new(Expr::Path(as_path(&["NONE"]))))
+        ))]
     );
 }
 
@@ -201,41 +198,41 @@ fn test_parse_path() {
 
     assert_eq!(
         Ast::from_str("{{ None }}", None, &s).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Path(as_path(&["None"]))),
-        )]
+            WithSpan::no_span(Box::new(Expr::Path(as_path(&["None"])))),
+        ))]
     );
     assert_eq!(
         Ast::from_str("{{ Some(123) }}", None, &s).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                WithSpan::no_span(Expr::Path(as_path(&["Some"]))),
-                vec![WithSpan::no_span(int_lit("123"))],
+                WithSpan::no_span(Box::new(Expr::Path(as_path(&["Some"])))),
+                vec![int_lit("123")],
             ),
-        )],
+        ))],
     );
 
     assert_eq!(
         Ast::from_str("{{ Ok(123) }}", None, &s).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                WithSpan::no_span(Expr::Path(as_path(&["Ok"]))),
-                vec![WithSpan::no_span(int_lit("123"))],
+                WithSpan::no_span(Box::new(Expr::Path(as_path(&["Ok"])))),
+                vec![int_lit("123")],
             ),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ Err(123) }}", None, &s).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                WithSpan::no_span(Expr::Path(as_path(&["Err"]))),
-                vec![WithSpan::no_span(int_lit("123"))],
+                WithSpan::no_span(Box::new(Expr::Path(as_path(&["Err"])))),
+                vec![int_lit("123")],
             ),
-        )],
+        ))],
     );
 }
 
@@ -245,23 +242,23 @@ fn test_parse_var_call() {
         Ast::from_str("{{ function(\"123\", 3) }}", None, &Syntax::default())
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                WithSpan::no_span(Expr::Var("function")),
+                WithSpan::no_span(Box::new(Expr::Var("function"))),
                 vec![
-                    WithSpan::no_span(Expr::StrLit(StrLit {
+                    WithSpan::no_span(Box::new(Expr::StrLit(StrLit {
                         content: "123",
                         prefix: None,
                         contains_null: false,
                         contains_unicode_character: false,
                         contains_unicode_escape: false,
                         contains_high_ascii: false,
-                    })),
-                    WithSpan::no_span(int_lit("3"))
+                    }))),
+                    int_lit("3")
                 ],
             ),
-        )],
+        ))],
     );
 }
 
@@ -271,45 +268,45 @@ fn test_parse_path_call() {
 
     assert_eq!(
         Ast::from_str("{{ Option::None }}", None, &s).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Path(as_path(&["Option", "None"]))),
-        )],
+            WithSpan::no_span(Box::new(Expr::Path(as_path(&["Option", "None"])))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ Option::Some(123) }}", None, &s)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                WithSpan::no_span(Expr::Path(as_path(&["Option", "Some"]))),
-                vec![WithSpan::no_span(int_lit("123"))],
+                WithSpan::no_span(Box::new(Expr::Path(as_path(&["Option", "Some"])))),
+                vec![int_lit("123")],
             )
-        )],
+        ))],
     );
 
     assert_eq!(
         Ast::from_str("{{ self::function(\"123\", 3) }}", None, &s)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                WithSpan::no_span(Expr::Path(as_path(&["self", "function"]))),
+                WithSpan::no_span(Box::new(Expr::Path(as_path(&["self", "function"])))),
                 vec![
-                    WithSpan::no_span(Expr::StrLit(StrLit {
+                    WithSpan::no_span(Box::new(Expr::StrLit(StrLit {
                         content: "123",
                         prefix: None,
                         contains_null: false,
                         contains_unicode_character: false,
                         contains_unicode_escape: false,
                         contains_high_ascii: false,
-                    })),
-                    WithSpan::no_span(int_lit("3"))
+                    }))),
+                    int_lit("3")
                 ],
             )
-        )],
+        ))],
     );
 }
 
@@ -320,25 +317,29 @@ fn test_parse_root_path() {
         Ast::from_str("{{ std::string::String::new() }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                WithSpan::no_span(Expr::Path(as_path(&["std", "string", "String", "new"]))),
+                WithSpan::no_span(Box::new(Expr::Path(as_path(&[
+                    "std", "string", "String", "new"
+                ])))),
                 vec![],
             ),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ ::std::string::String::new() }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                WithSpan::no_span(Expr::Path(as_path(&["", "std", "string", "String", "new"]))),
+                WithSpan::no_span(Box::new(Expr::Path(as_path(&[
+                    "", "std", "string", "String", "new"
+                ])))),
                 vec![],
             ),
-        )],
+        ))],
     );
 }
 
@@ -349,54 +350,54 @@ fn test_rust_macro() {
         Ast::from_str("{{ vec!(1, 2, 3) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["vec"], "1, 2, 3")),
-        )],
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["vec"], "1, 2, 3"))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ alloc::vec!(1, 2, 3) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["alloc", "vec"], "1, 2, 3")),
-        )],
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["alloc", "vec"], "1, 2, 3"))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{a!()}}", None, &syntax).unwrap().nodes,
-        [Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["a"], ""))
-        )]
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["a"], "")))
+        ))]
     );
     assert_eq!(
         Ast::from_str("{{a !()}}", None, &syntax).unwrap().nodes,
-        [Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["a"], ""))
-        )]
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["a"], "")))
+        ))]
     );
     assert_eq!(
         Ast::from_str("{{a! ()}}", None, &syntax).unwrap().nodes,
-        [Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["a"], ""))
-        )]
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["a"], "")))
+        ))]
     );
     assert_eq!(
         Ast::from_str("{{a ! ()}}", None, &syntax).unwrap().nodes,
-        [Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["a"], ""))
-        )]
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["a"], "")))
+        ))]
     );
     assert_eq!(
         Ast::from_str("{{A!()}}", None, &syntax).unwrap().nodes,
-        [Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["A"], ""))
-        )]
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["A"], "")))
+        ))]
     );
     assert_eq!(
         &*Ast::from_str("{{a.b.c!( hello )}}", None, &syntax)
@@ -428,17 +429,20 @@ fn unicode_delimiters_in_syntax() {
             .unwrap()
             .nodes(),
         [
-            Node::Lit(WithSpan::no_span(Lit {
+            Box::new(Node::Lit(WithSpan::no_span(Lit {
                 lws: "",
                 val: "Here comes the expression:",
                 rws: " ",
-            })),
-            Node::Expr(Ws(None, None), WithSpan::no_span(Expr::Var("e"))),
-            Node::Lit(WithSpan::no_span(Lit {
+            }))),
+            Box::new(Node::Expr(
+                Ws(None, None),
+                WithSpan::no_span(Box::new(Expr::Var("e")))
+            )),
+            Box::new(Node::Lit(WithSpan::no_span(Lit {
                 lws: "",
                 val: ".",
                 rws: "",
-            })),
+            }))),
         ],
     );
 }
@@ -450,92 +454,92 @@ fn test_precedence() {
         Ast::from_str("{{ a + b == c }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             bin_op(
                 "==",
                 bin_op(
                     "+",
-                    WithSpan::no_span(Expr::Var("a")),
-                    WithSpan::no_span(Expr::Var("b"))
+                    WithSpan::no_span(Box::new(Expr::Var("a"))),
+                    WithSpan::no_span(Box::new(Expr::Var("b")))
                 ),
-                WithSpan::no_span(Expr::Var("c"))
+                WithSpan::no_span(Box::new(Expr::Var("c")))
             )
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ a + b * c - d / e }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             bin_op(
                 "-",
                 bin_op(
                     "+",
-                    WithSpan::no_span(Expr::Var("a")),
+                    WithSpan::no_span(Box::new(Expr::Var("a"))),
                     bin_op(
                         "*",
-                        WithSpan::no_span(Expr::Var("b")),
-                        WithSpan::no_span(Expr::Var("c"))
+                        WithSpan::no_span(Box::new(Expr::Var("b"))),
+                        WithSpan::no_span(Box::new(Expr::Var("c")))
                     )
                 ),
                 bin_op(
                     "/",
-                    WithSpan::no_span(Expr::Var("d")),
-                    WithSpan::no_span(Expr::Var("e"))
+                    WithSpan::no_span(Box::new(Expr::Var("d"))),
+                    WithSpan::no_span(Box::new(Expr::Var("e")))
                 ),
             )
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ a * (b + c) / -d }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             bin_op(
                 "/",
                 bin_op(
                     "*",
-                    WithSpan::no_span(Expr::Var("a")),
-                    WithSpan::no_span(Expr::Group(Box::new(bin_op(
+                    WithSpan::no_span(Box::new(Expr::Var("a"))),
+                    WithSpan::no_span(Box::new(Expr::Group(bin_op(
                         "+",
-                        WithSpan::no_span(Expr::Var("b")),
-                        WithSpan::no_span(Expr::Var("c"))
+                        WithSpan::no_span(Box::new(Expr::Var("b"))),
+                        WithSpan::no_span(Box::new(Expr::Var("c")))
                     ))))
                 ),
-                WithSpan::no_span(Expr::Unary(
+                WithSpan::no_span(Box::new(Expr::Unary(
                     "-",
-                    Box::new(WithSpan::no_span(Expr::Var("d")))
-                ))
+                    WithSpan::no_span(Box::new(Expr::Var("d")))
+                )))
             )
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ a || b && c || d && e }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             bin_op(
                 "||",
                 bin_op(
                     "||",
-                    WithSpan::no_span(Expr::Var("a")),
+                    WithSpan::no_span(Box::new(Expr::Var("a"))),
                     bin_op(
                         "&&",
-                        WithSpan::no_span(Expr::Var("b")),
-                        WithSpan::no_span(Expr::Var("c"))
+                        WithSpan::no_span(Box::new(Expr::Var("b"))),
+                        WithSpan::no_span(Box::new(Expr::Var("c")))
                     ),
                 ),
                 bin_op(
                     "&&",
-                    WithSpan::no_span(Expr::Var("d")),
-                    WithSpan::no_span(Expr::Var("e"))
+                    WithSpan::no_span(Box::new(Expr::Var("d"))),
+                    WithSpan::no_span(Box::new(Expr::Var("e")))
                 ),
             )
-        )],
+        ))],
     );
 }
 
@@ -546,58 +550,58 @@ fn test_associativity() {
         Ast::from_str("{{ a + b + c }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             bin_op(
                 "+",
                 bin_op(
                     "+",
-                    WithSpan::no_span(Expr::Var("a")),
-                    WithSpan::no_span(Expr::Var("b"))
+                    WithSpan::no_span(Box::new(Expr::Var("a"))),
+                    WithSpan::no_span(Box::new(Expr::Var("b")))
                 ),
-                WithSpan::no_span(Expr::Var("c"))
+                WithSpan::no_span(Box::new(Expr::Var("c")))
             )
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ a * b * c }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             bin_op(
                 "*",
                 bin_op(
                     "*",
-                    WithSpan::no_span(Expr::Var("a")),
-                    WithSpan::no_span(Expr::Var("b"))
+                    WithSpan::no_span(Box::new(Expr::Var("a"))),
+                    WithSpan::no_span(Box::new(Expr::Var("b")))
                 ),
-                WithSpan::no_span(Expr::Var("c"))
+                WithSpan::no_span(Box::new(Expr::Var("c")))
             )
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ a && b && c }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             bin_op(
                 "&&",
                 bin_op(
                     "&&",
-                    WithSpan::no_span(Expr::Var("a")),
-                    WithSpan::no_span(Expr::Var("b"))
+                    WithSpan::no_span(Box::new(Expr::Var("a"))),
+                    WithSpan::no_span(Box::new(Expr::Var("b")))
                 ),
-                WithSpan::no_span(Expr::Var("c"))
+                WithSpan::no_span(Box::new(Expr::Var("c")))
             )
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ a + b - c + d }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             bin_op(
                 "+",
@@ -605,14 +609,14 @@ fn test_associativity() {
                     "-",
                     bin_op(
                         "+",
-                        WithSpan::no_span(Expr::Var("a")),
-                        WithSpan::no_span(Expr::Var("b"))
+                        WithSpan::no_span(Box::new(Expr::Var("a"))),
+                        WithSpan::no_span(Box::new(Expr::Var("b")))
                     ),
-                    WithSpan::no_span(Expr::Var("c"))
+                    WithSpan::no_span(Box::new(Expr::Var("c")))
                 ),
-                WithSpan::no_span(Expr::Var("d"))
+                WithSpan::no_span(Box::new(Expr::Var("d")))
             )
-        )],
+        ))],
     );
 }
 
@@ -621,100 +625,99 @@ fn test_odd_calls() {
     let syntax = Syntax::default();
     assert_eq!(
         Ast::from_str("{{ a[b](c) }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                WithSpan::no_span(Expr::Index(
-                    Box::new(WithSpan::no_span(Expr::Var("a"))),
-                    Box::new(WithSpan::no_span(Expr::Var("b")))
-                )),
-                vec![WithSpan::no_span(Expr::Var("c"))],
+                WithSpan::no_span(Box::new(Expr::Index(
+                    WithSpan::no_span(Box::new(Expr::Var("a"))),
+                    WithSpan::no_span(Box::new(Expr::Var("b")))
+                ))),
+                vec![WithSpan::no_span(Box::new(Expr::Var("c")))],
             )
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (a + b)(c) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                WithSpan::no_span(Expr::Group(Box::new(bin_op(
+                WithSpan::no_span(Box::new(Expr::Group(bin_op(
                     "+",
-                    WithSpan::no_span(Expr::Var("a")),
-                    WithSpan::no_span(Expr::Var("b"))
+                    WithSpan::no_span(Box::new(Expr::Var("a"))),
+                    WithSpan::no_span(Box::new(Expr::Var("b")))
                 )))),
-                vec![WithSpan::no_span(Expr::Var("c"))],
+                vec![WithSpan::no_span(Box::new(Expr::Var("c")))],
             )
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ a + b(c) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             bin_op(
                 "+",
-                WithSpan::no_span(Expr::Var("a")),
+                WithSpan::no_span(Box::new(Expr::Var("a"))),
                 call(
-                    WithSpan::no_span(Expr::Var("b")),
-                    vec![WithSpan::no_span(Expr::Var("c"))],
+                    WithSpan::no_span(Box::new(Expr::Var("b"))),
+                    vec![WithSpan::no_span(Box::new(Expr::Var("c")))],
                 ),
             ),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (-a)(b) }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                WithSpan::no_span(Expr::Group(Box::new(WithSpan::no_span(Expr::Unary(
-                    "-",
-                    Box::new(WithSpan::no_span(Expr::Var("a")))
+                WithSpan::no_span(Box::new(Expr::Group(WithSpan::no_span(Box::new(
+                    Expr::Unary("-", WithSpan::no_span(Box::new(Expr::Var("a"))))
                 ))))),
-                vec![WithSpan::no_span(Expr::Var("b"))],
+                vec![WithSpan::no_span(Box::new(Expr::Var("b")))],
             )
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ -a(b) }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Unary(
+            WithSpan::no_span(Box::new(Expr::Unary(
                 "-",
-                Box::new(call(
-                    WithSpan::no_span(Expr::Var("a")),
-                    vec![WithSpan::no_span(Expr::Var("b"))],
-                ))
-            ))
-        )],
+                call(
+                    WithSpan::no_span(Box::new(Expr::Var("a"))),
+                    vec![WithSpan::no_span(Box::new(Expr::Var("b")))],
+                )
+            )))
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ a(b)|c }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("c"),
                 arguments: vec![call(
-                    WithSpan::no_span(Expr::Var("a")),
-                    vec![WithSpan::no_span(Expr::Var("b"))],
+                    WithSpan::no_span(Box::new(Expr::Var("a"))),
+                    vec![WithSpan::no_span(Box::new(Expr::Var("b")))],
                 )],
             })))
-        )]
+        ))]
     );
     assert_eq!(
         Ast::from_str("{{ a(b)| c }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("c"),
                 arguments: vec![call(
-                    WithSpan::no_span(Expr::Var("a")),
-                    vec![WithSpan::no_span(Expr::Var("b"))],
+                    WithSpan::no_span(Box::new(Expr::Var("a"))),
+                    vec![WithSpan::no_span(Box::new(Expr::Var("b")))],
                 )],
             }))),
-        )]
+        ))]
     );
 }
 
@@ -725,7 +728,7 @@ fn test_parse_comments() {
         let s = &Syntax::default();
         let mut nodes = Ast::from_str(source, None, s).unwrap().nodes;
         assert_eq!(nodes.len(), 1, "expected to parse one node");
-        match nodes.pop().unwrap() {
+        match *nodes.pop().unwrap() {
             Node::Comment(comment) => assert_eq!(comment.ws, ws),
             node => panic!("expected a comment not, but parsed {node:?}"),
         }
@@ -783,129 +786,119 @@ fn test_parse_tuple() {
     let syntax = Syntax::default();
     assert_eq!(
         Ast::from_str("{{ () }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Tuple(vec![]))
-        )],
+            WithSpan::no_span(Box::new(Expr::Tuple(vec![])))
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1) }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Group(Box::new(WithSpan::no_span(int_lit("1")))))
-        )],
+            WithSpan::no_span(Box::new(Expr::Group(int_lit("1"))))
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1,) }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Tuple(vec![WithSpan::no_span(int_lit("1"))])),
-        )],
+            WithSpan::no_span(Box::new(Expr::Tuple(vec![int_lit("1")]))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1, ) }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Tuple(vec![WithSpan::no_span(int_lit("1"))])),
-        )],
+            WithSpan::no_span(Box::new(Expr::Tuple(vec![int_lit("1")]))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1 ,) }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Tuple(vec![WithSpan::no_span(int_lit("1"))])),
-        )],
+            WithSpan::no_span(Box::new(Expr::Tuple(vec![int_lit("1")]))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1 , ) }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Tuple(vec![WithSpan::no_span(int_lit("1"))])),
-        )],
+            WithSpan::no_span(Box::new(Expr::Tuple(vec![int_lit("1")]))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1, 2) }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Tuple(vec![
-                WithSpan::no_span(int_lit("1")),
-                WithSpan::no_span(int_lit("2"))
-            ])),
-        )],
+            WithSpan::no_span(Box::new(Expr::Tuple(vec![int_lit("1"), int_lit("2")]))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1, 2,) }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Tuple(vec![
-                WithSpan::no_span(int_lit("1")),
-                WithSpan::no_span(int_lit("2"))
-            ])),
-        )],
+            WithSpan::no_span(Box::new(Expr::Tuple(vec![int_lit("1"), int_lit("2")]))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1, 2, 3) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Tuple(vec![
-                WithSpan::no_span(int_lit("1")),
-                WithSpan::no_span(int_lit("2")),
-                WithSpan::no_span(int_lit("3"))
-            ])),
-        )],
+            WithSpan::no_span(Box::new(Expr::Tuple(vec![
+                int_lit("1"),
+                int_lit("2"),
+                int_lit("3")
+            ]))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ ()|abs }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
-                arguments: vec![WithSpan::no_span(Expr::Tuple(vec![]))],
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Tuple(vec![])))],
             }))),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1)|abs }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
-                arguments: vec![WithSpan::no_span(Expr::Group(Box::new(WithSpan::no_span(
-                    int_lit("1")
-                ))))],
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Group(int_lit("1"))))],
             }))),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1,)|abs }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
-                arguments: vec![WithSpan::no_span(Expr::Tuple(vec![WithSpan::no_span(
-                    int_lit("1")
-                )]))],
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Tuple(vec![int_lit("1")])))],
             }))),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1, 2)|abs }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("abs"),
-                arguments: vec![WithSpan::no_span(Expr::Tuple(vec![
-                    WithSpan::no_span(int_lit("1")),
-                    WithSpan::no_span(int_lit("2"))
-                ]))],
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Tuple(vec![
+                    int_lit("1"),
+                    int_lit("2")
+                ])))],
             }))),
-        )],
+        ))],
     );
 }
 
@@ -924,101 +917,88 @@ fn test_parse_array() {
     let syntax = Syntax::default();
     assert_eq!(
         Ast::from_str("{{ [] }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Array(vec![]))
-        )],
+            WithSpan::no_span(Box::new(Expr::Array(vec![])))
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ [1] }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Array(vec![WithSpan::no_span(int_lit("1"))]))
-        )],
+            WithSpan::no_span(Box::new(Expr::Array(vec![int_lit("1")])))
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ [ 1] }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Array(vec![WithSpan::no_span(int_lit("1"))]))
-        )],
+            WithSpan::no_span(Box::new(Expr::Array(vec![int_lit("1")])))
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ [1 ] }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Array(vec![WithSpan::no_span(int_lit("1"))]))
-        )],
+            WithSpan::no_span(Box::new(Expr::Array(vec![int_lit("1")])))
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ [1,2] }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Array(vec![
-                WithSpan::no_span(int_lit("1")),
-                WithSpan::no_span(int_lit("2"))
-            ]))
-        )],
+            WithSpan::no_span(Box::new(Expr::Array(vec![int_lit("1"), int_lit("2")])))
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ [1 ,2] }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Array(vec![
-                WithSpan::no_span(int_lit("1")),
-                WithSpan::no_span(int_lit("2"))
-            ]))
-        )],
+            WithSpan::no_span(Box::new(Expr::Array(vec![int_lit("1"), int_lit("2")])))
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ [1, 2] }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Array(vec![
-                WithSpan::no_span(int_lit("1")),
-                WithSpan::no_span(int_lit("2"))
-            ]))
-        )],
+            WithSpan::no_span(Box::new(Expr::Array(vec![int_lit("1"), int_lit("2")])))
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ [1,2 ] }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Array(vec![
-                WithSpan::no_span(int_lit("1")),
-                WithSpan::no_span(int_lit("2"))
-            ]))
-        )],
+            WithSpan::no_span(Box::new(Expr::Array(vec![int_lit("1"), int_lit("2")])))
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ []|foo }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("foo"),
-                arguments: vec![WithSpan::no_span(Expr::Array(vec![]))],
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Array(vec![])))],
             })))
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ []| foo }}", None, &syntax).unwrap().nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Identifier("foo"),
-                arguments: vec![WithSpan::no_span(Expr::Array(vec![]))],
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Array(vec![])))],
             })))
-        )],
+        ))],
     );
 
     let n = || {
-        Node::Expr(
+        Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Array(vec![WithSpan::no_span(Expr::NumLit(
-                "1",
-                Num::Int("1", None),
-            ))])),
-        )
+            WithSpan::no_span(Box::new(Expr::Array(vec![WithSpan::no_span(Box::new(
+                Expr::NumLit("1", Num::Int("1", None)),
+            ))]))),
+        ))
     };
     assert_eq!(
         Ast::from_str(
@@ -1028,7 +1008,7 @@ fn test_parse_array() {
         )
         .unwrap()
         .nodes,
-        vec![n(), n(), n(), n()],
+        [n(), n(), n(), n()],
     );
 }
 
@@ -1309,49 +1289,49 @@ fn test_filter_with_path() {
         Ast::from_str("{{ strvar|::e }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Path(as_path(&["", "e"])),
-                arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Var("strvar")))],
             }))),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ strvar|::e::f }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Path(as_path(&["", "e", "f"])),
-                arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Var("strvar")))],
             }))),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ strvar|e::f }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Path(as_path(&["e", "f"])),
-                arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Var("strvar")))],
             }))),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ strvar|e::f() }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::Filter(Box::new(Filter {
+            WithSpan::no_span(Box::new(Expr::Filter(Filter {
                 name: PathOrIdentifier::Path(as_path(&["e", "f"])),
-                arguments: vec![WithSpan::no_span(Expr::Var("strvar"))],
+                arguments: vec![WithSpan::no_span(Box::new(Expr::Var("strvar")))],
             }))),
-        )],
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ strvar|e()::f }}", None, &syntax)
@@ -1415,10 +1395,10 @@ fn macro_calls_can_have_raw_prefixes() {
         Ast::from_str(&format!("{{{{ z!{{{inner}}} }}}}"), None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["z"], inner)),
-        )],
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["z"], inner))),
+        ))],
     );
 }
 
@@ -1436,56 +1416,56 @@ fn macro_comments_in_macro_calls() {
         Ast::from_str("{{ e!(// hello\n) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["e"], "// hello\n")),
-        )],
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["e"], "// hello\n"))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ e!(/// hello\n) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["e"], "/// hello\n")),
-        )],
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["e"], "/// hello\n"))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ e!(//! hello\n) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["e"], "//! hello\n")),
-        )],
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["e"], "//! hello\n"))),
+        ))],
     );
 
     assert_eq!(
         Ast::from_str("{{ e!(/* hello */) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["e"], "/* hello */")),
-        )],
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["e"], "/* hello */"))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ e!(/** hello */) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["e"], "/** hello */")),
-        )],
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["e"], "/** hello */"))),
+        ))],
     );
     assert_eq!(
         Ast::from_str("{{ e!(/*! hello */) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["e"], "/*! hello */")),
-        )],
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["e"], "/*! hello */"))),
+        ))],
     );
 }
 
@@ -1501,7 +1481,7 @@ fn test_raw() {
         )
         .unwrap()
         .nodes,
-        vec![Node::Raw(WithSpan::no_span(Raw {
+        [Box::new(Node::Raw(WithSpan::no_span(Raw {
             ws1: Ws(Some(Whitespace::Preserve), Some(Whitespace::Suppress)),
             lit: Lit {
                 lws: " ",
@@ -1509,7 +1489,7 @@ fn test_raw() {
                 rws: " ",
             },
             ws2: Ws(Some(Whitespace::Minimize), Some(Whitespace::Minimize)),
-        }))],
+        })))],
     );
 
     // We must make sure that the character for whitespace handling, e.g. `-` is not consumed,
@@ -1525,7 +1505,7 @@ fn test_raw() {
         Ast::from_str("-$- raw -$- -$- endraw -$ endraw -$-", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Raw(WithSpan::no_span(Raw {
+        [Box::new(Node::Raw(WithSpan::no_span(Raw {
             ws1: Ws(Some(Whitespace::Suppress), Some(Whitespace::Suppress)),
             lit: Lit {
                 lws: " ",
@@ -1533,7 +1513,7 @@ fn test_raw() {
                 rws: " ",
             },
             ws2: Ws(None, Some(Whitespace::Suppress)),
-        }))],
+        })))],
     );
 }
 
@@ -1546,10 +1526,10 @@ fn test_macro_call_nested_comments() {
         Ast::from_str("{{ x!(/*/*/*)*/*/*/) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["x"], "/*/*/*)*/*/*/")),
-        )],
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["x"], "/*/*/*)*/*/*/"))),
+        ))],
     );
 
     let msg = Ast::from_str("{{ x!(/*/*/) }}", None, &syntax)
@@ -1561,10 +1541,10 @@ fn test_macro_call_nested_comments() {
         Ast::from_str("{{ x!(/**/) }}", None, &syntax)
             .unwrap()
             .nodes,
-        vec![Node::Expr(
+        [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Expr::RustMacro(vec!["x"], "/**/")),
-        )],
+            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["x"], "/**/"))),
+        ))],
     );
 }
 

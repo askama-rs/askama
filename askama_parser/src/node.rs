@@ -19,12 +19,12 @@ use crate::{
 pub enum Node<'a> {
     Lit(WithSpan<'a, Lit<'a>>),
     Comment(WithSpan<'a, Comment<'a>>),
-    Expr(Ws, WithSpan<'a, Expr<'a>>),
+    Expr(Ws, WithSpan<'a, Box<Expr<'a>>>),
     Call(WithSpan<'a, Call<'a>>),
     Let(WithSpan<'a, Let<'a>>),
     If(WithSpan<'a, If<'a>>),
     Match(WithSpan<'a, Match<'a>>),
-    Loop(Box<WithSpan<'a, Loop<'a>>>),
+    Loop(WithSpan<'a, Loop<'a>>),
     Extends(WithSpan<'a, Extends<'a>>),
     BlockDef(WithSpan<'a, BlockDef<'a>>),
     Include(WithSpan<'a, Include<'a>>),
@@ -37,7 +37,10 @@ pub enum Node<'a> {
 }
 
 impl<'a> Node<'a> {
-    pub(super) fn parse_template(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Vec<Self>> {
+    pub(super) fn parse_template(
+        i: &mut &'a str,
+        s: &State<'_, '_>,
+    ) -> ParseResult<'a, Vec<Box<Self>>> {
         let start = *i;
         let result = match (|i: &mut _| Self::many(i, s)).parse_next(i) {
             Ok(result) => result,
@@ -66,12 +69,12 @@ impl<'a> Node<'a> {
         Ok(result)
     }
 
-    fn many(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Vec<Self>> {
+    fn many(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Vec<Box<Self>>> {
         repeat(
             0..,
             alt((
-                |i: &mut _| Lit::parse(i, s).map(Self::Lit),
-                |i: &mut _| Comment::parse(i, s).map(Self::Comment),
+                |i: &mut _| Lit::parse(i, s),
+                |i: &mut _| Comment::parse(i, s),
                 |i: &mut _| Self::expr(i, s),
                 |i: &mut _| Self::parse(i, s),
             )),
@@ -80,7 +83,7 @@ impl<'a> Node<'a> {
         .parse_next(i)
     }
 
-    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Self> {
+    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Self>> {
         let mut start = *i;
         let tag = preceded(
             |i: &mut _| s.tag_block_start(i),
@@ -89,20 +92,20 @@ impl<'a> Node<'a> {
         .parse_next(i)?;
 
         let func = match tag {
-            "call" => |i: &mut _, s| Call::parse(i, s).map(Self::Call),
-            "let" | "set" => |i: &mut _, s| Let::parse(i, s).map(Self::Let),
-            "if" => |i: &mut _, s| If::parse(i, s).map(Self::If),
-            "for" => |i: &mut _, s| Loop::parse(i, s).map(|n| Self::Loop(Box::new(n))),
-            "match" => |i: &mut _, s| Match::parse(i, s).map(Self::Match),
-            "extends" => |i: &mut _, _s| Extends::parse(i).map(Self::Extends),
-            "include" => |i: &mut _, _s| Include::parse(i).map(Self::Include),
-            "import" => |i: &mut _, _s| Import::parse(i).map(Self::Import),
-            "block" => |i: &mut _, s| BlockDef::parse(i, s).map(Self::BlockDef),
-            "macro" => |i: &mut _, s| Macro::parse(i, s).map(Self::Macro),
-            "raw" => |i: &mut _, s| Raw::parse(i, s).map(Self::Raw),
-            "break" => |i: &mut _, s| Self::r#break(i, s),
-            "continue" => |i: &mut _, s| Self::r#continue(i, s),
-            "filter" => |i: &mut _, s| FilterBlock::parse(i, s).map(Self::FilterBlock),
+            "call" => Call::parse,
+            "let" | "set" => Let::parse,
+            "if" => If::parse,
+            "for" => Loop::parse,
+            "match" => Match::parse,
+            "extends" => |i: &mut &'a str, _s: &State<'_, '_>| Extends::parse(i),
+            "include" => |i: &mut &'a str, _s: &State<'_, '_>| Include::parse(i),
+            "import" => |i: &mut &'a str, _s: &State<'_, '_>| Import::parse(i),
+            "block" => BlockDef::parse,
+            "macro" => Macro::parse,
+            "raw" => Raw::parse,
+            "break" => Self::r#break,
+            "continue" => Self::r#continue,
+            "filter" => FilterBlock::parse,
             _ => return fail.parse_next(&mut start),
         };
 
@@ -122,7 +125,7 @@ impl<'a> Node<'a> {
         }
     }
 
-    fn r#break(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Self> {
+    fn r#break(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
         let mut p = (
             opt(Whitespace::parse),
             ws(keyword("break")),
@@ -134,10 +137,10 @@ impl<'a> Node<'a> {
         if !s.is_in_loop() {
             return cut_error!("you can only `break` inside a `for` loop", start);
         }
-        Ok(Self::Break(WithSpan::new(Ws(pws, nws), start, i)))
+        Ok(Box::new(Self::Break(WithSpan::new(Ws(pws, nws), start, i))))
     }
 
-    fn r#continue(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Self> {
+    fn r#continue(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
         let mut p = (
             opt(Whitespace::parse),
             ws(keyword("continue")),
@@ -149,10 +152,14 @@ impl<'a> Node<'a> {
         if !s.is_in_loop() {
             return cut_error!("you can only `continue` inside a `for` loop", start);
         }
-        Ok(Self::Continue(WithSpan::new(Ws(pws, nws), start, i)))
+        Ok(Box::new(Self::Continue(WithSpan::new(
+            Ws(pws, nws),
+            start,
+            i,
+        ))))
     }
 
-    fn expr(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Self> {
+    fn expr(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Self>> {
         let start = *i;
         let level = s.level;
         let (pws, expr) = preceded(
@@ -179,7 +186,7 @@ impl<'a> Node<'a> {
         )
         .parse_next(i)?;
         match closed {
-            true => Ok(Self::Expr(Ws(pws, nws), expr)),
+            true => Ok(Box::new(Self::Expr(Ws(pws, nws), expr))),
             false => Err(ErrorContext::unclosed("expression", s.syntax.expr_end, start).cut()),
         }
     }
@@ -257,7 +264,7 @@ fn unexpected_raw_tag<'a>(kind: Option<&'static str>, i: &mut &'a str) -> ParseR
 pub struct When<'a> {
     pub ws: Ws,
     pub target: Vec<Target<'a>>,
-    pub nodes: Vec<Node<'a>>,
+    pub nodes: Vec<Box<Node<'a>>>,
 }
 
 impl<'a> When<'a> {
@@ -312,14 +319,14 @@ impl<'a> When<'a> {
             // generator. This way we don't have to fix up the next `when` node or the closing
             // `endmatch`. Any whitespaces after `endwhen` are to be suppressed. Actually, they
             // don't wind up in the AST anyway.
-            Node::Comment(WithSpan::new(
+            Box::new(Node::Comment(WithSpan::new(
                 Comment {
                     ws: Ws(pws, Some(Whitespace::Suppress)),
                     content: "",
                 },
                 start,
                 i,
-            ))
+            )))
         });
         let mut p = (
             |i: &mut _| s.tag_block_start(i),
@@ -356,7 +363,7 @@ impl<'a> When<'a> {
 pub struct Cond<'a> {
     pub ws: Ws,
     pub cond: Option<CondTest<'a>>,
-    pub nodes: Vec<Node<'a>>,
+    pub nodes: Vec<Box<Node<'a>>>,
 }
 
 impl<'a> Cond<'a> {
@@ -394,7 +401,7 @@ impl<'a> Cond<'a> {
 #[derive(Debug, PartialEq, Clone)]
 pub struct CondTest<'a> {
     pub target: Option<Target<'a>>,
-    pub expr: WithSpan<'a, Expr<'a>>,
+    pub expr: WithSpan<'a, Box<Expr<'a>>>,
     pub contains_bool_lit_or_is_defined: bool,
 }
 
@@ -417,14 +424,14 @@ impl<'a> CondTest<'a> {
             ws(|i: &mut _| {
                 let start = *i;
                 let mut expr = Expr::parse(i, s.level, false)?;
-                if let Expr::BinOp(v) = &mut expr.inner
-                    && matches!(v.rhs.inner, Expr::Var("set" | "let"))
+                if let Expr::BinOp(v) = &mut *expr.inner
+                    && matches!(*v.rhs.inner, Expr::Var("set" | "let"))
                 {
                     let _level_guard = s.level.nest(i)?;
                     *i = v.rhs.span.as_suffix_of(start).unwrap();
                     let start_span = *i;
                     let new_right = Self::parse_cond(i, s)?;
-                    v.rhs.inner = Expr::LetCond(Box::new(WithSpan::new(new_right, start_span, i)));
+                    v.rhs.inner = Box::new(Expr::LetCond(WithSpan::new(new_right, start_span, i)));
                 }
                 Ok(expr)
             }),
@@ -497,17 +504,17 @@ fn check_block_start<'a>(
 pub struct Loop<'a> {
     pub ws1: Ws,
     pub var: Target<'a>,
-    pub iter: WithSpan<'a, Expr<'a>>,
-    pub cond: Option<WithSpan<'a, Expr<'a>>>,
-    pub body: Vec<Node<'a>>,
+    pub iter: WithSpan<'a, Box<Expr<'a>>>,
+    pub cond: Option<WithSpan<'a, Box<Expr<'a>>>>,
+    pub body: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
-    pub else_nodes: Vec<Node<'a>>,
+    pub else_nodes: Vec<Box<Node<'a>>>,
     pub ws3: Ws,
 }
 
 impl<'a> Loop<'a> {
-    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
-        fn content<'a>(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Vec<Node<'a>>> {
+    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
+        fn content<'a>(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Vec<Box<Node<'a>>>> {
             s.enter_loop();
             let result = (|i: &mut _| Node::many(i, s)).parse_next(i);
             s.leave_loop();
@@ -588,7 +595,7 @@ impl<'a> Loop<'a> {
         let (pws1, _, (var, _, (iter, cond, nws1, _, (body, pws2, else_block, nws2)))) =
             p.parse_next(i)?;
         let (nws3, else_nodes, pws3) = else_block.unwrap_or_default();
-        Ok(WithSpan::new(
+        Ok(Box::new(Node::Loop(WithSpan::new(
             Self {
                 ws1: Ws(pws1, nws1),
                 var,
@@ -601,7 +608,7 @@ impl<'a> Loop<'a> {
             },
             start,
             i,
-        ))
+        ))))
     }
 }
 
@@ -609,8 +616,8 @@ impl<'a> Loop<'a> {
 pub struct Macro<'a> {
     pub ws1: Ws,
     pub name: &'a str,
-    pub args: Vec<(&'a str, Option<WithSpan<'a, Expr<'a>>>)>,
-    pub nodes: Vec<Node<'a>>,
+    pub args: Vec<(&'a str, Option<WithSpan<'a, Box<Expr<'a>>>>)>,
+    pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
 }
 
@@ -626,12 +633,12 @@ fn check_duplicated_name<'a>(
 }
 
 impl<'a> Macro<'a> {
-    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
         let level = s.level;
         #[allow(clippy::type_complexity)]
         let parameters = |i: &mut _| -> ParseResult<
             '_,
-            Option<Vec<(&str, Option<WithSpan<'_, Expr<'_>>>)>>,
+            Option<Vec<(&str, Option<WithSpan<'_, Box<Expr<'_>>>>)>>,
         > {
             let args = opt(preceded(
                 '(',
@@ -727,7 +734,7 @@ impl<'a> Macro<'a> {
         );
         let (contents, (_, pws2, _, nws2)) = end.parse_next(i)?;
 
-        Ok(WithSpan::new(
+        Ok(Box::new(Node::Macro(WithSpan::new(
             Self {
                 ws1: Ws(pws1, nws1),
                 name,
@@ -737,7 +744,7 @@ impl<'a> Macro<'a> {
             },
             start_s,
             i,
-        ))
+        ))))
     }
 }
 
@@ -745,17 +752,17 @@ impl<'a> Macro<'a> {
 pub struct FilterBlock<'a> {
     pub ws1: Ws,
     pub filters: Filter<'a>,
-    pub nodes: Vec<Node<'a>>,
+    pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
 }
 
 impl<'a> FilterBlock<'a> {
-    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
         fn filters<'a>(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Filter<'a>> {
             let mut start = *i;
             let mut res = Filter::parse(i, s.level)?;
             res.arguments
-                .insert(0, WithSpan::new(Expr::FilterSource, start, i));
+                .insert(0, WithSpan::new(Box::new(Expr::FilterSource), start, i));
 
             let mut level_guard = s.level.guard();
             while let Some((mut filter, i_before)) =
@@ -764,7 +771,7 @@ impl<'a> FilterBlock<'a> {
                 level_guard.nest(i_before)?;
                 filter.arguments.insert(
                     0,
-                    WithSpan::new(Expr::Filter(Box::new(res)), start.trim_start(), i),
+                    WithSpan::new(Box::new(Expr::Filter(res)), start.trim_start(), i),
                 );
                 res = filter;
                 start = *i;
@@ -797,7 +804,7 @@ impl<'a> FilterBlock<'a> {
         )
             .parse_next(i)?;
 
-        Ok(WithSpan::new(
+        Ok(Box::new(Node::FilterBlock(WithSpan::new(
             Self {
                 ws1: Ws(pws1, nws1),
                 filters,
@@ -806,7 +813,7 @@ impl<'a> FilterBlock<'a> {
             },
             start,
             i,
-        ))
+        ))))
     }
 }
 
@@ -818,7 +825,7 @@ pub struct Import<'a> {
 }
 
 impl<'a> Import<'a> {
-    fn parse(i: &mut &'a str) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str) -> ParseResult<'a, Box<Node<'a>>> {
         let start = *i;
         let mut p = (
             opt(Whitespace::parse),
@@ -833,7 +840,7 @@ impl<'a> Import<'a> {
             ),
         );
         let (pws, _, (path, _, (scope, nws))) = p.parse_next(i)?;
-        Ok(WithSpan::new(
+        Ok(Box::new(Node::Import(WithSpan::new(
             Self {
                 ws: Ws(pws, nws),
                 path,
@@ -841,7 +848,7 @@ impl<'a> Import<'a> {
             },
             start,
             i,
-        ))
+        ))))
     }
 }
 
@@ -851,13 +858,13 @@ pub struct Call<'a> {
     pub caller_args: Vec<&'a str>,
     pub scope: Option<&'a str>,
     pub name: &'a str,
-    pub args: Vec<WithSpan<'a, Expr<'a>>>,
-    pub nodes: Vec<Node<'a>>,
+    pub args: Vec<WithSpan<'a, Box<Expr<'a>>>>,
+    pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
 }
 
 impl<'a> Call<'a> {
-    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
         let start_s = *i;
         let parameters = |i: &mut _| -> ParseResult<'_, Option<Vec<&str>>> {
             let args = opt(preceded(
@@ -911,7 +918,7 @@ impl<'a> Call<'a> {
         );
         let (nodes, (_, pws2, _, nws2)) = end.parse_next(i)?;
 
-        Ok(WithSpan::new(
+        Ok(Box::new(Node::Call(WithSpan::new(
             Self {
                 ws1: Ws(pws, nws),
                 caller_args: call_args.unwrap_or_default(),
@@ -923,20 +930,20 @@ impl<'a> Call<'a> {
             },
             start_s,
             i,
-        ))
+        ))))
     }
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Match<'a> {
     pub ws1: Ws,
-    pub expr: WithSpan<'a, Expr<'a>>,
+    pub expr: WithSpan<'a, Box<Expr<'a>>>,
     pub arms: Vec<WithSpan<'a, When<'a>>>,
     pub ws2: Ws,
 }
 
 impl<'a> Match<'a> {
-    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
         let start = *i;
         let mut p = (
             opt(Whitespace::parse),
@@ -987,7 +994,7 @@ impl<'a> Match<'a> {
             );
         }
 
-        Ok(WithSpan::new(
+        Ok(Box::new(Node::Match(WithSpan::new(
             Self {
                 ws1: Ws(pws1, nws1),
                 expr,
@@ -996,7 +1003,7 @@ impl<'a> Match<'a> {
             },
             start,
             i,
-        ))
+        ))))
     }
 }
 
@@ -1004,12 +1011,12 @@ impl<'a> Match<'a> {
 pub struct BlockDef<'a> {
     pub ws1: Ws,
     pub name: &'a str,
-    pub nodes: Vec<Node<'a>>,
+    pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
 }
 
 impl<'a> BlockDef<'a> {
-    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
         let start_s = *i;
         let mut start = (
             opt(Whitespace::parse),
@@ -1050,7 +1057,7 @@ impl<'a> BlockDef<'a> {
         );
         let (nodes, (_, pws2, _, (_, nws2))) = end.parse_next(i)?;
 
-        Ok(WithSpan::new(
+        Ok(Box::new(Node::BlockDef(WithSpan::new(
             BlockDef {
                 ws1: Ws(pws1, nws1),
                 name,
@@ -1059,7 +1066,7 @@ impl<'a> BlockDef<'a> {
             },
             start_s,
             i,
-        ))
+        ))))
     }
 }
 
@@ -1090,7 +1097,7 @@ pub struct Lit<'a> {
 }
 
 impl<'a> Lit<'a> {
-    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
         not(eof).parse_next(i)?;
         let start = *i;
         let mut content = opt(take_until(
@@ -1106,7 +1113,11 @@ impl<'a> Lit<'a> {
             Some(content) => content,
             None => rest(i)?, // there is no {block,comment,expr}_start: take everything
         };
-        Ok(WithSpan::new(Self::split_ws_parts(content), start, i))
+        Ok(Box::new(Node::Lit(WithSpan::new(
+            Self::split_ws_parts(content),
+            start,
+            i,
+        ))))
     }
 
     pub(crate) fn split_ws_parts(s: &'a str) -> Self {
@@ -1129,7 +1140,7 @@ pub struct Raw<'a> {
 }
 
 impl<'a> Raw<'a> {
-    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
         fn endraw<'a>(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, (Ws, &'a str)> {
             let start = *i;
             loop {
@@ -1178,7 +1189,11 @@ impl<'a> Raw<'a> {
         let (pws, (nws, (ws2, content))) = p.parse_next(i)?;
         let lit = Lit::split_ws_parts(content);
         let ws1 = Ws(pws, nws);
-        Ok(WithSpan::new(Self { ws1, lit, ws2 }, start, i))
+        Ok(Box::new(Node::Raw(WithSpan::new(
+            Self { ws1, lit, ws2 },
+            start,
+            i,
+        ))))
     }
 }
 
@@ -1186,12 +1201,12 @@ impl<'a> Raw<'a> {
 pub struct Let<'a> {
     pub ws: Ws,
     pub var: Target<'a>,
-    pub val: Option<WithSpan<'a, Expr<'a>>>,
+    pub val: Option<WithSpan<'a, Box<Expr<'a>>>>,
     pub is_mutable: bool,
 }
 
 impl<'a> Let<'a> {
-    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
         let start = *i;
         let mut p = (
             opt(Whitespace::parse),
@@ -1242,7 +1257,7 @@ impl<'a> Let<'a> {
             );
         }
 
-        Ok(WithSpan::new(
+        Ok(Box::new(Node::Let(WithSpan::new(
             Let {
                 ws: Ws(pws, nws),
                 var,
@@ -1251,7 +1266,7 @@ impl<'a> Let<'a> {
             },
             start,
             i,
-        ))
+        ))))
     }
 }
 
@@ -1262,7 +1277,7 @@ pub struct If<'a> {
 }
 
 impl<'a> If<'a> {
-    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
         let start = *i;
         let mut p = (
             opt(Whitespace::parse),
@@ -1304,14 +1319,14 @@ impl<'a> If<'a> {
         )];
         branches.extend(elifs);
 
-        Ok(WithSpan::new(
+        Ok(Box::new(Node::If(WithSpan::new(
             Self {
                 ws: Ws(pws2, nws2),
                 branches,
             },
             start,
             i,
-        ))
+        ))))
     }
 }
 
@@ -1322,7 +1337,7 @@ pub struct Include<'a> {
 }
 
 impl<'a> Include<'a> {
-    fn parse(i: &mut &'a str) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str) -> ParseResult<'a, Box<Node<'a>>> {
         let start = *i;
         let mut p = (
             opt(Whitespace::parse),
@@ -1333,14 +1348,14 @@ impl<'a> Include<'a> {
             ),
         );
         let (pws, _, (path, nws)) = p.parse_next(i)?;
-        Ok(WithSpan::new(
+        Ok(Box::new(Node::Include(WithSpan::new(
             Self {
                 ws: Ws(pws, nws),
                 path,
             },
             start,
             i,
-        ))
+        ))))
     }
 }
 
@@ -1350,7 +1365,7 @@ pub struct Extends<'a> {
 }
 
 impl<'a> Extends<'a> {
-    fn parse(i: &mut &'a str) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str) -> ParseResult<'a, Box<Node<'a>>> {
         let start = *i;
         preceded(
             (opt(Whitespace::parse), ws(keyword("extends"))),
@@ -1359,7 +1374,7 @@ impl<'a> Extends<'a> {
                 terminated(ws(str_lit_without_prefix), opt(Whitespace::parse)),
             ),
         )
-        .map(|path| WithSpan::new(Self { path }, start, i))
+        .map(|path| Box::new(Node::Extends(WithSpan::new(Self { path }, start, i))))
         .parse_next(i)
     }
 }
@@ -1371,7 +1386,7 @@ pub struct Comment<'a> {
 }
 
 impl<'a> Comment<'a> {
-    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
         fn content<'a>(i: &mut &'a str, s: &State<'_, '_>) -> ParseResult<'a, ()> {
             let mut depth = 0usize;
             loop {
@@ -1417,7 +1432,11 @@ impl<'a> Comment<'a> {
             ws.1 = Whitespace::parse_char(content.chars().next_back().unwrap_or_default());
         }
 
-        Ok(WithSpan::new(Self { ws, content }, start, i))
+        Ok(Box::new(Node::Comment(WithSpan::new(
+            Self { ws, content },
+            start,
+            i,
+        ))))
     }
 }
 

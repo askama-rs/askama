@@ -726,7 +726,7 @@ impl<'a> Deref for WritableBuffer<'a> {
 #[derive(Debug)]
 enum Writable<'a> {
     Lit(Cow<'a, str>),
-    Expr(&'a WithSpan<'a, Expr<'a>>),
+    Expr(&'a WithSpan<'a, Box<Expr<'a>>>),
 }
 
 /// Identifiers to be replaced with raw identifiers, so as to avoid

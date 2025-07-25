@@ -43,7 +43,7 @@ type BlockAncestry<'a, 'h> =
 
 #[derive(Clone)]
 pub(crate) struct Context<'a> {
-    pub(crate) nodes: &'a [Node<'a>],
+    pub(crate) nodes: &'a [Box<Node<'a>>],
     pub(crate) extends: Option<Arc<Path>>,
     pub(crate) blocks: HashMap<&'a str, &'a BlockDef<'a>, FxBuildHasher>,
     pub(crate) macros: HashMap<&'a str, &'a Macro<'a>, FxBuildHasher>,
@@ -82,7 +82,7 @@ impl<'a> Context<'a> {
 
         while let Some(nodes) = nested.pop() {
             for n in nodes {
-                match n {
+                match &**n {
                     Node::Extends(e) => {
                         ensure_top(top, e.span(), path, parsed, "extends")?;
                         if extends.is_some() {

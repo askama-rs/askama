@@ -19,7 +19,7 @@ pub(crate) struct MacroInvocation<'a, 'b> {
     pub callsite_ctx: &'b Context<'a>,
     pub callsite_span: Span<'a>,
     pub callsite_ws: Ws,
-    pub call_args: &'b Vec<WithSpan<'a, Expr<'a>>>,
+    pub call_args: &'b Vec<WithSpan<'a, Box<Expr<'a>>>>,
     pub call: Option<&'a WithSpan<'a, Call<'a>>>,
     pub macro_def: &'a Macro<'a>,
     pub macro_ctx: &'b Context<'a>,
@@ -90,10 +90,10 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         generator: &mut Generator<'a, 'h>,
     ) -> Result<(), CompileError> {
         let mut named_arguments: HashMap<&str, _, FxBuildHasher> = HashMap::default();
-        if let Some(Expr::NamedArgument(_, _)) = self.call_args.last().map(|expr| &**expr) {
+        if let Some(Expr::NamedArgument(_, _)) = self.call_args.last().map(|expr| &***expr) {
             // First we check that all named arguments actually exist in the called item.
             for (index, arg) in self.call_args.iter().enumerate().rev() {
-                let Expr::NamedArgument(arg_name, _) = &**arg else {
+                let Expr::NamedArgument(arg_name, _) = &***arg else {
                     break;
                 };
                 if !self.macro_def.args.iter().any(|(arg, _)| arg == arg_name) {
@@ -119,7 +119,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                 expr
             } else {
                 match self.call_args.get(index) {
-                    Some(arg_expr) if !matches!(**arg_expr, Expr::NamedArgument(_, _)) => {
+                    Some(arg_expr) if !matches!(***arg_expr, Expr::NamedArgument(_, _)) => {
                         // If there is already at least one named argument, then it's not allowed
                         // to use unnamed ones at this point anymore.
                         if !allow_positional {
@@ -135,7 +135,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                         arg_expr
                     }
                     Some(arg_expr) if used_named_args[index] => {
-                        let Expr::NamedArgument(name, _) = **arg_expr else {
+                        let Expr::NamedArgument(name, _) = ***arg_expr else {
                             unreachable!()
                         };
                         return Err(self.callsite_ctx.generate_error(
@@ -155,11 +155,11 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     }
                 }
             };
-            match &**expr {
+            match &***expr {
                 // If `expr` is already a form of variable then
                 // don't reintroduce a new variable. This is
                 // to avoid moving non-copyable values.
-                Expr::Var(name) if *name != "self" => {
+                &Expr::Var(name) if name != "self" => {
                     let var = generator.locals.resolve_or_self(name);
                     generator
                         .locals
@@ -237,7 +237,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             .map(|&(name, _)| Some(name))
             .collect();
         for (pos, arg) in self.call_args.iter().enumerate() {
-            let pos = match **arg {
+            let pos = match ***arg {
                 Expr::NamedArgument(name, ..) => self
                     .macro_def
                     .args

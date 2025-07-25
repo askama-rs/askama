@@ -1,6 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![deny(elided_lifetimes_in_paths)]
 #![deny(unreachable_pub)]
+#![allow(clippy::vec_box)] // intentional, less copying
 
 pub mod ascii_str;
 pub mod expr;
@@ -64,7 +65,7 @@ mod _parsed {
 
         // The return value's lifetime must be limited to `self` to uphold the unsafe invariant.
         #[must_use]
-        pub fn nodes(&self) -> &[Node<'_>] {
+        pub fn nodes(&self) -> &[Box<Node<'_>>] {
             &self.ast.nodes
         }
 
@@ -102,7 +103,7 @@ pub use _parsed::Parsed;
 
 #[derive(Debug, Default)]
 pub struct Ast<'a> {
-    nodes: Vec<Node<'a>>,
+    nodes: Vec<Box<Node<'a>>>,
 }
 
 impl<'a> Ast<'a> {
@@ -135,13 +136,14 @@ impl<'a> Ast<'a> {
     }
 
     #[must_use]
-    pub fn nodes(&self) -> &[Node<'a>] {
+    pub fn nodes(&self) -> &[Box<Node<'a>>] {
         &self.nodes
     }
 }
 
 /// Struct used to wrap types with their associated "span" which is used when generating errors
 /// in the code generation.
+#[repr(C)] // rationale: `WithSpan<'_, Box<T>` needs to have the same layout as `WithSpan<'_, &T>`.
 pub struct WithSpan<'a, T> {
     inner: T,
     span: Span<'a>,
