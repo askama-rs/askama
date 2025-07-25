@@ -27,7 +27,7 @@ unicode-ident = "1.0.12"
 winnow = { version = "0.7.0", features = ["simd"] }
 
 [dev-dependencies]
-criterion = "0.6"
+criterion = "0.7"
 
 [features]
 config = ["dep:serde", "dep:serde_derive"]

@@ -34,7 +34,7 @@ syn = { version = "2.0.3", default-features = false, features = ["clone-impls", 
 
 [dev-dependencies]
 console = "0.16.0"
-criterion = "0.6"
+criterion = "0.7"
 prettyplease = "0.2.20"
 similar = "2.6.0"
 syn = { version = "2.0.3", features = ["full"] }

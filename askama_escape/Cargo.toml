@@ -19,4 +19,4 @@ name = "all"
 harness = false
 
 [dev-dependencies]
-criterion = "0.6"
+criterion = "0.7"
