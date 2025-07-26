@@ -98,11 +98,13 @@ fn filter_fmt() {
 mod filters {
     use askama::Values;
 
+    #[askama::filter_fn]
     pub fn myfilter(s: &str, _: &dyn Values) -> ::askama::Result<String> {
         Ok(s.replace("oo", "aa"))
     }
 
     // for test_nested_filter_ref
+    #[askama::filter_fn]
     pub fn mytrim(s: &dyn std::fmt::Display, _: &dyn Values) -> ::askama::Result<String> {
         Ok(s.to_string().trim().to_owned())
     }
@@ -486,6 +488,7 @@ fn test_whitespace_around_filter_operator() {
     assert_eq!(S.render().unwrap(), "12\n8\n4");
 }
 
+#[askama::filter_fn]
 pub(crate) fn minus(value: &str, _: &dyn askama::Values) -> askama::Result<i32> {
     Ok(-value.parse().map_err(askama::Error::custom)?)
 }
