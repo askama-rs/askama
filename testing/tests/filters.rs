@@ -549,3 +549,108 @@ fn test_filter_with_path() {
 
     assert_eq!(ImplicitPath { value: "42" }.render().unwrap(), "-42");
 }
+
+#[test]
+fn test_custom_filter_constructs() {
+    pub(crate) mod filters {
+        use std::fmt::Display;
+
+        #[askama::filter_fn]
+        pub fn noargs<T: Display>(value: T, _env: &dyn askama::Values) -> askama::Result<String> {
+            Ok(format!(r#""{value}" | noargs()"#))
+        }
+
+        #[askama::filter_fn]
+        pub fn req1<T: Display, F: Display>(
+            value: T,
+            _env: &dyn askama::Values,
+            req0: F,
+        ) -> askama::Result<String> {
+            Ok(format!(r#""{value}" | req1({req0})"#))
+        }
+
+        #[askama::filter_fn]
+        pub fn opt1<T: Display>(
+            value: T,
+            _env: &dyn askama::Values,
+            #[optional("default")] opt0: &str,
+        ) -> askama::Result<String> {
+            Ok(format!(r#""{value}" | opt1({opt0})"#))
+        }
+
+        #[askama::filter_fn]
+        pub fn req1_opt1<T: Display, F: Display>(
+            value: T,
+            _env: &dyn askama::Values,
+            req0: F,
+            #[optional("default")] opt0: &str,
+        ) -> askama::Result<String> {
+            Ok(format!(r#""{value}" | req1_opt1({req0}, {opt0})"#))
+        }
+
+        #[askama::filter_fn]
+        pub fn shared_generic<T: Display>(
+            value: T,
+            _env: &dyn askama::Values,
+            req0: T,
+        ) -> askama::Result<String> {
+            Ok(format!(r#""{value}" | shared_generic({req0})"#))
+        }
+
+        #[askama::filter_fn]
+        pub fn impl_trait_input(
+            value: impl Display,
+            _env: &dyn askama::Values,
+        ) -> askama::Result<String> {
+            Ok(format!(r#""{value}" | impl_trait_input"#))
+        }
+    }
+
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{{- test() | noargs | safe }}
+
+{{ test() | req1("lol") | safe }}
+
+{{ test() | opt1 | safe }}
+{{ test() | opt1("nodefault") | safe }}
+{{ test() | opt1(opt0 = "nodefault") | safe }}
+
+{{ test() | req1_opt1("req") | safe }}
+{{ test() | req1_opt1("req", "supplied") | safe }}
+{{ test() | req1_opt1("req", opt0 = "supplied") | safe }}
+
+{{ test() | shared_generic("blub") | safe }}
+{{ test() | impl_trait_input | safe -}}
+        "#,
+        ext = "html"
+    )]
+    struct CustomFilterConstructs {}
+    impl CustomFilterConstructs {
+        pub fn test(&self) -> &'static str {
+            "this is a test"
+        }
+    }
+
+    let should = r#"
+"this is a test" | noargs()
+
+"this is a test" | req1(lol)
+
+"this is a test" | opt1(default)
+"this is a test" | opt1(nodefault)
+"this is a test" | opt1(nodefault)
+
+"this is a test" | req1_opt1(req, default)
+"this is a test" | req1_opt1(req, supplied)
+"this is a test" | req1_opt1(req, supplied)
+
+"this is a test" | shared_generic(blub)
+"this is a test" | impl_trait_input
+    "#
+    .trim();
+
+    let actual = CustomFilterConstructs {}.render().unwrap();
+    assert_eq!(actual, should);
+}
