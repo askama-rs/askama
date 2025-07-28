@@ -20,11 +20,11 @@ use std::{fmt, str};
 
 use winnow::ascii::take_escaped;
 use winnow::combinator::{
-    alt, cut_err, delimited, fail, not, opt, peek, preceded, repeat, terminated,
+    alt, cut_err, delimited, empty, fail, not, opt, peek, preceded, repeat, terminated,
 };
 use winnow::error::{ErrMode, FromExternalError};
-use winnow::stream::{AsChar, Stream as _};
-use winnow::token::{any, none_of, one_of, take_till, take_while};
+use winnow::stream::AsChar;
+use winnow::token::{any, none_of, one_of, take_while};
 use winnow::{ModalParser, Parser};
 
 use crate::ascii_str::{AsciiChar, AsciiStr};
@@ -739,33 +739,45 @@ pub struct CharLit<'a> {
 // Information about allowed character escapes is available at:
 // <https://doc.rust-lang.org/reference/tokens.html#character-literals>.
 fn char_lit<'a>(i: &mut &'a str) -> ParseResult<'a, CharLit<'a>> {
-    let start = i.checkpoint();
-    let (b_prefix, s) = (
-        opt('b'),
-        delimited(
-            '\'',
-            opt(take_escaped(take_till(1.., ['\\', '\'']), '\\', any)),
-            '\'',
-        ),
-    )
-        .parse_next(i)?;
+    let start = *i;
 
-    let Some(s) = s else {
-        i.reset(&start);
-        return cut_error!("empty character literal", *i);
+    let prefix = terminated(
+        alt(('b'.value(Some(CharPrefix::Binary)), empty.value(None))),
+        '\'',
+    )
+    .parse_next(i)?;
+
+    let content = opt(terminated(
+        opt(take_escaped(none_of(['\\', '\'']), '\\', any)),
+        '\'',
+    ))
+    .parse_next(i)?;
+
+    let Some(content) = content else {
+        if let Some(prefix) = prefix {
+            return cut_error!(
+                match prefix {
+                    CharPrefix::Binary => "unterminated byte constant",
+                },
+                start,
+            );
+        } else {
+            return fail(i);
+        }
     };
-    let mut is = s;
+    let content = match content.unwrap_or_default() {
+        "" => return cut_error!("empty character literal", start),
+        content => content,
+    };
+
+    let mut is = content;
     let Ok(c) = Char::parse(&mut is) else {
-        i.reset(&start);
-        return cut_error!("invalid character", *i);
+        return cut_error!("invalid character", start);
     };
 
     let (nb, max_value, err1, err2) = match c {
         Char::Literal | Char::Escaped => {
-            return Ok(CharLit {
-                prefix: b_prefix.map(|_| CharPrefix::Binary),
-                content: s,
-            });
+            return Ok(CharLit { prefix, content });
         }
         Char::AsciiEscape(nb) => (
             nb,
@@ -774,28 +786,33 @@ fn char_lit<'a>(i: &mut &'a str) -> ParseResult<'a, CharLit<'a>> {
             "invalid character in ascii escape",
             "must be a character in the range [\\x00-\\x7f]",
         ),
-        Char::UnicodeEscape(nb) => (
-            nb,
-            // `0x10FFFF` is the maximum value for a `\u` escaped character.
-            0x0010_FFFF,
-            "invalid character in unicode escape",
-            "unicode escape must be at most 10FFFF",
-        ),
+        Char::UnicodeEscape(nb) => {
+            match prefix {
+                Some(CharPrefix::Binary) => {
+                    return cut_error!(
+                        "cannot use unicode escape in byte string in byte literal",
+                        start,
+                    );
+                }
+                None => (
+                    nb,
+                    // `0x10FFFF` is the maximum value for a `\u` escaped character.
+                    0x0010_FFFF,
+                    "invalid character in unicode escape",
+                    "unicode escape must be at most 10FFFF",
+                ),
+            }
+        }
     };
 
     let Ok(nb) = u32::from_str_radix(nb, 16) else {
-        i.reset(&start);
-        return cut_error!(err1, *i);
+        return cut_error!(err1, start);
     };
     if nb > max_value {
-        i.reset(&start);
-        return cut_error!(err2, *i);
+        return cut_error!(err2, start);
     }
 
-    Ok(CharLit {
-        prefix: b_prefix.map(|_| CharPrefix::Binary),
-        content: s,
-    })
+    Ok(CharLit { prefix, content })
 }
 
 /// Represents the different kinds of char declarations:
