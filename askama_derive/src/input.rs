@@ -867,7 +867,7 @@ const _: () = {
                 .map_err(|e| {
                     CompileError::no_file_info(
                         format_args!("unable to parse template arguments: {e}"),
-                        Some(attr.path().span()),
+                        Some(e.span()),
                     )
                 })?;
             for arg in args {
