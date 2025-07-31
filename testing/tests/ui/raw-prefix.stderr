@@ -133,3 +133,67 @@ error: you are missing a space to separate two string literals
     |
 120 | #[template(source = r##"{{ z!(c""r#""#) }}"##, ext = "txt")]
     |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `crate` cannot be a raw identifier
+ --> <source attribute>:1:8
+       "crate) }}"
+   --> tests/ui/raw-prefix.rs:129:14
+    |
+129 |     source = "{{ z!(r#crate) }}",
+    |              ^^^^^^^^^^^^^^^^^^^
+
+error: `self` cannot be a raw identifier
+ --> <source attribute>:1:8
+       "self) }}"
+   --> tests/ui/raw-prefix.rs:136:14
+    |
+136 |     source = "{{ z!(r#self) }}",
+    |              ^^^^^^^^^^^^^^^^^^
+
+error: `Self` cannot be a raw identifier
+ --> <source attribute>:1:8
+       "Self) }}"
+   --> tests/ui/raw-prefix.rs:143:14
+    |
+143 |     source = "{{ z!(r#Self) }}",
+    |              ^^^^^^^^^^^^^^^^^^
+
+error: `super` cannot be a raw identifier
+ --> <source attribute>:1:8
+       "super) }}"
+   --> tests/ui/raw-prefix.rs:150:14
+    |
+150 |     source = "{{ z!(r#super) }}",
+    |              ^^^^^^^^^^^^^^^^^^^
+
+error: only one `#` is allowed in raw identifier delimitation
+ --> <source attribute>:1:6
+       "r##crate) }}"
+   --> tests/ui/raw-prefix.rs:157:14
+    |
+157 |     source = "{{ z!(r##crate) }}",
+    |              ^^^^^^^^^^^^^^^^^^^^
+
+error: only one `#` is allowed in raw identifier delimitation
+ --> <source attribute>:1:6
+       "r##self) }}"
+   --> tests/ui/raw-prefix.rs:164:14
+    |
+164 |     source = "{{ z!(r##self) }}",
+    |              ^^^^^^^^^^^^^^^^^^^
+
+error: only one `#` is allowed in raw identifier delimitation
+ --> <source attribute>:1:6
+       "r##Self) }}"
+   --> tests/ui/raw-prefix.rs:171:14
+    |
+171 |     source = "{{ z!(r##Self) }}",
+    |              ^^^^^^^^^^^^^^^^^^^
+
+error: only one `#` is allowed in raw identifier delimitation
+ --> <source attribute>:1:6
+       "r##super) }}"
+   --> tests/ui/raw-prefix.rs:178:14
+    |
+178 |     source = "{{ z!(r##super) }}",
+    |              ^^^^^^^^^^^^^^^^^^^^

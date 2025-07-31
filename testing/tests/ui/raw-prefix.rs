@@ -120,4 +120,64 @@ struct UnseparatedPrefixedStrings2;
 #[template(source = r##"{{ z!(c""r#""#) }}"##, ext = "txt")]
 struct UnseparatedPrefixedStrings3;
 
+// `r#self`, `r#Self`, `r#crate` and `r#super` are not valid raw identifiers:
+// <https://doc.rust-lang.org/reference/identifiers.html>.
+// Regression test for <https://issues.oss-fuzz.com/issues/435218013>.
+
+#[derive(Template)]
+#[template(
+    source = "{{ z!(r#crate) }}",
+    ext = "txt"
+)]
+struct RawIdentifierCrate;
+
+#[derive(Template)]
+#[template(
+    source = "{{ z!(r#self) }}",
+    ext = "txt"
+)]
+struct RawIdentifierSelf;
+
+#[derive(Template)]
+#[template(
+    source = "{{ z!(r#Self) }}",
+    ext = "txt"
+)]
+struct RawIdentifierSelfTy;
+
+#[derive(Template)]
+#[template(
+    source = "{{ z!(r#super) }}",
+    ext = "txt"
+)]
+struct RawIdentifierSuper;
+
+#[derive(Template)]
+#[template(
+    source = "{{ z!(r##crate) }}",
+    ext = "txt"
+)]
+struct RawIdentifierCrateTooManyHashes;
+
+#[derive(Template)]
+#[template(
+    source = "{{ z!(r##self) }}",
+    ext = "txt"
+)]
+struct RawIdentifierSelfTooManyHashes;
+
+#[derive(Template)]
+#[template(
+    source = "{{ z!(r##Self) }}",
+    ext = "txt"
+)]
+struct RawIdentifierSelfTyTooManyHashes;
+
+#[derive(Template)]
+#[template(
+    source = "{{ z!(r##super) }}",
+    ext = "txt"
+)]
+struct RawIdentifierSuperTooManyHashes;
+
 fn main() {}

@@ -1632,3 +1632,18 @@ fn test_isolated_cr_in_raw_string() {
             .contains("a bare CR (Mac linebreak) is not allowed in string literals"),
     );
 }
+
+#[test]
+fn test_macro_call_illegal_raw_identifier() {
+    // Regression test for <https://issues.oss-fuzz.com/issues/435218013>.
+    let syntax = Syntax::default();
+
+    for id in ["crate", "self", "Self", "super"] {
+        assert!(
+            Ast::from_str(&format!("{{{{ z!(r#{id}) }}}}"), None, &syntax)
+                .unwrap_err()
+                .to_string()
+                .contains("cannot be a raw identifier"),
+        );
+    }
+}

@@ -12,8 +12,8 @@ use winnow::token::{one_of, take_until};
 use crate::node::CondTest;
 use crate::{
     CharLit, ErrorContext, Level, Num, ParseResult, PathOrIdentifier, StrLit, StrPrefix, WithSpan,
-    char_lit, cut_error, filter, identifier, keyword, not_suffix_with_hash, num_lit,
-    path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
+    can_be_variable_name, char_lit, cut_error, filter, identifier, keyword, not_suffix_with_hash,
+    num_lit, path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
 };
 
 macro_rules! expr_prec_layer {
@@ -985,7 +985,7 @@ impl<'a> Suffix<'a> {
             } else if hashes == 0 {
                 // a simple identifier
                 Ok(())
-            } else if opt(identifier).parse_next(i)?.is_some() {
+            } else if let Some(id) = opt(identifier).parse_next(i)? {
                 // got a raw identifier
 
                 if str_kind.is_some() {
@@ -1005,7 +1005,11 @@ impl<'a> Suffix<'a> {
                     )
                 } else {
                     // a raw identifier like `r#async`
-                    Ok(())
+                    if !can_be_variable_name(id) {
+                        cut_error!(format!("`{id}` cannot be a raw identifier"), id)
+                    } else {
+                        Ok(())
+                    }
                 }
             } else {
                 cut_error!(
