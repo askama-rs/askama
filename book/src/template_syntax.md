@@ -329,6 +329,16 @@ you want to call a function, you will need to use a path instead:
 {{ super::b::f() }}
 ```
 
+## Path resolution
+
+In [`{% extends %}`](#template-inheritance), [`{% import %}`](#imports--scopes) and
+[`{% include %}`](#include) blocks you interact with code in other template files, so you must specify its path.
+The path must be a string literal, so that it is known at compile time.
+Askama will try to find the specified template
+1. relative to the including template's path
+2. in the directories specified in the [configuration](configuration.md)
+3. in the folder of the file that contains the `#[derive(Template)]` annotation.
+
 ## Template inheritance
 
 Template inheritance allows you to build a base template with common
@@ -387,23 +397,13 @@ Here's an example child template:
 {% endblock %}
 ```
 
-The `extends` tag tells the code generator that this template inherits
-from another template. It will search for the base template relative to
-itself before looking relative to the template base directory. It will
-render the top-level content from the base template, and substitute
+The `extends` tag tells the code generator that this template inherits from another template.
+It will render the top-level content from the base template, and substitute
 blocks from the base template with those from the child template. Inside
 a block in a child template, the `super()` macro can be called to render
 the parent block's contents.
 
-Because top-level content from the child template is thus ignored, the `extends`
-tag doesn't support whitespace control:
-
-```html
-{%- extends "base.html" +%}
-```
-
-The above code is rejected because we used `-` and `+`. For more information
-about whitespace control, take a look [here](#whitespace-control).
+Please refer to the section [path resolution](#path-resolution) on where askama searches for the base template file.
 
 ### Block fragments
 
@@ -696,11 +696,7 @@ in which they're used, including local variables like those from loops:
 * Item: {{ i }}
 ```
 
-The path to include must be a string literal, so that it is known at
-compile time. Askama will try to find the specified template relative
-to the including template's path before falling back to the absolute
-template path. Use `include` within the branches of an `if`/`else`
-block to use includes more dynamically.
+Please refer to the section [path resolution](#path-resolution) on where askama searches for the included file.
 
 ## Expressions
 
@@ -879,6 +875,8 @@ To have a small library of reusable snippets, it's best to declare the macros in
 
 {{ scope::heading("test") }}
 ```
+
+Please refer to the section [path resolution](#path-resolution) on where askama searches for the imported file.
 
 ### Named Arguments
 

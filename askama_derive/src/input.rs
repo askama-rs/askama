@@ -1131,7 +1131,7 @@ const JINJA_EXTENSIONS: &[&str] = &["askama", "j2", "jinja", "jinja2", "rinja"];
 #[test]
 #[cfg(feature = "external-sources")]
 fn get_source() {
-    let path = Config::new("", None, None, None, None)
+    let path = Config::new("", None, None, None, None, None)
         .and_then(|config| config.find_template("b.html", None, None))
         .unwrap();
     assert_eq!(get_template_source(&path, None).unwrap(), "bar".into());
