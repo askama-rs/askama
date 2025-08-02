@@ -395,9 +395,6 @@ fn build_template_item(
     }
 
     let size_hint = template_to_string(buf, &input, &contexts, heritage.as_ref(), tmpl_kind)?;
-    if input.print == Print::Code || input.print == Print::All {
-        eprintln!("{}", buf.to_string());
-    }
     Ok(size_hint)
 }
 

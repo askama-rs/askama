@@ -12,7 +12,7 @@ use syn::{
 
 use crate::generator::TmplKind;
 use crate::input::{PartialTemplateArgs, TemplateArgs};
-use crate::{CompileError, Context, build_template_item};
+use crate::{CompileError, Context, Print, build_template_item};
 
 /// Implement every integration for the given item
 pub(crate) fn impl_everything(ast: &DeriveInput, buf: &mut Buffer) {
@@ -367,6 +367,11 @@ pub(crate) fn build_template_enum(
             &mut size_hint_arms,
         );
     }
+    let print_code = enum_args.as_ref().is_some_and(|args| {
+        args.print
+            .is_some_and(|print| print == Print::Code || print == Print::All)
+    });
+
     if has_default_impl {
         let size_hint = build_template_item(
             buf,
@@ -433,6 +438,9 @@ pub(crate) fn build_template_enum(
         }),
         enum_ast.span(),
     );
+    if print_code {
+        eprintln!("{}", buf.to_string());
+    }
     Ok(biggest_size_hint)
 }
 
