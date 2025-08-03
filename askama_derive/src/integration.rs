@@ -115,7 +115,7 @@ impl Buffer {
     }
 
     fn handle_str_lit(&mut self) {
-        let str_literals = std::mem::replace(&mut self.string_literals, Vec::new());
+        let str_literals = std::mem::take(&mut self.string_literals);
         match str_literals.as_slice() {
             [] => {}
             [(literal, span)] => {
@@ -151,11 +151,6 @@ impl Buffer {
     pub(crate) fn into_token_stream(mut self) -> TokenStream {
         self.handle_str_lit();
         self.buf
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn to_string(&self) -> String {
-        self.buf.to_string()
     }
 
     pub(crate) fn is_discard(&self) -> bool {
@@ -439,7 +434,7 @@ pub(crate) fn build_template_enum(
         enum_ast.span(),
     );
     if print_code {
-        eprintln!("{}", buf.to_string());
+        eprintln!("{buf}");
     }
     Ok(biggest_size_hint)
 }
