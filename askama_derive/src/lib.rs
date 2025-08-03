@@ -10,6 +10,7 @@ mod heritage;
 mod html;
 mod input;
 mod integration;
+mod paths;
 #[cfg(test)]
 mod tests;
 
@@ -23,6 +24,7 @@ pub mod __macro_support {
 
 use std::borrow::{Borrow, Cow};
 use std::collections::hash_map::{Entry, HashMap};
+use std::env::current_dir;
 use std::fmt;
 use std::hash::{BuildHasher, Hash};
 use std::path::Path;
@@ -293,7 +295,7 @@ pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -
 
 fn build_skeleton(buf: &mut Buffer, ast: &syn::DeriveInput) -> Result<usize, CompileError> {
     let template_args = TemplateArgs::fallback();
-    let config = Config::new("", None, None, None, None)?;
+    let config = Config::new("", None, None, None, None, None)?;
     let input = TemplateInput::new(ast, None, config, &template_args)?;
     let mut contexts = HashMap::default();
     let parsed = parser::Parsed::default();
@@ -313,6 +315,22 @@ pub(crate) fn build_template(
     ast: &syn::DeriveInput,
     args: AnyTemplateArgs,
 ) -> Result<usize, CompileError> {
+    let caller_dir = if cfg!(feature = "external-sources")
+        && proc_macro::is_available()
+        && let Some(mut local_file) = proc_macro::Span::call_site().local_file()
+    {
+        local_file.pop();
+        if !local_file.is_absolute() {
+            local_file = current_dir()
+                .as_deref()
+                .unwrap_or(Path::new("."))
+                .join(local_file);
+        }
+        Some(crate::paths::clean(&local_file))
+    } else {
+        None
+    };
+
     let err_span;
     let mut result = match args {
         AnyTemplateArgs::Struct(item) => {
@@ -322,7 +340,14 @@ pub(crate) fn build_template(
                 .as_ref()
                 .map(|l| l.span())
                 .or(item.template_span);
-            build_template_item(buf, ast, None, &item, TmplKind::Struct)
+            build_template_item(
+                buf,
+                ast,
+                caller_dir.as_deref(),
+                None,
+                &item,
+                TmplKind::Struct,
+            )
         }
         AnyTemplateArgs::Enum {
             enum_args,
@@ -334,7 +359,14 @@ pub(crate) fn build_template(
                 .and_then(|v| v.source.as_ref())
                 .map(|s| s.span())
                 .or_else(|| enum_args.as_ref().map(|v| v.template.span()));
-            build_template_enum(buf, ast, enum_args, vars_args, has_default_impl)
+            build_template_enum(
+                buf,
+                ast,
+                caller_dir.as_deref(),
+                enum_args,
+                vars_args,
+                has_default_impl,
+            )
         }
     };
     if let Err(err) = &mut result
@@ -348,6 +380,7 @@ pub(crate) fn build_template(
 fn build_template_item(
     buf: &mut Buffer,
     ast: &syn::DeriveInput,
+    caller_dir: Option<&Path>,
     enum_ast: Option<&syn::DeriveInput>,
     template_args: &TemplateArgs,
     tmpl_kind: TmplKind<'_>,
@@ -359,6 +392,7 @@ fn build_template_item(
         config_path,
         template_args.whitespace,
         template_args.config_span,
+        caller_dir,
         full_config_path,
     )?;
     let input = TemplateInput::new(ast, enum_ast, config, template_args)?;

@@ -1,4 +1,5 @@
 use std::fmt::{Arguments, Display, Write};
+use std::path::Path;
 
 use parser::{PathComponent, WithSpan};
 use proc_macro2::{TokenStream, TokenTree};
@@ -251,6 +252,7 @@ fn string_escape(dest: &mut String, src: &str) {
 pub(crate) fn build_template_enum(
     buf: &mut Buffer,
     enum_ast: &DeriveInput,
+    caller_dir: Option<&Path>,
     mut enum_args: Option<PartialTemplateArgs>,
     vars_args: Vec<Option<PartialTemplateArgs>>,
     has_default_impl: bool,
@@ -299,6 +301,7 @@ pub(crate) fn build_template_enum(
         let size_hint = biggest_size_hint.max(build_template_item(
             buf,
             &var_ast,
+            caller_dir,
             Some(enum_ast),
             &TemplateArgs::from_partial(&var_ast, Some(var_args))?,
             TmplKind::Variant,
@@ -317,6 +320,7 @@ pub(crate) fn build_template_enum(
         let size_hint = build_template_item(
             buf,
             enum_ast,
+            caller_dir,
             None,
             &TemplateArgs::from_partial(enum_ast, enum_args)?,
             TmplKind::Variant,

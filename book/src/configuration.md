@@ -9,7 +9,8 @@ This example file demonstrates the default configuration:
 
 ```toml
 [general]
-# Directories to search for templates, relative to the crate root.
+# Directories to search for templates, relative to the crate root,
+# i.e. next to your `Cargo.toml`.
 dirs = ["templates"]
 # Unless you add a `-` in a block, whitespace characters won't be trimmed.
 whitespace = "preserve"
