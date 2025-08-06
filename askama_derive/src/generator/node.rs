@@ -369,7 +369,7 @@ impl<'a> Generator<'a, '_> {
                             Expr::BinOp(v) if matches!(v.op, "||" | "&&") => {
                                 let display_wrap =
                                     this.visit_expr_first(ctx, &mut expr_buf, &v.lhs)?;
-                                this.visit_target(ctx, buf, true, true, target);
+                                this.visit_target(ctx, buf, true, true, target, span);
                                 this.visit_expr_not_first(
                                     ctx,
                                     &mut expr_buf,
@@ -383,7 +383,7 @@ impl<'a> Generator<'a, '_> {
                             _ => {
                                 let display_wrap =
                                     this.visit_expr_first(ctx, &mut expr_buf, expr)?;
-                                this.visit_target(ctx, buf, true, true, target);
+                                this.visit_target(ctx, buf, true, true, target, span);
                                 this.visit_expr_not_first(ctx, &mut expr_buf, expr, display_wrap)?;
                                 quote_into!(buf, ctx.template_span, { = &#expr_buf });
                             }
@@ -474,7 +474,7 @@ impl<'a> Generator<'a, '_> {
                     if index != 0 {
                         targets_buf.write_token(Token![|], span);
                     }
-                    this.visit_target(ctx, &mut targets_buf, true, true, target);
+                    this.visit_target(ctx, &mut targets_buf, true, true, target, span);
                 }
 
                 let mut arm_buf = Buffer::new();
@@ -527,7 +527,7 @@ impl<'a> Generator<'a, '_> {
             if let Some(cond) = &loop_block.cond {
                 this.push_locals(|this| {
                     let mut target_buf = Buffer::new();
-                    this.visit_target(ctx, &mut target_buf, true, true, &loop_block.var);
+                    this.visit_target(ctx, &mut target_buf, true, true, &loop_block.var, span);
                     let target_buf = target_buf.into_token_stream();
                     let mut expr_buf = Buffer::new();
                     this.visit_expr(ctx, &mut expr_buf, cond)?;
@@ -549,7 +549,7 @@ impl<'a> Generator<'a, '_> {
 
             let size_hint1 = this.push_locals(|this| {
                 let mut target_buf = Buffer::new();
-                this.visit_target(ctx, &mut target_buf, true, true, &loop_block.var);
+                this.visit_target(ctx, &mut target_buf, true, true, &loop_block.var, span);
                 let target_buf = target_buf.into_token_stream();
 
                 let mut loop_body_buf = Buffer::new();
@@ -837,7 +837,7 @@ impl<'a> Generator<'a, '_> {
             if l.is_mutable {
                 buf.write_token(Token![mut], span);
             }
-            self.visit_target(ctx, buf, false, true, &l.var);
+            self.visit_target(ctx, buf, false, true, &l.var, span);
             buf.write_token(Token![;], span);
             return Ok(());
         };
@@ -871,7 +871,7 @@ impl<'a> Generator<'a, '_> {
             }
         }
 
-        self.visit_target(ctx, buf, true, true, &l.var);
+        self.visit_target(ctx, buf, true, true, &l.var, span);
         // If it's not taking the ownership of a local variable or copyable, then we need to add
         // a reference.
         let borrow = !matches!(***val, Expr::Try(..))

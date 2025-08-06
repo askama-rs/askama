@@ -7,7 +7,7 @@ use parser::{
     TyGenerics, WithSpan,
 };
 use proc_macro2::TokenStream;
-use quote::{quote, quote_spanned};
+use quote::quote_spanned;
 use syn::Token;
 
 use super::{
@@ -264,7 +264,7 @@ impl<'a> Generator<'a, '_> {
         let span = ctx.span_for_node(cond.span());
         buf.write_token(Token![let], span);
         if let Some(ref target) = cond.target {
-            self.visit_target(ctx, buf, true, true, target);
+            self.visit_target(ctx, buf, true, true, target, span);
         }
         quote_into!(buf, span, { = &#expr_buf });
         self.visit_expr_not_first(ctx, buf, &cond.expr, display_wrap)
@@ -508,7 +508,7 @@ impl<'a> Generator<'a, '_> {
         }
         let tmp = tmp.into_token_stream();
         // FIXME: use a better span
-        buf.write(quote!(<#tmp>), ctx.template_span);
+        quote_into!(buf, ctx.template_span, { <#tmp> });
     }
 
     pub(super) fn visit_ty_generic(
@@ -911,6 +911,7 @@ impl<'a> Generator<'a, '_> {
         initialized: bool,
         first_level: bool,
         target: &Target<'a>,
+        span: proc_macro2::Span,
     ) {
         match target {
             Target::Placeholder(s) => quote_into!(buf, ctx.span_for_node(s.span()), { _ }),
@@ -936,10 +937,10 @@ impl<'a> Generator<'a, '_> {
             Target::OrChain(targets) => match targets.first() {
                 None => quote_into!(buf, ctx.template_span, { _ }),
                 Some(first_target) => {
-                    self.visit_target(ctx, buf, initialized, first_level, first_target);
+                    self.visit_target(ctx, buf, initialized, first_level, first_target, span);
                     for target in &targets[1..] {
                         buf.write_token(Token![|], ctx.template_span);
-                        self.visit_target(ctx, buf, initialized, first_level, target);
+                        self.visit_target(ctx, buf, initialized, first_level, target, span);
                     }
                 }
             },
@@ -947,31 +948,21 @@ impl<'a> Generator<'a, '_> {
                 buf.write_separated_path(ctx, path);
                 let mut targets_buf = Buffer::new();
                 for target in targets {
-                    self.visit_target(ctx, &mut targets_buf, initialized, false, target);
+                    self.visit_target(ctx, &mut targets_buf, initialized, false, target, span);
                     targets_buf.write_token(Token![,], ctx.template_span);
                 }
                 let targets_buf = targets_buf.into_token_stream();
-                buf.write(
-                    quote!(
-                        (#targets_buf)
-                    ),
-                    ctx.template_span,
-                );
+                quote_into!(buf, span, { (#targets_buf) });
             }
             Target::Array(path, targets) => {
                 buf.write_separated_path(ctx, path);
                 let mut targets_buf = Buffer::new();
                 for target in targets {
-                    self.visit_target(ctx, &mut targets_buf, initialized, false, target);
+                    self.visit_target(ctx, &mut targets_buf, initialized, false, target, span);
                     targets_buf.write_token(Token![,], ctx.template_span);
                 }
                 let targets_buf = targets_buf.into_token_stream();
-                buf.write(
-                    quote!(
-                        [#targets_buf]
-                    ),
-                    ctx.template_span,
-                );
+                quote_into!(buf, span, { [#targets_buf] });
             }
             Target::Struct(path, targets) => {
                 buf.write_separated_path(ctx, path);
@@ -984,18 +975,11 @@ impl<'a> Generator<'a, '_> {
 
                     targets_buf.write_field(name, ctx.template_span);
                     targets_buf.write_token(Token![:], ctx.template_span);
-                    self.visit_target(ctx, &mut targets_buf, initialized, false, target);
+                    self.visit_target(ctx, &mut targets_buf, initialized, false, target, span);
                     targets_buf.write_token(Token![,], ctx.template_span);
                 }
                 let targets_buf = targets_buf.into_token_stream();
-                buf.write(
-                    quote!(
-                        {
-                            #targets_buf
-                        }
-                    ),
-                    ctx.template_span,
-                );
+                quote_into!(buf, span, { { #targets_buf } });
             }
             Target::Path(path) => {
                 self.visit_path(ctx, buf, path);
