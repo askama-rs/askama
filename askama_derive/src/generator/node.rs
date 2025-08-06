@@ -12,13 +12,13 @@ use parser::node::{
 use parser::{Expr, Node, Span, Target, WithSpan};
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
-use syn::{Ident, Token};
+use syn::Token;
 
 use super::{DisplayWrap, Generator, LocalMeta, MapChain, compile_time_escape, is_copyable};
 use crate::generator::{LocalCallerMeta, Writable, helpers, logic_op};
 use crate::heritage::{Context, Heritage};
 use crate::integration::{Buffer, string_escape};
-use crate::{CompileError, FileInfo, field_new, fmt_left, fmt_right};
+use crate::{CompileError, FileInfo, field_new, fmt_left, fmt_right, quote_into};
 
 impl<'a> Generator<'a, '_> {
     pub(super) fn impl_template_inner(
@@ -561,11 +561,11 @@ impl<'a> Generator<'a, '_> {
                 this.handle_ws(loop_block.ws2);
                 size_hint1 += this.write_buf_writable(ctx, &mut loop_body_buf)?;
                 let loop_body_buf = loop_body_buf.into_token_stream();
-                loop_buf.write_tokens(spanned!(span=>
+                quote_into!(&mut loop_buf, span, {
                     for (#target_buf, #var_item) in askama::helpers::TemplateLoop::new(#var_iter) {
                         #loop_body_buf
                     }
-                ));
+                });
                 Ok(size_hint1)
             })?;
 
@@ -580,7 +580,7 @@ impl<'a> Generator<'a, '_> {
                     Ok(size_hint)
                 })?;
                 let cond_buf = cond_buf.into_token_stream();
-                loop_buf.write_tokens(spanned!(span=> if !#var_did_loop {
+                loop_buf.write_tokens(quote_spanned!(span=> if !#var_did_loop {
                     #cond_buf
                 }));
             } else {
@@ -588,10 +588,8 @@ impl<'a> Generator<'a, '_> {
                 size_hint2 = this.write_buf_writable(ctx, &mut loop_buf)?;
             }
 
-            let loop_buf = loop_buf.into_token_stream();
-            buf.write_tokens(spanned!(span=> {
-                #loop_buf
-            }));
+            buf.write_tokens(loop_buf.into_token_stream());
+
             Ok(flushed + ((size_hint1 * 3) + size_hint2) / 2)
         })
     }
@@ -673,7 +671,7 @@ impl<'a> Generator<'a, '_> {
         })?;
         let filter_def_buf = filter_def_buf.into_token_stream();
         let var_writer = crate::var_writer();
-        let filter_def_buf = spanned!(span=>
+        let filter_def_buf = quote_spanned!(span=>
             let #var_filter_source = askama::helpers::FmtCell::new(
                 |#var_writer: &mut askama::helpers::core::fmt::Formatter<'_>| -> askama::Result<()> {
                     #filter_def_buf
@@ -696,7 +694,7 @@ impl<'a> Generator<'a, '_> {
             DisplayWrap::Wrapped => filter_buf,
             DisplayWrap::Unwrapped => {
                 let escaper = TokenStream::from_str(self.input.escaper).unwrap();
-                spanned!(span=>
+                quote_spanned!(span=>
                     (&&askama::filters::AutoEscaper::new(
                         &(#filter_buf), #escaper
                     )).askama_auto_escape()?
@@ -1309,40 +1307,39 @@ impl<'a> Generator<'a, '_> {
                         DisplayWrap::Unwrapped => {
                             let escaper = TokenStream::from_str(self.input.escaper).unwrap();
                             let expr_buf = expr_buf.into_token_stream();
-                            spanned!(span=>
+                            quote_spanned!(span=>
                                 (&&askama::filters::AutoEscaper::new(&(#expr_buf), #escaper)).
                                     askama_auto_escape()?
                             )
                         }
                     };
-                    let idx = if is_cacheable(s) {
+
+                    let (id, entry);
+                    let id = if is_cacheable(s) {
                         match expr_cache.entry(expr.to_string()) {
-                            Entry::Occupied(e) => *e.get(),
-                            Entry::Vacant(e) => {
-                                let id = Ident::new(&format!("expr{idx}"), span);
+                            Entry::Occupied(e) => {
+                                entry = e;
+                                entry.get()
+                            }
+                            Entry::Vacant(entry) => {
+                                let id = &*entry.insert(crate::var_expr_n(idx, span));
                                 quote_into!(&mut matched_expr_buf, span, { &(#expr), });
                                 quote_into!(&mut targets, span, { #id, });
-                                e.insert(idx);
-                                idx
+                                id
                             }
                         }
                     } else {
                         quote_into!(&mut matched_expr_buf, span, { &(#expr), });
-                        let id = Ident::new(&format!("expr{idx}"), span);
+                        id = crate::var_expr_n(idx, span);
                         quote_into!(&mut targets, span, { #id, });
-                        idx
+                        &id
                     };
-                    let id = Ident::new(&format!("expr{idx}"), span);
+
                     let var_writer = crate::var_writer();
                     let var_values = crate::var_values();
-                    quote_into!(
-                        &mut lines,
-                        span,
-                        {
-                            (&&&askama::filters::Writable(#id)).
-                                askama_write(#var_writer, #var_values)?;
-                        },
-                    );
+                    quote_into!(&mut lines, span, {
+                        (&&&askama::filters::Writable(#id)).askama_write(#var_writer, #var_values)?;
+                    });
                 }
             }
         }

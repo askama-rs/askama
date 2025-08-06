@@ -16,7 +16,7 @@ use super::{
 };
 use crate::heritage::Context;
 use crate::integration::Buffer;
-use crate::{CompileError, field_new};
+use crate::{CompileError, field_new, quote_into};
 
 impl<'a> Generator<'a, '_> {
     pub(crate) fn visit_expr_root(
@@ -179,7 +179,7 @@ impl<'a> Generator<'a, '_> {
                 self.visit_condition(ctx, &mut tmp, expr)?;
                 let tmp = tmp.into_token_stream();
                 let span = ctx.span_for_node(expr.span());
-                buf.write_tokens(spanned!(span=> ( #tmp )));
+                quote_into!(buf, span, { (#tmp) });
             }
             Expr::LetCond(cond) => {
                 self.visit_let_cond(ctx, buf, cond)?;
@@ -189,7 +189,7 @@ impl<'a> Generator<'a, '_> {
                 self.visit_expr(ctx, &mut tmp, expr)?;
                 let tmp = tmp.into_token_stream();
                 let span = ctx.span_for_node(expr.span());
-                buf.write_tokens(spanned!(span=> askama::helpers::as_bool(&( #tmp ))));
+                quote_into!(buf, span, { askama::helpers::as_bool(&( #tmp )) });
             }
         }
         Ok(())
@@ -203,11 +203,8 @@ impl<'a> Generator<'a, '_> {
         left: &str,
         span: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
-        let span = ctx.span_for_node(span);
-        match (is_defined, self.is_var_defined(left)) {
-            (true, true) | (false, false) => buf.write_tokens(spanned!(span => true)),
-            _ => buf.write_tokens(spanned!(span => false)),
-        }
+        let result = is_defined == self.is_var_defined(left);
+        quote_into!(buf, ctx.span_for_node(span), { #result });
         Ok(DisplayWrap::Unwrapped)
     }
 
@@ -249,9 +246,7 @@ impl<'a> Generator<'a, '_> {
                 self.visit_concat(ctx, &mut buf_r, r)?;
                 let buf_l = buf_l.into_token_stream();
                 let buf_r = buf_r.into_token_stream();
-                buf.write_tokens(spanned!(
-                    span=> askama::helpers::Concat(&(#buf_l), &(#buf_r))
-                ));
+                quote_into!(buf, span, { askama::helpers::Concat(&(#buf_l), &(#buf_r)) });
                 Ok(DisplayWrap::Unwrapped)
             }
         }
@@ -271,7 +266,7 @@ impl<'a> Generator<'a, '_> {
         if let Some(ref target) = cond.target {
             self.visit_target(ctx, buf, true, true, target);
         }
-        buf.write_tokens(spanned!(span=> = &#expr_buf));
+        quote_into!(buf, span, { = &#expr_buf });
         self.visit_expr_not_first(ctx, buf, &cond.expr, display_wrap)
     }
 
@@ -286,9 +281,11 @@ impl<'a> Generator<'a, '_> {
         self.visit_expr(ctx, &mut tmp, expr)?;
         let tmp = tmp.into_token_stream();
 
-        buf.write_tokens(spanned!(span=> match (#tmp) {
-            res => (&&askama::helpers::ErrorMarker::of(&res)).askama_conv_result(res)?
-        }));
+        quote_into!(buf, span, {
+            match (#tmp) {
+                res => (&&askama::helpers::ErrorMarker::of(&res)).askama_conv_result(res)?
+            }
+        });
         Ok(DisplayWrap::Unwrapped)
     }
 
@@ -311,7 +308,7 @@ impl<'a> Generator<'a, '_> {
             buf.write_token(Token![::], span);
         }
         let args = TokenStream::from_str(args).unwrap();
-        buf.write_tokens(spanned!(span=> #name !(#args)));
+        quote_into!(buf, span, { #name !(#args) });
 
         DisplayWrap::Unwrapped
     }
@@ -349,9 +346,9 @@ impl<'a> Generator<'a, '_> {
 
         let ty_generics = ty_generics.into_token_stream();
         let var_values = crate::var_values();
-        buf.write_tokens(spanned!(span=> askama::helpers::get_value::<#ty_generics>(
-            &#var_values, &(#args)
-        )));
+        quote_into!(buf, span, {
+            askama::helpers::get_value::<#ty_generics>(&#var_values, &(#args))
+        });
         Ok(DisplayWrap::Unwrapped)
     }
 
@@ -392,7 +389,7 @@ impl<'a> Generator<'a, '_> {
         if let Expr::Unary(expr @ ("*" | "&"), ref arg) = ***arg {
             let inner = self.visit_arg_inner(ctx, arg, ctx.span_for_node(arg.span()), true)?;
             let operator = TokenStream::from_str(expr).unwrap();
-            return Ok(spanned!(span=> #operator #inner));
+            return Ok(quote_spanned!(span=> #operator #inner));
         }
         let borrow = need_borrow || !is_copyable(arg);
         let mut buf = Buffer::new();
@@ -400,7 +397,7 @@ impl<'a> Generator<'a, '_> {
             Expr::Call(ref v) if !matches!(**v.path, Expr::Path(_)) => {
                 self.visit_expr(ctx, &mut buf, arg)?;
                 let buf = buf.into_token_stream();
-                spanned!(span=> {#buf})
+                quote_spanned!(span=> { #buf })
             }
             _ => {
                 self.visit_expr(ctx, &mut buf, arg)?;
@@ -408,7 +405,7 @@ impl<'a> Generator<'a, '_> {
             }
         };
         if borrow {
-            Ok(spanned!(span=> &(#stream)))
+            Ok(quote_spanned!(span=> &(#stream)))
         } else {
             Ok(stream)
         }
@@ -426,7 +423,7 @@ impl<'a> Generator<'a, '_> {
                 let mut tmp = Buffer::new();
                 tmp.write_escaped_str(&arg, span);
                 let tmp = tmp.into_token_stream();
-                buf.write_tokens(spanned!(span=> askama::filters::Safe(#tmp)));
+                quote_into!(buf, span, { askama::filters::Safe(#tmp) });
             } else {
                 quote_into!(buf, span, { askama::helpers::Empty });
             }
@@ -478,7 +475,7 @@ impl<'a> Generator<'a, '_> {
         self.visit_call_generics(ctx, &mut call_generics, &associated_item.generics);
         let call_generics = call_generics.into_token_stream();
 
-        buf.write_tokens(spanned!(span=> #expr. #identifier #call_generics));
+        quote_into!(buf, span, { #expr. #identifier #call_generics });
         Ok(DisplayWrap::Unwrapped)
     }
 
@@ -543,13 +540,11 @@ impl<'a> Generator<'a, '_> {
         buf.write_token(Token![&], ctx.span_for_node(obj.span()));
         self.visit_expr(ctx, buf, obj)?;
 
-        let key_span = ctx.span_for_node(key.span());
         let mut key_buf = Buffer::new();
-
         self.visit_expr(ctx, &mut key_buf, key)?;
-
         let key_buf = key_buf.into_token_stream();
-        buf.write_tokens(spanned!(key_span=> [#key_buf]));
+
+        quote_into!(buf, ctx.span_for_node(key.span()), { [#key_buf] });
         Ok(DisplayWrap::Unwrapped)
     }
 
@@ -596,16 +591,16 @@ impl<'a> Generator<'a, '_> {
                                 let var_cycle = crate::var_cycle();
                                 let var_item = crate::var_item();
                                 let var_len = crate::var_len();
-                                buf.write_tokens(
-                                    spanned!(arg_span=> ({
+                                quote_into!(buf, arg_span, {
+                                    ({
                                         let #var_cycle = &(#expr_buf);
                                         let #var_len = #var_cycle.len();
                                         if #var_len == 0 {
                                             return askama::helpers::core::result::Result::Err(askama::Error::Fmt);
                                         }
                                         #var_cycle[#var_item.index0 % #var_len]
-                                    })),
-                                );
+                                    })
+                                });
                             }
                             _ => {
                                 return Err(ctx.generate_error(
@@ -657,7 +652,7 @@ impl<'a> Generator<'a, '_> {
                 let mut tmp = Buffer::new();
                 self.visit_args(ctx, &mut tmp, args)?;
                 let tmp = tmp.into_token_stream();
-                buf.write_tokens(spanned!(span=> (#tmp)));
+                quote_into!(buf, span, { (#tmp) });
             }
         }
         Ok(DisplayWrap::Unwrapped)
@@ -722,7 +717,7 @@ impl<'a> Generator<'a, '_> {
         self.visit_expr(ctx, &mut tmp, inner)?;
 
         let tmp = tmp.into_token_stream();
-        buf.write_tokens(spanned!(span=> (#tmp)));
+        quote_into!(buf, span, { (#tmp) });
         Ok(DisplayWrap::Unwrapped)
     }
 
@@ -741,7 +736,7 @@ impl<'a> Generator<'a, '_> {
             tmp.write_token(Token![,], span);
         }
         let tmp = tmp.into_token_stream();
-        buf.write_tokens(spanned!(span=> (#tmp)));
+        quote_into!(buf, span, { (#tmp) });
         Ok(DisplayWrap::Unwrapped)
     }
 
@@ -770,7 +765,7 @@ impl<'a> Generator<'a, '_> {
             tmp.write_token(Token![,], span);
         }
         let tmp = tmp.into_token_stream();
-        buf.write_tokens(spanned!(span=> [#tmp]));
+        quote_into!(buf, span, { [#tmp] });
         Ok(DisplayWrap::Unwrapped)
     }
 
@@ -789,7 +784,7 @@ impl<'a> Generator<'a, '_> {
                 let this = &enum_ast.ident;
                 let (_, generics, _) = enum_ast.generics.split_for_impl();
                 let generics = generics.as_turbofish();
-                buf.write_tokens(spanned!(span=> #this #generics));
+                quote_into!(buf, span, { #this #generics });
                 continue;
             }
             buf.write_field(part, span);
@@ -812,7 +807,7 @@ impl<'a> Generator<'a, '_> {
                 let this = &enum_ast.ident;
                 let (_, generics, _) = enum_ast.generics.split_for_impl();
                 let generics = generics.as_turbofish();
-                buf.write_tokens(spanned!(span=> #this #generics));
+                quote_into!(buf, span, { #this #generics });
                 continue;
             }
             if !part.name.is_empty() {

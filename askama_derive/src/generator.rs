@@ -14,7 +14,7 @@ use std::sync::Arc;
 use parser::node::{Call, Macro, Whitespace};
 use parser::{CharLit, Expr, FloatKind, IntKind, Num, StrLit, WithSpan};
 use proc_macro2::TokenStream;
-use quote::ToTokens;
+use quote::{ToTokens, quote_spanned};
 use rustc_hash::FxBuildHasher;
 use syn::Token;
 
@@ -23,7 +23,7 @@ use crate::heritage::{Context, Heritage};
 use crate::html::write_escaped_str;
 use crate::input::{Source, TemplateInput};
 use crate::integration::{Buffer, impl_everything, write_header};
-use crate::{CompileError, FileInfo, field_new};
+use crate::{CompileError, FileInfo, field_new, quote_into};
 
 pub(crate) fn template_to_string(
     buf: &mut Buffer,
@@ -171,15 +171,15 @@ impl<'a, 'h> Generator<'a, 'h> {
 
         let span = self.input.ast.ident.span();
         let target = match tmpl_kind {
-            TmplKind::Struct => spanned!(span=> askama::Template),
-            TmplKind::Variant => spanned!(span=> askama::helpers::EnumVariantTemplate),
+            TmplKind::Struct => quote_spanned!(span=> askama::Template),
+            TmplKind::Variant => quote_spanned!(span=> askama::helpers::EnumVariantTemplate),
             TmplKind::Block(trait_name) => field_new(trait_name, span),
         };
 
         let mut full_paths = TokenStream::new();
         if let Some(full_config_path) = &self.input.config.full_config_path {
             let full_config_path = self.rel_path(full_config_path).display().to_string();
-            full_paths = spanned!(span=>
+            full_paths = quote_spanned!(span=>
                 const _: &[askama::helpers::core::primitive::u8] =
                  askama::helpers::core::include_bytes!(#full_config_path);
             );
@@ -204,7 +204,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             })
             .fold(TokenStream::new(), |mut acc, path| {
                 let path = self.rel_path(path).display().to_string();
-                acc.extend(spanned!(span=>
+                acc.extend(quote_spanned!(span=>
                     const _: &[askama::helpers::core::primitive::u8] =
                         askama::helpers::core::include_bytes!(#path);
                 ));
@@ -217,7 +217,7 @@ impl<'a, 'h> Generator<'a, 'h> {
 
         let mut size_hint_s = TokenStream::new();
         if tmpl_kind == TmplKind::Struct {
-            size_hint_s = spanned!(span=>
+            size_hint_s = quote_spanned!(span=>
                 const SIZE_HINT: askama::helpers::core::primitive::usize = #size_hint;
             );
         }
@@ -317,8 +317,7 @@ impl<'a, 'h> Generator<'a, 'h> {
         )?;
 
         let template_buf = template_buf.into_token_stream();
-        buf.write_tokens(spanned! {
-            span=>
+        quote_into!(buf, span, {
             #[allow(missing_docs, non_camel_case_types, non_snake_case, unreachable_pub)]
             const _: () = {
                 #template_buf

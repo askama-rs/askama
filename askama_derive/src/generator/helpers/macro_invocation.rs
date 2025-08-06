@@ -13,7 +13,7 @@ use crate::generator::node::AstLevel;
 use crate::generator::{Generator, LocalMeta, is_copyable};
 use crate::heritage::Context;
 use crate::integration::Buffer;
-use crate::{CompileError, field_new};
+use crate::{CompileError, field_new, quote_into};
 
 /// Helper to generate the code for macro invocations
 pub(crate) struct MacroInvocation<'a, 'b> {

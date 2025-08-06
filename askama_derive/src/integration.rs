@@ -12,7 +12,7 @@ use syn::{
 
 use crate::generator::TmplKind;
 use crate::input::{PartialTemplateArgs, TemplateArgs};
-use crate::{CompileError, Context, Print, build_template_item, field_new};
+use crate::{CompileError, Context, Print, build_template_item, field_new, quote_into};
 
 /// Implement every integration for the given item
 pub(crate) fn impl_everything(ast: &DeriveInput, buf: &mut Buffer) {

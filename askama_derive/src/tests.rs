@@ -183,8 +183,8 @@ fn check_if_let() {
     match (
         &((&&askama::filters::AutoEscaper::new(&(query), askama::filters::Text)).askama_auto_escape()?),
     ) {
-        (expr0,) => {
-            (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+        (__askama_expr0,) => {
+            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
         }
     }
 }",
@@ -200,8 +200,8 @@ fn check_if_let() {
     match (
         &((&&askama::filters::AutoEscaper::new(&(s), askama::filters::Text)).askama_auto_escape()?),
     ) {
-        (expr0,) => {
-            (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+        (__askama_expr0,) => {
+            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
         }
     }
 }",
@@ -217,8 +217,8 @@ fn check_if_let() {
     match (
         &((&&askama::filters::AutoEscaper::new(&(s), askama::filters::Text)).askama_auto_escape()?),
     ) {
-        (expr0,) => {
-            (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+        (__askama_expr0,) => {
+            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
         }
     }
 }",
@@ -241,10 +241,10 @@ fn check_if_let_chain() {
         &((&&askama::filters::AutoEscaper::new(&(blob), askama::filters::Text))
             .askama_auto_escape()?),
     ) {
-        (expr0, expr2) => {
-            (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+        (__askama_expr0, __askama_expr2) => {
+            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
             __askama_writer.write_str(" ")?;
-            (&&&askama::filters::Writable(expr2)).askama_write(__askama_writer, __askama_values)?;
+            (&&&askama::filters::Writable(__askama_expr2)).askama_write(__askama_writer, __askama_values)?;
         }
     }
 }"#,
@@ -266,10 +266,10 @@ fn check_if_let_chain() {
         &((&&askama::filters::AutoEscaper::new(&(blob), askama::filters::Text))
             .askama_auto_escape()?),
     ) {
-        (expr0, expr2) => {
-            (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+        (__askama_expr0, __askama_expr2) => {
+            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
             __askama_writer.write_str(" ")?;
-            (&&&askama::filters::Writable(expr2)).askama_write(__askama_writer, __askama_values)?;
+            (&&&askama::filters::Writable(__askama_expr2)).askama_write(__askama_writer, __askama_values)?;
         }
     }
 }"#,
@@ -295,10 +295,10 @@ fn check_if_let_chain() {
         &((&&askama::filters::AutoEscaper::new(&(z), askama::filters::Text))
             .askama_auto_escape()?),
     ) {
-        (expr0, expr2) => {
-            (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+        (__askama_expr0, __askama_expr2) => {
+            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
             __askama_writer.write_str(" ")?;
-            (&&&askama::filters::Writable(expr2)).askama_write(__askama_writer, __askama_values)?;
+            (&&&askama::filters::Writable(__askama_expr2)).askama_write(__askama_writer, __askama_values)?;
         }
     }
 }"#,
@@ -322,10 +322,10 @@ fn check_if_let_chain() {
         &((&&askama::filters::AutoEscaper::new(&(z), askama::filters::Text))
             .askama_auto_escape()?),
     ) {
-        (expr0, expr2) => {
-            (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+        (__askama_expr0, __askama_expr2) => {
+            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
             __askama_writer.write_str(" ")?;
-            (&&&askama::filters::Writable(expr2)).askama_write(__askama_writer, __askama_values)?;
+            (&&&askama::filters::Writable(__askama_expr2)).askama_write(__askama_writer, __askama_values)?;
         }
     }
 }"#,
@@ -459,8 +459,8 @@ __askama_writer.write_str("12")?;
     match (
         &((&&askama::filters::AutoEscaper::new(&(self.x), askama::filters::Text)).askama_auto_escape()?),
     ) {
-        (expr0,) => {
-            (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+        (__askama_expr0,) => {
+            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
         }
     }
 }
@@ -473,8 +473,8 @@ __askama_writer.write_str("12")?;
         r"match (
     &((&&askama::filters::AutoEscaper::new(&(self.x), askama::filters::Text)).askama_auto_escape()?),
 ) {
-    (expr0,) => {
-        (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+    (__askama_expr0,) => {
+        (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
     }
 }
 ",
@@ -504,8 +504,8 @@ if askama::helpers::as_bool(&(self.y == 12)) {
         ))
             .askama_auto_escape()?),
     ) {
-        (expr0,) => {
-            (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+        (__askama_expr0,) => {
+            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
         }
     }
 } else {
@@ -526,8 +526,8 @@ match (
     ))
         .askama_auto_escape()?),
 ) {
-    (expr0,) => {
-        (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+    (__askama_expr0,) => {
+        (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
     }
 }
 ",
@@ -646,8 +646,8 @@ fn check_bool_conditions() {
         r"match (
     &((&&askama::filters::AutoEscaper::new(&(self.x), askama::filters::Text)).askama_auto_escape()?),
 ) {
-    (expr0,) => {
-        (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+    (__askama_expr0,) => {
+        (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
     }
 }
 ",
@@ -664,8 +664,8 @@ fn check_bool_conditions() {
         ))
             .askama_auto_escape()?),
     ) {
-        (expr0,) => {
-            (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+        (__askama_expr0,) => {
+            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
         }
     }
 }
@@ -688,8 +688,8 @@ fn check_bool_conditions() {
         ))
             .askama_auto_escape()?),
     ) {
-        (expr0,) => {
-            (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+        (__askama_expr0,) => {
+            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
         }
     }
 }
@@ -708,8 +708,8 @@ fn check_bool_conditions() {
     ))
         .askama_auto_escape()?),
 ) {
-    (expr0,) => {
-        (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+    (__askama_expr0,) => {
+        (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
     }
 }
 ",
@@ -729,8 +729,8 @@ if askama::helpers::as_bool(&(self.y == 3))
         ))
             .askama_auto_escape()?),
     ) {
-        (expr0,) => {
-            (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+        (__askama_expr0,) => {
+            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
         }
     }
 }
@@ -929,10 +929,10 @@ fn test_pluralize() {
                 askama::filters::Safe("s"),
             )?),
         ) {
-            (expr0, expr3) => {
-                (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+            (__askama_expr0, __askama_expr3) => {
+                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
                 __askama_writer.write_str(" dog")?;
-                (&&&askama::filters::Writable(expr3)).askama_write(__askama_writer, __askama_values)?;
+                (&&&askama::filters::Writable(__askama_expr3)).askama_write(__askama_writer, __askama_values)?;
             }
         }"#,
         &[("dogs", "i8")],
@@ -953,10 +953,10 @@ fn test_pluralize() {
                 askama::filters::Safe("s"),
             )?),
         ) {
-            (expr0, expr3) => {
-                (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+            (__askama_expr0, __askama_expr3) => {
+                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
                 __askama_writer.write_str(" dog")?;
-                (&&&askama::filters::Writable(expr3)).askama_write(__askama_writer, __askama_values)?;
+                (&&&askama::filters::Writable(__askama_expr3)).askama_write(__askama_writer, __askama_values)?;
             }
         }"#,
         &[("dogs", "i8")],
@@ -977,10 +977,10 @@ fn test_pluralize() {
                 askama::filters::Safe("mice"),
             )?),
         ) {
-            (expr0, expr2) => {
-                (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+            (__askama_expr0, __askama_expr2) => {
+                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
                 __askama_writer.write_str(" ")?;
-                (&&&askama::filters::Writable(expr2)).askama_write(__askama_writer, __askama_values)?;
+                (&&&askama::filters::Writable(__askama_expr2)).askama_write(__askama_writer, __askama_values)?;
             }
         }"#,
         &[("dogs", "i8")],
@@ -1005,8 +1005,8 @@ fn test_pluralize() {
                     .askama_auto_escape()?,
             )?),
         ) {
-            (expr0,) => {
-                (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
             }
         }
         ",
@@ -1021,8 +1021,8 @@ fn test_pluralize() {
             &((&&askama::filters::AutoEscaper::new(&(self.pl), askama::filters::Text))
                 .askama_auto_escape()?),
         ) {
-            (expr0,) => {
-                (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
             }
         }
         ",
@@ -1036,8 +1036,8 @@ fn test_pluralize() {
             &((&&askama::filters::AutoEscaper::new(&(self.sg), askama::filters::Text))
                 .askama_auto_escape()?),
         ) {
-            (expr0,) => {
-                (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
             }
         }
         ",
@@ -1049,8 +1049,8 @@ fn test_pluralize() {
         r#"{{0|pluralize("sg", "pl")}}"#,
         r#"
         match (&(askama::filters::Safe("pl")),) {
-            (expr0,) => {
-                (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
             }
         }
         "#,
@@ -1061,8 +1061,8 @@ fn test_pluralize() {
         r#"{{1|pluralize("sg", "pl")}}"#,
         r#"
         match (&(askama::filters::Safe("sg")),) {
-            (expr0,) => {
-                (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
             }
         }
         "#,
@@ -1074,8 +1074,8 @@ fn test_pluralize() {
         r"{{0|pluralize}}",
         r#"
         match (&(askama::filters::Safe("s")),) {
-            (expr0,) => {
-                (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
             }
         }
         "#,
@@ -1086,8 +1086,8 @@ fn test_pluralize() {
         r"{{1|pluralize}}",
         r"
         match (&(askama::helpers::Empty),) {
-            (expr0,) => {
-                (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
             }
         }
         ",
@@ -1108,10 +1108,10 @@ fn test_concat() {
                 &((&&askama::filters::AutoEscaper::new(&(self.b), askama::filters::Text))
                     .askama_auto_escape()?),
             ) {
-                (expr1, expr3) => {
-                    (&&&askama::filters::Writable(expr1)).askama_write(__askama_writer, __askama_values)?;
+                (__askama_expr1, __askama_expr3) => {
+                    (&&&askama::filters::Writable(__askama_expr1)).askama_write(__askama_writer, __askama_values)?;
                     __askama_writer.write_str("|")?;
-                    (&&&askama::filters::Writable(expr3)).askama_write(__askama_writer, __askama_values)?;
+                    (&&&askama::filters::Writable(__askama_expr3)).askama_write(__askama_writer, __askama_values)?;
                 }
             }
             __askama_writer.write_str(">")?;
@@ -1135,8 +1135,8 @@ fn test_concat() {
                 ))
                     .askama_auto_escape()?),
             ) {
-                (expr0,) => {
-                    (&&&askama::filters::Writable(expr0)).askama_write(__askama_writer, __askama_values)?;
+                (__askama_expr0,) => {
+                    (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
                 }
             }
         "#,
@@ -1204,8 +1204,8 @@ fn test_filter_with_path() {
             ))
                 .askama_auto_escape()?),
         ) {
-            (expr0,) => {
-                (&&&askama::filters::Writable(expr0))
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0))
                     .askama_write(__askama_writer, __askama_values)?;
             }
         }"#,
@@ -1267,8 +1267,8 @@ fn test_macro_names_that_need_escaping() {
                     ))
                         .askama_auto_escape()?),
                 ) {{
-                    (expr0,) => {{
-                        (&&&askama::filters::Writable(expr0))
+                    (__askama_expr0,) => {{
+                        (&&&askama::filters::Writable(__askama_expr0))
                             .askama_write(__askama_writer, __askama_values)?;
                     }}
                 }}"

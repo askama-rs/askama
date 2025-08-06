@@ -4,9 +4,6 @@
 
 extern crate proc_macro;
 
-#[macro_use]
-mod macros;
-
 mod ascii_str;
 mod config;
 mod generator;
@@ -283,10 +280,8 @@ pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -
             clippy::suspicious_else_formatting,
             // We don't care if the user does not use `Template`, `FastWritable`, etc.
             dead_code,
-            // We intentionally add extraneous underscores in type names.
-            non_camel_case_types,
-            // We intentionally add extraneous underscores in variable names.
-            non_snake_case,
+            // We intentionally add extraneous underscores in type and variable names.
+            non_camel_case_types, non_snake_case,
         )]
         const _: () = {
             #import_askama
@@ -623,6 +618,10 @@ fn var_did_loop() -> Ident {
     syn::Ident::new("__askama_did_loop", proc_macro2::Span::mixed_site())
 }
 
+fn var_expr_n(n: usize, span: proc_macro2::Span) -> Ident {
+    syn::Ident::new(&format!("__askama_expr{n}"), span)
+}
+
 #[derive(Debug)]
 struct OnceMap<K, V>([Mutex<HashMap<K, V, FxBuildHasher>>; 8]);
 
@@ -708,4 +707,14 @@ macro_rules! fmt_right {
     };
 }
 
-pub(crate) use {fmt_left, fmt_right};
+macro_rules! quote_into {
+    ($buffer:expr, $span:expr, { $($x:tt)+ } $(,)?) => {{
+        let buffer: &mut $crate::integration::Buffer = $buffer;
+        if !buffer.is_discard() {
+            let span: ::proc_macro2::Span = $span;
+            buffer.write_tokens(::quote::quote_spanned!(span => $($x)+));
+        }
+    }};
+}
+
+pub(crate) use {fmt_left, fmt_right, quote_into};
