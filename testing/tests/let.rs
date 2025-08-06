@@ -33,6 +33,7 @@ fn underscore_ident1() {
 }
 
 // Ensures that variables can be named `_`.
+#[expect(clippy::redundant_pattern_matching)] // We want to test if `Some(_)` is recognized.
 #[test]
 fn underscore_ident2() {
     #[derive(Template)]

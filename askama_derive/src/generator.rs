@@ -12,19 +12,18 @@ use std::str;
 use std::sync::Arc;
 
 use parser::node::{Call, Macro, Whitespace};
-use parser::{
-    CharLit, Expr, FloatKind, IntKind, MAX_RUST_KEYWORD_LEN, Num, RUST_KEYWORDS, StrLit, WithSpan,
-};
+use parser::{CharLit, Expr, FloatKind, IntKind, Num, StrLit, WithSpan};
 use proc_macro2::TokenStream;
+use quote::ToTokens;
 use rustc_hash::FxBuildHasher;
+use syn::Token;
 
-use crate::ascii_str::{AsciiChar, AsciiStr};
 use crate::generator::helpers::{clean_path, diff_paths};
 use crate::heritage::{Context, Heritage};
 use crate::html::write_escaped_str;
 use crate::input::{Source, TemplateInput};
 use crate::integration::{Buffer, impl_everything, write_header};
-use crate::{CompileError, FileInfo};
+use crate::{CompileError, FileInfo, field_new};
 
 pub(crate) fn template_to_string(
     buf: &mut Buffer,
@@ -170,16 +169,12 @@ impl<'a, 'h> Generator<'a, 'h> {
     ) -> Result<usize, CompileError> {
         let ctx = &self.contexts[&self.input.path];
 
-        let span = proc_macro2::Span::call_site();
+        let span = self.input.ast.ident.span();
         let target = match tmpl_kind {
             TmplKind::Struct => spanned!(span=> askama::Template),
             TmplKind::Variant => spanned!(span=> askama::helpers::EnumVariantTemplate),
-            TmplKind::Block(trait_name) => {
-                let trait_name = proc_macro2::Ident::new(trait_name, span);
-                quote::quote!(#trait_name)
-            }
+            TmplKind::Block(trait_name) => field_new(trait_name, span),
         };
-        write_header(self.input.ast, buf, target, span);
 
         let mut full_paths = TokenStream::new();
         if let Some(full_config_path) = &self.input.config.full_config_path {
@@ -227,15 +222,17 @@ impl<'a, 'h> Generator<'a, 'h> {
             );
         }
 
-        buf.write_tokens(spanned!(span=>
-        {
+        write_header(self.input.ast, buf, target, span);
+        let var_writer = crate::var_writer();
+        let var_values = crate::var_values();
+        quote_into!(buf, span, { {
             fn render_into_with_values<AskamaW>(
                 &self,
-                __askama_writer: &mut AskamaW,
-                __askama_values: &dyn askama::Values
+                #var_writer: &mut AskamaW,
+                #var_values: &dyn askama::Values,
             ) -> askama::Result<()>
             where
-                AskamaW: askama::helpers::core::fmt::Write + ?askama::helpers::core::marker::Sized
+                AskamaW: askama::helpers::core::fmt::Write + ?askama::helpers::core::marker::Sized,
             {
                 #[allow(unused_imports)]
                 use askama::{
@@ -249,8 +246,7 @@ impl<'a, 'h> Generator<'a, 'h> {
                 askama::Result::Ok(())
             }
             #size_hint_s
-        }
-                ));
+        } });
 
         #[cfg(feature = "blocks")]
         for block in self.input.blocks {
@@ -688,7 +684,6 @@ impl<'a> MapChain<'a> {
     }
 
     fn resolve(&self, name: &str) -> Option<String> {
-        let name = normalize_identifier(name);
         self.get(&Cow::Borrowed(name)).map(|meta| match &meta.refs {
             Some(expr) => expr.clone(),
             None => name.to_string(),
@@ -696,7 +691,6 @@ impl<'a> MapChain<'a> {
     }
 
     fn resolve_or_self(&self, name: &str) -> String {
-        let name = normalize_identifier(name);
         self.resolve(name).unwrap_or_else(|| format!("self.{name}"))
     }
 
@@ -759,8 +753,6 @@ fn is_associated_item_self(mut expr: &Expr<'_>) -> bool {
     }
 }
 
-const FILTER_SOURCE: &str = "__askama_filter_block";
-
 #[derive(Clone, Copy, Debug)]
 enum DisplayWrap {
     Wrapped,
@@ -796,36 +788,35 @@ enum Writable<'a> {
     Expr(&'a WithSpan<'a, Box<Expr<'a>>>),
 }
 
-/// Identifiers to be replaced with raw identifiers, so as to avoid
-/// collisions between template syntax and Rust's syntax. In particular
-/// [Rust keywords](https://doc.rust-lang.org/reference/keywords.html)
-/// should be replaced, since they're not reserved words in Askama
-/// syntax but have a high probability of causing problems in the
-/// generated code.
-///
-/// This list excludes the Rust keywords *self*, *Self*, and *super*
-/// because they are not allowed to be raw identifiers, and *loop*
-/// because it's used something like a keyword in the template
-/// language.
-fn normalize_identifier(ident: &str) -> &str {
-    // This table works for as long as the replacement string is the original string
-    // prepended with "r#". The strings get right-padded to the same length with b'_'.
-    // While the code does not need it, please keep the list sorted when adding new
-    // keywords.
-
-    if ident.len() > MAX_RUST_KEYWORD_LEN {
-        return ident;
-    }
-    let kws = RUST_KEYWORDS[ident.len()];
-
-    let mut padded_ident = [0; MAX_RUST_KEYWORD_LEN];
-    padded_ident[..ident.len()].copy_from_slice(ident.as_bytes());
-
-    // Since the individual buckets are quite short, a linear search is faster than a binary search.
-    for probe in kws {
-        if padded_ident == *AsciiChar::slice_as_bytes(probe[2..].try_into().unwrap()) {
-            return AsciiStr::from_slice(&probe[..ident.len() + 2]);
+macro_rules! make_token_match {
+    ($op:ident @ $span:ident => $($tt:tt)+) => {
+        match $op {
+            $(stringify!($tt) => Token![$tt]($span).into_token_stream(),)+
+            _ => unreachable!(),
         }
-    }
-    ident
+    };
+}
+
+#[inline]
+#[track_caller]
+fn logic_op(op: &str, span: proc_macro2::Span) -> TokenStream {
+    make_token_match!(op @ span => && || ^)
+}
+
+#[inline]
+#[track_caller]
+fn unary_op(op: &str, span: proc_macro2::Span) -> TokenStream {
+    make_token_match!(op @ span => - ! * &)
+}
+
+#[inline]
+#[track_caller]
+fn range_op(op: &str, span: proc_macro2::Span) -> TokenStream {
+    make_token_match!(op @ span => .. ..=)
+}
+
+#[inline]
+#[track_caller]
+fn binary_op(op: &str, span: proc_macro2::Span) -> TokenStream {
+    make_token_match!(op @ span => * / % + - << >> & ^ | == != < > <= >= && || .. ..=)
 }

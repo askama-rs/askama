@@ -7,3 +7,11 @@ macro_rules! spanned {
         // }
     }
 }
+
+macro_rules! quote_into {
+    ($buffer:expr, $span:expr, { $($x:tt)+ } $(,)?) => {{
+        let buffer: &mut $crate::integration::Buffer = $buffer;
+        let span: ::proc_macro2::Span = $span;
+        buffer.write_tokens(::quote::quote_spanned!(span => $($x)+));
+    }};
+}

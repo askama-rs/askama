@@ -9,11 +9,12 @@ use parser::{
     WithSpan,
 };
 use proc_macro2::TokenStream;
+use syn::Token;
 
 use super::{DisplayWrap, Generator, TargetIsize, TargetUsize};
 use crate::heritage::Context;
 use crate::integration::Buffer;
-use crate::{CompileError, MsgValidEscapers, fmt_left, fmt_right};
+use crate::{CompileError, MsgValidEscapers, field_new, fmt_left, fmt_right};
 
 impl<'a> Generator<'a, '_> {
     pub(super) fn visit_filter(
@@ -85,9 +86,10 @@ impl<'a> Generator<'a, '_> {
 
         let mut tmp = Buffer::new();
         tmp.write_tokens(self.visit_arg(ctx, &args[0], ctx.span_for_node(args[0].span()))?);
-        tmp.write(",__askama_values", span);
+        let var_values = crate::var_values();
+        quote_into!(&mut tmp, span, { ,#var_values });
         if args.len() > 1 {
-            tmp.write(',', span);
+            tmp.write_token(Token![,], span);
             self.visit_args(ctx, &mut tmp, &args[1..])?;
         }
         let tmp = tmp.into_token_stream();
@@ -155,7 +157,8 @@ impl<'a> Generator<'a, '_> {
         let span = ctx.span_for_node(node);
 
         let arg = no_arguments(ctx, name, args)?;
-        buf.write(format_args!("askama::filters::{name}"), span);
+        let name = field_new(name, span);
+        quote_into!(buf, span, { askama::filters::#name });
         self.visit_call_generics(ctx, buf, generics);
         let arg = self.visit_arg(ctx, arg, span)?;
         buf.write_tokens(spanned!(span=> (#arg)?));
@@ -222,10 +225,11 @@ impl<'a> Generator<'a, '_> {
         let span = ctx.span_for_node(node);
         let arg = self.visit_arg(ctx, arg, span)?;
 
+        let var_values = crate::var_values();
         buf.write_tokens(spanned!(span=> match askama::filters::wordcount(&(#arg)) {
             expr0 => {
                 (&&&askama::filters::Writable(&expr0)).
-                    askama_write(&mut askama::helpers::Empty, __askama_values)?;
+                    askama_write(&mut askama::helpers::Empty, #var_values)?;
                 expr0.into_count()
             }
         }));
@@ -346,7 +350,7 @@ impl<'a> Generator<'a, '_> {
             self.visit_auto_escaped_arg(ctx, &mut pl_buf, pl)?;
             let sg = sg_buf.into_token_stream();
             let pl = pl_buf.into_token_stream();
-            buf.write_tokens(spanned!(span=> askama::filters::pluralize(#arg,#sg,#pl)?));
+            quote_into!(buf, span, { askama::filters::pluralize(#arg, #sg, #pl)? });
         }
         Ok(DisplayWrap::Wrapped)
     }
@@ -412,7 +416,7 @@ impl<'a> Generator<'a, '_> {
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         let arg = no_arguments(ctx, "ref", args)?;
-        buf.write('&', ctx.span_for_node(node));
+        buf.write_token(Token![&], ctx.span_for_node(node));
         self.visit_expr(ctx, buf, arg)?;
         Ok(DisplayWrap::Unwrapped)
     }
@@ -425,7 +429,7 @@ impl<'a> Generator<'a, '_> {
         node: Span<'_>,
     ) -> Result<DisplayWrap, CompileError> {
         let arg = no_arguments(ctx, "deref", args)?;
-        buf.write('*', ctx.span_for_node(node));
+        buf.write_token(Token![*], ctx.span_for_node(node));
         self.visit_expr(ctx, buf, arg)?;
         Ok(DisplayWrap::Unwrapped)
     }
@@ -611,7 +615,7 @@ impl<'a> Generator<'a, '_> {
             let mut filter = Buffer::new();
             self.visit_str_lit(&mut filter, fmt, span);
             if !tail.is_empty() {
-                filter.write(',', span);
+                filter.write_token(Token![,], ctx.span_for_node(node));
                 self.visit_args(ctx, &mut filter, tail)?;
             }
             let filter = filter.into_token_stream();

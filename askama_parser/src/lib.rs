@@ -3,7 +3,7 @@
 #![deny(unreachable_pub)]
 #![allow(clippy::vec_box)] // intentional, less copying
 
-pub mod ascii_str;
+mod ascii_str;
 pub mod expr;
 pub mod node;
 mod target;
@@ -1344,139 +1344,95 @@ const PRIMITIVE_TYPES: &[&str] = &{
     list
 };
 
-pub const MAX_RUST_KEYWORD_LEN: usize = 8;
-pub const MAX_RUST_RAW_KEYWORD_LEN: usize = MAX_RUST_KEYWORD_LEN + 2;
+const MAX_RUST_KEYWORD_LEN: usize = 8;
 
-pub const RUST_KEYWORDS: &[&[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]]; MAX_RUST_KEYWORD_LEN + 1] = &{
-    const NO_KWS: &[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]] = &[];
-    const KW2: &[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]] = &[
-        AsciiStr::new_sized("r#as"),
-        AsciiStr::new_sized("r#do"),
-        AsciiStr::new_sized("r#fn"),
-        AsciiStr::new_sized("r#if"),
-        AsciiStr::new_sized("r#in"),
+const RUST_KEYWORDS: &[&[[AsciiChar; MAX_RUST_KEYWORD_LEN]]; MAX_RUST_KEYWORD_LEN + 1] = &{
+    const NO_KWS: &[[AsciiChar; MAX_RUST_KEYWORD_LEN]] = &[];
+    const KW2: &[[AsciiChar; MAX_RUST_KEYWORD_LEN]] = &[
+        AsciiStr::new_sized("as"),
+        AsciiStr::new_sized("do"),
+        AsciiStr::new_sized("fn"),
+        AsciiStr::new_sized("if"),
+        AsciiStr::new_sized("in"),
     ];
-    const KW3: &[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]] = &[
-        AsciiStr::new_sized("r#box"),
-        AsciiStr::new_sized("r#dyn"),
-        AsciiStr::new_sized("r#for"),
-        AsciiStr::new_sized("r#gen"),
-        AsciiStr::new_sized("r#let"),
-        AsciiStr::new_sized("r#mod"),
-        AsciiStr::new_sized("r#mut"),
-        AsciiStr::new_sized("r#pub"),
-        AsciiStr::new_sized("r#ref"),
-        AsciiStr::new_sized("r#try"),
-        AsciiStr::new_sized("r#use"),
+    const KW3: &[[AsciiChar; MAX_RUST_KEYWORD_LEN]] = &[
+        AsciiStr::new_sized("box"),
+        AsciiStr::new_sized("dyn"),
+        AsciiStr::new_sized("for"),
+        AsciiStr::new_sized("gen"),
+        AsciiStr::new_sized("let"),
+        AsciiStr::new_sized("mod"),
+        AsciiStr::new_sized("mut"),
+        AsciiStr::new_sized("pub"),
+        AsciiStr::new_sized("ref"),
+        AsciiStr::new_sized("try"),
+        AsciiStr::new_sized("use"),
     ];
-    const KW4: &[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]] = &[
-        AsciiStr::new_sized("r#else"),
-        AsciiStr::new_sized("r#enum"),
-        AsciiStr::new_sized("r#impl"),
-        AsciiStr::new_sized("r#move"),
-        AsciiStr::new_sized("r#priv"),
-        AsciiStr::new_sized("r#true"),
-        AsciiStr::new_sized("r#type"),
+    const KW4: &[[AsciiChar; MAX_RUST_KEYWORD_LEN]] = &[
+        AsciiStr::new_sized("else"),
+        AsciiStr::new_sized("enum"),
+        AsciiStr::new_sized("impl"),
+        AsciiStr::new_sized("loop"),
+        AsciiStr::new_sized("move"),
+        AsciiStr::new_sized("priv"),
+        AsciiStr::new_sized("self"),
+        AsciiStr::new_sized("Self"),
+        AsciiStr::new_sized("true"),
+        AsciiStr::new_sized("type"),
     ];
-    const KW5: &[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]] = &[
-        AsciiStr::new_sized("r#async"),
-        AsciiStr::new_sized("r#await"),
-        AsciiStr::new_sized("r#break"),
-        AsciiStr::new_sized("r#const"),
-        AsciiStr::new_sized("r#crate"),
-        AsciiStr::new_sized("r#false"),
-        AsciiStr::new_sized("r#final"),
-        AsciiStr::new_sized("r#macro"),
-        AsciiStr::new_sized("r#match"),
-        AsciiStr::new_sized("r#trait"),
-        AsciiStr::new_sized("r#where"),
-        AsciiStr::new_sized("r#while"),
-        AsciiStr::new_sized("r#yield"),
+    const KW5: &[[AsciiChar; MAX_RUST_KEYWORD_LEN]] = &[
+        AsciiStr::new_sized("async"),
+        AsciiStr::new_sized("await"),
+        AsciiStr::new_sized("break"),
+        AsciiStr::new_sized("const"),
+        AsciiStr::new_sized("crate"),
+        AsciiStr::new_sized("false"),
+        AsciiStr::new_sized("final"),
+        AsciiStr::new_sized("macro"),
+        AsciiStr::new_sized("match"),
+        AsciiStr::new_sized("super"),
+        AsciiStr::new_sized("trait"),
+        AsciiStr::new_sized("union"),
+        AsciiStr::new_sized("where"),
+        AsciiStr::new_sized("while"),
+        AsciiStr::new_sized("yield"),
     ];
-    const KW6: &[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]] = &[
-        AsciiStr::new_sized("r#become"),
-        AsciiStr::new_sized("r#extern"),
-        AsciiStr::new_sized("r#return"),
-        AsciiStr::new_sized("r#static"),
-        AsciiStr::new_sized("r#struct"),
-        AsciiStr::new_sized("r#typeof"),
-        AsciiStr::new_sized("r#unsafe"),
+    const KW6: &[[AsciiChar; MAX_RUST_KEYWORD_LEN]] = &[
+        AsciiStr::new_sized("become"),
+        AsciiStr::new_sized("extern"),
+        AsciiStr::new_sized("return"),
+        AsciiStr::new_sized("static"),
+        AsciiStr::new_sized("struct"),
+        AsciiStr::new_sized("typeof"),
+        AsciiStr::new_sized("unsafe"),
+        AsciiStr::new_sized("caller"),
     ];
-    const KW7: &[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]] = &[
-        AsciiStr::new_sized("r#unsized"),
-        AsciiStr::new_sized("r#virtual"),
+    const KW7: &[[AsciiChar; MAX_RUST_KEYWORD_LEN]] = &[
+        AsciiStr::new_sized("unsized"),
+        AsciiStr::new_sized("virtual"),
     ];
-    const KW8: &[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]] = &[
-        AsciiStr::new_sized("r#abstract"),
-        AsciiStr::new_sized("r#continue"),
-        AsciiStr::new_sized("r#override"),
+    const KW8: &[[AsciiChar; MAX_RUST_KEYWORD_LEN]] = &[
+        AsciiStr::new_sized("abstract"),
+        AsciiStr::new_sized("continue"),
+        AsciiStr::new_sized("override"),
     ];
 
     [NO_KWS, NO_KWS, KW2, KW3, KW4, KW5, KW6, KW7, KW8]
 };
 
-// These ones are only used in the parser, hence why they're private.
-const KWS_PARSER: &[&[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]]; MAX_RUST_KEYWORD_LEN + 1] = &{
-    const KW4: &[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]] = &{
-        let mut result = [AsciiStr::new_sized("r#"); RUST_KEYWORDS[4].len() + 3];
-        let mut i = 0;
-        while i < RUST_KEYWORDS[4].len() {
-            result[i] = RUST_KEYWORDS[4][i];
-            i += 1;
-        }
-        result[result.len() - 3] = AsciiStr::new_sized("r#loop");
-        result[result.len() - 2] = AsciiStr::new_sized("r#self");
-        result[result.len() - 1] = AsciiStr::new_sized("r#Self");
-        result
-    };
-    const KW5: &[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]] = &{
-        let mut result = [AsciiStr::new_sized("r#"); RUST_KEYWORDS[5].len() + 2];
-        let mut i = 0;
-        while i < RUST_KEYWORDS[5].len() {
-            result[i] = RUST_KEYWORDS[5][i];
-            i += 1;
-        }
-        result[result.len() - 2] = AsciiStr::new_sized("r#super");
-        result[result.len() - 1] = AsciiStr::new_sized("r#union");
-        result
-    };
-    const KW6: &[[AsciiChar; MAX_RUST_RAW_KEYWORD_LEN]] = &{
-        let mut result = [AsciiStr::new_sized("r#"); RUST_KEYWORDS[6].len() + 1];
-        let mut i = 0;
-        while i < RUST_KEYWORDS[6].len() {
-            result[i] = RUST_KEYWORDS[6][i];
-            i += 1;
-        }
-        result[result.len() - 1] = AsciiStr::new_sized("r#caller");
-        result
-    };
-
-    [
-        RUST_KEYWORDS[0],
-        RUST_KEYWORDS[1],
-        RUST_KEYWORDS[2],
-        RUST_KEYWORDS[3],
-        KW4,
-        KW5,
-        KW6,
-        RUST_KEYWORDS[7],
-        RUST_KEYWORDS[8],
-    ]
-};
-
-fn is_rust_keyword(ident: &str) -> bool {
+pub fn is_rust_keyword(ident: &str) -> bool {
     let ident_len = ident.len();
     if ident_len > MAX_RUST_KEYWORD_LEN {
         return false;
     }
-    let kws = KWS_PARSER[ident.len()];
+    let kws = RUST_KEYWORDS[ident.len()];
 
     let mut padded_ident = [0; MAX_RUST_KEYWORD_LEN];
     padded_ident[..ident_len].copy_from_slice(ident.as_bytes());
 
     // Since the individual buckets are quite short, a linear search is faster than a binary search.
     for probe in kws {
-        if padded_ident == *AsciiChar::slice_as_bytes(probe[2..].try_into().unwrap()) {
+        if padded_ident == *AsciiChar::slice_as_bytes(probe) {
             return true;
         }
     }

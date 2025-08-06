@@ -13,11 +13,11 @@ use crate::integration::Buffer;
 use crate::{AnyTemplateArgs, derive_template};
 
 #[track_caller]
-fn build_template(ast: &syn::DeriveInput) -> Result<String, crate::CompileError> {
+fn build_template(ast: &syn::DeriveInput) -> Result<TokenStream, crate::CompileError> {
     let mut buf = Buffer::new();
     let args = AnyTemplateArgs::new(ast)?;
     crate::build_template(&mut buf, ast, args)?;
-    Ok(buf.to_string())
+    Ok(buf.into_token_stream())
 }
 
 fn import_askama() -> TokenStream {
@@ -41,10 +41,11 @@ fn compare_ex(
     size_hint: usize,
     prefix: &str,
 ) {
-    let generated = jinja_to_rust(jinja, fields, prefix).unwrap();
+    let generated = jinja_to_rust(jinja, fields, prefix);
 
     let expected: TokenStream = expected.parse().unwrap();
     let expected: syn::File = syn::parse_quote! {
+        #[automatically_derived]
         impl askama::Template for Foo {
             fn render_into_with_values<AskamaW>(
                 &self,
@@ -68,6 +69,7 @@ fn compare_ex(
         /// Implement the [`format!()`][askama::helpers::std::format] trait for [`Foo`]
         ///
         /// Please be aware of the rendering performance notice in the [`Template`][askama::Template] trait.
+        #[automatically_derived]
         impl askama::helpers::core::fmt::Display for Foo {
             #[inline]
             fn fmt(&self, f: &mut askama::helpers::core::fmt::Formatter<'_>) -> askama::helpers::core::fmt::Result {
@@ -75,6 +77,7 @@ fn compare_ex(
             }
         }
 
+        #[automatically_derived]
         impl askama::FastWritable for Foo {
             #[inline]
             fn write_into<AskamaW>(
@@ -143,7 +146,7 @@ fn compare_ex(
     }
 }
 
-fn jinja_to_rust(jinja: &str, fields: &[(&str, &str)], prefix: &str) -> syn::Result<syn::File> {
+fn jinja_to_rust(jinja: &str, fields: &[(&str, &str)], prefix: &str) -> syn::File {
     let jinja = format!(
         r##"#[template(source = {jinja:?}, ext = "txt")]
 {prefix}
@@ -156,7 +159,7 @@ struct Foo {{ {} }}"##,
     );
 
     let generated = build_template(&syn::parse_str::<syn::DeriveInput>(&jinja).unwrap()).unwrap();
-    let generated = match generated.parse() {
+    match syn::parse2(generated.clone()) {
         Ok(generated) => generated,
         Err(err) => panic!(
             "\n\
@@ -168,8 +171,7 @@ struct Foo {{ {} }}"##,
             \n\
             {err}"
         ),
-    };
-    syn::parse2(generated)
+    }
 }
 
 #[test]
@@ -822,7 +824,7 @@ fn test_code_in_comment() {
         struct Tmpl;
     "#;
     let ast = syn::parse_str(ts).unwrap();
-    let generated = build_template(&ast).unwrap();
+    let generated = build_template(&ast).unwrap().to_string();
     assert!(generated.contains("Hello world!"));
     assert!(!generated.contains("compile_error"));
 
@@ -835,7 +837,7 @@ fn test_code_in_comment() {
         struct Tmpl;
     "#;
     let ast = syn::parse_str(ts).unwrap();
-    let generated = build_template(&ast).unwrap();
+    let generated = build_template(&ast).unwrap().to_string();
     assert!(generated.contains("Hello\nworld!"));
     assert!(!generated.contains("compile_error"));
 
@@ -848,7 +850,7 @@ fn test_code_in_comment() {
         struct Tmpl;
     "#;
     let ast = syn::parse_str(ts).unwrap();
-    let generated = build_template(&ast).unwrap();
+    let generated = build_template(&ast).unwrap().to_string();
     assert!(generated.contains("Hello\nworld!"));
     assert!(!generated.contains("compile_error"));
 
@@ -865,7 +867,7 @@ fn test_code_in_comment() {
         struct Tmpl;
     "#;
     let ast = syn::parse_str(ts).unwrap();
-    let generated = build_template(&ast).unwrap();
+    let generated = build_template(&ast).unwrap().to_string();
     assert!(generated.contains("Hello\nworld!"));
     assert!(!generated.contains("compile_error"));
 
@@ -875,7 +877,7 @@ fn test_code_in_comment() {
         struct Tmpl;
     ";
     let ast = syn::parse_str(ts).unwrap();
-    let generated = build_template(&ast).unwrap();
+    let generated = build_template(&ast).unwrap().to_string();
     assert!(generated.contains("Hello\nworld!"));
     assert!(!generated.contains("compile_error"));
 
@@ -906,7 +908,7 @@ fn test_code_in_comment() {
         struct BlockOnBlock;
     ";
     let ast = syn::parse_str(ts).unwrap();
-    let generated = build_template(&ast).unwrap();
+    let generated = build_template(&ast).unwrap().to_string();
     assert!(!generated.contains("compile_error"));
 }
 
@@ -1147,12 +1149,12 @@ fn test_concat() {
 fn extends_with_whitespace_control() {
     const CONTROL: &[&str] = &["", "\t", "-", "+", "~"];
 
-    let expected = jinja_to_rust(r#"front {% extends "a.html" %} back"#, &[], "").unwrap();
+    let expected = jinja_to_rust(r#"front {% extends "a.html" %} back"#, &[], "");
     let expected = unparse(&expected);
     for front in CONTROL {
         for back in CONTROL {
             let src = format!(r#"front {{%{front} extends "a.html" {back}%}} back"#);
-            let actual = jinja_to_rust(&src, &[], "").unwrap();
+            let actual = jinja_to_rust(&src, &[], "");
             let actual = unparse(&actual);
             assert_eq!(expected, actual, "source: {src:?}");
         }

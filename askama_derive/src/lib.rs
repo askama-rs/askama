@@ -7,6 +7,7 @@ extern crate proc_macro;
 #[macro_use]
 mod macros;
 
+mod ascii_str;
 mod config;
 mod generator;
 mod heritage;
@@ -31,10 +32,11 @@ use std::hash::{BuildHasher, Hash};
 use std::path::Path;
 use std::sync::Mutex;
 
-use parser::{Parsed, ascii_str, strip_common};
-use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use parser::{Parsed, is_rust_keyword, strip_common};
+use proc_macro2::{Literal, Span, TokenStream};
+use quote::{ToTokens, quote, quote_spanned};
 use rustc_hash::FxBuildHasher;
+use syn::Ident;
 use syn::spanned::Spanned;
 
 use crate::config::{Config, read_config_file};
@@ -272,8 +274,20 @@ pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -
         Some(crate_name) => quote!(use #crate_name as askama;),
         None => import_askama(),
     };
-    quote! {
-        #[allow(dead_code, non_camel_case_types, non_snake_case)]
+    quote_spanned! {
+        ast.ident.span() =>
+        #[allow(
+            // We use `Struct { 0: arg0, 1: arg1 }` in enum specialization.
+            clippy::init_numbered_fields, non_shorthand_field_patterns,
+            // The generated code is not indented at all.
+            clippy::suspicious_else_formatting,
+            // We don't care if the user does not use `Template`, `FastWritable`, etc.
+            dead_code,
+            // We intentionally add extraneous underscores in type names.
+            non_camel_case_types,
+            // We intentionally add extraneous underscores in variable names.
+            non_snake_case,
+        )]
         const _: () = {
             #import_askama
             #ts
@@ -559,6 +573,54 @@ impl fmt::Display for MsgValidEscapers<'_> {
         exts.sort();
         write!(f, "The available extensions are: {}", exts.join(", "))
     }
+}
+
+fn field_new(name: &str, span: proc_macro2::Span) -> TokenStream {
+    if name.starts_with(|c: char| c.is_ascii_digit()) {
+        let mut literal: Literal = name.parse().unwrap();
+        literal.set_span(span);
+        literal.into_token_stream()
+    } else if is_rust_keyword(name) && !matches!(name, "self" | "Self" | "crate" | "super") {
+        Ident::new_raw(name, span).into_token_stream()
+    } else {
+        Ident::new(name, span).into_token_stream()
+    }
+}
+
+fn var_writer() -> Ident {
+    syn::Ident::new("__askama_writer", proc_macro2::Span::mixed_site())
+}
+
+fn var_filter_source() -> Ident {
+    syn::Ident::new("__askama_filter_block", proc_macro2::Span::mixed_site())
+}
+
+fn var_values() -> Ident {
+    syn::Ident::new("__askama_values", proc_macro2::Span::mixed_site())
+}
+
+fn var_arg() -> Ident {
+    syn::Ident::new("__askama_arg", proc_macro2::Span::mixed_site())
+}
+
+fn var_item() -> Ident {
+    syn::Ident::new("__askama_item", proc_macro2::Span::mixed_site())
+}
+
+fn var_len() -> Ident {
+    syn::Ident::new("__askama_len", proc_macro2::Span::mixed_site())
+}
+
+fn var_iter() -> Ident {
+    syn::Ident::new("__askama_iter", proc_macro2::Span::mixed_site())
+}
+
+fn var_cycle() -> Ident {
+    syn::Ident::new("__askama_cycle", proc_macro2::Span::mixed_site())
+}
+
+fn var_did_loop() -> Ident {
+    syn::Ident::new("__askama_did_loop", proc_macro2::Span::mixed_site())
 }
 
 #[derive(Debug)]

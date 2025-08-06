@@ -6,13 +6,14 @@ use std::mem;
 
 use parser::node::{Call, Macro, Ws};
 use parser::{Expr, Span, WithSpan};
+use quote::quote_spanned;
 use rustc_hash::FxBuildHasher;
 
-use crate::CompileError;
 use crate::generator::node::AstLevel;
-use crate::generator::{Generator, LocalMeta, is_copyable, normalize_identifier};
+use crate::generator::{Generator, LocalMeta, is_copyable};
 use crate::heritage::Context;
 use crate::integration::Buffer;
+use crate::{CompileError, field_new};
 
 /// Helper to generate the code for macro invocations
 pub(crate) struct MacroInvocation<'a, 'b> {
@@ -83,14 +84,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             this.flush_ws(self.macro_def.ws2);
             size_hint += this.write_buf_writable(self.callsite_ctx, &mut content)?;
             let content = content.into_token_stream();
-            buf.write(
-                quote::quote!(
-                    {
-                        #content
-                    }
-                ),
-                self.callsite_ctx.template_span,
-            );
+            quote_into!(buf, self.callsite_ctx.template_span, {{ #content }});
 
             this.prepare_ws(self.callsite_ws);
             this.seen_callers.pop();
@@ -205,22 +199,16 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                 // parameters being used multiple times.
                 _ => {
                     value.clear();
-                    let (before, after) = if !is_copyable(expr) {
-                        ("&(", ")")
-                    } else {
-                        ("", "")
-                    };
                     value.write_tokens(generator.visit_expr_root(self.callsite_ctx, expr)?);
-                    // We need to normalize the arg to write it, thus we need to add it to
-                    // locals in the normalized manner
-                    let normalized_arg = normalize_identifier(arg);
-                    buf.write(
-                        format_args!("let {normalized_arg} = {before}{value}{after};"),
-                        self.callsite_ctx.template_span,
-                    );
-                    generator
-                        .locals
-                        .insert_with_default(Cow::Borrowed(normalized_arg));
+                    let span = self.callsite_ctx.template_span;
+                    let id = field_new(arg, span);
+                    buf.write_tokens(if !is_copyable(expr) {
+                        quote_spanned! { span => let #id = &(#value); }
+                    } else {
+                        quote_spanned! { span => let #id = #value; }
+                    });
+
+                    generator.locals.insert_with_default(Cow::Borrowed(arg));
                 }
             }
         }
