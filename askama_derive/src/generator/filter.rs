@@ -292,11 +292,9 @@ impl<'a> Generator<'a, '_> {
             let arg = self.visit_arg(ctx, filter, ctx.span_for_node(filter.span()))?;
 
             let tmp = tmp.into_token_stream();
-            quote_into!(buf, span, { askama::filters::reject(
-               #tmp,
-               // coerce [T, &T, &&T...] to &T
-               (&&&(#arg))
-               as &_)?
+            quote_into!(buf, span, {
+                // coerce [T, &T, &&T...] to &T
+                askama::filters::reject(#tmp, (&&&(#arg)) as &_)?
             });
         }
 

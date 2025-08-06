@@ -119,6 +119,16 @@ impl ToTokens for Buffer {
     }
 }
 
+impl IntoIterator for Buffer {
+    type Item = <TokenStream as IntoIterator>::Item;
+    type IntoIter = <TokenStream as IntoIterator>::IntoIter;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.buf.into_iter()
+    }
+}
+
 impl Buffer {
     pub(crate) fn new() -> Self {
         Self {
@@ -154,29 +164,24 @@ impl Buffer {
         self.string_literals.push((literal, span));
     }
 
+    #[inline]
     pub(crate) fn into_token_stream(mut self) -> TokenStream {
         self.handle_str_lit();
         self.buf
     }
 
+    #[inline]
     pub(crate) fn is_discard(&self) -> bool {
         self.discard
     }
 
+    #[inline]
     pub(crate) fn set_discard(&mut self, discard: bool) {
         self.discard = discard;
     }
 
-    pub(crate) fn write(&mut self, src: impl BufferFmt, span: proc_macro2::Span) {
-        if self.discard {
-            return;
-        }
-
-        self.handle_str_lit();
-        src.append_to(&mut self.buf, span);
-    }
-
-    pub(crate) fn write_tokens(&mut self, src: TokenStream) {
+    #[inline]
+    pub(crate) fn write_tokens(&mut self, src: impl IntoIterator<Item = TokenTree>) {
         if self.discard {
             return;
         }
@@ -266,16 +271,6 @@ impl Buffer {
         self.handle_str_lit();
         self.buf.extend(buf);
         self.string_literals.extend(string_literals);
-    }
-}
-
-pub(crate) trait BufferFmt {
-    fn append_to(self, buf: &mut TokenStream, span: proc_macro2::Span);
-}
-
-impl BufferFmt for TokenStream {
-    fn append_to(self, buf: &mut TokenStream, _span: proc_macro2::Span) {
-        buf.extend(self);
     }
 }
 

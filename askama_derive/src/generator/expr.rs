@@ -363,7 +363,7 @@ impl<'a> Generator<'a, '_> {
             if i > 0 {
                 buf.write_token(Token![,], span);
             }
-            buf.write(self.visit_arg(ctx, arg, span)?, ctx.template_span);
+            buf.write_tokens(self.visit_arg(ctx, arg, span)?);
         }
         Ok(())
     }

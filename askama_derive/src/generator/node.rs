@@ -580,9 +580,11 @@ impl<'a> Generator<'a, '_> {
                     Ok(size_hint)
                 })?;
                 let cond_buf = cond_buf.into_token_stream();
-                loop_buf.write_tokens(quote_spanned!(span=> if !#var_did_loop {
-                    #cond_buf
-                }));
+                quote_into!(&mut loop_buf, span, {
+                    if !#var_did_loop {
+                        #cond_buf
+                    }
+                });
             } else {
                 this.handle_ws(loop_block.ws3);
                 size_hint2 = this.write_buf_writable(ctx, &mut loop_buf)?;
@@ -1159,10 +1161,7 @@ impl<'a> Generator<'a, '_> {
                                     // multiple times, e.g. in the case of macro
                                     // parameters being used multiple times.
                                     _ => {
-                                        value.write(
-                                            this.visit_expr_root(&call_ctx, expr)?,
-                                            span_span,
-                                        );
+                                        value.write_tokens(this.visit_expr_root(&call_ctx, expr)?);
                                         // We need to normalize the arg to write it, thus we need to add it to
                                         // locals in the normalized manner
                                         let id = field_new(arg, span_span);
