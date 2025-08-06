@@ -6,7 +6,7 @@ use parser::{
     AssociatedItem, CharLit, CharPrefix, Expr, PathComponent, Span, StrLit, StrPrefix, Target,
     TyGenerics, WithSpan,
 };
-use proc_macro2::TokenStream;
+use proc_macro2::{Delimiter, Spacing, TokenStream, TokenTree};
 use quote::quote_spanned;
 use syn::Token;
 
@@ -46,8 +46,7 @@ impl<'a> Generator<'a, '_> {
             Expr::Call { .. } | Expr::Index(..) => quote_spanned!(span => (#expr_code).into_iter()),
             // If accessing `self` then it most likely needs to be
             // borrowed, to prevent an attempt of moving.
-            // FIXME: Remove this `to_string()` call, it's terrible performance-wise.
-            _ if expr_code.to_string().trim_start().starts_with("self.") => {
+            _ if starts_with_self_dot(&expr_code) => {
                 quote_spanned!(span => (&#expr_code).into_iter())
             }
             // If accessing a field then it most likely needs to be
@@ -1018,6 +1017,26 @@ impl<'a> Generator<'a, '_> {
                 }
             }
         }
+    }
+}
+
+fn starts_with_self_dot(expr_code: &TokenStream) -> bool {
+    let mut stream = expr_code.clone().into_iter().peekable();
+    while let Some(TokenTree::Group(group)) = stream.peek()
+        && group.delimiter() == Delimiter::None
+    {
+        stream = group.stream().into_iter().peekable();
+    }
+
+    if let Some(TokenTree::Ident(id)) = stream.next()
+        && id == "self"
+        && let Some(TokenTree::Punct(punct)) = stream.next()
+        && punct.spacing() == Spacing::Alone
+        && punct.as_char() == '.'
+    {
+        true
+    } else {
+        false
     }
 }
 
