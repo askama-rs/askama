@@ -81,6 +81,8 @@ impl<'a> Generator<'a, '_> {
         args: &[WithSpan<Box<Expr<'a>>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
+        let span = ctx.span_for_node(node);
+
         // some sanity checks
         let generics = &path.last().unwrap().generics.as_ref();
         if path.is_empty() || generics.is_some() && !generics.unwrap().is_empty() {
@@ -95,6 +97,22 @@ impl<'a> Generator<'a, '_> {
             self.visit_path(ctx, &mut tmp, path);
             tmp.to_token_stream()
         };
+
+        // static assertion block for nicer compile errors
+        let mut assertion_block = Buffer::new();
+        if args.len() > 1
+            && let Some(last_arg) = args.last()
+        {
+            // For the last element (highest index), generate a line that tries to cast
+            // our filter struct to the `askama::filters::ValidArgIdx<ARG_IDX>` trait.
+            // If this fails, the user supplied too many arguments and will be shown a
+            // nicer error message.
+            let arg_span = ctx.span_for_node(last_arg.span());
+            let arg_idx = args.len().saturating_sub(2);
+            quote_into!(&mut assertion_block, arg_span, {
+                const _: bool = <#filter_path as askama::filters::ValidArgIdx<#arg_idx>>::VALID;
+            });
+        }
 
         // filter arguments
         let mut arg_setter_invocations = Buffer::new();
@@ -114,8 +132,8 @@ impl<'a> Generator<'a, '_> {
         let input_expr = self.visit_arg(ctx, &args[0], ctx.span_for_node(args[0].span()))?;
         let var_values = crate::var_values();
 
-        let span = ctx.span_for_node(node);
         quote_into!(buf, span, { {
+            #assertion_block
             #filter_path::default()
                 #arg_setter_invocations
                 .execute(#input_expr, #var_values)?}

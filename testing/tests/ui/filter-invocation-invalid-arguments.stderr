@@ -1,0 +1,59 @@
+error[E0599]: no method named `with_0` found for struct `noargs` in the current scope
+  --> tests/ui/filter-invocation-invalid-arguments.rs:15:10
+   |
+ 4 |     #[askama::filter_fn]
+   |     -------------------- method `with_0` not found for this struct
+...
+15 | #[derive(Template)]
+   |          ^^^^^^^^ method not found in `noargs<'_>`
+   |
+   = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: Argument at position 0 is invalid on filter noargs<'_>. Too many arguments supplied?
+  --> tests/ui/filter-invocation-invalid-arguments.rs:15:10
+   |
+15 | #[derive(Template)]
+   |          ^^^^^^^^ Filter function
+   |
+   = help: the trait `ValidArgIdx<0>` is not implemented for `noargs<'_>`
+   = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no method named `with_0` found for struct `noargs` in the current scope
+  --> tests/ui/filter-invocation-invalid-arguments.rs:19:10
+   |
+ 4 |     #[askama::filter_fn]
+   |     -------------------- method `with_0` not found for this struct
+...
+19 | #[derive(Template)]
+   |          ^^^^^^^^ method not found in `noargs<'_>`
+   |
+   = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: Argument at position 1 is invalid on filter noargs<'_>. Too many arguments supplied?
+  --> tests/ui/filter-invocation-invalid-arguments.rs:19:10
+   |
+19 | #[derive(Template)]
+   |          ^^^^^^^^ Filter function
+   |
+   = help: the trait `ValidArgIdx<1>` is not implemented for `noargs<'_>`
+   = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no method named `with_req1` found for struct `noargs` in the current scope
+  --> tests/ui/filter-invocation-invalid-arguments.rs:23:10
+   |
+ 4 |     #[askama::filter_fn]
+   |     -------------------- method `with_req1` not found for this struct
+...
+23 | #[derive(Template)]
+   |          ^^^^^^^^ method not found in `noargs<'_>`
+   |
+   = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: Argument at position 1 is invalid on filter noargs<'_>. Too many arguments supplied?
+  --> tests/ui/filter-invocation-invalid-arguments.rs:23:10
+   |
+23 | #[derive(Template)]
+   |          ^^^^^^^^ Filter function
+   |
+   = help: the trait `ValidArgIdx<1>` is not implemented for `noargs<'_>`
+   = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)

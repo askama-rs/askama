@@ -264,6 +264,11 @@ impl FilterSignature {
     ///   own explicit lifetime.
     /// - The struct has one const generic bool parameter for each required argument, tracking
     ///   whether the required argument was supplied.
+    ///
+    /// For every user argument to the filter, we implement the trait:
+    /// `askama::filters::ValidArgIdx<const IDX: usize>` on the generated struct (where IDX = arg.idx).
+    /// During code generation, the line: `const _: bool = askama::filters::ValidArgIdx<n>::VALID`
+    /// can then check at compile-time whether there is an argument with the given index.
     fn gen_struct_definition(&self, vis: Visibility) -> TokenStream2 {
         let ident = &self.ident;
         // struct generic parameters
@@ -284,9 +289,16 @@ impl FilterSignature {
             let (name, ty) = (&arg.ident, &arg.ty);
             quote! { #name: #ty }
         });
-        // constants for introspection
+        // introspection (better compile error messages on misuse)
         let required_arg_cnt = self.args_required.len();
         let optional_arg_cnt = self.args_optional.len();
+        let arg_cnt = required_arg_cnt + optional_arg_cnt;
+        let valid_arg_impls = (0..arg_cnt).map(|idx| {
+            quote! {
+                #[diagnostic::do_not_recommend]
+                impl askama::filters::ValidArgIdx<#idx> for #ident<'_> {}
+            }
+        });
 
         quote! {
             #[allow(non_camel_case_types)]
@@ -298,12 +310,7 @@ impl FilterSignature {
                 #(#optional_fields,)*
             }
 
-            // impl block with some simple constants for compiletime introspection (= static asserts)
-            impl<'filter> #ident<'filter> {
-                pub const ARGS_REQUIRED_CNT: usize = #required_arg_cnt;
-                pub const ARGS_OPTIONAL_CNT: usize = #optional_arg_cnt;
-                pub const ARGS_CNT: usize = #required_arg_cnt + #optional_arg_cnt;
-            }
+            #(#valid_arg_impls)*
         }
     }
 
