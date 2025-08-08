@@ -1,7 +1,7 @@
 error: cyclic dependency in graph [
            "\"$DIR/templates/cycle1.html/" --> \"$DIR/templates/cycle1.html/"",
        ]
- --> tests/ui/cycle2.rs:4:3
+ --> tests/ui/cycle2.rs:4:19
   |
 4 | #[template(path = "cycle1.html")]
-  |   ^^^^^^^^
+  |                   ^^^^^^^^^^^^^

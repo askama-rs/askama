@@ -1,6 +1,6 @@
 error: you can only use the `mut` keyword with a variable name
- --> <source attribute>:2:2
-       " let mut (a, b) = (1, 2) %}\n"
+ --> <source attribute>:2:7
+       "mut (a, b) = (1, 2) %}\n"
  --> tests/ui/vars.rs:6:21
   |
 6 |   #[template(source = r#"
@@ -10,8 +10,8 @@ error: you can only use the `mut` keyword with a variable name
   | |__^
 
 error: you can only use the `mut` keyword with a variable name
- --> <source attribute>:2:2
-       " let mut [a, b] = [1, 2] %}\n"
+ --> <source attribute>:2:7
+       "mut [a, b] = [1, 2] %}\n"
   --> tests/ui/vars.rs:12:21
    |
 12 |   #[template(source = r#"
@@ -21,8 +21,8 @@ error: you can only use the `mut` keyword with a variable name
    | |__^
 
 error: you can only use the `mut` keyword with a variable name
- --> <source attribute>:2:2
-       " let mut Some(a) = Some(\"a\") %}\n"
+ --> <source attribute>:2:7
+       "mut Some(a) = Some(\"a\") %}\n"
   --> tests/ui/vars.rs:18:21
    |
 18 |   #[template(source = r#"

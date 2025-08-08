@@ -1,6 +1,6 @@
 error: macro `thrice` expected 1 argument, found 2
- --> InvalidNumberOfArgs.html:5:2
-       "- call thrice(2, 3) -%}{%- endcall -%}"
+ --> InvalidNumberOfArgs.html:5:4
+       "call thrice(2, 3) -%}{%- endcall -%}"
  --> tests/ui/macro.rs:4:21
   |
 4 |   #[template(source = "{%- macro thrice(param) -%}
@@ -12,8 +12,8 @@ error: macro `thrice` expected 1 argument, found 2
   | |_________________________________________^
 
 error: missing arguments when calling macro `thrice`: `param` and `param2`
- --> InvalidNumberOfArgs2.html:5:2
-       "- call thrice() -%}{%- endcall -%}"
+ --> InvalidNumberOfArgs2.html:5:4
+       "call thrice() -%}{%- endcall -%}"
   --> tests/ui/macro.rs:12:21
    |
 12 |   #[template(source = "{%- macro thrice(param, param2) -%}
@@ -25,8 +25,8 @@ error: missing arguments when calling macro `thrice`: `param` and `param2`
    | |_____________________________________^
 
 error: macro `thrice` expected 0 argument, found 2
- --> InvalidNumberOfArgs3.html:4:2
-       "- call thrice(1, 2) -%}{%- endcall -%}"
+ --> InvalidNumberOfArgs3.html:4:4
+       "call thrice(1, 2) -%}{%- endcall -%}"
   --> tests/ui/macro.rs:20:21
    |
 20 |   #[template(source = "{%- macro thrice() -%}
@@ -37,40 +37,40 @@ error: macro `thrice` expected 0 argument, found 2
    | |_________________________________________^
 
 error: expected `)` to close macro argument list
- --> <source attribute>:1:17
-       "%}{% endmacro %}"
+ --> <source attribute>:1:15
+       "( %}{% endmacro %}"
   --> tests/ui/macro.rs:27:21
    |
 27 | #[template(source = "{% macro thrice( %}{% endmacro %}", ext = "html")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `)` to close macro argument list
- --> <source attribute>:1:24
-       "%}{% endmacro %}"
+ --> <source attribute>:1:15
+       "(a, b, c %}{% endmacro %}"
   --> tests/ui/macro.rs:31:21
    |
 31 | #[template(source = "{% macro thrice(a, b, c %}{% endmacro %}", ext = "html")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `)` to close macro argument list
- --> <source attribute>:1:23
-       "= %}{% endmacro %}"
+ --> <source attribute>:1:15
+       "(a, b, c= %}{% endmacro %}"
   --> tests/ui/macro.rs:35:21
    |
 35 | #[template(source = "{% macro thrice(a, b, c= %}{% endmacro %}", ext = "html")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `)` to close macro argument list
- --> <source attribute>:1:24
-       "= %}{% endmacro %}"
+ --> <source attribute>:1:15
+       "(a, b, c = %}{% endmacro %}"
   --> tests/ui/macro.rs:39:21
    |
 39 | #[template(source = "{% macro thrice(a, b, c = %}{% endmacro %}", ext = "html")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: missing argument when calling macro `example`: `current`
- --> WrongNumberOfParams.txt:4:10
-       " call example(name=\"name\", value=\"\") %}{% endcall %}\n    "
+ --> WrongNumberOfParams.txt:4:11
+       "call example(name=\"name\", value=\"\") %}{% endcall %}\n    "
   --> tests/ui/macro.rs:44:14
    |
 44 |       source = r#"
@@ -82,8 +82,8 @@ error: missing argument when calling macro `example`: `current`
    | |______^
 
 error: argument `name` was passed more than once when calling macro `example`
- --> DuplicatedArg.txt:4:10
-       " call example(0, name=\"name\", value=\"\") %}{% endcall %}\n    "
+ --> DuplicatedArg.txt:4:27
+       "name=\"name\", value=\"\") %}{% endcall %}\n    "
   --> tests/ui/macro.rs:55:14
    |
 55 |       source = r#"

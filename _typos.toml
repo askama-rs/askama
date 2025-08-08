@@ -17,6 +17,8 @@ extend-exclude = [
     "*/benches/strings.inc",
     # too many false positives
     "testing/tests/gen_ws_tests.py",
+    # truncated output
+    "testing/tests/ui/*.stderr",
     # minimized file full of regular expressions that trip up the typo checker
     "book/theme/highlight.js",
 ]

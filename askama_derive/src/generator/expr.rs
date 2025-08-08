@@ -212,18 +212,15 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         expr: &WithSpan<Box<Expr<'a>>>,
-        target: &str,
+        target: WithSpan<&str>,
     ) -> Result<DisplayWrap, CompileError> {
         let mut tmp = Buffer::new();
         self.visit_expr(ctx, &mut tmp, expr)?;
         let tmp = tmp.into_token_stream();
-        let span = ctx.span_for_node(expr.span());
-        let target = field_new(target, span);
-        quote_into!(
-            buf,
-            span,
-            { askama::helpers::get_primitive_value(&(#tmp)) as askama::helpers::core::primitive::#target }
-        );
+        let target = field_new(*target, ctx.span_for_node(target.span()));
+        quote_into!( buf, ctx.span_for_node(expr.span()), {
+            askama::helpers::get_primitive_value(&(#tmp)) as askama::helpers::core::primitive::#target
+        });
         Ok(DisplayWrap::Unwrapped)
     }
 
@@ -292,8 +289,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        path: &[&str],
-        args: &str,
+        path: &[WithSpan<&str>],
+        args: WithSpan<&str>,
         node: Span,
     ) -> DisplayWrap {
         let [path @ .., name] = path else {
@@ -306,7 +303,12 @@ impl<'a> Generator<'a, '_> {
             self.visit_macro_path(buf, path, span);
             buf.write_token(Token![::], span);
         }
-        let args = TokenStream::from_str(args).unwrap();
+
+        let args = set_span_recursively(
+            TokenStream::from_str(*args).unwrap(),
+            ctx.span_for_node(args.span()),
+        );
+
         quote_into!(buf, span, { #name !(#args) });
 
         DisplayWrap::Unwrapped
@@ -317,7 +319,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         args: &[WithSpan<Box<Expr<'a>>>],
-        generics: &[WithSpan<TyGenerics<'a>>],
+        generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
         node: Span,
         kind: &str,
     ) -> Result<DisplayWrap, CompileError> {
@@ -327,12 +329,19 @@ impl<'a> Generator<'a, '_> {
                 node,
             ));
         };
-        let [r#gen] = generics else {
+
+        let Some(generics) = generics else {
+            return Err(
+                ctx.generate_error(format_args!("{kind} expects one generic, found none"), node)
+            );
+        };
+        let [r#gen] = generics.as_slice() else {
             return Err(ctx.generate_error(
                 format_args!("{kind} expects one generic, found {}", generics.len()),
-                node,
+                generics.span(),
             ));
         };
+
         let mut ty_generics = Buffer::new();
         self.visit_ty_generic(
             ctx,
@@ -448,7 +457,7 @@ impl<'a> Generator<'a, '_> {
         let span = ctx.span_for_node(obj.span());
         if let Expr::Var("loop") = ***obj {
             let var_item = crate::var_item();
-            buf.write_tokens(match associated_item.name {
+            buf.write_tokens(match *associated_item.name {
                 "index0" => quote_spanned!(span => #var_item.index0),
                 "index" => quote_spanned!(span => (#var_item.index0 + 1)),
                 "first" => quote_spanned!(span => (#var_item.index0 == 0)),
@@ -467,11 +476,13 @@ impl<'a> Generator<'a, '_> {
         self.visit_expr(ctx, &mut expr, obj)?;
         let expr = expr.into_token_stream();
         let identifier = field_new(
-            associated_item.name,
-            ctx.span_for_node(Span::from(associated_item.name)),
+            *associated_item.name,
+            ctx.span_for_node(associated_item.name.span()),
         );
         let mut call_generics = Buffer::new();
-        self.visit_call_generics(ctx, &mut call_generics, &associated_item.generics);
+        if let Some(generics) = associated_item.generics.as_ref() {
+            self.visit_call_generics(ctx, &mut call_generics, generics);
+        }
         let call_generics = call_generics.into_token_stream();
 
         quote_into!(buf, span, { #expr. #identifier #call_generics });
@@ -482,32 +493,26 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        generics: &[WithSpan<TyGenerics<'a>>],
+        generics: &WithSpan<Vec<WithSpan<TyGenerics<'a>>>>,
     ) {
-        if let Some(first) = generics.first() {
-            buf.write_token(Token![::], ctx.span_for_node(first.span()));
-            self.visit_ty_generics(ctx, buf, generics);
-        }
+        buf.write_token(Token![::], ctx.span_for_node(generics.span()));
+        self.visit_ty_generics(ctx, buf, generics);
     }
 
-    fn visit_ty_generics(
+    pub(super) fn visit_ty_generics(
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        generics: &[WithSpan<TyGenerics<'a>>],
+        generics: &WithSpan<Vec<WithSpan<TyGenerics<'a>>>>,
     ) {
-        if generics.is_empty() {
-            return;
-        }
         let mut tmp = Buffer::new();
-        for generic in generics {
+        for generic in &**generics {
             let span = ctx.span_for_node(generic.span());
             self.visit_ty_generic(ctx, &mut tmp, generic, span);
             tmp.write_token(Token![,], span);
         }
         let tmp = tmp.into_token_stream();
-        // FIXME: use a better span
-        quote_into!(buf, ctx.template_span, { <#tmp> });
+        quote_into!(buf, ctx.span_for_node(generics.span()), { <#tmp> });
     }
 
     pub(super) fn visit_ty_generic(
@@ -526,7 +531,9 @@ impl<'a> Generator<'a, '_> {
             buf.write_token(Token![&], span);
         }
         self.visit_macro_path(buf, path, span);
-        self.visit_ty_generics(ctx, buf, args);
+        if let Some(generics) = args.as_ref() {
+            self.visit_ty_generics(ctx, buf, generics);
+        }
     }
 
     fn visit_index(
@@ -566,7 +573,7 @@ impl<'a> Generator<'a, '_> {
             Expr::AssociatedItem(sub_left, AssociatedItem { name, generics })
                 if ***sub_left == Expr::Var("loop") =>
             {
-                match *name {
+                match **name {
                     "cycle" => {
                         if let [generic, ..] = generics.as_slice() {
                             return Err(ctx.generate_error(
@@ -621,15 +628,15 @@ impl<'a> Generator<'a, '_> {
                 // We special-case "askama::get_value".
                 if let Expr::Path(path) = sub_left
                     && let [part1, part2] = path.as_slice()
-                    && part1.generics.is_empty()
-                    && part1.name == "askama"
-                    && part2.name == "get_value"
+                    && part1.generics.is_none()
+                    && *part1.name == "askama"
+                    && *part2.name == "get_value"
                 {
                     return self.visit_value(
                         ctx,
                         buf,
                         args,
-                        &part2.generics,
+                        part2.generics.as_ref(),
                         left.span(),
                         "`get_value` function",
                     );
@@ -771,14 +778,14 @@ impl<'a> Generator<'a, '_> {
     pub(super) fn visit_macro_path(
         &self,
         buf: &mut Buffer,
-        path: &[&str],
+        path: &[WithSpan<&str>],
         span: proc_macro2::Span,
     ) {
-        for (i, part) in path.iter().copied().enumerate() {
+        for (i, part) in path.iter().enumerate() {
             if i > 0 {
                 buf.write_token(Token![::], span);
             } else if let Some(enum_ast) = self.input.enum_ast
-                && part == "Self"
+                && **part == "Self"
             {
                 let this = &enum_ast.ident;
                 let (_, generics, _) = enum_ast.generics.split_for_impl();
@@ -797,14 +804,14 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        path: &[WithSpan<PathComponent<'a>>],
+        path: &[PathComponent<'a>],
     ) -> DisplayWrap {
         for (i, part) in path.iter().enumerate() {
-            let span = ctx.span_for_node(part.span());
+            let span = ctx.span_for_node(part.name.span());
             if i > 0 {
                 buf.write_token(Token![::], span);
             } else if let Some(enum_ast) = self.input.enum_ast
-                && part.name == "Self"
+                && *part.name == "Self"
             {
                 let this = &enum_ast.ident;
                 let (_, generics, _) = enum_ast.generics.split_for_impl();
@@ -812,12 +819,13 @@ impl<'a> Generator<'a, '_> {
                 quote_into!(buf, span, { #this #generics });
                 continue;
             }
+
             if !part.name.is_empty() {
-                buf.write_field(part.name, span);
+                buf.write_field(*part.name, span);
             }
-            if !part.generics.is_empty() {
+            if let Some(generics) = &part.generics {
                 buf.write_token(Token![::], span);
-                self.visit_ty_generics(ctx, buf, &part.generics);
+                self.visit_ty_generics(ctx, buf, generics);
             }
         }
         DisplayWrap::Unwrapped
@@ -946,7 +954,8 @@ impl<'a> Generator<'a, '_> {
                     }
                 }
             },
-            Target::Tuple(path, targets) => {
+            Target::Tuple(v) => {
+                let (path, targets) = &**v;
                 buf.write_separated_path(ctx, path);
                 let mut targets_buf = Buffer::new();
                 for target in targets {
@@ -956,28 +965,35 @@ impl<'a> Generator<'a, '_> {
                 let targets_buf = targets_buf.into_token_stream();
                 quote_into!(buf, span, { (#targets_buf) });
             }
-            Target::Array(path, targets) => {
-                buf.write_separated_path(ctx, path);
+            Target::Array(targets) => {
                 let mut targets_buf = Buffer::new();
-                for target in targets {
+                for target in &**targets {
                     self.visit_target(ctx, &mut targets_buf, initialized, false, target, span);
                     targets_buf.write_token(Token![,], ctx.template_span);
                 }
                 let targets_buf = targets_buf.into_token_stream();
                 quote_into!(buf, span, { [#targets_buf] });
             }
-            Target::Struct(path, targets) => {
+            Target::Struct(v) => {
+                let (path, targets) = &**v;
                 buf.write_separated_path(ctx, path);
                 let mut targets_buf = Buffer::new();
-                for (name, target) in targets {
-                    if let Target::Rest(_) = target {
+                for named_target in targets {
+                    if let Target::Rest(_) = named_target.dest {
                         targets_buf.write_token(Token![..], ctx.template_span);
                         continue;
                     }
 
-                    targets_buf.write_field(name, ctx.template_span);
+                    targets_buf.write_field(&named_target.src, ctx.template_span);
                     targets_buf.write_token(Token![:], ctx.template_span);
-                    self.visit_target(ctx, &mut targets_buf, initialized, false, target, span);
+                    self.visit_target(
+                        ctx,
+                        &mut targets_buf,
+                        initialized,
+                        false,
+                        &named_target.dest,
+                        span,
+                    );
                     targets_buf.write_token(Token![,], ctx.template_span);
                 }
                 let targets_buf = targets_buf.into_token_stream();
@@ -988,32 +1004,32 @@ impl<'a> Generator<'a, '_> {
                 quote_into!(buf, ctx.template_span, { {} });
             }
             Target::StrLit(s) => {
-                let span = ctx.span_for_node(Span::from(s.content));
+                let span = ctx.span_for_node(s.span());
                 if first_level {
                     buf.write_token(Token![&], span);
                 }
                 self.visit_str_lit(buf, s, span);
             }
             &Target::NumLit(repr, _) => {
-                let span = ctx.span_for_node(Span::from(repr));
+                let span = ctx.span_for_node(repr.span());
                 if first_level {
                     buf.write_token(Token![&], span);
                 }
-                self.visit_num_lit(buf, repr, span);
+                self.visit_num_lit(buf, *repr, span);
             }
             Target::CharLit(s) => {
-                let span = ctx.span_for_node(Span::from(s.content));
+                let span = ctx.span_for_node(s.span());
                 if first_level {
                     buf.write_token(Token![&], span);
                 }
                 self.visit_char_lit(buf, s, span);
             }
             &Target::BoolLit(s) => {
-                let span = ctx.span_for_node(Span::from(s));
+                let span = ctx.span_for_node(s.span());
                 if first_level {
                     buf.write_token(Token![&], span);
                 }
-                match s {
+                match *s {
                     "true" => quote_into!(buf, span, { true }),
                     "false" => quote_into!(buf, span, { false }),
                     _ => unreachable!(),
@@ -1021,6 +1037,23 @@ impl<'a> Generator<'a, '_> {
             }
         }
     }
+}
+
+fn set_span_recursively(input: TokenStream, span: proc_macro2::Span) -> TokenStream {
+    input
+        .into_iter()
+        .map(move |mut tt| {
+            tt.set_span(span);
+            if let TokenTree::Group(group) = tt {
+                TokenTree::Group(proc_macro2::Group::new(
+                    group.delimiter(),
+                    set_span_recursively(group.stream(), span),
+                ))
+            } else {
+                tt
+            }
+        })
+        .collect()
 }
 
 fn starts_with_self_dot(expr_code: &TokenStream) -> bool {

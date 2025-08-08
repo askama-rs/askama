@@ -1,41 +1,31 @@
 use winnow::{LocatingSlice, Parser};
 
-use crate::node::{Lit, Raw, Whitespace, Ws};
+use crate::expr::BinOp;
+use crate::node::{Let, Lit, Raw, Whitespace, Ws};
 use crate::{
-    Ast, Expr, Filter, InnerSyntax, InputStream, Node, Num, PathComponent, PathOrIdentifier, Span,
-    StrLit, Syntax, SyntaxBuilder, WithSpan,
+    Ast, Expr, Filter, InnerSyntax, InputStream, Node, Num, PathComponent, PathOrIdentifier,
+    StrLit, Syntax, SyntaxBuilder, Target, WithSpan,
 };
 
-impl<T> WithSpan<T> {
-    #[inline]
-    fn no_span(inner: T) -> Self {
-        Self {
-            inner,
-            span: Span::default(),
-        }
-    }
-}
-
-fn as_path<'a>(path: &'a [&'a str]) -> Vec<WithSpan<PathComponent<'a>>> {
+fn as_path<'a>(path: &'a [&'a str]) -> Vec<PathComponent<'a>> {
     path.iter()
-        .map(|name| {
-            WithSpan::no_span(PathComponent {
-                name,
-                generics: Vec::new(),
-            })
+        .map(|name| PathComponent {
+            name: WithSpan::no_span(name),
+            generics: None,
         })
         .collect::<Vec<_>>()
 }
 
-fn check_ws_split(s: &str, res: &(&str, &str, &str)) {
-    let Lit { lws, val, rws } = Lit::split_ws_parts(s);
-    assert_eq!(lws, res.0);
-    assert_eq!(val, res.1);
-    assert_eq!(rws, res.2);
-}
-
 #[test]
 fn test_ws_splitter() {
+    #[track_caller]
+    fn check_ws_split(s: &str, &(lws, val, rws): &(&str, &str, &str)) {
+        let s = Lit::split_ws_parts(WithSpan::no_span(s));
+        assert_eq!(*s.lws, lws);
+        assert_eq!(*s.val, val);
+        assert_eq!(*s.rws, rws);
+    }
+
     check_ws_split("", &("", "", ""));
     check_ws_split("a", &("", "a", ""));
     check_ws_split("\ta", &("\t", "a", ""));
@@ -50,7 +40,7 @@ fn test_invalid_block() {
 }
 
 fn int_lit<'a>(i: &'a str) -> WithSpan<Box<Expr<'a>>> {
-    WithSpan::new_without_span(Box::new(Expr::NumLit(i, Num::Int(i, None))))
+    WithSpan::no_span(Box::new(Expr::NumLit(i, Num::Int(i, None))))
 }
 
 fn bin_op<'a>(
@@ -58,14 +48,18 @@ fn bin_op<'a>(
     lhs: WithSpan<Box<Expr<'a>>>,
     rhs: WithSpan<Box<Expr<'a>>>,
 ) -> WithSpan<Box<Expr<'a>>> {
-    WithSpan::new_without_span(Box::new(Expr::BinOp(crate::expr::BinOp { op, lhs, rhs })))
+    WithSpan::no_span(Box::new(Expr::BinOp(crate::expr::BinOp { op, lhs, rhs })))
 }
 
 fn call<'a>(
     path: WithSpan<Box<Expr<'a>>>,
     args: Vec<WithSpan<Box<Expr<'a>>>>,
 ) -> WithSpan<Box<Expr<'a>>> {
-    WithSpan::new_without_span(Box::new(Expr::Call(crate::expr::Call { path, args })))
+    WithSpan::no_span(Box::new(Expr::Call(crate::expr::Call {
+        path,
+        generics: None,
+        args,
+    })))
 }
 
 #[test]
@@ -78,7 +72,7 @@ fn test_parse_filter() {
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Filter(Filter {
-                name: PathOrIdentifier::Identifier("e"),
+                name: PathOrIdentifier::Identifier(WithSpan::no_span("e")),
                 arguments: vec![WithSpan::no_span(Box::new(Expr::Var("strvar")))],
             }))),
         ))],
@@ -88,7 +82,7 @@ fn test_parse_filter() {
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Filter(Filter {
-                name: PathOrIdentifier::Identifier("abs"),
+                name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
                 arguments: vec![int_lit("2")],
             }))),
         ))],
@@ -98,7 +92,7 @@ fn test_parse_filter() {
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Filter(Filter {
-                name: PathOrIdentifier::Identifier("abs"),
+                name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
                 arguments: vec![WithSpan::no_span(Box::new(Expr::Unary("-", int_lit("2"))))],
             }))),
         ))],
@@ -110,7 +104,7 @@ fn test_parse_filter() {
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Filter(Filter {
-                name: PathOrIdentifier::Identifier("abs"),
+                name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
                 arguments: vec![WithSpan::no_span(Box::new(Expr::Group(bin_op(
                     "-",
                     int_lit("1"),
@@ -353,7 +347,10 @@ fn test_rust_macro() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["vec"], "1, 2, 3"))),
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("vec")],
+                WithSpan::no_span("1, 2, 3")
+            ))),
         ))],
     );
     assert_eq!(
@@ -362,42 +359,60 @@ fn test_rust_macro() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["alloc", "vec"], "1, 2, 3"))),
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("alloc"), WithSpan::no_span("vec")],
+                WithSpan::no_span("1, 2, 3")
+            ))),
         ))],
     );
     assert_eq!(
         Ast::from_str("{{a!()}}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["a"], "")))
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("a")],
+                WithSpan::no_span("")
+            )))
         ))]
     );
     assert_eq!(
         Ast::from_str("{{a !()}}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["a"], "")))
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("a")],
+                WithSpan::no_span("")
+            )))
         ))]
     );
     assert_eq!(
         Ast::from_str("{{a! ()}}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["a"], "")))
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("a")],
+                WithSpan::no_span("")
+            )))
         ))]
     );
     assert_eq!(
         Ast::from_str("{{a ! ()}}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["a"], "")))
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("a")],
+                WithSpan::no_span("")
+            )))
         ))]
     );
     assert_eq!(
         Ast::from_str("{{A!()}}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["A"], "")))
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("A")],
+                WithSpan::no_span("")
+            )))
         ))]
     );
     assert_eq!(
@@ -431,18 +446,18 @@ fn unicode_delimiters_in_syntax() {
             .nodes(),
         [
             Box::new(Node::Lit(WithSpan::no_span(Lit {
-                lws: "",
-                val: "Here comes the expression:",
-                rws: " ",
+                lws: WithSpan::no_span(""),
+                val: WithSpan::no_span("Here comes the expression:"),
+                rws: WithSpan::no_span(" "),
             }))),
             Box::new(Node::Expr(
                 Ws(None, None),
                 WithSpan::no_span(Box::new(Expr::Var("e")))
             )),
             Box::new(Node::Lit(WithSpan::no_span(Lit {
-                lws: "",
-                val: ".",
-                rws: "",
+                lws: WithSpan::no_span(""),
+                val: WithSpan::no_span("."),
+                rws: WithSpan::no_span(""),
             }))),
         ],
     );
@@ -699,7 +714,7 @@ fn test_odd_calls() {
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Filter(Filter {
-                name: PathOrIdentifier::Identifier("c"),
+                name: PathOrIdentifier::Identifier(WithSpan::no_span("c")),
                 arguments: vec![call(
                     WithSpan::no_span(Box::new(Expr::Var("a"))),
                     vec![WithSpan::no_span(Box::new(Expr::Var("b")))],
@@ -712,7 +727,7 @@ fn test_odd_calls() {
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Filter(Filter {
-                name: PathOrIdentifier::Identifier("c"),
+                name: PathOrIdentifier::Identifier(WithSpan::no_span("c")),
                 arguments: vec![call(
                     WithSpan::no_span(Box::new(Expr::Var("a"))),
                     vec![WithSpan::no_span(Box::new(Expr::Var("b")))],
@@ -859,7 +874,7 @@ fn test_parse_tuple() {
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Filter(Filter {
-                name: PathOrIdentifier::Identifier("abs"),
+                name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
                 arguments: vec![WithSpan::no_span(Box::new(Expr::Tuple(vec![])))],
             }))),
         ))],
@@ -869,7 +884,7 @@ fn test_parse_tuple() {
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Filter(Filter {
-                name: PathOrIdentifier::Identifier("abs"),
+                name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
                 arguments: vec![WithSpan::no_span(Box::new(Expr::Group(int_lit("1"))))],
             }))),
         ))],
@@ -881,7 +896,7 @@ fn test_parse_tuple() {
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Filter(Filter {
-                name: PathOrIdentifier::Identifier("abs"),
+                name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
                 arguments: vec![WithSpan::no_span(Box::new(Expr::Tuple(vec![int_lit("1")])))],
             }))),
         ))],
@@ -893,7 +908,7 @@ fn test_parse_tuple() {
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Filter(Filter {
-                name: PathOrIdentifier::Identifier("abs"),
+                name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
                 arguments: vec![WithSpan::no_span(Box::new(Expr::Tuple(vec![
                     int_lit("1"),
                     int_lit("2")
@@ -977,7 +992,7 @@ fn test_parse_array() {
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Filter(Filter {
-                name: PathOrIdentifier::Identifier("foo"),
+                name: PathOrIdentifier::Identifier(WithSpan::no_span("foo")),
                 arguments: vec![WithSpan::no_span(Box::new(Expr::Array(vec![])))],
             })))
         ))],
@@ -987,7 +1002,7 @@ fn test_parse_array() {
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Filter(Filter {
-                name: PathOrIdentifier::Identifier("foo"),
+                name: PathOrIdentifier::Identifier(WithSpan::no_span("foo")),
                 arguments: vec![WithSpan::no_span(Box::new(Expr::Array(vec![])))],
             })))
         ))],
@@ -1401,7 +1416,10 @@ fn macro_calls_can_have_raw_prefixes() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["z"], inner))),
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("z")],
+                WithSpan::no_span(inner)
+            ))),
         ))],
     );
 }
@@ -1422,7 +1440,10 @@ fn macro_comments_in_macro_calls() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["e"], "// hello\n"))),
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("e")],
+                WithSpan::no_span("// hello\n")
+            ))),
         ))],
     );
     assert_eq!(
@@ -1431,7 +1452,10 @@ fn macro_comments_in_macro_calls() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["e"], "/// hello\n"))),
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("e")],
+                WithSpan::no_span("/// hello\n")
+            ))),
         ))],
     );
     assert_eq!(
@@ -1440,7 +1464,10 @@ fn macro_comments_in_macro_calls() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["e"], "//! hello\n"))),
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("e")],
+                WithSpan::no_span("//! hello\n")
+            ))),
         ))],
     );
 
@@ -1450,7 +1477,10 @@ fn macro_comments_in_macro_calls() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["e"], "/* hello */"))),
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("e")],
+                WithSpan::no_span("/* hello */")
+            ))),
         ))],
     );
     assert_eq!(
@@ -1459,7 +1489,10 @@ fn macro_comments_in_macro_calls() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["e"], "/** hello */"))),
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("e")],
+                WithSpan::no_span("/** hello */")
+            ))),
         ))],
     );
     assert_eq!(
@@ -1468,7 +1501,10 @@ fn macro_comments_in_macro_calls() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["e"], "/*! hello */"))),
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("e")],
+                WithSpan::no_span("/*! hello */")
+            ))),
         ))],
     );
 }
@@ -1488,9 +1524,9 @@ fn test_raw() {
         [Box::new(Node::Raw(WithSpan::no_span(Raw {
             ws1: Ws(Some(Whitespace::Preserve), Some(Whitespace::Suppress)),
             lit: WithSpan::no_span(Lit {
-                lws: " ",
-                val,
-                rws: " ",
+                lws: WithSpan::no_span(" "),
+                val: WithSpan::no_span(val),
+                rws: WithSpan::no_span(" "),
             }),
             ws2: Ws(Some(Whitespace::Minimize), Some(Whitespace::Minimize)),
         })))],
@@ -1512,9 +1548,9 @@ fn test_raw() {
         [Box::new(Node::Raw(WithSpan::no_span(Raw {
             ws1: Ws(Some(Whitespace::Suppress), Some(Whitespace::Suppress)),
             lit: WithSpan::no_span(Lit {
-                lws: " ",
-                val: "-$- endraw",
-                rws: " ",
+                lws: WithSpan::no_span(" "),
+                val: WithSpan::no_span("-$- endraw"),
+                rws: WithSpan::no_span(" "),
             }),
             ws2: Ws(None, Some(Whitespace::Suppress)),
         })))],
@@ -1532,7 +1568,10 @@ fn test_macro_call_nested_comments() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["x"], "/*/*/*)*/*/*/"))),
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("x")],
+                WithSpan::no_span("/*/*/*)*/*/*/")
+            ))),
         ))],
     );
 
@@ -1547,7 +1586,10 @@ fn test_macro_call_nested_comments() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            WithSpan::no_span(Box::new(Expr::RustMacro(vec!["x"], "/**/"))),
+            WithSpan::no_span(Box::new(Expr::RustMacro(
+                vec![WithSpan::no_span("x")],
+                WithSpan::no_span("/**/")
+            ))),
         ))],
     );
 }
@@ -1650,4 +1692,80 @@ fn test_macro_call_illegal_raw_identifier() {
                 .contains("cannot be a raw identifier"),
         );
     }
+}
+
+#[test]
+fn regression_tests_span_change() {
+    // This test contains regression test for errors occurred during the big refactoring:
+    // "Add a nightly feature which allows to manipulate spans to underline which part of the
+    // template is failing compilation" <https://github.com/askama-rs/askama/issues/420>
+
+    let syntax = Syntax::default();
+
+    assert_eq!(
+        Ast::from_str("{%- let [_] = [2] -%}", None, &syntax)
+            .unwrap()
+            .nodes(),
+        [Box::new(Node::Let(WithSpan::no_span(Let {
+            ws: Ws(Some(Whitespace::Suppress), Some(Whitespace::Suppress)),
+            var: Target::Array(WithSpan::no_span(vec![Target::Placeholder(
+                WithSpan::no_span(())
+            )])),
+            val: Some(WithSpan::no_span(Box::new(Expr::Array(vec![int_lit("2")])))),
+            is_mutable: false,
+        })))],
+    );
+
+    assert_eq!(
+        Ast::from_str("{%- let (_) = [2] -%}", None, &syntax)
+            .unwrap()
+            .nodes(),
+        [Box::new(Node::Let(WithSpan::no_span(Let {
+            ws: Ws(Some(Whitespace::Suppress), Some(Whitespace::Suppress)),
+            var: Target::Placeholder(WithSpan::no_span(())),
+            val: Some(WithSpan::no_span(Box::new(Expr::Array(vec![int_lit("2")])))),
+            is_mutable: false,
+        })))],
+    );
+
+    assert_eq!(
+        Ast::from_str("Hello, {{ user | cased }}!", None, &syntax)
+            .unwrap()
+            .nodes(),
+        [
+            Box::new(Node::Lit(WithSpan::no_span(Lit {
+                lws: WithSpan::no_span(""),
+                val: WithSpan::no_span("Hello,"),
+                rws: WithSpan::no_span(" "),
+            }))),
+            Box::new(Node::Expr(
+                Ws(None, None),
+                WithSpan::no_span(Box::new(Expr::Filter(Filter {
+                    name: PathOrIdentifier::Identifier(WithSpan::no_span("cased")),
+                    arguments: vec![WithSpan::no_span(Box::new(Expr::Var("user")))],
+                })))
+            )),
+            Box::new(Node::Lit(WithSpan::no_span(Lit {
+                lws: WithSpan::no_span(""),
+                val: WithSpan::no_span("!"),
+                rws: WithSpan::no_span(""),
+            }))),
+        ],
+    );
+
+    assert_eq!(
+        Ast::from_str("{{ ( 0 + 1 ) }}", None, &syntax)
+            .unwrap()
+            .nodes(),
+        [Box::new(Node::Expr(
+            Ws(None, None),
+            WithSpan::no_span(Box::new(Expr::Group(WithSpan::no_span(Box::new(
+                Expr::BinOp(BinOp {
+                    op: "+",
+                    lhs: int_lit("0"),
+                    rhs: int_lit("1"),
+                })
+            )))))
+        ))]
+    );
 }

@@ -1,6 +1,6 @@
 error: missing argument when calling macro `thrice`: `param1`
- --> InvalidDefault1.html:4:2
-       "- call thrice() -%}{%- endcall -%}"
+ --> InvalidDefault1.html:4:4
+       "call thrice() -%}{%- endcall -%}"
  --> tests/ui/macro_default_value.rs:4:21
   |
 4 |   #[template(source = "{%- macro thrice(param1, param2=0) -%}
@@ -11,8 +11,8 @@ error: missing argument when calling macro `thrice`: `param1`
   | |_____________________________________^
 
 error: macro `thrice` expected 2 arguments, found 3
- --> InvalidDefault2.html:4:2
-       "- call thrice(1, 2, 3) -%}{%- endcall -%}"
+ --> InvalidDefault2.html:4:4
+       "call thrice(1, 2, 3) -%}{%- endcall -%}"
   --> tests/ui/macro_default_value.rs:11:21
    |
 11 |   #[template(source = "{%- macro thrice(param1, param2=0) -%}

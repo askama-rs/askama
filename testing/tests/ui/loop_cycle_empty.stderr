@@ -7,8 +7,8 @@ error: loop.cycle(…) cannot use an empty array
   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: loop.cycle(…) doesn't use generics
- --> ForCycleGenerics.txt:1:37
-       "u8>([]) }}{{ v }},{% endfor %}"
+ --> ForCycleGenerics.txt:1:36
+       "<u8>([]) }}{{ v }},{% endfor %}"
   --> tests/ui/loop_cycle_empty.rs:12:14
    |
 12 |     source = r#"{% for v in values %}{{ loop.cycle::<u8>([]) }}{{ v }},{% endfor %}"#,

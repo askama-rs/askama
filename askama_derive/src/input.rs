@@ -1,11 +1,12 @@
 use std::borrow::Cow;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
 use parser::node::Whitespace;
 use parser::{Node, Parsed};
-use proc_macro2::Span;
+use proc_macro2::{Literal, Span};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Attribute, Expr, ExprLit, ExprPath, Ident, Lit, LitBool, LitStr, Meta, Token};
@@ -15,27 +16,26 @@ use crate::{CompileError, FileInfo, HashMap, MsgValidEscapers};
 
 #[derive(Clone, Debug)]
 pub(crate) enum LiteralOrSpan {
-    Literal(proc_macro2::Literal),
-    #[allow(dead_code)]
-    Path(proc_macro2::Literal),
+    Literal(Literal),
+    // TODO: transclude source file
+    Path(Span),
+    // TODO: implement for "code-in-doc"
     #[cfg_attr(not(feature = "code-in-doc"), allow(dead_code))]
     Span(Span),
 }
 
 impl LiteralOrSpan {
-    pub(crate) fn span(&self) -> Option<Span> {
+    pub(crate) fn config_span(&self) -> Span {
         match self {
-            Self::Literal(lit) => Some(lit.span()),
-            // FIXME: How do we get the span of the included file?
-            Self::Path(_) => None,
-            Self::Span(span) => Some(*span),
+            LiteralOrSpan::Literal(literal) => literal.span(),
+            LiteralOrSpan::Path(span) | LiteralOrSpan::Span(span) => *span,
         }
     }
 
-    pub(crate) fn inner(&self) -> Span {
+    pub(crate) fn content_subspan(&self, bytes: Range<usize>) -> Option<Span> {
         match self {
-            Self::Literal(lit) | Self::Path(lit) => lit.span(),
-            Self::Span(span) => *span,
+            Self::Literal(lit) => lit.subspan(bytes),
+            Self::Path(_) | Self::Span(_) => None,
         }
     }
 }
@@ -85,9 +85,12 @@ impl TemplateInput<'_> {
         // of `ext` is merged into a synthetic `path` value here.
         let path: Arc<Path> = match (&source, &ext) {
             #[cfg(feature = "external-sources")]
-            (Source::Path(path), _) => {
-                config.find_template(path, None, None, source_span.as_ref().map(|s| s.inner()))?
-            }
+            (Source::Path(path), _) => config.find_template(
+                path,
+                None,
+                None,
+                source_span.as_ref().map(|s| s.config_span()),
+            )?,
             (&Source::Source(_), Some(ext)) => {
                 PathBuf::from(format!("{}.{}", ast.ident, ext)).into()
             }
@@ -228,7 +231,6 @@ impl TemplateInput<'_> {
                                 )),
                             )?;
                             check.push((new_path.clone(), source, Some(new_path.clone())));
-                            e.insert(Arc::default());
                         }
                         Ok(())
                     };
@@ -250,7 +252,7 @@ impl TemplateInput<'_> {
                                     extends.path,
                                     Some(&path),
                                     Some(FileInfo::of(extends.span(), &path, &parsed)),
-                                    self.source_span.as_ref().map(|s| s.inner()),
+                                    self.source_span.as_ref().map(|s| s.config_span()),
                                 )?;
                                 let dependency_path = (path.clone(), extends.clone());
                                 if path == extends {
@@ -283,7 +285,7 @@ impl TemplateInput<'_> {
                                     import.path,
                                     Some(&path),
                                     Some(FileInfo::of(import.span(), &path, &parsed)),
-                                    self.source_span.as_ref().map(|s| s.inner()),
+                                    self.source_span.as_ref().map(|s| s.config_span()),
                                 )?;
                                 add_to_check(import)?;
                             }
@@ -307,7 +309,7 @@ impl TemplateInput<'_> {
                                     include.path,
                                     Some(&path),
                                     Some(FileInfo::of(include.span(), &path, &parsed)),
-                                    self.source_span.as_ref().map(|s| s.inner()),
+                                    self.source_span.as_ref().map(|s| s.config_span()),
                                 )?;
                                 add_to_check(include)?;
                             }
@@ -479,7 +481,7 @@ impl TemplateArgs {
                 #[cfg(feature = "external-sources")]
                 Some(PartialTemplateArgsSource::Path(s)) => (
                     Source::Path(s.value().into()),
-                    Some(LiteralOrSpan::Path(s.token())),
+                    Some(LiteralOrSpan::Path(s.span())),
                 ),
                 Some(PartialTemplateArgsSource::Source(s)) => (
                     Source::Source(s.value().into()),

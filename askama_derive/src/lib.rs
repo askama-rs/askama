@@ -319,7 +319,7 @@ pub(crate) fn build_template(
                 .source
                 .1
                 .as_ref()
-                .and_then(|l| l.span())
+                .map(|l| l.config_span())
                 .or(item.template_span);
             build_template_item(buf, ast, None, &item, TmplKind::Struct)
         }
@@ -388,8 +388,8 @@ fn build_template_item(
 
     if let Some((block_name, block_span)) = input.block {
         let has_block = match &heritage {
-            Some(heritage) => heritage.blocks.contains_key(block_name),
-            None => ctx.blocks.contains_key(block_name),
+            Some(heritage) => heritage.blocks.contains_key(&block_name),
+            None => ctx.blocks.contains_key(&block_name),
         };
         if !has_block {
             return Err(CompileError::no_file_info(
@@ -485,7 +485,9 @@ impl<'a> FileInfo<'a> {
         Self {
             path,
             source: Some(source),
-            node_source: node.as_suffix_of(source),
+            node_source: node
+                .byte_range()
+                .and_then(|range| source.get(range.start..)),
         }
     }
 }

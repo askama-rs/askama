@@ -40,7 +40,7 @@ pub(crate) fn template_to_string(
     );
     let size_hint = match generator.impl_template(buf, tmpl_kind) {
         Err(mut err) if err.span.is_none() => {
-            err.span = input.source_span.as_ref().and_then(|l| l.span());
+            err.span = input.source_span.as_ref().map(|l| l.config_span());
             Err(err)
         }
         result => result,
@@ -75,7 +75,7 @@ struct Generator<'a, 'h> {
     /// Suffix whitespace from the previous literal. Will be flushed to the
     /// output buffer unless suppressed by whitespace suppression on the next
     /// non-literal.
-    next_ws: Option<&'a str>,
+    next_ws: Option<WithSpan<&'a str>>,
     /// Whitespace suppression from the previous non-literal. Will be used to
     /// determine whether to flush prefix whitespace from the next literal.
     skip_ws: Whitespace,
@@ -544,13 +544,13 @@ fn compile_time_escape<'a>(expr: &WithSpan<Box<Expr<'a>>>, escaper: &str) -> Opt
 
     // escape the un-string-escaped input using the selected escaper
     Some(Writable::Lit(match output {
-        OutputKind::Text => WithSpan::new_with_full(value, expr.span()),
+        OutputKind::Text => WithSpan::new(value, expr.span()),
         OutputKind::Html => {
             let mut escaped = String::with_capacity(value.len() + 20);
             write_escaped_str(&mut escaped, &value).ok()?;
             match escaped == value {
-                true => WithSpan::new_with_full(value, expr.span()),
-                false => WithSpan::new_with_full(Cow::Owned(escaped), expr.span()),
+                true => WithSpan::new(value, expr.span()),
+                false => WithSpan::new(Cow::Owned(escaped), expr.span()),
             }
         }
     }))
