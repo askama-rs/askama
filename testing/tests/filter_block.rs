@@ -269,7 +269,7 @@ fn filter_block_conditions() {
         x: 21,
         v: Some("hoho".to_string()),
     };
-    assert_eq!(s.render().unwrap(), "21x Is Big\n\n    V Is Hoho",);
+    assert_eq!(s.render().unwrap(), "21x Is Big\n\n    V Is Hoho");
 }
 
 // The output of `|upper` is not marked as `|safe`, so the output of `|paragraphbreaks` gets

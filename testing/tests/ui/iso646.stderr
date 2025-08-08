@@ -1,14 +1,14 @@
 error: the binary AND operator is called `bitand` in askama
- --> <source attribute>:1:6
-       " b }}"
+ --> <source attribute>:1:5
+       "& b }}"
  --> tests/ui/iso646.rs:4:34
   |
 4 | #[template(ext = "txt", source = "{{ a & b }}")]
   |                                  ^^^^^^^^^^^^^
 
 error: the binary XOR operator is called `xor` in askama
- --> <source attribute>:1:6
-       " b }}"
+ --> <source attribute>:1:5
+       "^ b }}"
   --> tests/ui/iso646.rs:25:34
    |
 25 | #[template(ext = "txt", source = "{{ a ^ b }}")]

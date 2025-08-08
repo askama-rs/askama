@@ -13,7 +13,7 @@ error: no escaper defined for extension 'tex'. You can define an escaper in the 
    |           ^^^^^
 
 error: no escaper defined for extension 'tex'. You can define an escaper in the config file (named `askama.toml` by default). The available extensions are: "", "askama", "htm", "html", "j2", "jinja", "jinja2", "md", "none", "rinja", "svg", "txt", "xml", "yml"
-  --> tests/ui/no-such-escaper.rs:22:3
+  --> tests/ui/no-such-escaper.rs:22:19
    |
 22 | #[template(path = "latex-file.tex")]
-   |   ^^^^^^^^
+   |                   ^^^^^^^^^^^^^^^^

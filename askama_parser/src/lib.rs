@@ -11,10 +11,10 @@ mod target;
 #[cfg(test)]
 mod tests;
 
-use std::borrow::Cow;
+use std::borrow::{Borrow, BorrowMut, Cow};
 use std::cell::Cell;
 use std::env::current_dir;
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, Range};
 use std::path::Path;
 use std::sync::Arc;
 use std::{fmt, str};
@@ -25,14 +25,14 @@ use winnow::combinator::{
     alt, cond, cut_err, delimited, empty, fail, not, opt, peek, preceded, repeat, terminated,
 };
 use winnow::error::ErrMode;
-use winnow::stream::AsChar;
+use winnow::stream::{AsChar, Location, Stream};
 use winnow::token::{any, none_of, one_of, take_while};
 use winnow::{LocatingSlice, ModalParser, ModalResult, Parser, Stateful};
 
 use crate::ascii_str::{AsciiChar, AsciiStr};
 pub use crate::expr::{AssociatedItem, Expr, Filter, PathComponent, TyGenerics};
 pub use crate::node::Node;
-pub use crate::target::Target;
+pub use crate::target::{NamedTarget, Target};
 
 mod _parsed {
     use std::path::Path;
@@ -118,7 +118,6 @@ impl<'a> Ast<'a> {
         file_path: Option<Arc<Path>>,
         syntax: &Syntax<'_>,
     ) -> Result<Self, ParseError> {
-        let start = src;
         let level = Cell::new(Level::MAX_DEPTH);
         let state = State {
             syntax,
@@ -137,7 +136,7 @@ impl<'a> Ast<'a> {
                 | ErrMode::Cut(ErrorContext { span, message, .. }),
             ) => Err(ParseError {
                 message,
-                offset: span.offset_from(start).unwrap_or_default(),
+                offset: span.start,
                 file_path,
             }),
         }
@@ -149,6 +148,7 @@ impl<'a> Ast<'a> {
     }
 }
 
+#[derive(Clone, Copy)]
 /// Struct used to wrap types with their associated "span" which is used when generating errors
 /// in the code generation.
 #[repr(C)] // rationale: `WithSpan<Box<T>` needs to have the same layout as `WithSpan<&T>`.
@@ -159,65 +159,119 @@ pub struct WithSpan<T> {
 
 /// A location in `&'a str`
 #[derive(Debug, Clone, Copy)]
-pub struct Span(&'a str);
+pub struct Span {
+    start: usize,
+    end: usize,
+}
+
+impl From<&InputStream<'_>> for Span {
+    #[inline]
+    fn from(i: &InputStream<'_>) -> Self {
+        (*i).into()
+    }
+}
 
 impl Default for Span {
     #[inline]
     fn default() -> Self {
-        Self::empty()
+        Self::no_span()
     }
 }
 
-impl<'a> Span {
+impl From<InputStream<'_>> for Span {
     #[inline]
-    pub const fn empty() -> Self {
-        Self("")
-    }
-
-    pub fn offset_from(self, start: &'a str) -> Option<usize> {
-        let start_range = start.as_bytes().as_ptr_range();
-        let this_ptr = self.0.as_ptr();
-        match start_range.contains(&this_ptr) {
-            // SAFETY: we just checked that `this_ptr` is inside `start_range`
-            true => Some(unsafe { this_ptr.offset_from(start_range.start) as usize }),
-            false => None,
-        }
-    }
-
-    pub fn as_suffix_of(self, start: &'a str) -> Option<&'a str> {
-        let offset = self.offset_from(start)?;
-        match start.is_char_boundary(offset) {
-            true => Some(&start[offset..]),
-            false => None,
-        }
-    }
-
-    #[allow(clippy::len_without_is_empty)]
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-}
-
-impl<'a> From<&'a str> for Span {
-    #[inline]
-    fn from(value: &'a str) -> Self {
-        Self(value)
-    }
-}
-
-impl<'a, T> WithSpan<T> {
-    #[inline]
-    pub fn new(inner: T, span_begin: &'a str, span_end: &'a str) -> Self {
-        assert!(span_begin.len() >= span_end.len());
-        let len = span_begin.len() - span_end.len();
+    fn from(mut i: InputStream<'_>) -> Self {
+        let start = i.current_token_start();
+        i.finish();
         Self {
-            inner,
-            span: Span(&span_begin[..len]),
+            start,
+            end: i.current_token_start(),
+        }
+    }
+}
+
+impl From<Range<usize>> for Span {
+    #[inline]
+    #[track_caller]
+    fn from(range: Range<usize>) -> Self {
+        Span::new(range)
+    }
+}
+
+impl Span {
+    #[inline]
+    pub const fn no_span() -> Span {
+        Self {
+            start: usize::MAX,
+            end: usize::MAX,
         }
     }
 
     #[inline]
-    pub fn new_with_full<I: Into<Span>>(inner: T, span: I) -> Self {
+    #[track_caller]
+    pub fn new(range: Range<usize>) -> Self {
+        let Range { start, end } = range;
+        debug_assert!(start <= end);
+        Span { start, end }
+    }
+
+    #[inline]
+    pub fn byte_range(self) -> Option<Range<usize>> {
+        (self.start != usize::MAX).then_some(self.start..self.end)
+    }
+
+    /// Returns an empty [`Span`] that points to the start of `self`.
+    #[inline]
+    pub fn start(self) -> Self {
+        Self {
+            start: self.start,
+            end: self.start,
+        }
+    }
+
+    /// Returns an empty [`Span`] that points to the end of `self`.
+    #[inline]
+    pub fn end(self) -> Self {
+        Self {
+            start: self.end,
+            end: self.end,
+        }
+    }
+
+    /// Splits `self` at `mid` into two spanned strings.
+    #[track_caller]
+    pub fn split_at(self, mid: usize) -> (Self, Self) {
+        let Some(Range { start, end }) = self.byte_range() else {
+            return (self, self);
+        };
+
+        let mid = start.checked_add(mid).unwrap();
+        assert!(mid <= end);
+
+        let start = Self { start, end: mid };
+        let end = Self { start: mid, end };
+        (start, end)
+    }
+
+    /// The substring in `source` contained in [`self.byte_range()`][Self::byte_range].
+    #[inline]
+    pub fn as_infix_of<'a>(&self, source: &'a str) -> Option<&'a str> {
+        self.byte_range().and_then(|range| source.get(range))
+    }
+
+    /// The substring in `source` starting from `self.start`.
+    #[inline]
+    pub fn as_suffix_of<'a>(&self, source: &'a str) -> Option<&'a str> {
+        // No need to check if `self.start != usize::MAX`:
+        // `source` cannot be longer than `isize::MAX`, cf. [`std::alloc`].
+        source.get(self.start..)
+    }
+}
+
+impl<T> WithSpan<T> {
+    #[inline]
+    #[track_caller]
+    pub fn new(inner: T, span: impl Into<Span>) -> Self {
         Self {
             inner,
             span: span.into(),
@@ -225,10 +279,10 @@ impl<'a, T> WithSpan<T> {
     }
 
     #[inline]
-    pub const fn new_without_span(inner: T) -> Self {
+    pub const fn no_span(inner: T) -> Self {
         Self {
             inner,
-            span: Span::empty(),
+            span: Span::no_span(),
         }
     }
 
@@ -244,6 +298,31 @@ impl<'a, T> WithSpan<T> {
     }
 }
 
+impl WithSpan<&str> {
+    /// Returns an empty [`Span`] that points to the start of the contained string.
+    #[inline]
+    pub fn start(self) -> Self {
+        let (inner, span) = self.deconstruct();
+        Self::new(&inner[..0], span.start())
+    }
+
+    /// Returns an empty [`Span`] that points to the end of the contained string.
+    #[inline]
+    pub fn end(self) -> Self {
+        let (inner, span) = self.deconstruct();
+        Self::new(&inner[inner.len()..], span.end())
+    }
+
+    /// Splits `self` at `mid` into two spanned strings.
+    #[track_caller]
+    pub fn split_at(self, mid: usize) -> (Self, Self) {
+        let (inner, span) = self.deconstruct();
+        let (front, back) = inner.split_at(mid);
+        let (front_span, back_span) = span.split_at(mid);
+        (Self::new(front, front_span), Self::new(back, back_span))
+    }
+}
+
 impl<T> Deref for WithSpan<T> {
     type Target = T;
 
@@ -254,6 +333,7 @@ impl<T> Deref for WithSpan<T> {
 }
 
 impl<T> DerefMut for WithSpan<T> {
+    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
@@ -261,23 +341,59 @@ impl<T> DerefMut for WithSpan<T> {
 
 impl<T: fmt::Debug> fmt::Debug for WithSpan<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self.inner)
+        self.inner.fmt(f)
     }
 }
 
-impl<T: Clone> Clone for WithSpan<T> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-            span: self.span,
-        }
-    }
-}
-
-impl<T: PartialEq> PartialEq for WithSpan<T> {
-    fn eq(&self, other: &Self) -> bool {
+impl<T: PartialEq, R: AsRef<T>> PartialEq<R> for WithSpan<T> {
+    #[inline]
+    fn eq(&self, other: &R) -> bool {
         // We never want to compare the span information.
-        self.inner == other.inner
+        self.inner == *other.as_ref()
+    }
+}
+
+impl<T: PartialOrd, R: AsRef<T>> PartialOrd<R> for WithSpan<T> {
+    #[inline]
+    fn partial_cmp(&self, other: &R) -> Option<std::cmp::Ordering> {
+        self.inner.partial_cmp(other.as_ref())
+    }
+}
+
+impl<T: Eq> Eq for WithSpan<T> {}
+
+impl<T: Ord> Ord for WithSpan<T> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.cmp(&other.inner)
+    }
+}
+
+impl<T: std::hash::Hash> std::hash::Hash for WithSpan<T> {
+    #[inline]
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.inner.hash(state);
+    }
+}
+
+impl<T> AsRef<T> for WithSpan<T> {
+    #[inline]
+    fn as_ref(&self) -> &T {
+        &self.inner
+    }
+}
+
+impl<T> Borrow<T> for WithSpan<T> {
+    #[inline]
+    fn borrow(&self) -> &T {
+        &self.inner
+    }
+}
+
+impl<T> BorrowMut<T> for WithSpan<T> {
+    #[inline]
+    fn borrow_mut(&mut self) -> &mut T {
+        &mut self.inner
     }
 }
 
@@ -326,7 +442,7 @@ pub(crate) struct ErrorContext {
     pub(crate) message: Option<Cow<'static, str>>,
 }
 
-impl<'a> ErrorContext {
+impl ErrorContext {
     #[cold]
     fn unclosed(kind: &str, tag: &str, span: impl Into<Span>) -> Self {
         Self {
@@ -361,7 +477,7 @@ impl<'a> winnow::error::ParserError<InputStream<'a>> for ErrorContext {
     #[inline]
     fn from_input(input: &InputStream<'a>) -> Self {
         Self {
-            span: Span(***input),
+            span: input.into(),
             message: None,
         }
     }
@@ -414,10 +530,9 @@ fn num_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, Num<'a>> {
     fn num_lit_suffix<'a, T: Copy>(
         kind: &'a str,
         list: &[(&str, T)],
-        start: &'a str,
         i: &mut InputStream<'a>,
     ) -> ParseResult<'a, T> {
-        let suffix = identifier.parse_next(i)?;
+        let (suffix, span) = identifier.with_span().parse_next(i)?;
         if let Some(value) = list
             .iter()
             .copied()
@@ -425,20 +540,19 @@ fn num_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, Num<'a>> {
         {
             Ok(value)
         } else {
-            cut_error!(format!("unknown {kind} suffix `{suffix}`"), start)
+            cut_error!(format!("unknown {kind} suffix `{suffix}`"), span)
         }
     }
 
-    let start = ***i;
-
     // Equivalent to <https://github.com/rust-lang/rust/blob/e3f909b2bbd0b10db6f164d466db237c582d3045/compiler/rustc_lexer/src/lib.rs#L587-L620>.
     let int_with_base = (opt('-'), |i: &mut _| {
-        let (base, kind) = preceded('0', alt(('b'.value(2), 'o'.value(8), 'x'.value(16))))
+        let ((base, kind), span) = preceded('0', alt(('b'.value(2), 'o'.value(8), 'x'.value(16))))
             .with_taken()
+            .with_span()
             .parse_next(i)?;
         match opt(separated_digits(base, false)).parse_next(i)? {
             Some(_) => Ok(()),
-            None => cut_error!(format!("expected digits after `{kind}`"), start),
+            None => cut_error!(format!("expected digits after `{kind}`"), span),
         }
     });
 
@@ -447,13 +561,15 @@ fn num_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, Num<'a>> {
     let float = |i: &mut InputStream<'a>| -> ParseResult<'a, ()> {
         let has_dot = opt(('.', separated_digits(10, true))).parse_next(i)?;
         let has_exp = opt(|i: &mut _| {
-            let (kind, op) = (one_of(['e', 'E']), opt(one_of(['+', '-']))).parse_next(i)?;
+            let ((kind, op), span) = (one_of(['e', 'E']), opt(one_of(['+', '-'])))
+                .with_span()
+                .parse_next(i)?;
             match opt(separated_digits(10, op.is_none())).parse_next(i)? {
                 Some(_) => Ok(()),
                 None => {
                     cut_error!(
                         format!("expected decimal digits, `+` or `-` after exponent `{kind}`"),
-                        start,
+                        span,
                     )
                 }
             }
@@ -466,20 +582,17 @@ fn num_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, Num<'a>> {
     };
 
     let num = if let Some(num) = opt(int_with_base.take()).parse_next(i)? {
-        let suffix =
-            opt(|i: &mut _| num_lit_suffix("integer", INTEGER_TYPES, start, i)).parse_next(i)?;
+        let suffix = opt(|i: &mut _| num_lit_suffix("integer", INTEGER_TYPES, i)).parse_next(i)?;
         Num::Int(num, suffix)
     } else {
         let (float, num) = preceded((opt('-'), separated_digits(10, true)), opt(float))
             .with_taken()
             .parse_next(i)?;
         if float.is_some() {
-            let suffix =
-                opt(|i: &mut _| num_lit_suffix("float", FLOAT_TYPES, start, i)).parse_next(i)?;
+            let suffix = opt(|i: &mut _| num_lit_suffix("float", FLOAT_TYPES, i)).parse_next(i)?;
             Num::Float(num, suffix)
         } else {
-            let suffix =
-                opt(|i: &mut _| num_lit_suffix("number", NUM_TYPES, start, i)).parse_next(i)?;
+            let suffix = opt(|i: &mut _| num_lit_suffix("number", NUM_TYPES, i)).parse_next(i)?;
             match suffix {
                 Some(NumKind::Int(kind)) => Num::Int(num, Some(kind)),
                 Some(NumKind::Float(kind)) => Num::Float(num, Some(kind)),
@@ -552,15 +665,15 @@ fn str_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, StrLit<'a>> {
     // <https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str.syntax>
 
     fn inner<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, StrLit<'a>> {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+        #[derive(Debug, Clone, PartialEq, Eq)]
         enum Sequence<'a> {
             Text(&'a str),
             Close,
             Escape,
-            Cr(bool),
+            CrLf,
+            Cr(Range<usize>),
         }
 
-        let start = ***i;
         let mut contains_null = false;
         let mut contains_unicode_character = false;
         let mut contains_unicode_escape = false;
@@ -571,7 +684,10 @@ fn str_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, StrLit<'a>> {
                 repeat::<_, _, (), _, _>(1.., none_of(['\r', '\\', '"']))
                     .take()
                     .map(Sequence::Text),
-                preceded('\r', opt('\n')).map(|c| Sequence::Cr(c.is_some())),
+                ('\r'.span(), opt('\n')).map(|(span, has_lf)| match has_lf {
+                    Some(_) => Sequence::CrLf,
+                    None => Sequence::Cr(span),
+                }),
                 '\\'.value(Sequence::Escape),
                 peek('"').value(Sequence::Close),
             ))
@@ -584,17 +700,14 @@ fn str_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, StrLit<'a>> {
                     contains_null = contains_null || s.bytes().any(|c: u8| c == 0);
                     continue;
                 }
-                Sequence::Cr(has_lf) => {
-                    if has_lf {
-                        continue;
-                    } else {
-                        return cut_error!(
-                            "a bare CR (Mac linebreak) is not allowed in string literals, \
-                            use NL (Unix linebreak) or CRNL (Windows linebreak) instead, \
-                            or type `\\r` explicitly",
-                            start,
-                        );
-                    }
+                Sequence::CrLf => continue,
+                Sequence::Cr(span) => {
+                    return cut_error!(
+                        "a bare CR (Mac linebreak) is not allowed in string literals, \
+                        use NL (Unix linebreak) or CRNL (Windows linebreak) instead, \
+                        or type `\\r` explicitly",
+                        span,
+                    );
                 }
                 Sequence::Close => break,
                 Sequence::Escape => {}
@@ -616,15 +729,16 @@ fn str_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, StrLit<'a>> {
                 }
                 'u' => {
                     contains_unicode_escape = true;
-                    let code = delimited('{', take_while(1..=6, AsChar::is_hex_digit), '}')
+                    let (code, span) = delimited('{', take_while(1..=6, AsChar::is_hex_digit), '}')
+                        .with_span()
                         .parse_next(i)?;
                     match u32::from_str_radix(code, 16).unwrap() {
                         0 => contains_null = true,
                         0xd800..0xe000 => {
-                            return cut_error!("unicode escape must not be a surrogate", start);
+                            return cut_error!("unicode escape must not be a surrogate", span);
                         }
                         0x110000.. => {
-                            return cut_error!("unicode escape must be at most 10FFFF", start);
+                            return cut_error!("unicode escape must be at most 10FFFF", span);
                         }
                         128.. => contains_unicode_character = true,
                         _ => {}
@@ -644,20 +758,21 @@ fn str_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, StrLit<'a>> {
         })
     }
 
-    let start = ***i;
-
-    let prefix = terminated(
-        opt(alt((
-            'b'.value(StrPrefix::Binary),
-            'c'.value(StrPrefix::CLike),
-        ))),
-        '"',
+    let ((prefix, lit), span) = (
+        terminated(
+            opt(alt((
+                'b'.value(StrPrefix::Binary),
+                'c'.value(StrPrefix::CLike),
+            ))),
+            '"',
+        ),
+        opt(terminated(inner.with_taken(), '"')),
     )
-    .parse_next(i)?;
+        .with_span()
+        .parse_next(i)?;
 
-    let lit = opt(terminated(inner.with_taken(), '"')).parse_next(i)?;
     let Some((mut lit, content)) = lit else {
-        return cut_error!("unclosed or broken string", start);
+        return cut_error!("unclosed or broken string", span);
     };
     lit.content = content;
     lit.prefix = prefix;
@@ -678,7 +793,7 @@ fn str_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, StrLit<'a>> {
         None => lit.contains_high_ascii.then_some("out of range hex escape"),
     };
     if let Some(msg) = msg {
-        return cut_error!(msg, start);
+        return cut_error!(msg, span);
     }
 
     not_suffix_with_hash(i)?;
@@ -686,18 +801,17 @@ fn str_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, StrLit<'a>> {
 }
 
 fn not_suffix_with_hash<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, ()> {
-    if let Some(suffix) = opt(identifier.take()).parse_next(i)? {
+    if let Some(span) = opt(identifier.span()).parse_next(i)? {
         return cut_error!(
             "you are missing a space to separate two string literals",
-            suffix,
+            span,
         );
     }
     Ok(())
 }
 
 fn str_lit_without_prefix<'a>(i: &mut InputStream<'a>) -> ParseResult<'a> {
-    let start = ***i;
-    let lit = str_lit.parse_next(i)?;
+    let (lit, span) = str_lit.with_span().parse_next(i)?;
 
     let kind = match lit.prefix {
         Some(StrPrefix::Binary) => Some("binary slice"),
@@ -707,7 +821,7 @@ fn str_lit_without_prefix<'a>(i: &mut InputStream<'a>) -> ParseResult<'a> {
     if let Some(kind) = kind {
         return cut_error!(
             format!("expected an unprefixed normal string, not a {kind}"),
-            start,
+            span,
         );
     }
 
@@ -734,7 +848,7 @@ fn char_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, CharLit<'a>> {
         opt(take_escaped(none_of(['\\', '\'']), '\\', any)),
         opt('\''),
     )
-        .with_taken()
+        .with_span()
         .parse_next(i)?;
 
     if is_closed.is_none() {
@@ -780,7 +894,7 @@ fn char_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, CharLit<'a>> {
                     None => "",
                 }
             ),
-            span
+            span,
         );
     }
 
@@ -867,34 +981,36 @@ impl<'a> Char<'a> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PathOrIdentifier<'a> {
-    Path(Vec<WithSpan<PathComponent<'a>>>),
-    Identifier(&'a str),
+    Path(Vec<PathComponent<'a>>),
+    Identifier(WithSpan<&'a str>),
 }
 
 fn path_or_identifier<'a>(
     i: &mut InputStream<'a>,
     level: Level<'_>,
 ) -> ParseResult<'a, PathOrIdentifier<'a>> {
-    let start_i = ***i;
-    let root = ws(opt("::"));
-    let tail = opt(repeat(
-        1..,
-        preceded(ws("::"), move |i: &mut _| PathComponent::parse(i, level)),
-    )
-    .map(|v: Vec<_>| v));
+    let mut p = |i: &mut _| {
+        let root = ws(opt(terminated(empty.span(), "::")));
+        let start = move |i: &mut _| PathComponent::parse(i, level);
+        let tail = opt(repeat(
+            1..,
+            preceded(ws("::"), move |i: &mut _| PathComponent::parse(i, level)),
+        )
+        .map(|v: Vec<_>| v));
 
-    let (root, start, rest) =
-        (root, move |i: &mut _| PathComponent::parse(i, level), tail).parse_next(i)?;
-    let rest = rest.unwrap_or_default();
+        let (root, start, rest) = (root, start, tail).parse_next(i)?;
+        Ok((root, start, rest.unwrap_or_default()))
+    };
+    let (root, start, rest) = p.parse_next(i)?;
 
     // The returned identifier can be assumed to be path if:
     // - it is an absolute path (starts with `::`), or
     // - it has multiple components (at least one `::`), or
     // - the first letter is uppercase
-    match (root.is_some(), start, rest) {
-        (false, arg, tail)
+    match (root, start, rest) {
+        (None, arg, tail)
             if tail.is_empty()
-                && arg.generics.is_empty()
+                && arg.generics.is_none()
                 && arg
                     .name
                     .chars()
@@ -903,17 +1019,13 @@ fn path_or_identifier<'a>(
         {
             Ok(PathOrIdentifier::Identifier(arg.name))
         }
-        (has_root, start, tail) => {
-            let mut path = if has_root {
+        (root, start, tail) => {
+            let mut path = if let Some(root) = root {
                 let mut path = Vec::with_capacity(2 + tail.len());
-                path.push(WithSpan::new(
-                    PathComponent {
-                        name: "",
-                        generics: Vec::new(),
-                    },
-                    start_i,
-                    i,
-                ));
+                path.push(PathComponent {
+                    name: WithSpan::new("", root),
+                    generics: None,
+                });
                 path
             } else {
                 Vec::with_capacity(1 + tail.len())
@@ -937,41 +1049,27 @@ impl State<'_, '_> {
     }
 
     fn tag_block_end<'i>(&self, i: &mut InputStream<'i>) -> ParseResult<'i, ()> {
-        let control = alt((
+        let (control, span) = alt((
             self.syntax.block_end.value(None),
             peek(delimited('%', alt(('-', '~', '+')).map(Some), '}')),
             fail, // rollback on partial matches in the previous line
         ))
+        .with_span()
         .parse_next(i)?;
-        if let Some(control) = control {
-            let err = ErrorContext::new(
-                format!(
-                    "unclosed block, you likely meant to apply whitespace control: \"{}{}\"",
-                    control.escape_default(),
-                    self.syntax.block_end.escape_default(),
-                ),
-                ***i,
-            );
-            Err(err.backtrack())
-        } else {
-            Ok(())
-        }
-    }
 
-    fn tag_comment_start<'i>(&self, i: &mut InputStream<'i>) -> ParseResult<'i, ()> {
-        self.syntax.comment_start.value(()).parse_next(i)
-    }
+        let Some(control) = control else {
+            return Ok(());
+        };
 
-    fn tag_comment_end<'i>(&self, i: &mut InputStream<'i>) -> ParseResult<'i, ()> {
-        self.syntax.comment_end.value(()).parse_next(i)
-    }
-
-    fn tag_expr_start<'i>(&self, i: &mut InputStream<'i>) -> ParseResult<'i, ()> {
-        self.syntax.expr_start.value(()).parse_next(i)
-    }
-
-    fn tag_expr_end<'i>(&self, i: &mut InputStream<'i>) -> ParseResult<'i, ()> {
-        self.syntax.expr_end.value(()).parse_next(i)
+        let err = ErrorContext::new(
+            format!(
+                "unclosed block, you likely meant to apply whitespace control: \"{}{}\"",
+                control.escape_default(),
+                self.syntax.block_end.escape_default(),
+            ),
+            span,
+        );
+        Err(err.backtrack())
     }
 
     fn enter_loop(&self) {
@@ -1162,7 +1260,7 @@ impl Level<'_> {
 
     /// Decrement the remaining level counter, and return a [`LevelGuard`] that increments it again
     /// when it's dropped.
-    fn nest<'a>(&self, i: &'a str) -> ParseResult<'a, LevelGuard<'_>> {
+    fn nest<'a>(&self, i: &InputStream<'a>) -> ParseResult<'a, LevelGuard<'_>> {
         if let Some(new_level) = self.0.get().checked_sub(1) {
             self.0.set(new_level);
             Ok(LevelGuard {
@@ -1174,12 +1272,11 @@ impl Level<'_> {
         }
     }
 
-    #[inline(always)]
-    fn _fail<T>(i: &str) -> ParseResult<'_, T> {
-        cut_error!(
-            "your template code is too deeply nested, or the last expression is too complex",
-            i,
-        )
+    #[cold]
+    #[inline(never)]
+    fn _fail<'a, T>(i: &InputStream<'a>) -> ParseResult<'a, T> {
+        let msg = "your template code is too deeply nested, or the last expression is too complex";
+        Err(ErrorContext::new(msg, i).cut())
     }
 }
 
@@ -1199,7 +1296,7 @@ impl Drop for LevelGuard<'_> {
 
 impl LevelGuard<'_> {
     /// Used to decrement the level multiple times, e.g. for every iteration of a loop.
-    fn nest<'a>(&mut self, i: &'a str) -> ParseResult<'a, ()> {
+    fn nest<'a>(&mut self, i: &InputStream<'a>) -> ParseResult<'a, ()> {
         if let Some(new_level) = self.level.0.get().checked_sub(1) {
             self.level.0.set(new_level);
             self.count += 1;
@@ -1449,11 +1546,12 @@ macro_rules! cut_error {
     ($message:expr, $span:expr $(,)?) => {{
         use ::std::convert::Into;
         use ::std::option::Option::Some;
+        use $crate::ErrorContext;
 
         $crate::cut_context_err(
             #[cold]
             #[inline(always)]
-            move || $crate::ErrorContext {
+            move || ErrorContext {
                 span: Into::into($span),
                 message: Some(Into::into($message)),
             },
@@ -1674,14 +1772,6 @@ mod test {
             )
         );
         assert!(parse_peek(str_lit, r#"d"hello""#).is_err());
-    }
-
-    #[test]
-    fn assert_span_size() {
-        assert_eq!(
-            std::mem::size_of::<Span>(),
-            std::mem::size_of::<*const ()>() * 2,
-        );
     }
 
     #[test]

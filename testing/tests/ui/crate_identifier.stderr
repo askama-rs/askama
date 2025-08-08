@@ -22,7 +22,7 @@ error: `crate` cannot be used as an identifier
 12 | #[template(ext = "html", source = "{% match crate %}{% endmatch %}")]
    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: cannot use `crate` as a name: it is a rust keyword
+error: `crate` cannot be used as an identifier
  --> <source attribute>:1:7
        "crate %}"
   --> tests/ui/crate_identifier.rs:16:35
@@ -30,7 +30,7 @@ error: cannot use `crate` as a name: it is a rust keyword
 16 | #[template(ext = "html", source = "{% let crate %}")]
    |                                   ^^^^^^^^^^^^^^^^^
 
-error: cannot use `crate` as a name: it is a rust keyword
+error: `crate` cannot be used as an identifier
  --> <source attribute>:1:7
        "crate = 12 %}"
   --> tests/ui/crate_identifier.rs:20:35
@@ -70,7 +70,7 @@ error: `super` cannot be used as an identifier
 38 | #[template(ext = "html", source = "{% match super %}{% endmatch %}")]
    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: cannot use `super` as a name: it is a rust keyword
+error: `super` cannot be used as an identifier
  --> <source attribute>:1:7
        "super %}"
   --> tests/ui/crate_identifier.rs:42:35
@@ -78,7 +78,7 @@ error: cannot use `super` as a name: it is a rust keyword
 42 | #[template(ext = "html", source = "{% let super %}")]
    |                                   ^^^^^^^^^^^^^^^^^
 
-error: cannot use `super` as a name: it is a rust keyword
+error: `super` cannot be used as an identifier
  --> <source attribute>:1:7
        "super = 12 %}"
   --> tests/ui/crate_identifier.rs:46:35
@@ -142,7 +142,7 @@ error: `Self` cannot be used as an identifier
 76 | #[template(ext = "html", source = "{{ self.a.Self }}")]
    |                                   ^^^^^^^^^^^^^^^^^^^
 
-error: cannot use `self` as a name: it is a rust keyword
+error: `self` cannot be used as an identifier
  --> <source attribute>:1:7
        "self %}"
   --> tests/ui/crate_identifier.rs:82:35
@@ -150,7 +150,7 @@ error: cannot use `self` as a name: it is a rust keyword
 82 | #[template(ext = "html", source = "{% let self %}")]
    |                                   ^^^^^^^^^^^^^^^^
 
-error: cannot use `self` as a name: it is a rust keyword
+error: `self` cannot be used as an identifier
  --> <source attribute>:1:7
        "self = 12 %}"
   --> tests/ui/crate_identifier.rs:86:35

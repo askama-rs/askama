@@ -1,4 +1,4 @@
-error: `value` filter expects one generic, found 0
+error: `value` filter expects one generic, found none
  --> A.html:1:21
        "|value %}{% endif %}"
  --> tests/ui/values.rs:6:14
@@ -7,14 +7,14 @@ error: `value` filter expects one generic, found 0
   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: `value` filter expects one generic, found 2
- --> B.html:1:21
-       "|value::<u8, u8> %}{% endif %}"
+ --> B.html:1:29
+       "<u8, u8> %}{% endif %}"
   --> tests/ui/values.rs:13:14
    |
 13 |     source = r#"{% if let Ok(x) = "a"|value::<u8, u8> %}{% endif %}"#,
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: `get_value` function expects one generic, found 0
+error: `get_value` function expects one generic, found none
  --> C.html:1:18
        "askama::get_value(\"a\") %}{% endif %}"
   --> tests/ui/values.rs:20:14
@@ -23,8 +23,8 @@ error: `get_value` function expects one generic, found 0
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: `get_value` function expects one generic, found 2
- --> D.html:1:18
-       "askama::get_value::<u8, u8>(\"a\") %}{% endif %}"
+ --> D.html:1:37
+       "<u8, u8>(\"a\") %}{% endif %}"
   --> tests/ui/values.rs:27:14
    |
 27 |     source = r#"{% if let Ok(x) = askama::get_value::<u8, u8>("a") %}{% endif %}"#,

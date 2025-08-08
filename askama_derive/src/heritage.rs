@@ -28,7 +28,7 @@ impl<'a, 'h> Heritage<'a, 'h> {
         while let Some(path) = &root.extends {
             root = &contexts[path];
             for (name, def) in &root.blocks {
-                blocks.entry(name).or_default().push((root, def));
+                blocks.entry(*name).or_default().push((root, def));
             }
         }
 
@@ -96,14 +96,14 @@ impl<'a> Context<'a> {
                     }
                     Node::Macro(m) => {
                         ensure_top(top, m.span(), path, parsed, "macro")?;
-                        macros.insert(m.name, &**m);
+                        macros.insert(*m.name, &**m);
                     }
                     Node::Import(import) => {
                         ensure_top(top, import.span(), path, parsed, "import")?;
                         imports.push(import);
                     }
                     Node::BlockDef(b) => {
-                        blocks.insert(b.name, &**b);
+                        blocks.insert(*b.name, &**b);
                         nested.push(&b.nodes);
                     }
                     Node::If(i) => {
@@ -165,17 +165,11 @@ impl<'a> Context<'a> {
 
     pub(crate) fn span_for_node(&self, node: Span) -> proc_macro2::Span {
         let call_site_span = proc_macro2::Span::call_site();
-        if let Some(LiteralOrSpan::Literal(ref literal)) = self.literal
-            && let source = self.parsed.source()
-            && let Some(mut offset) = node.offset_from(source)
-            && let Some(original_code) = literal.span().source_text()
-            && let Some(extra) = original_code.find('"')
+        if let Some(range) = node.byte_range()
+            && let Some(literal) = &self.literal
+            && let Some(span) = literal.content_subspan(range)
         {
-            offset += extra + 1;
-            literal
-                .subspan(offset..offset + node.len())
-                .map(|span| span.resolved_at(call_site_span))
-                .unwrap_or(call_site_span)
+            span.resolved_at(call_site_span)
         } else {
             call_site_span
         }
