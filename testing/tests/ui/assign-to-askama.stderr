@@ -86,7 +86,7 @@ error: cannot use `continue` as a name: it is a rust keyword
 27 | test_kw!(Continue "{% let continue %}");
    |                   ^^^^^^^^^^^^^^^^^^^^
 
-error: cannot use `crate` as a name: it is a rust keyword
+error: `crate` cannot be used as an identifier
  --> <source attribute>:1:7
        "crate %}"
   --> tests/ui/assign-to-askama.rs:28:16
@@ -135,8 +135,8 @@ error: cannot use `extern` as a name: it is a rust keyword
    |                 ^^^^^^^^^^^^^^^^^^
 
 error: when you forward-define a variable, you cannot use a literal in place of a variable name
- --> <source attribute>:1:2
-       " let false %}"
+ --> <source attribute>:1:7
+       "false %}"
   --> tests/ui/assign-to-askama.rs:34:16
    |
 34 | test_kw!(False "{% let false %}");
@@ -294,7 +294,7 @@ error: cannot use `return` as a name: it is a rust keyword
 53 | test_kw!(Return "{% let return %}");
    |                 ^^^^^^^^^^^^^^^^^^
 
-error: cannot use `self` as a name: it is a rust keyword
+error: `self` cannot be used as an identifier
  --> <source attribute>:1:7
        "self %}"
   --> tests/ui/assign-to-askama.rs:54:20
@@ -326,7 +326,7 @@ error: cannot use `struct` as a name: it is a rust keyword
 57 | test_kw!(Struct "{% let struct %}");
    |                 ^^^^^^^^^^^^^^^^^^
 
-error: cannot use `super` as a name: it is a rust keyword
+error: `super` cannot be used as an identifier
  --> <source attribute>:1:7
        "super %}"
   --> tests/ui/assign-to-askama.rs:58:16
@@ -343,8 +343,8 @@ error: cannot use `trait` as a name: it is a rust keyword
    |                ^^^^^^^^^^^^^^^^^
 
 error: when you forward-define a variable, you cannot use a literal in place of a variable name
- --> <source attribute>:1:2
-       " let true %}"
+ --> <source attribute>:1:7
+       "true %}"
   --> tests/ui/assign-to-askama.rs:60:15
    |
 60 | test_kw!(True "{% let true %}");

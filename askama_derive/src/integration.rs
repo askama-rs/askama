@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use std::mem::take;
 
-use parser::{PathComponent, WithSpan};
+use parser::PathComponent;
 use proc_macro2::{Literal, TokenStream, TokenTree};
 use quote::{ToTokens, quote_spanned};
 use syn::spanned::Spanned;
@@ -223,23 +223,19 @@ impl Buffer {
         self.buf.extend(field_new(name, span));
     }
 
-    pub(crate) fn write_separated_path(
-        &mut self,
-        ctx: &Context<'_>,
-        path: &[WithSpan<PathComponent<'_>>],
-    ) {
+    pub(crate) fn write_separated_path(&mut self, ctx: &Context<'_>, path: &[PathComponent<'_>]) {
         if self.discard {
             return;
         }
 
         self.handle_str_lit();
         for (idx, item) in path.iter().enumerate() {
-            let span = ctx.span_for_node(item.span());
+            let span = ctx.span_for_node(item.name.span());
             if idx > 0 {
                 Token![::](span).to_tokens(&mut self.buf);
             }
             if !item.name.is_empty() {
-                Ident::new(item.name, span).to_tokens(&mut self.buf);
+                Ident::new(*item.name, span).to_tokens(&mut self.buf);
             }
         }
     }

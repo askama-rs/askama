@@ -18,7 +18,7 @@ pub(crate) struct MacroInvocation<'a, 'b> {
     pub callsite_ctx: &'b Context<'a>,
     pub callsite_span: Span,
     pub callsite_ws: Ws,
-    pub call_args: &'b Vec<WithSpan<Box<Expr<'a>>>>,
+    pub call_args: &'b [WithSpan<Box<Expr<'a>>>],
     pub call: Option<&'a WithSpan<Call<'a>>>,
     pub macro_def: &'a Macro<'a>,
     pub macro_ctx: &'b Context<'a>,
@@ -102,24 +102,25 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                 let &Expr::NamedArgument(arg_name, _) = &***arg else {
                     break;
                 };
-                if !self.macro_def.args.iter().any(|&(arg, _)| arg == arg_name) {
+                if !self.macro_def.args.iter().any(|arg| arg.name == arg_name) {
                     return Err(self.callsite_ctx.generate_error(
                         format_args!(
-                            "no argument named `{arg_name}` in macro {}",
-                            self.macro_def.name
+                            "no argument named `{}` in macro `{}`",
+                            arg_name.escape_debug(),
+                            self.macro_def.name.escape_debug(),
                         ),
                         self.callsite_span,
                     ));
                 }
-                named_arguments.insert(arg_name, (index, arg));
+                named_arguments.insert(&**arg_name, (index, arg));
             }
         }
         let mut value = Buffer::new();
         let mut allow_positional = true;
         let mut used_named_args = vec![false; self.call_args.len()];
 
-        for (index, (arg, default_value)) in self.macro_def.args.iter().enumerate() {
-            let expr = if let Some((index, expr)) = named_arguments.get(arg) {
+        for (index, arg) in self.macro_def.args.iter().enumerate() {
+            let expr = if let Some((index, expr)) = named_arguments.get(*arg.name) {
                 used_named_args[*index] = true;
                 allow_positional = false;
                 expr
@@ -131,9 +132,10 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                         if !allow_positional {
                             return Err(self.callsite_ctx.generate_error(
                                 format_args!(
-                                    "cannot have unnamed argument (`{arg}`) after named argument \
-                                        in call to macro {}",
-                                    self.macro_def.name
+                                    "cannot have unnamed argument (`{}`) after named argument \
+                                    in call to macro {}",
+                                    arg.name.escape_debug(),
+                                    self.macro_def.name.escape_debug(),
                                 ),
                                 self.callsite_span,
                             ));
@@ -145,16 +147,16 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                             unreachable!()
                         };
                         return Err(self.callsite_ctx.generate_error(
-                            format_args!("`{name}` is passed more than once"),
+                            format_args!("`{}` is passed more than once", name.escape_debug()),
                             self.callsite_span,
                         ));
                     }
                     _ => {
-                        if let Some(default_value) = default_value {
+                        if let Some(default_value) = &arg.default {
                             default_value
                         } else {
                             return Err(self.callsite_ctx.generate_error(
-                                format_args!("missing `{arg}` argument"),
+                                format_args!("missing `{}` argument", arg.name.escape_debug()),
                                 self.callsite_span,
                             ));
                         }
@@ -169,7 +171,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     let var = generator.locals.resolve_or_self(name);
                     generator
                         .locals
-                        .insert(Cow::Borrowed(arg), LocalMeta::var_with_ref(var));
+                        .insert(Cow::Borrowed(&arg.name), LocalMeta::var_with_ref(var));
                 }
                 Expr::AssociatedItem(obj, associated_item) => {
                     let mut associated_item_buf = Buffer::new();
@@ -189,7 +191,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                         .unwrap_or(associated_item);
                     generator
                         .locals
-                        .insert(Cow::Borrowed(arg), LocalMeta::var_with_ref(var));
+                        .insert(Cow::Borrowed(&arg.name), LocalMeta::var_with_ref(var));
                 }
                 // Everything else still needs to become variables,
                 // to avoid having the same logic be executed
@@ -199,14 +201,16 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     value.clear();
                     value.write_tokens(generator.visit_expr_root(self.callsite_ctx, expr)?);
                     let span = self.callsite_ctx.template_span;
-                    let id = field_new(arg, span);
+                    let id = field_new(&arg.name, span);
                     buf.write_tokens(if !is_copyable(expr) {
                         quote_spanned! { span => let #id = &(#value); }
                     } else {
                         quote_spanned! { span => let #id = #value; }
                     });
 
-                    generator.locals.insert_with_default(Cow::Borrowed(arg));
+                    generator
+                        .locals
+                        .insert_with_default(Cow::Borrowed(&arg.name));
                 }
             }
         }
@@ -219,7 +223,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             return Err(self.callsite_ctx.generate_error(
                 format_args!(
                     "macro `{}` expected {} argument{}, found {}",
-                    self.macro_def.name,
+                    self.macro_def.name.escape_debug(),
                     self.macro_def.args.len(),
                     if self.macro_def.args.len() > 1 {
                         "s"
@@ -237,15 +241,13 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             .macro_def
             .args
             .iter()
-            .map(|&(name, _)| Some(name))
+            .map(|arg| Some(arg.name))
             .collect();
         for (pos, arg) in self.call_args.iter().enumerate() {
             let pos = match ***arg {
-                Expr::NamedArgument(name, ..) => self
-                    .macro_def
-                    .args
-                    .iter()
-                    .position(|(arg_name, _)| *arg_name == name),
+                Expr::NamedArgument(name, ..) => {
+                    self.macro_def.args.iter().position(|arg| arg.name == name)
+                }
                 _ => Some(pos),
             };
             if let Some(pos) = pos
@@ -255,16 +257,17 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                 return Err(self.callsite_ctx.generate_error(
                     format_args!(
                         "argument `{}` was passed more than once when calling macro `{}`",
-                        self.macro_def.args[pos].0, self.macro_def.name,
+                        self.macro_def.args[pos].name.escape_debug(),
+                        self.macro_def.name.escape_debug(),
                     ),
-                    self.callsite_span,
+                    arg.span(),
                 ));
             }
         }
 
         // Now we can check off arguments with a default value, too.
-        for (pos, (_, dflt)) in self.macro_def.args.iter().enumerate() {
-            if dflt.is_some() {
+        for (pos, arg) in self.macro_def.args.iter().enumerate() {
+            if arg.default.is_some() {
                 args[pos] = None;
             }
         }
@@ -273,45 +276,52 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         struct FmtMissing<'a, I> {
             count: usize,
             missing: I,
-            name: &'a str,
+            name: WithSpan<&'a str>,
         }
 
-        impl<'a, I: Iterator<Item = &'a str> + Clone> fmt::Display for FmtMissing<'a, I> {
+        impl<'a, I: Iterator<Item = WithSpan<&'a str>> + Clone> fmt::Display for FmtMissing<'a, I> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                let mut iter = self.missing.clone();
                 if self.count == 1 {
-                    let a = self.missing.clone().next().unwrap();
+                    let a = iter.next().unwrap();
                     write!(
                         f,
-                        "missing argument when calling macro `{}`: `{a}`",
-                        self.name
+                        "missing argument when calling macro `{}`: `{}`",
+                        self.name.escape_debug(),
+                        a.escape_debug(),
                     )
                 } else {
-                    write!(f, "missing arguments when calling macro `{}`: ", self.name)?;
-                    for (idx, a) in self.missing.clone().enumerate() {
+                    write!(
+                        f,
+                        "missing arguments when calling macro `{}`: ",
+                        self.name.escape_debug(),
+                    )?;
+                    for (idx, a) in iter.enumerate() {
                         if idx == self.count - 1 {
                             write!(f, " and ")?;
                         } else if idx > 0 {
                             write!(f, ", ")?;
                         }
-                        write!(f, "`{a}`")?;
+                        write!(f, "`{}`", a.escape_debug())?;
                     }
                     Ok(())
                 }
             }
         }
 
-        let missing = args.iter().filter_map(Option::as_deref);
+        let missing = args.iter().filter_map(|o| *o);
+        let count = missing.clone().count();
+        if count == 0 {
+            return Ok(());
+        }
+
         let fmt_missing = FmtMissing {
-            count: missing.clone().count(),
+            count,
             missing,
             name: self.macro_def.name,
         };
-        if fmt_missing.count == 0 {
-            Ok(())
-        } else {
-            Err(self
-                .callsite_ctx
-                .generate_error(fmt_missing, self.callsite_span))
-        }
+        Err(self
+            .callsite_ctx
+            .generate_error(fmt_missing, self.callsite_span))
     }
 }

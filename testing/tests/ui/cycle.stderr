@@ -2,7 +2,7 @@ error: cyclic dependency in graph [
            "\"$DIR/templates/cycle2.html/" --> \"$DIR/templates/cycle1.html/"",
            "\"$DIR/templates/cycle1.html/" --> \"$DIR/templates/cycle1.html/"",
        ]
- --> tests/ui/cycle.rs:4:3
+ --> tests/ui/cycle.rs:4:19
   |
 4 | #[template(path = "cycle2.html")]
-  |   ^^^^^^^^
+  |                   ^^^^^^^^^^^^^

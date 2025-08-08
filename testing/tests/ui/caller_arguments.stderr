@@ -29,8 +29,8 @@ error: expected 1 argument in `caller`, found 2
    | |______^
 
 error: expected `)` to close call argument list
- --> <source attribute>:5:15
-       "test() -%}\n        {{- a -}}\n    {%- endcall -%}\n    "
+ --> <source attribute>:5:12
+       "(a test() -%}\n        {{- a -}}\n    {%- endcall -%}\n    "
   --> tests/ui/caller_arguments.rs:35:14
    |
 35 |       source = r#"

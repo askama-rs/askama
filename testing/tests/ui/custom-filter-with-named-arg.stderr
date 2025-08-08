@@ -1,6 +1,6 @@
 error: `do_nothing` filter cannot accept named arguments
- --> CustomFiltersCannotTakeNamedArguments.txt:1:5
-       "| do_nothing(absolutely = \"nothing\") }}"
+ --> CustomFiltersCannotTakeNamedArguments.txt:1:18
+       "absolutely = \"nothing\") }}"
   --> tests/ui/custom-filter-with-named-arg.rs:12:21
    |
 12 | #[template(source = r#"{{ a | do_nothing(absolutely = "nothing") }}"#, ext = "txt")]

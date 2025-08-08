@@ -1,18 +1,18 @@
 error: failed to parse template source
  --> testing/templates/invalid_syntax.html:1:14
        "}"
- --> tests/ui/error_file_path.rs:4:3
+ --> tests/ui/error_file_path.rs:4:19
   |
 4 | #[template(path = "invalid_syntax.html")]
-  |   ^^^^^^^^
+  |                   ^^^^^^^^^^^^^^^^^^^^^
 
 error: failed to parse template source
  --> testing/templates/invalid_syntax.html:1:14
        "}"
- --> tests/ui/error_file_path.rs:8:3
+ --> tests/ui/error_file_path.rs:8:19
   |
 8 | #[template(path = "include_invalid_syntax.html")]
-  |   ^^^^^^^^
+  |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: failed to parse template source
  --> testing/templates/invalid_syntax.html:1:14

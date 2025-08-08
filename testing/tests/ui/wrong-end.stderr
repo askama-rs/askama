@@ -1,22 +1,22 @@
 error: expected `endfor` to terminate `for` node, found `end`
- --> <source attribute>:1:23
-       " end %}"
+ --> <source attribute>:1:24
+       "end %}"
  --> tests/ui/wrong-end.rs:4:21
   |
 4 | #[template(source = "{% for _ in 1..=10 %}{% end %}", ext = "txt")]
   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `endmacro` to terminate `macro` node, found `end`
- --> <source attribute>:1:20
-       " end %}"
+ --> <source attribute>:1:21
+       "end %}"
  --> tests/ui/wrong-end.rs:8:21
   |
 8 | #[template(source = "{% macro test() %}{% end %}", ext = "txt")]
   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `endfilter` to terminate `filter` node, found `end`
- --> <source attribute>:1:20
-       " end %}"
+ --> <source attribute>:1:21
+       "end %}"
   --> tests/ui/wrong-end.rs:12:21
    |
 12 | #[template(source = "{% filter upper %}{% end %}", ext = "txt")]
@@ -31,24 +31,24 @@ error: expected `endmatch` to terminate `match` node, found `end`
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `endblock` to terminate `block` node, found `end`
- --> <source attribute>:1:18
-       " end %}"
+ --> <source attribute>:1:19
+       "end %}"
   --> tests/ui/wrong-end.rs:20:21
    |
 20 | #[template(source = "{% block body %}{% end %}", ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `endif` to terminate `if` node, found `end`
- --> <source attribute>:1:15
-       " end %}"
+ --> <source attribute>:1:16
+       "end %}"
   --> tests/ui/wrong-end.rs:24:21
    |
 24 | #[template(source = "{% if true %}{% end %}", ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `endif` to terminate `if` node, found `endfor`
- --> <source attribute>:1:15
-       " endfor %}"
+ --> <source attribute>:1:16
+       "endfor %}"
   --> tests/ui/wrong-end.rs:28:21
    |
 28 | #[template(source = "{% if true %}{% endfor %}", ext = "txt")]

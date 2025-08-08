@@ -216,7 +216,7 @@ impl<'a> Generator<'a, '_> {
             | Expr::LetCond(_)
             | Expr::ArgumentPlaceholder => {
                 *only_contains_is_defined = false;
-                EvaluatedResult::Unknown(WithSpan::new_with_full(expr, span))
+                EvaluatedResult::Unknown(WithSpan::new(expr, span))
             }
             Expr::BoolLit(true) => EvaluatedResult::AlwaysTrue,
             Expr::BoolLit(false) => EvaluatedResult::AlwaysFalse,
@@ -224,12 +224,13 @@ impl<'a> Generator<'a, '_> {
                 match self.evaluate_condition(inner, only_contains_is_defined) {
                     EvaluatedResult::AlwaysTrue => EvaluatedResult::AlwaysFalse,
                     EvaluatedResult::AlwaysFalse => EvaluatedResult::AlwaysTrue,
-                    EvaluatedResult::Unknown(expr) => EvaluatedResult::Unknown(
-                        WithSpan::new_with_full(Box::new(Expr::Unary("!", expr)), span),
-                    ),
+                    EvaluatedResult::Unknown(expr) => EvaluatedResult::Unknown(WithSpan::new(
+                        Box::new(Expr::Unary("!", expr)),
+                        span,
+                    )),
                 }
             }
-            Expr::Unary(_, _) => EvaluatedResult::Unknown(WithSpan::new_with_full(expr, span)),
+            Expr::Unary(_, _) => EvaluatedResult::Unknown(WithSpan::new(expr, span)),
             Expr::BinOp(v) if v.op == "&&" => {
                 let lhs = match self.evaluate_condition(v.lhs, only_contains_is_defined) {
                     EvaluatedResult::AlwaysTrue => {
@@ -286,12 +287,12 @@ impl<'a> Generator<'a, '_> {
             }
             Expr::BinOp(_) => {
                 *only_contains_is_defined = false;
-                EvaluatedResult::Unknown(WithSpan::new_with_full(expr, span))
+                EvaluatedResult::Unknown(WithSpan::new(expr, span))
             }
             Expr::Group(inner) => match self.evaluate_condition(inner, only_contains_is_defined) {
-                EvaluatedResult::Unknown(expr) => EvaluatedResult::Unknown(
-                    WithSpan::new_with_full(Box::new(Expr::Group(expr)), span),
-                ),
+                EvaluatedResult::Unknown(expr) => {
+                    EvaluatedResult::Unknown(WithSpan::new(Box::new(Expr::Group(expr)), span))
+                }
                 known => known,
             },
             Expr::IsDefined(left) => {
@@ -341,7 +342,7 @@ impl<'a> Generator<'a, '_> {
             self.push_locals(|this| {
                 let mut has_cond = true;
 
-                if let Some(CondTest { target, expr, .. }) = &cond.cond {
+                if let Some(CondTest { target, expr, .. }) = cond.cond.as_deref() {
                     let expr = cond_info.cond_expr.as_ref().unwrap_or(expr);
                     let span = ctx.span_for_node(expr.span());
 
@@ -613,22 +614,35 @@ impl<'a> Generator<'a, '_> {
         } = **call;
 
         let (def, own_ctx) = if let Some(s) = scope {
-            let path = ctx.imports.get(s).ok_or_else(|| {
-                ctx.generate_error(format_args!("no import found for scope {s:?}"), call.span())
+            let path = ctx.imports.get(*s).ok_or_else(|| {
+                ctx.generate_error(
+                    format_args!("no import found for scope `{}`", s.escape_debug()),
+                    call.span(),
+                )
             })?;
             let mctx = self.contexts.get(path).ok_or_else(|| {
-                ctx.generate_error(format_args!("context for {path:?} not found"), call.span())
-            })?;
-            let def = mctx.macros.get(name).ok_or_else(|| {
                 ctx.generate_error(
-                    format_args!("macro {name:?} not found in scope {s:?}"),
+                    format_args!("context for `{}` not found", path.display()),
+                    call.span(),
+                )
+            })?;
+            let def = mctx.macros.get(&*name).ok_or_else(|| {
+                ctx.generate_error(
+                    format_args!(
+                        "macro `{}` not found in scope `{}`",
+                        name.escape_debug(),
+                        s.escape_debug(),
+                    ),
                     call.span(),
                 )
             })?;
             (*def, mctx)
         } else {
-            let def = ctx.macros.get(name).ok_or_else(|| {
-                ctx.generate_error(format_args!("macro {name:?} not found"), call.span())
+            let def = ctx.macros.get(&*name).ok_or_else(|| {
+                ctx.generate_error(
+                    format_args!("macro `{}` not found", name.escape_debug()),
+                    call.span(),
+                )
             })?;
             (*def, ctx)
         };
@@ -641,7 +655,7 @@ impl<'a> Generator<'a, '_> {
             callsite_span: call.span(),
             call: Some(call),
             callsite_ws: Ws(ws1.0, ws2.1),
-            call_args: args,
+            call_args: args.as_deref().unwrap_or_default(),
             macro_def: def,
             macro_ctx: own_ctx,
         }
@@ -739,7 +753,7 @@ impl<'a> Generator<'a, '_> {
         // child's ones to preserve this template's context.
         let child_ctx = &mut self.contexts[&path].clone();
         for (name, mac) in &ctx.macros {
-            child_ctx.macros.entry(name).or_insert(mac);
+            child_ctx.macros.entry(*name).or_insert(mac);
         }
         for (name, import) in &ctx.imports {
             child_ctx
@@ -800,8 +814,8 @@ impl<'a> Generator<'a, '_> {
                 }
                 Ok(false)
             }
-            Target::Tuple(_, targets) => {
-                for target in targets {
+            Target::Tuple(v) => {
+                for target in &v.1 {
                     match self.is_shadowing_variable(ctx, target, l) {
                         Ok(false) => continue,
                         outcome => return outcome,
@@ -809,8 +823,17 @@ impl<'a> Generator<'a, '_> {
                 }
                 Ok(false)
             }
-            Target::Struct(_, named_targets) => {
-                for (_, target) in named_targets {
+            Target::Struct(v) => {
+                for target in &v.1 {
+                    match self.is_shadowing_variable(ctx, &target.dest, l) {
+                        Ok(false) => continue,
+                        outcome => return outcome,
+                    }
+                }
+                Ok(false)
+            }
+            Target::Array(v) => {
+                for target in v.iter() {
                     match self.is_shadowing_variable(ctx, target, l) {
                         Ok(false) => continue,
                         outcome => return outcome,
@@ -850,8 +873,10 @@ impl<'a> Generator<'a, '_> {
             && let Expr::Var(srcvar) = ***val
             && let Some(caller_alias) = self.locals.get_caller(srcvar)
         {
-            self.locals
-                .insert(dstvar.into(), LocalMeta::CallerAlias(caller_alias.clone()));
+            self.locals.insert(
+                Cow::Borrowed(*dstvar),
+                LocalMeta::CallerAlias(caller_alias.clone()),
+            );
             return Ok(());
         }
 
@@ -895,7 +920,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        name: Option<&'a str>,
+        name: Option<WithSpan<&'a str>>,
         outer: Ws,
         node: Span,
     ) -> Result<usize, CompileError> {
@@ -907,16 +932,19 @@ impl<'a> Generator<'a, '_> {
 
         let cur = match (name, self.super_block) {
             // The top-level context contains a block definition
-            (Some(cur_name), None) => (cur_name, 0),
+            (Some(cur_name), None) => (*cur_name, 0),
             // A block definition contains a block definition of the same name
-            (Some(cur_name), Some((prev_name, _))) if cur_name == prev_name => {
+            (Some(cur_name), Some((prev_name, _))) if *cur_name == prev_name => {
                 return Err(ctx.generate_error(
-                    format_args!("cannot define recursive blocks ({cur_name})"),
+                    format_args!(
+                        "cannot define recursive blocks (`{}`)",
+                        cur_name.escape_debug(),
+                    ),
                     node,
                 ));
             }
             // A block definition contains a definition of another block
-            (Some(cur_name), Some((_, _))) => (cur_name, 0),
+            (Some(cur_name), Some((_, _))) => (*cur_name, 0),
             // `super()` was called inside a block
             (None, Some((prev_name, r#gen))) => (prev_name, r#gen + 1),
             // `super()` is called from outside a block
@@ -927,8 +955,9 @@ impl<'a> Generator<'a, '_> {
 
         self.write_buf_writable(ctx, buf)?;
 
-        let block_fragment_write =
-            self.input.block.map(|(block, _)| block) == name && self.buf_writable.discard;
+        let block_fragment_write = self.input.block.map(|(block, _)| block)
+            == name.as_deref().copied()
+            && self.buf_writable.discard;
         // Allow writing to the buffer if we're in the block fragment
         if block_fragment_write {
             self.buf_writable.discard = false;
@@ -940,11 +969,16 @@ impl<'a> Generator<'a, '_> {
         let heritage = self
             .heritage
             .ok_or_else(|| ctx.generate_error("no block ancestors available", node))?;
-        let (child_ctx, def) = *heritage.blocks[cur.0].get(cur.1).ok_or_else(|| {
+        let (child_ctx, def) = *heritage.blocks[&cur.0].get(cur.1).ok_or_else(|| {
             ctx.generate_error(
                 match name {
-                    None => fmt_left!("no super() block found for block '{}'", cur.0),
-                    Some(name) => fmt_right!(move "no block found for name '{name}'"),
+                    None => fmt_left!(
+                        "no super() block found for block `{}`",
+                        cur.0.escape_debug()
+                    ),
+                    Some(name) => {
+                        fmt_right!(move "no block found for name `{}", name.escape_debug())
+                    }
                 },
                 node,
             )
@@ -955,7 +989,7 @@ impl<'a> Generator<'a, '_> {
         // child's ones to preserve this template's context.
         let mut child_ctx = child_ctx.clone();
         for (name, mac) in &ctx.macros {
-            child_ctx.macros.entry(name).or_insert(mac);
+            child_ctx.macros.entry(*name).or_insert(mac);
         }
         for (name, import) in &ctx.imports {
             child_ctx
@@ -1085,7 +1119,7 @@ impl<'a> Generator<'a, '_> {
             }
 
             // short call-expression for macro invocations, like `{{ macro_name() }}`.
-            if let Some(macro_def) = ctx.macros.get(var_name) {
+            if let Some(macro_def) = ctx.macros.get(&var_name) {
                 return helpers::MacroInvocation {
                     callsite_ctx: ctx,
                     callsite_span: span,
@@ -1201,11 +1235,11 @@ impl<'a> Generator<'a, '_> {
         // short call-expression for scoped macro invocations, like `{{ scope::macro_name() }}`.
         if let Expr::Path(path_components) = &**call.path
             && let [scope, macro_name] = path_components.as_slice()
-            && scope.generics.is_empty()
-            && macro_name.generics.is_empty()
-            && let Some(scope) = ctx.imports.get(&scope.name)
+            && scope.generics.is_none()
+            && macro_name.generics.is_none()
+            && let Some(scope) = ctx.imports.get(*scope.name)
             && let Some(macro_ctx) = self.contexts.get(scope)
-            && let Some(macro_def) = macro_ctx.macros.get(&macro_name.name)
+            && let Some(macro_def) = macro_ctx.macros.get(*macro_name.name)
         {
             return helpers::MacroInvocation {
                 callsite_ctx: ctx,
@@ -1222,11 +1256,11 @@ impl<'a> Generator<'a, '_> {
 
         if let Expr::Path(path_components) = &**call.path
             && let [scope, macro_name] = path_components.as_slice()
-            && scope.generics.is_empty()
-            && macro_name.generics.is_empty()
-            && let Some(scope) = ctx.imports.get(&scope.name)
+            && scope.generics.is_none()
+            && macro_name.generics.is_none()
+            && let Some(scope) = ctx.imports.get(*scope.name)
             && let Some(macro_ctx) = self.contexts.get(scope)
-            && let Some(macro_def) = macro_ctx.macros.get(&macro_name.name)
+            && let Some(macro_def) = macro_ctx.macros.get(*macro_name.name)
         {
             return helpers::MacroInvocation {
                 callsite_ctx: ctx,
@@ -1384,32 +1418,29 @@ impl<'a> Generator<'a, '_> {
                     self.next_ws = Some(lws);
                 }
                 Whitespace::Preserve => {
-                    self.buf_writable
-                        .push(Writable::Lit(WithSpan::new_with_full(
-                            Cow::Borrowed(lws),
-                            lit.span(),
-                        )));
+                    self.buf_writable.push(Writable::Lit(WithSpan::new(
+                        Cow::Borrowed(*lws),
+                        lws.span(),
+                    )));
                 }
                 Whitespace::Minimize => {
-                    self.buf_writable
-                        .push(Writable::Lit(WithSpan::new_with_full(
-                            Cow::Borrowed(match lws.contains('\n') {
-                                true => "\n",
-                                false => " ",
-                            }),
-                            lit.span(),
-                        )));
+                    self.buf_writable.push(Writable::Lit(WithSpan::new(
+                        Cow::Borrowed(match lws.contains('\n') {
+                            true => "\n",
+                            false => " ",
+                        }),
+                        lws.span(),
+                    )));
                 }
             }
         }
 
         if !val.is_empty() {
             self.skip_ws = Whitespace::Preserve;
-            self.buf_writable
-                .push(Writable::Lit(WithSpan::new_with_full(
-                    Cow::Borrowed(val),
-                    lit.span(),
-                )));
+            self.buf_writable.push(Writable::Lit(WithSpan::new(
+                Cow::Borrowed(*val),
+                val.span(),
+            )));
         }
 
         if !rws.is_empty() {
@@ -1444,24 +1475,22 @@ impl<'a> Generator<'a, '_> {
             Whitespace::Preserve => {
                 let val = self.next_ws.unwrap();
                 if !val.is_empty() {
-                    self.buf_writable
-                        .push(Writable::Lit(WithSpan::new_with_full(
-                            Cow::Borrowed(val),
-                            val,
-                        )));
+                    self.buf_writable.push(Writable::Lit(WithSpan::new(
+                        Cow::Borrowed(*val),
+                        val.span(),
+                    )));
                 }
             }
             Whitespace::Minimize => {
                 let val = self.next_ws.unwrap();
                 if !val.is_empty() {
-                    self.buf_writable
-                        .push(Writable::Lit(WithSpan::new_with_full(
-                            Cow::Borrowed(match val.contains('\n') {
-                                true => "\n",
-                                false => " ",
-                            }),
-                            val,
-                        )));
+                    self.buf_writable.push(Writable::Lit(WithSpan::new(
+                        Cow::Borrowed(match val.contains('\n') {
+                            true => "\n",
+                            false => " ",
+                        }),
+                        val.span(),
+                    )));
                 }
             }
             Whitespace::Suppress => {}
@@ -1483,7 +1512,7 @@ fn bin_op<'a>(
     lhs: WithSpan<Box<Expr<'a>>>,
     rhs: WithSpan<Box<Expr<'a>>>,
 ) -> WithSpan<Box<Expr<'a>>> {
-    WithSpan::new_with_full(Box::new(Expr::BinOp(BinOp { op, lhs, rhs })), span)
+    WithSpan::new(Box::new(Expr::BinOp(BinOp { op, lhs, rhs })), span)
 }
 
 struct CondInfo<'a> {
@@ -1522,7 +1551,7 @@ impl<'a> Conds<'a> {
                 expr,
                 contains_bool_lit_or_is_defined,
                 ..
-            }) = &cond.cond
+            }) = cond.cond.as_deref()
             {
                 let mut only_contains_is_defined = true;
 
@@ -1550,10 +1579,7 @@ impl<'a> Conds<'a> {
                         }
                         conds.push(CondInfo {
                             cond,
-                            cond_expr: Some(WithSpan::new_with_full(
-                                Box::new(Expr::BoolLit(false)),
-                                span,
-                            )),
+                            cond_expr: Some(WithSpan::new(Box::new(Expr::BoolLit(false)), span)),
                             generate_condition: true,
                             generate_content: false,
                         });
@@ -1566,10 +1592,7 @@ impl<'a> Conds<'a> {
                         let generate_condition = !only_contains_is_defined;
                         conds.push(CondInfo {
                             cond,
-                            cond_expr: Some(WithSpan::new_with_full(
-                                Box::new(Expr::BoolLit(true)),
-                                span,
-                            )),
+                            cond_expr: Some(WithSpan::new(Box::new(Expr::BoolLit(true)), span)),
                             generate_condition,
                             generate_content: true,
                         });
