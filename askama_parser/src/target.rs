@@ -12,21 +12,18 @@ use crate::{
 #[derive(Clone, Debug, PartialEq)]
 pub enum Target<'a> {
     Name(&'a str),
-    Tuple(Vec<WithSpan<'a, PathComponent<'a>>>, Vec<Target<'a>>),
-    Array(Vec<WithSpan<'a, PathComponent<'a>>>, Vec<Target<'a>>),
-    Struct(
-        Vec<WithSpan<'a, PathComponent<'a>>>,
-        Vec<(&'a str, Target<'a>)>,
-    ),
+    Tuple(Vec<WithSpan<PathComponent<'a>>>, Vec<Target<'a>>),
+    Array(Vec<WithSpan<PathComponent<'a>>>, Vec<Target<'a>>),
+    Struct(Vec<WithSpan<PathComponent<'a>>>, Vec<(&'a str, Target<'a>)>),
     NumLit(&'a str, Num<'a>),
     StrLit(StrLit<'a>),
     CharLit(CharLit<'a>),
     BoolLit(&'a str),
-    Path(Vec<WithSpan<'a, PathComponent<'a>>>),
+    Path(Vec<WithSpan<PathComponent<'a>>>),
     OrChain(Vec<Target<'a>>),
-    Placeholder(WithSpan<'a, ()>),
+    Placeholder(WithSpan<()>),
     /// The `Option` is the variable name (if any) in `var_name @ ..`.
-    Rest(WithSpan<'a, Option<&'a str>>),
+    Rest(WithSpan<Option<&'a str>>),
 }
 
 impl<'a> Target<'a> {
@@ -208,7 +205,7 @@ impl<'a> Target<'a> {
     }
 }
 
-fn verify_name<'a>(name: &'a str) -> Result<Target<'a>, ErrMode<ErrorContext<'a>>> {
+fn verify_name<'a>(name: &'a str) -> Result<Target<'a>, ErrMode<ErrorContext>> {
     if is_rust_keyword(name) {
         cut_error!(
             format!("cannot use `{name}` as a name: it is a rust keyword"),
@@ -229,7 +226,7 @@ fn verify_name<'a>(name: &'a str) -> Result<Target<'a>, ErrMode<ErrorContext<'a>
 fn collect_targets<'a, T>(
     i: &mut InputStream<'a>,
     delim: char,
-    one: impl ModalParser<InputStream<'a>, T, ErrorContext<'a>>,
+    one: impl ModalParser<InputStream<'a>, T, ErrorContext>,
 ) -> ParseResult<'a, (bool, Vec<T>)> {
     let opt_comma = ws(opt(',')).map(|o| o.is_some());
     let mut opt_end = ws(opt(one_of(delim))).map(|o| o.is_some());

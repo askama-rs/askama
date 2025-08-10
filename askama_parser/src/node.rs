@@ -16,23 +16,23 @@ use crate::{
 
 #[derive(Debug, PartialEq)]
 pub enum Node<'a> {
-    Lit(WithSpan<'a, Lit<'a>>),
-    Comment(WithSpan<'a, Comment<'a>>),
-    Expr(Ws, WithSpan<'a, Box<Expr<'a>>>),
-    Call(WithSpan<'a, Call<'a>>),
-    Let(WithSpan<'a, Let<'a>>),
-    If(WithSpan<'a, If<'a>>),
-    Match(WithSpan<'a, Match<'a>>),
-    Loop(WithSpan<'a, Loop<'a>>),
-    Extends(WithSpan<'a, Extends<'a>>),
-    BlockDef(WithSpan<'a, BlockDef<'a>>),
-    Include(WithSpan<'a, Include<'a>>),
-    Import(WithSpan<'a, Import<'a>>),
-    Macro(WithSpan<'a, Macro<'a>>),
-    Raw(WithSpan<'a, Raw<'a>>),
-    Break(WithSpan<'a, Ws>),
-    Continue(WithSpan<'a, Ws>),
-    FilterBlock(WithSpan<'a, FilterBlock<'a>>),
+    Lit(WithSpan<Lit<'a>>),
+    Comment(WithSpan<Comment<'a>>),
+    Expr(Ws, WithSpan<Box<Expr<'a>>>),
+    Call(WithSpan<Call<'a>>),
+    Let(WithSpan<Let<'a>>),
+    If(WithSpan<If<'a>>),
+    Match(WithSpan<Match<'a>>),
+    Loop(WithSpan<Loop<'a>>),
+    Extends(WithSpan<Extends<'a>>),
+    BlockDef(WithSpan<BlockDef<'a>>),
+    Include(WithSpan<Include<'a>>),
+    Import(WithSpan<Import<'a>>),
+    Macro(WithSpan<Macro<'a>>),
+    Raw(WithSpan<Raw<'a>>),
+    Break(WithSpan<Ws>),
+    Continue(WithSpan<Ws>),
+    FilterBlock(WithSpan<FilterBlock<'a>>),
 }
 
 impl<'a> Node<'a> {
@@ -184,7 +184,7 @@ impl<'a> Node<'a> {
     }
 
     #[must_use]
-    pub fn span(&self) -> Span<'a> {
+    pub fn span(&self) -> Span {
         match self {
             Self::Lit(span) => span.span,
             Self::Comment(span) => span.span,
@@ -209,16 +209,16 @@ impl<'a> Node<'a> {
 
 #[inline]
 fn parse_with_unexpected_fallback<'a, O>(
-    mut parser: impl ModalParser<InputStream<'a>, O, ErrorContext<'a>>,
+    mut parser: impl ModalParser<InputStream<'a>, O, ErrorContext>,
     mut unexpected_parser: impl FnMut(&mut InputStream<'a>) -> ParseResult<'a, ()>,
-) -> impl ModalParser<InputStream<'a>, O, ErrorContext<'a>> {
+) -> impl ModalParser<InputStream<'a>, O, ErrorContext> {
     #[cold]
     #[inline(never)]
     fn try_assign_fallback_error<'a>(
         i: &mut InputStream<'a>,
         start_checkpoint: <InputStream<'a> as Stream>::Checkpoint,
         unexpected_parser: &mut dyn FnMut(&mut InputStream<'a>) -> ParseResult<'a, ()>,
-        err: &mut ErrMode<ErrorContext<'a>>,
+        err: &mut ErrMode<ErrorContext>,
     ) {
         if let ErrMode::Backtrack(err_ctx) | ErrMode::Cut(err_ctx) = &err
             && err_ctx.message.is_none()
@@ -248,8 +248,8 @@ fn parse_with_unexpected_fallback<'a, O>(
 #[inline]
 fn cut_node<'a, O>(
     kind: Option<&'static str>,
-    inner: impl ModalParser<InputStream<'a>, O, ErrorContext<'a>>,
-) -> impl ModalParser<InputStream<'a>, O, ErrorContext<'a>> {
+    inner: impl ModalParser<InputStream<'a>, O, ErrorContext>,
+) -> impl ModalParser<InputStream<'a>, O, ErrorContext> {
     parse_with_unexpected_fallback(cut_err(inner), move |i: &mut _| unexpected_raw_tag(kind, i))
 }
 
@@ -289,7 +289,7 @@ pub struct When<'a> {
 }
 
 impl<'a> When<'a> {
-    fn r#else(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn r#else(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<Self>> {
         let mut p = (
             |i: &mut _| s.tag_block_start(i),
             opt(Whitespace::parse),
@@ -318,7 +318,7 @@ impl<'a> When<'a> {
     }
 
     #[allow(clippy::self_named_constructors)]
-    fn when(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn when(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<Self>> {
         let start = ***i;
         let endwhen = ws(terminated(
             delimited(
@@ -388,7 +388,7 @@ pub struct Cond<'a> {
 }
 
 impl<'a> Cond<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<'a, Self>> {
+    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<Self>> {
         let start = ***i;
         let (_, pws, cond, nws, _, nodes) = (
             |i: &mut _| s.tag_block_start(i),
@@ -422,7 +422,7 @@ impl<'a> Cond<'a> {
 #[derive(Debug, PartialEq, Clone)]
 pub struct CondTest<'a> {
     pub target: Option<Target<'a>>,
-    pub expr: WithSpan<'a, Box<Expr<'a>>>,
+    pub expr: WithSpan<Box<Expr<'a>>>,
     pub contains_bool_lit_or_is_defined: bool,
 }
 
@@ -535,8 +535,8 @@ fn check_block_start<'a>(
 pub struct Loop<'a> {
     pub ws1: Ws,
     pub var: Target<'a>,
-    pub iter: WithSpan<'a, Box<Expr<'a>>>,
-    pub cond: Option<WithSpan<'a, Box<Expr<'a>>>>,
+    pub iter: WithSpan<Box<Expr<'a>>>,
+    pub cond: Option<WithSpan<Box<Expr<'a>>>>,
     pub body: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
     pub else_nodes: Vec<Box<Node<'a>>>,
@@ -650,7 +650,7 @@ impl<'a> Loop<'a> {
 pub struct Macro<'a> {
     pub ws1: Ws,
     pub name: &'a str,
-    pub args: Vec<(&'a str, Option<WithSpan<'a, Box<Expr<'a>>>>)>,
+    pub args: Vec<(&'a str, Option<WithSpan<Box<Expr<'a>>>>)>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
 }
@@ -673,7 +673,7 @@ impl<'a> Macro<'a> {
         #[allow(clippy::type_complexity)]
         let parameters = |i: &mut _| -> ParseResult<
             '_,
-            Option<Vec<(&str, Option<WithSpan<'_, Box<Expr<'_>>>>)>>,
+            Option<Vec<(&str, Option<WithSpan<Box<Expr<'_>>>>)>>,
         > {
             let args = opt(preceded(
                 '(',
@@ -893,7 +893,7 @@ pub struct Call<'a> {
     pub caller_args: Vec<&'a str>,
     pub scope: Option<&'a str>,
     pub name: &'a str,
-    pub args: Vec<WithSpan<'a, Box<Expr<'a>>>>,
+    pub args: Vec<WithSpan<Box<Expr<'a>>>>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
 }
@@ -972,8 +972,8 @@ impl<'a> Call<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Match<'a> {
     pub ws1: Ws,
-    pub expr: WithSpan<'a, Box<Expr<'a>>>,
-    pub arms: Vec<WithSpan<'a, When<'a>>>,
+    pub expr: WithSpan<Box<Expr<'a>>>,
+    pub arms: Vec<WithSpan<When<'a>>>,
     pub ws2: Ws,
 }
 
@@ -1170,7 +1170,7 @@ impl<'a> Lit<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Raw<'a> {
     pub ws1: Ws,
-    pub lit: WithSpan<'a, Lit<'a>>,
+    pub lit: WithSpan<Lit<'a>>,
     pub ws2: Ws,
 }
 
@@ -1239,7 +1239,7 @@ impl<'a> Raw<'a> {
 pub struct Let<'a> {
     pub ws: Ws,
     pub var: Target<'a>,
-    pub val: Option<WithSpan<'a, Box<Expr<'a>>>>,
+    pub val: Option<WithSpan<Box<Expr<'a>>>>,
     pub is_mutable: bool,
 }
 
@@ -1311,7 +1311,7 @@ impl<'a> Let<'a> {
 #[derive(Debug, PartialEq)]
 pub struct If<'a> {
     pub ws: Ws,
-    pub branches: Vec<WithSpan<'a, Cond<'a>>>,
+    pub branches: Vec<WithSpan<Cond<'a>>>,
 }
 
 impl<'a> If<'a> {
@@ -1487,7 +1487,7 @@ pub struct Ws(pub Option<Whitespace>, pub Option<Whitespace>);
 fn end_node<'a, 'g: 'a>(
     node: &'g str,
     expected: &'g str,
-) -> impl ModalParser<InputStream<'a>, &'a str, ErrorContext<'a>> + 'g {
+) -> impl ModalParser<InputStream<'a>, &'a str, ErrorContext> + 'g {
     move |i: &mut InputStream<'a>| {
         let start = i.checkpoint();
         let actual = ws(identifier).parse_next(i)?;

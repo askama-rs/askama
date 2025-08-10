@@ -226,7 +226,7 @@ impl Buffer {
     pub(crate) fn write_separated_path(
         &mut self,
         ctx: &Context<'_>,
-        path: &[WithSpan<'_, PathComponent<'_>>],
+        path: &[WithSpan<PathComponent<'_>>],
     ) {
         if self.discard {
             return;

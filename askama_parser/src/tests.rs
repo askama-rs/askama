@@ -6,7 +6,8 @@ use crate::{
     StrLit, Syntax, SyntaxBuilder, WithSpan,
 };
 
-impl<T> WithSpan<'static, T> {
+impl<T> WithSpan<T> {
+    #[inline]
     fn no_span(inner: T) -> Self {
         Self {
             inner,
@@ -15,7 +16,7 @@ impl<T> WithSpan<'static, T> {
     }
 }
 
-fn as_path<'a>(path: &'a [&'a str]) -> Vec<WithSpan<'a, PathComponent<'a>>> {
+fn as_path<'a>(path: &'a [&'a str]) -> Vec<WithSpan<PathComponent<'a>>> {
     path.iter()
         .map(|name| {
             WithSpan::no_span(PathComponent {
@@ -48,22 +49,22 @@ fn test_invalid_block() {
     Ast::from_str("{% extend \"blah\" %}", None, &Syntax::default()).unwrap();
 }
 
-fn int_lit<'a>(i: &'a str) -> WithSpan<'a, Box<Expr<'a>>> {
+fn int_lit<'a>(i: &'a str) -> WithSpan<Box<Expr<'a>>> {
     WithSpan::new_without_span(Box::new(Expr::NumLit(i, Num::Int(i, None))))
 }
 
 fn bin_op<'a>(
     op: &'a str,
-    lhs: WithSpan<'a, Box<Expr<'a>>>,
-    rhs: WithSpan<'a, Box<Expr<'a>>>,
-) -> WithSpan<'a, Box<Expr<'a>>> {
+    lhs: WithSpan<Box<Expr<'a>>>,
+    rhs: WithSpan<Box<Expr<'a>>>,
+) -> WithSpan<Box<Expr<'a>>> {
     WithSpan::new_without_span(Box::new(Expr::BinOp(crate::expr::BinOp { op, lhs, rhs })))
 }
 
 fn call<'a>(
-    path: WithSpan<'a, Box<Expr<'a>>>,
-    args: Vec<WithSpan<'a, Box<Expr<'a>>>>,
-) -> WithSpan<'a, Box<Expr<'a>>> {
+    path: WithSpan<Box<Expr<'a>>>,
+    args: Vec<WithSpan<Box<Expr<'a>>>>,
+) -> WithSpan<Box<Expr<'a>>> {
     WithSpan::new_without_span(Box::new(Expr::Call(crate::expr::Call { path, args })))
 }
 

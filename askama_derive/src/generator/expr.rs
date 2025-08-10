@@ -22,7 +22,7 @@ impl<'a> Generator<'a, '_> {
     pub(crate) fn visit_expr_root(
         &mut self,
         ctx: &Context<'_>,
-        expr: &WithSpan<'a, Box<Expr<'a>>>,
+        expr: &WithSpan<Box<Expr<'a>>>,
     ) -> Result<TokenStream, CompileError> {
         let mut buf = Buffer::new();
         self.visit_expr(ctx, &mut buf, expr)?;
@@ -33,7 +33,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        iter: &WithSpan<'a, Box<Expr<'a>>>,
+        iter: &WithSpan<Box<Expr<'a>>>,
     ) -> Result<DisplayWrap, CompileError> {
         let expr_code = self.visit_expr_root(ctx, iter)?;
         let span = ctx.span_for_node(iter.span());
@@ -62,7 +62,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'a, Box<Expr<'a>>>,
+        expr: &WithSpan<Box<Expr<'a>>>,
     ) -> Result<DisplayWrap, CompileError> {
         Ok(match ***expr {
             Expr::BoolLit(s) => self.visit_bool_lit(ctx, buf, s, expr.span()),
@@ -117,7 +117,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'a, Box<Expr<'a>>>,
+        expr: &WithSpan<Box<Expr<'a>>>,
     ) -> Result<DisplayWrap, CompileError> {
         match ***expr {
             Expr::BinOp(ref v) if matches!(v.op, "&&" | "||") => {
@@ -138,7 +138,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'a, Box<Expr<'a>>>,
+        expr: &WithSpan<Box<Expr<'a>>>,
         prev_display_wrap: DisplayWrap,
     ) -> Result<DisplayWrap, CompileError> {
         match ***expr {
@@ -157,7 +157,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'a, Box<Expr<'a>>>,
+        expr: &WithSpan<Box<Expr<'a>>>,
     ) -> Result<(), CompileError> {
         match &***expr {
             Expr::BoolLit(_) | Expr::IsDefined(_) | Expr::IsNotDefined(_) => {
@@ -200,7 +200,7 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         is_defined: bool,
         left: &str,
-        span: Span<'_>,
+        span: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let result = is_defined == self.is_var_defined(left);
         quote_into!(buf, ctx.span_for_node(span), { #result });
@@ -211,7 +211,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'a, Box<Expr<'a>>>,
+        expr: &WithSpan<Box<Expr<'a>>>,
         target: &str,
     ) -> Result<DisplayWrap, CompileError> {
         let mut tmp = Buffer::new();
@@ -231,7 +231,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        exprs: &[WithSpan<'a, Box<Expr<'a>>>],
+        exprs: &[WithSpan<Box<Expr<'a>>>],
     ) -> Result<DisplayWrap, CompileError> {
         match exprs {
             [] => unreachable!(),
@@ -255,7 +255,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        cond: &WithSpan<'a, CondTest<'a>>,
+        cond: &WithSpan<CondTest<'a>>,
     ) -> Result<DisplayWrap, CompileError> {
         let mut expr_buf = Buffer::new();
         let display_wrap = self.visit_expr_first(ctx, &mut expr_buf, &cond.expr)?;
@@ -273,7 +273,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'a, Box<Expr<'a>>>,
+        expr: &WithSpan<Box<Expr<'a>>>,
     ) -> Result<DisplayWrap, CompileError> {
         let mut tmp = Buffer::new();
         let span = ctx.span_for_node(expr.span());
@@ -294,7 +294,7 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         path: &[&str],
         args: &str,
-        node: Span<'_>,
+        node: Span,
     ) -> DisplayWrap {
         let [path @ .., name] = path else {
             unreachable!("path cannot be empty");
@@ -316,9 +316,9 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        generics: &[WithSpan<'a, TyGenerics<'a>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        generics: &[WithSpan<TyGenerics<'a>>],
+        node: Span,
         kind: &str,
     ) -> Result<DisplayWrap, CompileError> {
         let [key] = args else {
@@ -355,7 +355,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
+        args: &[WithSpan<Box<Expr<'a>>>],
     ) -> Result<(), CompileError> {
         for (i, arg) in args.iter().enumerate() {
             let span = ctx.span_for_node(arg.span());
@@ -370,7 +370,7 @@ impl<'a> Generator<'a, '_> {
     pub(super) fn visit_arg(
         &mut self,
         ctx: &Context<'_>,
-        arg: &WithSpan<'a, Box<Expr<'a>>>,
+        arg: &WithSpan<Box<Expr<'a>>>,
         span: proc_macro2::Span,
     ) -> Result<TokenStream, CompileError> {
         self.visit_arg_inner(ctx, arg, span, false)
@@ -379,7 +379,7 @@ impl<'a> Generator<'a, '_> {
     fn visit_arg_inner(
         &mut self,
         ctx: &Context<'_>,
-        arg: &WithSpan<'a, Box<Expr<'a>>>,
+        arg: &WithSpan<Box<Expr<'a>>>,
         span: proc_macro2::Span,
         // This parameter is needed because even though Expr::Unary is not copyable, we might still
         // be able to skip a few levels.
@@ -414,7 +414,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        arg: &WithSpan<'a, Box<Expr<'a>>>,
+        arg: &WithSpan<Box<Expr<'a>>>,
     ) -> Result<(), CompileError> {
         let span = ctx.span_for_node(arg.span());
         if let Some(Writable::Lit(arg)) = compile_time_escape(arg, self.input.escaper) {
@@ -442,7 +442,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        obj: &WithSpan<'a, Box<Expr<'a>>>,
+        obj: &WithSpan<Box<Expr<'a>>>,
         associated_item: &AssociatedItem<'a>,
     ) -> Result<DisplayWrap, CompileError> {
         let span = ctx.span_for_node(obj.span());
@@ -482,7 +482,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        generics: &[WithSpan<'a, TyGenerics<'a>>],
+        generics: &[WithSpan<TyGenerics<'a>>],
     ) {
         if let Some(first) = generics.first() {
             buf.write_token(Token![::], ctx.span_for_node(first.span()));
@@ -494,7 +494,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        generics: &[WithSpan<'a, TyGenerics<'a>>],
+        generics: &[WithSpan<TyGenerics<'a>>],
     ) {
         if generics.is_empty() {
             return;
@@ -514,7 +514,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        generic: &WithSpan<'a, TyGenerics<'a>>,
+        generic: &WithSpan<TyGenerics<'a>>,
         span: proc_macro2::Span,
     ) {
         let TyGenerics {
@@ -533,8 +533,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        obj: &WithSpan<'a, Box<Expr<'a>>>,
-        key: &WithSpan<'a, Box<Expr<'a>>>,
+        obj: &WithSpan<Box<Expr<'a>>>,
+        key: &WithSpan<Box<Expr<'a>>>,
     ) -> Result<DisplayWrap, CompileError> {
         buf.write_token(Token![&], ctx.span_for_node(obj.span()));
         self.visit_expr(ctx, buf, obj)?;
@@ -551,8 +551,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        left: &WithSpan<'a, Box<Expr<'a>>>,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
+        left: &WithSpan<Box<Expr<'a>>>,
+        args: &[WithSpan<Box<Expr<'a>>>],
     ) -> Result<DisplayWrap, CompileError> {
         // ensure that no named args are used in normal rust call expressions
         if let Some(arg) = args
@@ -662,8 +662,8 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         op: &str,
-        inner: &WithSpan<'a, Box<Expr<'a>>>,
-        span: Span<'_>,
+        inner: &WithSpan<Box<Expr<'a>>>,
+        span: Span,
     ) -> Result<DisplayWrap, CompileError> {
         buf.write_tokens(unary_op(op, ctx.span_for_node(span)));
         self.visit_expr(ctx, buf, inner)?;
@@ -675,9 +675,9 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         op: &str,
-        left: Option<&WithSpan<'a, Box<Expr<'a>>>>,
-        right: Option<&WithSpan<'a, Box<Expr<'a>>>>,
-        span: Span<'_>,
+        left: Option<&WithSpan<Box<Expr<'a>>>>,
+        right: Option<&WithSpan<Box<Expr<'a>>>>,
+        span: Span,
     ) -> Result<DisplayWrap, CompileError> {
         if let Some(left) = left {
             self.visit_expr(ctx, buf, left)?;
@@ -694,9 +694,9 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         op: &str,
-        left: &WithSpan<'a, Box<Expr<'a>>>,
-        right: &WithSpan<'a, Box<Expr<'a>>>,
-        span: Span<'_>,
+        left: &WithSpan<Box<Expr<'a>>>,
+        right: &WithSpan<Box<Expr<'a>>>,
+        span: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_expr(ctx, buf, left)?;
         buf.write_tokens(binary_op(op, ctx.span_for_node(span)));
@@ -708,8 +708,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        inner: &WithSpan<'a, Box<Expr<'a>>>,
-        span: Span<'_>,
+        inner: &WithSpan<Box<Expr<'a>>>,
+        span: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let span = ctx.span_for_node(span);
         let mut tmp = Buffer::new();
@@ -724,8 +724,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        exprs: &[WithSpan<'a, Box<Expr<'a>>>],
-        span: Span<'_>,
+        exprs: &[WithSpan<Box<Expr<'a>>>],
+        span: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let span = ctx.span_for_node(span);
 
@@ -743,7 +743,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        expr: &WithSpan<'a, Box<Expr<'a>>>,
+        expr: &WithSpan<Box<Expr<'a>>>,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_expr(ctx, buf, expr)?;
         Ok(DisplayWrap::Unwrapped)
@@ -753,8 +753,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        elements: &[WithSpan<'a, Box<Expr<'a>>>],
-        span: Span<'_>,
+        elements: &[WithSpan<Box<Expr<'a>>>],
+        span: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let span = ctx.span_for_node(span);
 
@@ -797,7 +797,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        path: &[WithSpan<'a, PathComponent<'a>>],
+        path: &[WithSpan<PathComponent<'a>>],
     ) -> DisplayWrap {
         for (i, part) in path.iter().enumerate() {
             let span = ctx.span_for_node(part.span());
@@ -828,7 +828,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         s: &str,
-        node: Span<'_>,
+        node: Span,
     ) -> DisplayWrap {
         let span = ctx.span_for_node(node);
         if s == "self" {
@@ -843,7 +843,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        node: Span<'_>,
+        node: Span,
     ) -> DisplayWrap {
         // We can assume that the body of the `{% filter %}` was already escaped.
         // And if it's not, then this was done intentionally.
@@ -858,7 +858,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         s: bool,
-        node: Span<'_>,
+        node: Span,
     ) -> DisplayWrap {
         let span = ctx.span_for_node(node);
         if s {
