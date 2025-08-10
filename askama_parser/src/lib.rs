@@ -151,24 +151,24 @@ impl<'a> Ast<'a> {
 
 /// Struct used to wrap types with their associated "span" which is used when generating errors
 /// in the code generation.
-#[repr(C)] // rationale: `WithSpan<'_, Box<T>` needs to have the same layout as `WithSpan<'_, &T>`.
-pub struct WithSpan<'a, T> {
+#[repr(C)] // rationale: `WithSpan<Box<T>` needs to have the same layout as `WithSpan<&T>`.
+pub struct WithSpan<T> {
     inner: T,
-    span: Span<'a>,
+    span: Span,
 }
 
 /// A location in `&'a str`
 #[derive(Debug, Clone, Copy)]
-pub struct Span<'a>(&'a str);
+pub struct Span(&'a str);
 
-impl Default for Span<'static> {
+impl Default for Span {
     #[inline]
     fn default() -> Self {
         Self::empty()
     }
 }
 
-impl<'a> Span<'a> {
+impl<'a> Span {
     #[inline]
     pub const fn empty() -> Self {
         Self("")
@@ -198,14 +198,14 @@ impl<'a> Span<'a> {
     }
 }
 
-impl<'a> From<&'a str> for Span<'a> {
+impl<'a> From<&'a str> for Span {
     #[inline]
     fn from(value: &'a str) -> Self {
         Self(value)
     }
 }
 
-impl<'a, T> WithSpan<'a, T> {
+impl<'a, T> WithSpan<T> {
     #[inline]
     pub fn new(inner: T, span_begin: &'a str, span_end: &'a str) -> Self {
         assert!(span_begin.len() >= span_end.len());
@@ -217,7 +217,7 @@ impl<'a, T> WithSpan<'a, T> {
     }
 
     #[inline]
-    pub fn new_with_full<I: Into<Span<'a>>>(inner: T, span: I) -> Self {
+    pub fn new_with_full<I: Into<Span>>(inner: T, span: I) -> Self {
         Self {
             inner,
             span: span.into(),
@@ -233,18 +233,18 @@ impl<'a, T> WithSpan<'a, T> {
     }
 
     #[inline]
-    pub fn span(&self) -> Span<'a> {
+    pub fn span(&self) -> Span {
         self.span
     }
 
     #[inline]
-    pub fn deconstruct(self) -> (T, Span<'a>) {
+    pub fn deconstruct(self) -> (T, Span) {
         let Self { inner, span } = self;
         (inner, span)
     }
 }
 
-impl<T> Deref for WithSpan<'_, T> {
+impl<T> Deref for WithSpan<T> {
     type Target = T;
 
     #[inline]
@@ -253,19 +253,19 @@ impl<T> Deref for WithSpan<'_, T> {
     }
 }
 
-impl<T> DerefMut for WithSpan<'_, T> {
+impl<T> DerefMut for WithSpan<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.inner
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for WithSpan<'_, T> {
+impl<T: fmt::Debug> fmt::Debug for WithSpan<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self.inner)
     }
 }
 
-impl<T: Clone> Clone for WithSpan<'_, T> {
+impl<T: Clone> Clone for WithSpan<T> {
     fn clone(&self) -> Self {
         Self {
             inner: self.inner.clone(),
@@ -274,7 +274,7 @@ impl<T: Clone> Clone for WithSpan<'_, T> {
     }
 }
 
-impl<T: PartialEq> PartialEq for WithSpan<'_, T> {
+impl<T: PartialEq> PartialEq for WithSpan<T> {
     fn eq(&self, other: &Self) -> bool {
         // We never want to compare the span information.
         self.inner == other.inner
@@ -312,7 +312,7 @@ impl fmt::Display for ParseError {
     }
 }
 
-pub(crate) type ParseErr<'a> = ErrMode<ErrorContext<'a>>;
+pub(crate) type ParseErr<'a> = ErrMode<ErrorContext>;
 pub(crate) type ParseResult<'a, T = &'a str> = Result<T, ParseErr<'a>>;
 
 /// This type is used to handle `nom` errors and in particular to add custom error messages.
@@ -321,14 +321,14 @@ pub(crate) type ParseResult<'a, T = &'a str> = Result<T, ParseErr<'a>>;
 /// It cannot be used to replace `ParseError` because it expects a generic, which would make
 /// `askama`'s users experience less good (since this generic is only needed for `nom`).
 #[derive(Debug)]
-pub(crate) struct ErrorContext<'a> {
-    pub(crate) span: Span<'a>,
+pub(crate) struct ErrorContext {
+    pub(crate) span: Span,
     pub(crate) message: Option<Cow<'static, str>>,
 }
 
-impl<'a> ErrorContext<'a> {
+impl<'a> ErrorContext {
     #[cold]
-    fn unclosed(kind: &str, tag: &str, span: impl Into<Span<'a>>) -> Self {
+    fn unclosed(kind: &str, tag: &str, span: impl Into<Span>) -> Self {
         Self {
             span: span.into(),
             message: Some(format!("unclosed {kind}, missing {tag:?}").into()),
@@ -337,7 +337,7 @@ impl<'a> ErrorContext<'a> {
 
     #[cold]
     #[inline]
-    fn new(message: impl Into<Cow<'static, str>>, span: impl Into<Span<'a>>) -> Self {
+    fn new(message: impl Into<Cow<'static, str>>, span: impl Into<Span>) -> Self {
         Self {
             span: span.into(),
             message: Some(message.into()),
@@ -355,7 +355,7 @@ impl<'a> ErrorContext<'a> {
     }
 }
 
-impl<'a> winnow::error::ParserError<InputStream<'a>> for ErrorContext<'a> {
+impl<'a> winnow::error::ParserError<InputStream<'a>> for ErrorContext {
     type Inner = Self;
 
     #[inline]
@@ -385,12 +385,12 @@ fn skip_ws1<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, ()> {
 }
 
 fn ws<'a, O>(
-    inner: impl ModalParser<InputStream<'a>, O, ErrorContext<'a>>,
-) -> impl ModalParser<InputStream<'a>, O, ErrorContext<'a>> {
+    inner: impl ModalParser<InputStream<'a>, O, ErrorContext>,
+) -> impl ModalParser<InputStream<'a>, O, ErrorContext> {
     delimited(skip_ws0, inner, skip_ws0)
 }
 
-fn keyword<'a>(k: &str) -> impl ModalParser<InputStream<'a>, &'a str, ErrorContext<'a>> {
+fn keyword<'a>(k: &str) -> impl ModalParser<InputStream<'a>, &'a str, ErrorContext> {
     identifier.verify(move |v: &str| v == k)
 }
 
@@ -495,7 +495,7 @@ fn num_lit<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, Num<'a>> {
 fn separated_digits<'a>(
     radix: u32,
     start: bool,
-) -> impl ModalParser<InputStream<'a>, &'a str, ErrorContext<'a>> {
+) -> impl ModalParser<InputStream<'a>, &'a str, ErrorContext> {
     (
         cond(!start, repeat(0.., '_').map(|()| ())),
         one_of(move |ch: char| ch.is_digit(radix)),
@@ -867,7 +867,7 @@ impl<'a> Char<'a> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PathOrIdentifier<'a> {
-    Path(Vec<WithSpan<'a, PathComponent<'a>>>),
+    Path(Vec<WithSpan<PathComponent<'a>>>),
     Identifier(&'a str),
 }
 
@@ -1465,7 +1465,7 @@ pub(crate) use cut_error;
 
 #[cold]
 #[inline(never)]
-fn cut_context_err<'a, T>(gen_err: impl FnOnce() -> ErrorContext<'a>) -> ParseResult<'a, T> {
+fn cut_context_err<'a, T>(gen_err: impl FnOnce() -> ErrorContext) -> ParseResult<'a, T> {
     Err(ErrMode::Cut(gen_err()))
 }
 
@@ -1505,7 +1505,7 @@ mod test {
     }
 
     fn parse_peek<'a, T>(
-        mut parser: impl ModalParser<InputStream<'a>, T, ErrorContext<'a>>,
+        mut parser: impl ModalParser<InputStream<'a>, T, ErrorContext>,
         input: &'a str,
     ) -> ParseResult<'a, (&'a str, T)> {
         let mut i = InputStream {
@@ -1679,7 +1679,7 @@ mod test {
     #[test]
     fn assert_span_size() {
         assert_eq!(
-            std::mem::size_of::<Span<'static>>(),
+            std::mem::size_of::<Span>(),
             std::mem::size_of::<*const ()>() * 2,
         );
     }

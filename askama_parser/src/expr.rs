@@ -20,7 +20,7 @@ macro_rules! expr_prec_layer {
         fn $name(
             i: &mut InputStream<'a>,
             level: Level<'_>,
-        ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+        ) -> ParseResult<'a, WithSpan<Box<Self>>> {
             expr_prec_layer(i, level, Expr::$inner, |i: &mut _| $op.parse_next(i))
         }
     };
@@ -29,9 +29,9 @@ macro_rules! expr_prec_layer {
 fn expr_prec_layer<'a>(
     i: &mut InputStream<'a>,
     level: Level<'_>,
-    inner: fn(&mut InputStream<'a>, Level<'_>) -> ParseResult<'a, WithSpan<'a, Box<Expr<'a>>>>,
+    inner: fn(&mut InputStream<'a>, Level<'_>) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>>,
     op: fn(&mut InputStream<'a>) -> ParseResult<'a>,
-) -> ParseResult<'a, WithSpan<'a, Box<Expr<'a>>>> {
+) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
     let start = ***i;
     let mut expr = inner(i, level)?;
 
@@ -56,7 +56,7 @@ struct Allowed {
     super_keyword: bool,
 }
 
-fn check_expr<'a>(expr: &WithSpan<'a, Box<Expr<'a>>>, allowed: Allowed) -> ParseResult<'a, ()> {
+fn check_expr<'a>(expr: &WithSpan<Box<Expr<'a>>>, allowed: Allowed) -> ParseResult<'a, ()> {
     match &*expr.inner {
         &Expr::Var(name) => {
             // List can be found in rust compiler "can_be_raw" function (although in our case, it's
@@ -164,7 +164,7 @@ fn err_reserved_identifier<T>(name: &str) -> ParseResult<'_, T> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PathComponent<'a> {
     pub name: &'a str,
-    pub generics: Vec<WithSpan<'a, TyGenerics<'a>>>,
+    pub generics: Vec<WithSpan<TyGenerics<'a>>>,
 }
 
 impl<'a> PathComponent<'a> {
@@ -178,7 +178,7 @@ impl<'a> PathComponent<'a> {
     pub(crate) fn parse(
         i: &mut InputStream<'a>,
         level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<'a, Self>> {
+    ) -> ParseResult<'a, WithSpan<Self>> {
         (
             identifier,
             opt((ws("::"), |i: &mut _| TyGenerics::args(i, level))),
@@ -204,28 +204,28 @@ pub enum Expr<'a> {
     StrLit(StrLit<'a>),
     CharLit(CharLit<'a>),
     Var(&'a str),
-    Path(Vec<WithSpan<'a, PathComponent<'a>>>),
-    Array(Vec<WithSpan<'a, Box<Expr<'a>>>>),
-    AssociatedItem(WithSpan<'a, Box<Expr<'a>>>, AssociatedItem<'a>),
-    Index(WithSpan<'a, Box<Expr<'a>>>, WithSpan<'a, Box<Expr<'a>>>),
+    Path(Vec<WithSpan<PathComponent<'a>>>),
+    Array(Vec<WithSpan<Box<Expr<'a>>>>),
+    AssociatedItem(WithSpan<Box<Expr<'a>>>, AssociatedItem<'a>),
+    Index(WithSpan<Box<Expr<'a>>>, WithSpan<Box<Expr<'a>>>),
     Filter(Filter<'a>),
-    As(WithSpan<'a, Box<Expr<'a>>>, &'a str),
-    NamedArgument(&'a str, WithSpan<'a, Box<Expr<'a>>>),
-    Unary(&'a str, WithSpan<'a, Box<Expr<'a>>>),
+    As(WithSpan<Box<Expr<'a>>>, &'a str),
+    NamedArgument(&'a str, WithSpan<Box<Expr<'a>>>),
+    Unary(&'a str, WithSpan<Box<Expr<'a>>>),
     BinOp(BinOp<'a>),
     Range(Range<'a>),
-    Group(WithSpan<'a, Box<Expr<'a>>>),
-    Tuple(Vec<WithSpan<'a, Box<Expr<'a>>>>),
+    Group(WithSpan<Box<Expr<'a>>>),
+    Tuple(Vec<WithSpan<Box<Expr<'a>>>>),
     Call(Call<'a>),
     RustMacro(Vec<&'a str>, &'a str),
-    Try(WithSpan<'a, Box<Expr<'a>>>),
+    Try(WithSpan<Box<Expr<'a>>>),
     /// This variant should never be used directly. It is created when generating filter blocks.
     FilterSource,
     IsDefined(&'a str),
     IsNotDefined(&'a str),
-    Concat(Vec<WithSpan<'a, Box<Expr<'a>>>>),
+    Concat(Vec<WithSpan<Box<Expr<'a>>>>),
     /// If you have `&& let Some(y)`, this variant handles it.
-    LetCond(WithSpan<'a, CondTest<'a>>),
+    LetCond(WithSpan<CondTest<'a>>),
     /// This variant should never be used directly.
     /// It is used for the handling of named arguments in the generator, esp. with filters.
     ArgumentPlaceholder,
@@ -233,29 +233,29 @@ pub enum Expr<'a> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Call<'a> {
-    pub path: WithSpan<'a, Box<Expr<'a>>>,
-    pub args: Vec<WithSpan<'a, Box<Expr<'a>>>>,
+    pub path: WithSpan<Box<Expr<'a>>>,
+    pub args: Vec<WithSpan<Box<Expr<'a>>>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Range<'a> {
     pub op: &'a str,
-    pub lhs: Option<WithSpan<'a, Box<Expr<'a>>>>,
-    pub rhs: Option<WithSpan<'a, Box<Expr<'a>>>>,
+    pub lhs: Option<WithSpan<Box<Expr<'a>>>>,
+    pub rhs: Option<WithSpan<Box<Expr<'a>>>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinOp<'a> {
     pub op: &'a str,
-    pub lhs: WithSpan<'a, Box<Expr<'a>>>,
-    pub rhs: WithSpan<'a, Box<Expr<'a>>>,
+    pub lhs: WithSpan<Box<Expr<'a>>>,
+    pub rhs: WithSpan<Box<Expr<'a>>>,
 }
 
 impl<'a> Expr<'a> {
     pub(super) fn arguments(
         i: &mut InputStream<'a>,
         level: Level<'_>,
-    ) -> ParseResult<'a, Vec<WithSpan<'a, Box<Self>>>> {
+    ) -> ParseResult<'a, Vec<WithSpan<Box<Self>>>> {
         let _level_guard = level.nest(i)?;
         let mut named_arguments = HashSet::default();
         let start = ***i;
@@ -295,7 +295,7 @@ impl<'a> Expr<'a> {
         level: Level<'_>,
         named_arguments: &mut HashSet<&'a str>,
         start: &'a str,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    ) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let ((argument, _, value), span) = (identifier, ws('='), move |i: &mut _| {
             Self::parse(i, level, false)
         })
@@ -318,7 +318,7 @@ impl<'a> Expr<'a> {
         i: &mut InputStream<'a>,
         level: Level<'_>,
         allow_underscore: bool,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    ) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let _level_guard = level.nest(i)?;
         let range_right = move |i: &mut _| {
             (
@@ -366,10 +366,7 @@ impl<'a> Expr<'a> {
     expr_prec_layer!(or, and, "||");
     expr_prec_layer!(and, compare, "&&");
 
-    fn compare(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    fn compare(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let right = |i: &mut _| {
             let op = alt(("==", "!=", ">=", ">", "<=", "<"));
             (ws(op), |i: &mut _| Self::bor(i, level)).parse_next(i)
@@ -403,14 +400,11 @@ impl<'a> Expr<'a> {
     expr_prec_layer!(shifts, addsub, alt((">>", "<<")));
     expr_prec_layer!(addsub, concat, alt(("+", "-")));
 
-    fn concat(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    fn concat(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         fn concat_expr<'a>(
             i: &mut InputStream<'a>,
             level: Level<'_>,
-        ) -> ParseResult<'a, Option<WithSpan<'a, Box<Expr<'a>>>>> {
+        ) -> ParseResult<'a, Option<WithSpan<Box<Expr<'a>>>>> {
             let ws1 = |i: &mut _| opt(skip_ws1).parse_next(i);
 
             let start = ***i;
@@ -444,10 +438,7 @@ impl<'a> Expr<'a> {
 
     expr_prec_layer!(muldivmod, is_as, alt(("*", "/", "%")));
 
-    fn is_as(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    fn is_as(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let start = ***i;
         let lhs = Self::filtered(i, level)?;
         let before_keyword = *i;
@@ -507,10 +498,7 @@ impl<'a> Expr<'a> {
         Ok(WithSpan::new(Box::new(ctor(var_name)), start, i))
     }
 
-    fn filtered(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    fn filtered(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let mut res = Self::prefix(i, level)?;
 
         let mut level_guard = level.guard();
@@ -526,10 +514,7 @@ impl<'a> Expr<'a> {
         Ok(res)
     }
 
-    fn prefix(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    fn prefix(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let start = ***i;
 
         // This is a rare place where we create recursion in the parsed AST
@@ -552,10 +537,7 @@ impl<'a> Expr<'a> {
         Ok(expr)
     }
 
-    fn single(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    fn single(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         alt((
             Self::num,
             Self::str,
@@ -567,10 +549,7 @@ impl<'a> Expr<'a> {
         .parse_next(i)
     }
 
-    fn group(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    fn group(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         ws('(').parse_next(i)?;
         Self::group_actually(i, level)
     }
@@ -580,7 +559,7 @@ impl<'a> Expr<'a> {
     fn group_actually(
         i: &mut InputStream<'a>,
         level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    ) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let (expr, span) = cut_err(|i: &mut _| Self::group_actually_inner(i, level))
             .with_taken()
             .parse_next(i)?;
@@ -593,7 +572,7 @@ impl<'a> Expr<'a> {
         level: Level<'_>,
     ) -> ParseResult<'a, Box<Self>> {
         enum GroupResult<'a> {
-            Tuple(WithSpan<'a, Box<Expr<'a>>>),
+            Tuple(WithSpan<Box<Expr<'a>>>),
             Expr(Box<Expr<'a>>),
             Err(&'static str),
         }
@@ -653,10 +632,7 @@ impl<'a> Expr<'a> {
         cut_error!(msg, span)
     }
 
-    fn array(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    fn array(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let start = ***i;
         let array = preceded(
             ws('['),
@@ -679,7 +655,7 @@ impl<'a> Expr<'a> {
     fn path_var_bool(
         i: &mut InputStream<'a>,
         level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    ) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let start = ***i;
         let ret = match path_or_identifier(i, level)? {
             PathOrIdentifier::Path(v) => Box::new(Self::Path(v)),
@@ -690,19 +666,19 @@ impl<'a> Expr<'a> {
         Ok(WithSpan::new(ret, start, i))
     }
 
-    fn str(i: &mut InputStream<'a>) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    fn str(i: &mut InputStream<'a>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let start = ***i;
         let s = str_lit.parse_next(i)?;
         Ok(WithSpan::new(Box::new(Self::StrLit(s)), start, i))
     }
 
-    fn num(i: &mut InputStream<'a>) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    fn num(i: &mut InputStream<'a>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let start = ***i;
         let (num, full) = num_lit.with_taken().parse_next(i)?;
         Ok(WithSpan::new(Box::new(Expr::NumLit(full, num)), start, i))
     }
 
-    fn char(i: &mut InputStream<'a>) -> ParseResult<'a, WithSpan<'a, Box<Self>>> {
+    fn char(i: &mut InputStream<'a>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let start = ***i;
         let c = char_lit.parse_next(i)?;
         Ok(WithSpan::new(Box::new(Self::CharLit(c)), start, i))
@@ -762,7 +738,7 @@ fn token_bitand<'a>(i: &mut InputStream<'a>) -> ParseResult<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Filter<'a> {
     pub name: PathOrIdentifier<'a>,
-    pub arguments: Vec<WithSpan<'a, Box<Expr<'a>>>>,
+    pub arguments: Vec<WithSpan<Box<Expr<'a>>>>,
 }
 
 impl<'a> Filter<'a> {
@@ -782,15 +758,13 @@ impl<'a> Filter<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AssociatedItem<'a> {
     pub name: &'a str,
-    pub generics: Vec<WithSpan<'a, TyGenerics<'a>>>,
+    pub generics: Vec<WithSpan<TyGenerics<'a>>>,
 }
 
 enum Suffix<'a> {
     AssociatedItem(AssociatedItem<'a>),
-    Index(WithSpan<'a, Box<Expr<'a>>>),
-    Call {
-        args: Vec<WithSpan<'a, Box<Expr<'a>>>>,
-    },
+    Index(WithSpan<Box<Expr<'a>>>),
+    Call { args: Vec<WithSpan<Box<Expr<'a>>>> },
     // The value is the arguments of the macro call.
     MacroCall(&'a str),
     Try,
@@ -800,7 +774,7 @@ impl<'a> Suffix<'a> {
     fn parse(
         i: &mut InputStream<'a>,
         level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<'a, Box<Expr<'a>>>> {
+    ) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
         let i_start = ***i;
         let mut level_guard = level.guard();
         let mut expr = Expr::single(i, level)?;
@@ -1297,11 +1271,11 @@ fn ensure_macro_name(name: &str) -> ParseResult<'_, ()> {
 pub struct TyGenerics<'a> {
     pub refs: usize,
     pub path: Vec<&'a str>,
-    pub args: Vec<WithSpan<'a, TyGenerics<'a>>>,
+    pub args: Vec<WithSpan<TyGenerics<'a>>>,
 }
 
 impl<'i> TyGenerics<'i> {
-    fn parse(i: &mut InputStream<'i>, level: Level<'_>) -> ParseResult<'i, WithSpan<'i, Self>> {
+    fn parse(i: &mut InputStream<'i>, level: Level<'_>) -> ParseResult<'i, WithSpan<Self>> {
         let start = ***i;
         let (refs, path, args): (_, Vec<_>, _) = (
             repeat(0.., ws('&')),
@@ -1334,7 +1308,7 @@ impl<'i> TyGenerics<'i> {
     fn args(
         i: &mut InputStream<'i>,
         level: Level<'_>,
-    ) -> ParseResult<'i, Vec<WithSpan<'i, TyGenerics<'i>>>> {
+    ) -> ParseResult<'i, Vec<WithSpan<TyGenerics<'i>>>> {
         ws('<').parse_next(i)?;
         let _level_guard = level.nest(i)?;
         cut_err(terminated(
@@ -1351,6 +1325,6 @@ impl<'i> TyGenerics<'i> {
 pub(crate) fn call_generics<'i>(
     i: &mut InputStream<'i>,
     level: Level<'_>,
-) -> ParseResult<'i, Vec<WithSpan<'i, TyGenerics<'i>>>> {
+) -> ParseResult<'i, Vec<WithSpan<TyGenerics<'i>>>> {
     preceded(ws("::"), cut_err(|i: &mut _| TyGenerics::args(i, level))).parse_next(i)
 }

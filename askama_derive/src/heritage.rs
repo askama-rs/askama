@@ -158,12 +158,12 @@ impl<'a> Context<'a> {
         Ok(ctx)
     }
 
-    pub(crate) fn generate_error(&self, msg: impl fmt::Display, node: Span<'_>) -> CompileError {
+    pub(crate) fn generate_error(&self, msg: impl fmt::Display, node: Span) -> CompileError {
         let file_info = self.file_info_of(node);
         CompileError::new_with_span(msg, file_info, Some(self.span_for_node(node)))
     }
 
-    pub(crate) fn span_for_node(&self, node: Span<'_>) -> proc_macro2::Span {
+    pub(crate) fn span_for_node(&self, node: Span) -> proc_macro2::Span {
         let call_site_span = proc_macro2::Span::call_site();
         if let Some(LiteralOrSpan::Literal(ref literal)) = self.literal
             && let source = self.parsed.source()
@@ -181,14 +181,14 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub(crate) fn file_info_of(&self, node: Span<'a>) -> Option<FileInfo<'a>> {
+    pub(crate) fn file_info_of(&self, node: Span) -> Option<FileInfo<'a>> {
         self.path.map(|path| FileInfo::of(node, path, self.parsed))
     }
 }
 
 fn ensure_top(
     top: bool,
-    node: Span<'_>,
+    node: Span,
     path: &Path,
     parsed: &Parsed,
     kind: &str,

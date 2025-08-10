@@ -355,7 +355,7 @@ impl TemplateInput<'_> {
 #[cfg(not(feature = "external-sources"))]
 fn node_needs_external_sources(
     kind: &str,
-    node: parser::Span<'_>,
+    node: parser::Span,
     path: &Path,
     parsed: &Parsed,
 ) -> Result<(), CompileError> {
