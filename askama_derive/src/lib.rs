@@ -480,7 +480,7 @@ impl<'a> FileInfo<'a> {
         }
     }
 
-    fn of(node: parser::Span<'a>, path: &'a Path, parsed: &'a Parsed) -> Self {
+    fn of(node: parser::Span, path: &'a Path, parsed: &'a Parsed) -> Self {
         let source = parsed.source();
         Self {
             path,

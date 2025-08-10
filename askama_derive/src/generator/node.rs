@@ -189,7 +189,7 @@ impl<'a> Generator<'a, '_> {
 
     fn evaluate_condition(
         &self,
-        expr: WithSpan<'a, Box<Expr<'a>>>,
+        expr: WithSpan<Box<Expr<'a>>>,
         only_contains_is_defined: &mut bool,
     ) -> EvaluatedResult<'a> {
         let (expr, span) = expr.deconstruct();
@@ -249,7 +249,7 @@ impl<'a> Generator<'a, '_> {
                     }
                     EvaluatedResult::AlwaysFalse => {
                         // Keep the side effect.
-                        let rhs = WithSpan::new_without_span(Box::new(Expr::BoolLit(false)));
+                        let rhs = WithSpan::no_span(Box::new(Expr::BoolLit(false)));
                         EvaluatedResult::Unknown(bin_op(span, v.op, lhs, rhs))
                     }
                     EvaluatedResult::Unknown(rhs) => {
@@ -272,7 +272,7 @@ impl<'a> Generator<'a, '_> {
                 match self.evaluate_condition(v.rhs, only_contains_is_defined) {
                     EvaluatedResult::AlwaysTrue => {
                         // Keep the side effect.
-                        let rhs = WithSpan::new_without_span(Box::new(Expr::BoolLit(true)));
+                        let rhs = WithSpan::no_span(Box::new(Expr::BoolLit(true)));
                         EvaluatedResult::Unknown(bin_op(span, v.op, lhs, rhs))
                     }
                     EvaluatedResult::AlwaysFalse => {
@@ -505,7 +505,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        loop_block: &'a WithSpan<'a, Loop<'_>>,
+        loop_block: &'a WithSpan<Loop<'_>>,
     ) -> Result<usize, CompileError> {
         self.handle_ws(loop_block.ws1);
         let span = ctx.span_for_node(loop_block.span());
@@ -601,7 +601,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        call: &'a WithSpan<'a, Call<'_>>,
+        call: &'a WithSpan<Call<'_>>,
     ) -> Result<usize, CompileError> {
         let Call {
             ws1,
@@ -652,7 +652,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        filter: &'a WithSpan<'a, FilterBlock<'_>>,
+        filter: &'a WithSpan<FilterBlock<'_>>,
     ) -> Result<usize, CompileError> {
         let var_filter_source = crate::var_filter_source();
 
@@ -720,7 +720,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        i: &'a WithSpan<'a, Include<'_>>,
+        i: &'a WithSpan<Include<'_>>,
     ) -> Result<usize, CompileError> {
         self.flush_ws(i.ws);
         self.write_buf_writable(ctx, buf)?;
@@ -777,7 +777,7 @@ impl<'a> Generator<'a, '_> {
         &self,
         ctx: &Context<'_>,
         var: &Target<'a>,
-        l: Span<'_>,
+        l: Span,
     ) -> Result<bool, CompileError> {
         match var {
             Target::Name(name) => {
@@ -829,7 +829,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        l: &'a WithSpan<'a, Let<'_>>,
+        l: &'a WithSpan<Let<'_>>,
     ) -> Result<(), CompileError> {
         self.handle_ws(l.ws);
         let span = ctx.span_for_node(l.span());
@@ -897,7 +897,7 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         name: Option<&'a str>,
         outer: Ws,
-        node: Span<'_>,
+        node: Span,
     ) -> Result<usize, CompileError> {
         if self.is_in_filter_block > 0 {
             return Err(ctx.generate_error("cannot have a block inside a filter block", node));
@@ -1005,7 +1005,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'a>,
         buf: &mut Buffer,
         ws: Ws,
-        mut expr: &'a WithSpan<'a, Box<Expr<'a>>>,
+        mut expr: &'a WithSpan<Box<Expr<'a>>>,
     ) -> Result<usize, CompileError> {
         while let Expr::Group(inner) = &***expr {
             expr = inner;
@@ -1023,7 +1023,7 @@ impl<'a> Generator<'a, '_> {
         Ok(0)
     }
 
-    fn write_expr_item(&mut self, expr: &'a WithSpan<'a, Box<Expr<'a>>>) {
+    fn write_expr_item(&mut self, expr: &'a WithSpan<Box<Expr<'a>>>) {
         match &***expr {
             Expr::Group(expr) => self.write_expr_item(expr),
             Expr::Concat(items) => {
@@ -1044,11 +1044,11 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'a>,
         buf: &mut Buffer,
         ws: Ws,
-        span: Span<'a>,
+        span: Span,
         call: &'a parser::expr::Call<'a>,
     ) -> Result<ControlFlow<usize>, CompileError> {
         fn check_num_args<'a>(
-            span: Span<'a>,
+            span: Span,
             ctx: &Context<'a>,
             expected: usize,
             found: usize,
@@ -1369,11 +1369,11 @@ impl<'a> Generator<'a, '_> {
         Ok(size_hint)
     }
 
-    fn write_comment(&mut self, comment: &'a WithSpan<'a, Comment<'_>>) {
+    fn write_comment(&mut self, comment: &'a WithSpan<Comment<'_>>) {
         self.handle_ws(comment.ws);
     }
 
-    fn write_lit(&mut self, lit: &'a WithSpan<'_, Lit<'_>>) {
+    fn write_lit(&mut self, lit: &'a WithSpan<Lit<'_>>) {
         assert!(self.next_ws.is_none());
         let Lit { lws, val, rws } = **lit;
         if !lws.is_empty() {
@@ -1478,17 +1478,17 @@ impl<'a> Generator<'a, '_> {
 }
 
 fn bin_op<'a>(
-    span: impl Into<Span<'a>>,
+    span: impl Into<Span>,
     op: &'a str,
-    lhs: WithSpan<'a, Box<Expr<'a>>>,
-    rhs: WithSpan<'a, Box<Expr<'a>>>,
-) -> WithSpan<'a, Box<Expr<'a>>> {
+    lhs: WithSpan<Box<Expr<'a>>>,
+    rhs: WithSpan<Box<Expr<'a>>>,
+) -> WithSpan<Box<Expr<'a>>> {
     WithSpan::new_with_full(Box::new(Expr::BinOp(BinOp { op, lhs, rhs })), span)
 }
 
 struct CondInfo<'a> {
-    cond: &'a WithSpan<'a, Cond<'a>>,
-    cond_expr: Option<WithSpan<'a, Box<Expr<'a>>>>,
+    cond: &'a WithSpan<Cond<'a>>,
+    cond_expr: Option<WithSpan<Box<Expr<'a>>>>,
     generate_condition: bool,
     generate_content: bool,
 }
@@ -1503,7 +1503,7 @@ struct Conds<'a> {
 enum EvaluatedResult<'a> {
     AlwaysTrue,
     AlwaysFalse,
-    Unknown(WithSpan<'a, Box<Expr<'a>>>),
+    Unknown(WithSpan<Box<Expr<'a>>>),
 }
 
 impl<'a> Conds<'a> {
@@ -1633,7 +1633,7 @@ pub(crate) enum AstLevel {
 /// Returns `true` if the outcome of this expression may be used multiple times in the same
 /// `write!()` call, without evaluating the expression again, i.e. the expression should be
 /// side-effect free.
-fn is_cacheable(expr: &WithSpan<'_, Box<Expr<'_>>>) -> bool {
+fn is_cacheable(expr: &WithSpan<Box<Expr<'_>>>) -> bool {
     match &***expr {
         // Literals are the definition of pure:
         Expr::BoolLit(_) => true,

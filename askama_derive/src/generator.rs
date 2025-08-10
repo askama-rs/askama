@@ -439,10 +439,7 @@ const _: () = {
 
 /// In here, we inspect in the expression if it is a literal, and if it is, whether it
 /// can be escaped at compile time.
-fn compile_time_escape<'a>(
-    expr: &WithSpan<'a, Box<Expr<'a>>>,
-    escaper: &str,
-) -> Option<Writable<'a>> {
+fn compile_time_escape<'a>(expr: &WithSpan<Box<Expr<'a>>>, escaper: &str) -> Option<Writable<'a>> {
     // we only optimize for known escapers
     enum OutputKind {
         Html,
@@ -781,8 +778,8 @@ impl<'a> Deref for WritableBuffer<'a> {
 
 #[derive(Debug)]
 enum Writable<'a> {
-    Lit(WithSpan<'a, Cow<'a, str>>),
-    Expr(&'a WithSpan<'a, Box<Expr<'a>>>),
+    Lit(WithSpan<Cow<'a, str>>),
+    Expr(&'a WithSpan<Box<Expr<'a>>>),
 }
 
 macro_rules! make_token_match {

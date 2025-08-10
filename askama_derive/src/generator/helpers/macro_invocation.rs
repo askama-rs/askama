@@ -16,10 +16,10 @@ use crate::{CompileError, HashMap, field_new, quote_into};
 /// Helper to generate the code for macro invocations
 pub(crate) struct MacroInvocation<'a, 'b> {
     pub callsite_ctx: &'b Context<'a>,
-    pub callsite_span: Span<'a>,
+    pub callsite_span: Span,
     pub callsite_ws: Ws,
-    pub call_args: &'b Vec<WithSpan<'a, Box<Expr<'a>>>>,
-    pub call: Option<&'a WithSpan<'a, Call<'a>>>,
+    pub call_args: &'b Vec<WithSpan<Box<Expr<'a>>>>,
+    pub call: Option<&'a WithSpan<Call<'a>>>,
     pub macro_def: &'a Macro<'a>,
     pub macro_ctx: &'b Context<'a>,
 }
