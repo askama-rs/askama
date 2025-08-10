@@ -1,7 +1,9 @@
 //! Files containing tests for generated code.
 
-use std::fmt;
+use std::io::Write;
 use std::path::Path;
+use std::process::exit;
+use std::{fmt, io};
 
 use console::style;
 use prettyplease::unparse;
@@ -124,7 +126,8 @@ fn compare_ex(
             }
         }
 
-        panic!(
+        let _: io::Result<()> = writeln!(
+            io::stderr().lock(),
             "\n\
             === Expected ===\n\
             \n\
@@ -138,11 +141,15 @@ fn compare_ex(
             \n\
             {diff}\n\
             \n\
-            === FAILURE ===",
+            === FAILURE ===\n\
+            \n\
+            {location}\n",
             expected = style(&expected).red(),
             generated = style(&generated).green(),
             diff = Diff(&expected, &generated),
+            location = std::panic::Location::caller(),
         );
+        exit(1);
     }
 }
 
@@ -1441,5 +1448,119 @@ fn check_expr_ungrouping() {
         r#"__askama_writer.write_str("hello world")?;"#,
         &[],
         11,
+    );
+}
+
+#[test]
+fn test_conditional_expr() {
+    compare(
+        r"{{ a if b else c }}",
+        r#"
+        match (
+            &((&&askama::filters::AutoEscaper::new(
+                &(if askama::helpers::as_bool(&(self.b)) { self.a } else { self.c }),
+                askama::filters::Text,
+            ))
+                .askama_auto_escape()?),
+        ) {
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0))
+                    .askama_write(__askama_writer, __askama_values)?;
+            }
+        }"#,
+        &[("a", "i8"), ("b", "i8"), ("c", "i8")],
+        3,
+    );
+
+    compare(
+        r"{{ a if b is defined else c }}",
+        r#"
+        match (
+            &((&&askama::filters::AutoEscaper::new(&(self.a), askama::filters::Text))
+                .askama_auto_escape()?),
+        ) {
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0))
+                    .askama_write(__askama_writer, __askama_values)?;
+            }
+        }"#,
+        &[("a", "i8"), ("b", "i8"), ("c", "i8")],
+        3,
+    );
+
+    compare(
+        r"{{ a if b is not defined else c }}",
+        r#"
+        match (
+            &((&&askama::filters::AutoEscaper::new(&(self.c), askama::filters::Text))
+                .askama_auto_escape()?),
+        ) {
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0))
+                    .askama_write(__askama_writer, __askama_values)?;
+            }
+        }"#,
+        &[("a", "i8"), ("b", "i8"), ("c", "i8")],
+        3,
+    );
+
+    compare(
+        r"{{ a if b if c else d else e }}",
+        r#"
+        match (
+            &((&&askama::filters::AutoEscaper::new(
+                &(if askama::helpers::as_bool(
+                    &(if askama::helpers::as_bool(&(self.c)) { self.b } else { self.d })
+                ) {
+                    self.a
+                } else {
+                    self.e
+                }),
+                askama::filters::Text,
+            ))
+                .askama_auto_escape()?),
+        ) {
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0))
+                    .askama_write(__askama_writer, __askama_values)?;
+            }
+        }"#,
+        &[
+            ("a", "i8"),
+            ("b", "i8"),
+            ("c", "i8"),
+            ("d", "i8"),
+            ("e", "i8"),
+        ],
+        3,
+    );
+
+    compare(
+        r"{{ a if b else c if d else e }}",
+        r#"
+        match (
+            &((&&askama::filters::AutoEscaper::new(
+                &(if askama::helpers::as_bool(&(self.b)) {
+                    self.a
+                } else {
+                    if askama::helpers::as_bool(&(self.d)) { self.c } else { self.e }
+                }),
+                askama::filters::Text,
+            ))
+                .askama_auto_escape()?),
+        ) {
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0))
+                    .askama_write(__askama_writer, __askama_values)?;
+            }
+        }"#,
+        &[
+            ("a", "i8"),
+            ("b", "i8"),
+            ("c", "i8"),
+            ("d", "i8"),
+            ("e", "i8"),
+        ],
+        3,
     );
 }
