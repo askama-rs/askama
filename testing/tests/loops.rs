@@ -464,3 +464,37 @@ fn test_loop_locals() {
     let t = LoopLocalsContext { bla: 10 };
     assert_eq!(t.render().unwrap(), "10");
 }
+
+// This test ensures that the span used for generating askama idents
+// is working correctly when derive happens with literals coming from
+// another scope.
+//
+// Regression test for <https://github.com/askama-rs/askama/issues/564>.
+#[test]
+fn test_loop_span_scope() {
+    macro_rules! looper {
+        ($l:literal) => {
+            #[derive(Template)]
+            #[template(source = $l, ext = "txt")]
+            pub struct X;
+        };
+    }
+
+    looper!(
+        r#"
+{%- macro column(idx) -%}
+    {{ idx }}
+{%- endmacro -%}
+
+{%- macro nested_arr(arr) -%}
+    {% for e in arr -%}
+        {{- loop.index0 }}
+        {{~ column(loop.index0) -}}
+    {% endfor -%}
+{% endmacro -%}
+
+{{ nested_arr([1, 2, 3]) }}"#
+    );
+
+    assert_eq!(X.render().unwrap(), "0\n01\n12\n2");
+}

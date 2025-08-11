@@ -583,39 +583,39 @@ fn field_new(name: &str, span: proc_macro2::Span) -> TokenStream {
 }
 
 fn var_writer() -> Ident {
-    syn::Ident::new("__askama_writer", proc_macro2::Span::mixed_site())
+    syn::Ident::new("__askama_writer", proc_macro2::Span::call_site())
 }
 
 fn var_filter_source() -> Ident {
-    syn::Ident::new("__askama_filter_block", proc_macro2::Span::mixed_site())
+    syn::Ident::new("__askama_filter_block", proc_macro2::Span::call_site())
 }
 
 fn var_values() -> Ident {
-    syn::Ident::new("__askama_values", proc_macro2::Span::mixed_site())
+    syn::Ident::new("__askama_values", proc_macro2::Span::call_site())
 }
 
 fn var_arg() -> Ident {
-    syn::Ident::new("__askama_arg", proc_macro2::Span::mixed_site())
+    syn::Ident::new("__askama_arg", proc_macro2::Span::call_site())
 }
 
 fn var_item() -> Ident {
-    syn::Ident::new("__askama_item", proc_macro2::Span::mixed_site())
+    syn::Ident::new("__askama_item", proc_macro2::Span::call_site())
 }
 
 fn var_len() -> Ident {
-    syn::Ident::new("__askama_len", proc_macro2::Span::mixed_site())
+    syn::Ident::new("__askama_len", proc_macro2::Span::call_site())
 }
 
 fn var_iter() -> Ident {
-    syn::Ident::new("__askama_iter", proc_macro2::Span::mixed_site())
+    syn::Ident::new("__askama_iter", proc_macro2::Span::call_site())
 }
 
 fn var_cycle() -> Ident {
-    syn::Ident::new("__askama_cycle", proc_macro2::Span::mixed_site())
+    syn::Ident::new("__askama_cycle", proc_macro2::Span::call_site())
 }
 
 fn var_did_loop() -> Ident {
-    syn::Ident::new("__askama_did_loop", proc_macro2::Span::mixed_site())
+    syn::Ident::new("__askama_did_loop", proc_macro2::Span::call_site())
 }
 
 fn var_expr_n(n: usize, span: proc_macro2::Span) -> Ident {
