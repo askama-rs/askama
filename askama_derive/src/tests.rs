@@ -1199,7 +1199,7 @@ fn test_filter_with_path() {
         r#"
         match (
             &((&&askama::filters::AutoEscaper::new(
-                &(b::c::d(&(self.a), __askama_values)?),
+                &({ b::c::d::default().execute(&(self.a), __askama_values)? }),
                 askama::filters::Text,
             ))
                 .askama_auto_escape()?),

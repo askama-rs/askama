@@ -256,6 +256,7 @@ impl<'a, T: HtmlSafe + ?Sized> AutoEscape for &AutoEscaper<'a, T, Html> {
 ///     use askama::{filters::MaybeSafe, Result, Values};
 ///
 ///     // Do not actually use this filter! It's an intentionally bad example.
+///     #[askama::filter_fn]
 ///     pub fn backdoor<T: std::fmt::Display>(
 ///         s: T,
 ///         _: &dyn Values,
@@ -386,6 +387,7 @@ const _: () = {
 ///     use askama::{filters::Safe, Result, Values};
 ///
 ///     // Do not actually use this filter! It's an intentionally bad example.
+///     #[askama::filter_fn]
 ///     pub fn strip_except_apos(s: impl ToString, _: &dyn Values) -> Result<Safe<String>> {
 ///         Ok(Safe(s
 ///             .to_string()
