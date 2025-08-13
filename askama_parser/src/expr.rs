@@ -896,6 +896,7 @@ impl<'a> Suffix<'a> {
         ) -> ParseResult<'a, Suffix<'a>> {
             let start = ***i;
             let mut open_list: Vec<Group> = vec![open_token];
+            let mut prev: Option<&str> = None;
             loop {
                 let before = *i;
                 let (token, token_span) = ws(opt(token).with_taken()).parse_next(i)?;
@@ -903,12 +904,24 @@ impl<'a> Suffix<'a> {
                     return cut_error!("expected valid tokens in macro call", token_span);
                 };
                 let close_token = match token {
-                    Token::SomeOther => continue,
-                    Token::Open(group) => {
-                        open_list.push(group);
+                    Token::SomeOther => {
+                        if token_span.starts_with('#')
+                            && !prev.map(|prev| prev.ends_with(' ')).unwrap_or(true)
+                        {
+                            return cut_error!("expected a whitespace before `#`", token_span);
+                        }
+                        prev = Some(token_span);
                         continue;
                     }
-                    Token::Close(close_token) => close_token,
+                    Token::Open(group) => {
+                        open_list.push(group);
+                        prev = Some(token_span);
+                        continue;
+                    }
+                    Token::Close(close_token) => {
+                        prev = Some(token_span);
+                        close_token
+                    }
                 };
                 let open_token = open_list.pop().unwrap();
 

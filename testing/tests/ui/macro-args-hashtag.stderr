@@ -1,0 +1,7 @@
+error: expected a whitespace before `#`
+ --> <source attribute>:1:7
+       "#}}}"
+ --> tests/ui/macro-args-hashtag.rs:8:14
+  |
+8 |     source = r###"{{z!{'r#}}}"###,
+  |              ^^^^^^^^^^^^^^^^^^^^
