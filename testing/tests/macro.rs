@@ -630,3 +630,19 @@ fn test_macro_caller_is_defined_check() {
         "no caller defined|this time with caller"
     );
 }
+
+// This test ensures that raw lifetimes are correctly handled.
+#[test]
+fn test_macro_raw_lifetime() {
+    macro_rules! test {
+        ('r#ignore_me) => {
+            "ok"
+        };
+    }
+
+    #[derive(Template)]
+    #[template(source = r##"{{ test!('r#ignore_me) }}"##, ext = "txt")]
+    struct Foo;
+
+    assert_eq!(Foo.render().unwrap(), "ok");
+}

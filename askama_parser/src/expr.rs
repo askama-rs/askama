@@ -927,6 +927,35 @@ impl<'a> Suffix<'a> {
             }
         }
 
+        fn lifetime<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, ()> {
+            // Before the 2021 edition, we can have whitespace characters between "r#" and the
+            // identifier so we allow it here.
+            let start = *i;
+            '\''.parse_next(i)?;
+            let Some((is_raw, identifier)) = opt(alt((
+                ('r', '#', identifier).map(|(_, _, ident)| (true, ident)),
+                (identifier, not(peek('#'))).map(|(ident, _)| (false, ident)),
+            )))
+            .parse_next(i)?
+            else {
+                return cut_error!("wrong lifetime format", **start);
+            };
+            if !is_raw {
+                if crate::is_rust_keyword(identifier) {
+                    return cut_error!(
+                        "a non-raw lifetime cannot be named like an existing keyword",
+                        **start,
+                    );
+                }
+            } else if ["Self", "self", "crate", "super", "_"].contains(&identifier) {
+                return cut_error!(format!("`{identifier}` cannot be a raw lifetime"), **start,);
+            }
+            if opt(peek('\'')).parse_next(i)?.is_some() {
+                return cut_error!("unexpected `'` after lifetime", **start);
+            }
+            Ok(())
+        }
+
         fn token<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, Token> {
             // <https://doc.rust-lang.org/reference/tokens.html>
             let some_other = alt((
@@ -936,8 +965,7 @@ impl<'a> Suffix<'a> {
                 num_lit.value(Token::SomeOther),
                 // keywords + (raw) identifiers + raw strings
                 identifier_or_prefixed_string.value(Token::SomeOther),
-                // lifetimes
-                ('\'', identifier, not(peek('\''))).value(Token::SomeOther),
+                lifetime.value(Token::SomeOther),
                 // comments
                 line_comment.value(Token::SomeOther),
                 block_comment.value(Token::SomeOther),

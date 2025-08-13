@@ -1,0 +1,31 @@
+error: wrong lifetime format
+ --> <source attribute>:1:5
+       "'r#}}}"
+ --> tests/ui/macro-args-hashtag.rs:8:14
+  |
+8 |     source = r###"{{z!{'r#}}}"###,
+  |              ^^^^^^^^^^^^^^^^^^^^
+
+error: wrong lifetime format
+ --> <source attribute>:1:5
+       "'r# y}}}"
+  --> tests/ui/macro-args-hashtag.rs:15:14
+   |
+15 |     source = r###"{{z!{'r# y}}}"###,
+   |              ^^^^^^^^^^^^^^^^^^^^^^
+
+error: a non-raw lifetime cannot be named like an existing keyword
+ --> <source attribute>:1:5
+       "'break}}}"
+  --> tests/ui/macro-args-hashtag.rs:22:14
+   |
+22 |     source = r###"{{z!{'break}}}"###,
+   |              ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `self` cannot be a raw lifetime
+ --> <source attribute>:1:5
+       "'r#self}}}"
+  --> tests/ui/macro-args-hashtag.rs:29:14
+   |
+29 |     source = r###"{{z!{'r#self}}}"###,
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^
