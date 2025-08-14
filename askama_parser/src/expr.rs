@@ -8,35 +8,30 @@ use winnow::token::{any, one_of, take, take_until};
 
 use crate::node::CondTest;
 use crate::{
-    CharLit, ErrorContext, HashSet, InputStream, Level, Num, ParseResult, PathOrIdentifier, StrLit,
-    StrPrefix, WithSpan, can_be_variable_name, char_lit, cut_error, filter, identifier, keyword,
-    not_suffix_with_hash, num_lit, path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
+    CharLit, ErrorContext, HashSet, InputStream, Num, ParseResult, PathOrIdentifier, StrLit,
+    StrPrefix, WithSpan, can_be_variable_name, char_lit, cut_error, filter, identifier,
+    is_rust_keyword, keyword, not_suffix_with_hash, num_lit, path_or_identifier, skip_ws0,
+    skip_ws1, str_lit, ws,
 };
 
 macro_rules! expr_prec_layer {
     ( $name:ident, $inner:ident, $op:expr ) => {
-        fn $name(
-            i: &mut InputStream<'a>,
-            level: Level<'_>,
-        ) -> ParseResult<'a, WithSpan<Box<Self>>> {
-            expr_prec_layer(i, level, Expr::$inner, |i: &mut _| $op.parse_next(i))
+        fn $name(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+            expr_prec_layer(i, Expr::$inner, |i: &mut _| $op.parse_next(i))
         }
     };
 }
 
-fn expr_prec_layer<'a>(
-    i: &mut InputStream<'a>,
-    level: Level<'_>,
-    inner: fn(&mut InputStream<'a>, Level<'_>) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>>,
-    op: fn(&mut InputStream<'a>) -> ParseResult<'a>,
+fn expr_prec_layer<'a: 'l, 'l>(
+    i: &mut InputStream<'a, 'l>,
+    inner: fn(&mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>>,
+    op: fn(&mut InputStream<'a, 'l>) -> ParseResult<'a>,
 ) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
-    let mut expr = inner(i, level)?;
+    let mut expr = inner(i)?;
 
     let mut i_before = *i;
-    let mut level_guard = level.guard();
-    while let Some(((op, span), rhs)) =
-        opt((ws(op.with_span()), |i: &mut _| inner(i, level))).parse_next(i)?
-    {
+    let mut level_guard = i.state.level.guard();
+    while let Some(((op, span), rhs)) = opt((ws(op.with_span()), inner)).parse_next(i)? {
         level_guard.nest(&i_before)?;
         expr = WithSpan::new(Box::new(Expr::BinOp(BinOp { op, lhs: expr, rhs })), span);
         i_before = *i;
@@ -165,7 +160,7 @@ pub struct PathComponent<'a> {
     pub generics: Option<WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
 }
 
-impl<'a> PathComponent<'a> {
+impl<'a: 'l, 'l> PathComponent<'a> {
     #[inline]
     pub fn new_with_name(name: WithSpan<&'a str>) -> Self {
         Self {
@@ -174,10 +169,10 @@ impl<'a> PathComponent<'a> {
         }
     }
 
-    pub(crate) fn parse(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, Self> {
+    pub(crate) fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
         let mut p = (
             identifier.with_span(),
-            opt(preceded(ws("::"), |i: &mut _| TyGenerics::args(i, level))),
+            opt(preceded(ws("::"), TyGenerics::args)),
         );
         let ((name, name_span), generics) = p.parse_next(i)?;
         Ok(Self {
@@ -242,12 +237,11 @@ pub struct BinOp<'a> {
     pub rhs: WithSpan<Box<Expr<'a>>>,
 }
 
-impl<'a> Expr<'a> {
+impl<'a: 'l, 'l> Expr<'a> {
     pub(super) fn arguments(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
+        i: &mut InputStream<'a, 'l>,
     ) -> ParseResult<'a, WithSpan<Vec<WithSpan<Box<Self>>>>> {
-        let _level_guard = level.nest(i)?;
+        let _level_guard = i.state.level.nest(i)?;
         let mut named_arguments = HashSet::default();
         let mut p = (
             ws('('.span()),
@@ -261,8 +255,8 @@ impl<'a> Expr<'a> {
                         let has_named_arguments = !named_arguments.is_empty();
 
                         let mut p = alt((
-                            move |i: &mut _| Self::named_argument(i, level, named_arguments),
-                            move |i: &mut _| Self::parse(i, level, false),
+                            move |i: &mut _| Self::named_argument(i, named_arguments),
+                            move |i: &mut _| Self::parse(i, false),
                         ));
                         let expr = p.parse_next(i)?;
                         if has_named_arguments && !matches!(**expr, Self::NamedArgument(..)) {
@@ -287,13 +281,12 @@ impl<'a> Expr<'a> {
     }
 
     fn named_argument(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
+        i: &mut InputStream<'a, 'l>,
         named_arguments: &mut HashSet<&'a str>,
     ) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let (((argument, arg_span), _, value), span) =
             (identifier.with_span(), ws('='), move |i: &mut _| {
-                Self::parse(i, level, false)
+                Self::parse(i, false)
             })
                 .with_span()
                 .parse_next(i)?;
@@ -317,25 +310,20 @@ impl<'a> Expr<'a> {
     }
 
     pub(super) fn parse(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
+        i: &mut InputStream<'a, 'l>,
         allow_underscore: bool,
     ) -> ParseResult<'a, WithSpan<Box<Self>>> {
-        let _level_guard = level.nest(i)?;
-        Self::range(i, level, allow_underscore)
+        let _level_guard = i.state.level.nest(i)?;
+        Self::range(i, allow_underscore)
     }
 
     fn range(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
+        i: &mut InputStream<'a, 'l>,
         allow_underscore: bool,
     ) -> ParseResult<'a, WithSpan<Box<Self>>> {
-        let range_right = move |i: &mut InputStream<'a>| {
-            let ((op, span), rhs) = (
-                ws(alt(("..=", "..")).with_span()),
-                opt(move |i: &mut _| Self::or(i, level)),
-            )
-                .parse_next(i)?;
+        let range_right = move |i: &mut InputStream<'a, 'l>| {
+            let ((op, span), rhs) =
+                (ws(alt(("..=", "..")).with_span()), opt(Self::or)).parse_next(i)?;
             Ok((op, rhs, span))
         };
 
@@ -345,19 +333,17 @@ impl<'a> Expr<'a> {
         });
 
         // `expr..expr` or `expr..`
-        let range_from = (move |i: &mut _| Self::or(i, level), opt(range_right)).map(
-            move |(lhs, rhs)| match rhs {
-                Some((op, rhs, span)) => WithSpan::new(
-                    Box::new(Self::Range(Range {
-                        op,
-                        lhs: Some(lhs),
-                        rhs,
-                    })),
-                    span,
-                ),
-                None => lhs,
-            },
-        );
+        let range_from = (Self::or, opt(range_right)).map(move |(lhs, rhs)| match rhs {
+            Some((op, rhs, span)) => WithSpan::new(
+                Box::new(Self::Range(Range {
+                    op,
+                    lhs: Some(lhs),
+                    rhs,
+                })),
+                span,
+            ),
+            None => lhs,
+        });
 
         let expr = alt((range_to, range_from)).parse_next(i)?;
         check_expr(
@@ -373,14 +359,10 @@ impl<'a> Expr<'a> {
     expr_prec_layer!(or, and, "||");
     expr_prec_layer!(and, compare, "&&");
 
-    fn compare(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn compare(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let mut parse_op = ws(alt(("==", "!=", ">=", ">", "<=", "<")).with_span());
 
-        let (expr, rhs) = (
-            |i: &mut _| Self::bor(i, level),
-            opt((parse_op.by_ref(), |i: &mut _| Self::bor(i, level))),
-        )
-            .parse_next(i)?;
+        let (expr, rhs) = (Self::bor, opt((parse_op.by_ref(), Self::bor))).parse_next(i)?;
         let Some(((op, span), rhs)) = rhs else {
             return Ok(expr);
         };
@@ -405,15 +387,14 @@ impl<'a> Expr<'a> {
     expr_prec_layer!(shifts, addsub, alt((">>", "<<")));
     expr_prec_layer!(addsub, concat, alt(("+", "-")));
 
-    fn concat(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn concat(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         #[allow(clippy::type_complexity)]
-        fn concat_expr<'a>(
-            i: &mut InputStream<'a>,
-            level: Level<'_>,
+        fn concat_expr<'a: 'l, 'l>(
+            i: &mut InputStream<'a, 'l>,
         ) -> ParseResult<'a, Option<(WithSpan<Box<Expr<'a>>>, std::ops::Range<usize>)>> {
             let ws1 = |i: &mut _| opt(skip_ws1).parse_next(i);
             let tilde = (ws1, '~', ws1).with_span();
-            let data = opt((tilde, |i: &mut _| Expr::muldivmod(i, level))).parse_next(i)?;
+            let data = opt((tilde, Expr::muldivmod)).parse_next(i)?;
 
             let Some((((t1, _, t2), span), expr)) = data else {
                 return Ok(None);
@@ -425,11 +406,11 @@ impl<'a> Expr<'a> {
             Ok(Some((expr, span)))
         }
 
-        let expr = Self::muldivmod(i, level)?;
-        let expr2 = concat_expr(i, level)?;
+        let expr = Self::muldivmod(i)?;
+        let expr2 = concat_expr(i)?;
         if let Some((expr2, span)) = expr2 {
             let mut exprs = vec![expr, expr2];
-            while let Some((expr, _)) = concat_expr(i, level)? {
+            while let Some((expr, _)) = concat_expr(i)? {
                 exprs.push(expr);
             }
             Ok(WithSpan::new(Box::new(Self::Concat(exprs)), span))
@@ -440,13 +421,13 @@ impl<'a> Expr<'a> {
 
     expr_prec_layer!(muldivmod, is_as, alt(("*", "/", "%")));
 
-    fn is_as(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
-        let lhs = Self::filtered(i, level)?;
+    fn is_as(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+        let lhs = Self::filtered(i)?;
         let checkpoint = i.checkpoint();
         let rhs = opt(ws(identifier.with_span())).parse_next(i)?;
         match rhs {
             Some(("is", span)) => Self::is_as_handle_is(i, lhs, span),
-            Some(("as", span)) => Self::is_as_handle_as(i, level, lhs, span),
+            Some(("as", span)) => Self::is_as_handle_as(i, lhs, span),
             _ => {
                 i.reset(&checkpoint);
                 Ok(lhs)
@@ -455,7 +436,7 @@ impl<'a> Expr<'a> {
     }
 
     fn is_as_handle_is(
-        i: &mut InputStream<'a>,
+        i: &mut InputStream<'a, 'l>,
         lhs: WithSpan<Box<Expr<'a>>>,
         span: std::ops::Range<usize>,
     ) -> ParseResult<'a, WithSpan<Box<Self>>> {
@@ -483,12 +464,11 @@ impl<'a> Expr<'a> {
     }
 
     fn is_as_handle_as(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
+        i: &mut InputStream<'a, 'l>,
         lhs: WithSpan<Box<Expr<'a>>>,
         span: std::ops::Range<usize>,
     ) -> ParseResult<'a, WithSpan<Box<Self>>> {
-        let target = opt(|i: &mut _| path_or_identifier(i, level)).parse_next(i)?;
+        let target = opt(path_or_identifier).parse_next(i)?;
         let Some(PathOrIdentifier::Identifier(target)) = target else {
             return cut_error!(
                 "`as` operator expects the name of a primitive type on its right-hand side, \
@@ -516,14 +496,12 @@ impl<'a> Expr<'a> {
         }
     }
 
-    fn filtered(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
-        let mut res = Self::prefix(i, level)?;
+    fn filtered(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+        let mut res = Self::prefix(i)?;
 
-        let mut level_guard = level.guard();
+        let mut level_guard = i.state.level.guard();
         let mut i_before = *i;
-        while let Some((mut filter, span)) =
-            opt(ws((|i: &mut _| filter(i, level)).with_span())).parse_next(i)?
-        {
+        while let Some((mut filter, span)) = opt(ws(filter.with_span())).parse_next(i)? {
             level_guard.nest(&i_before)?;
             filter.arguments.insert(0, res);
             res = WithSpan::new(Box::new(Self::Filter(filter)), span);
@@ -532,11 +510,11 @@ impl<'a> Expr<'a> {
         Ok(res)
     }
 
-    fn prefix(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn prefix(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         // This is a rare place where we create recursion in the parsed AST
         // without recursing the parser call stack. However, this can lead
         // to stack overflows in drop glue when the AST is very deep.
-        let mut level_guard = level.guard();
+        let mut level_guard = i.state.level.guard();
         let mut i_before = *i;
         let mut ops = vec![];
         while let Some(op) = opt(ws(alt(("!", "-", "*", "&")).with_span())).parse_next(i)? {
@@ -545,7 +523,7 @@ impl<'a> Expr<'a> {
             i_before = *i;
         }
 
-        let mut expr = Suffix::parse(i, level)?;
+        let mut expr = Suffix::parse(i)?;
         for (op, span) in ops.into_iter().rev() {
             expr = WithSpan::new(Box::new(Self::Unary(op, expr)), span);
         }
@@ -553,44 +531,36 @@ impl<'a> Expr<'a> {
         Ok(expr)
     }
 
-    fn single(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn single(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         alt((
             Self::num,
             Self::str,
             Self::char,
-            move |i: &mut _| Self::path_var_bool(i, level),
-            move |i: &mut _| Self::array(i, level),
-            move |i: &mut _| Self::group(i, level),
+            Self::path_var_bool,
+            Self::array,
+            Self::group,
         ))
         .parse_next(i)
     }
 
-    fn group(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn group(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         (skip_ws0, peek('(')).parse_next(i)?;
-        Self::group_actually(i, level)
+        Self::group_actually(i)
     }
 
     // `Self::group()` is quite big. Let's only put it on the stack if needed.
     #[inline(never)]
-    fn group_actually(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<Box<Self>>> {
-        let (expr, span) = cut_err(preceded('(', |i: &mut _| {
-            Self::group_actually_inner(i, level)
-        }))
-        .with_span()
-        .parse_next(i)?;
+    fn group_actually(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+        let (expr, span) = cut_err(preceded('(', Self::group_actually_inner))
+            .with_span()
+            .parse_next(i)?;
         Ok(WithSpan::new(expr, span))
     }
 
     #[inline]
-    fn group_actually_inner(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, Box<Self>> {
+    fn group_actually_inner(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         let (expr, comma, closing) = (
-            ws(opt(|i: &mut _| Self::parse(i, level, true))),
+            ws(opt(|i: &mut _| Self::parse(i, true))),
             opt(terminated(','.span(), skip_ws0)),
             opt(')'),
         )
@@ -617,7 +587,7 @@ impl<'a> Expr<'a> {
         let collect_items = opt(separated(
             1..,
             |i: &mut _| {
-                exprs.push(Self::parse(i, level, true)?);
+                exprs.push(Self::parse(i, true)?);
                 Ok(())
             },
             ws(','),
@@ -639,12 +609,12 @@ impl<'a> Expr<'a> {
         cut_error!(msg, span)
     }
 
-    fn array(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn array(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let (array, span) = preceded(
             ws('['),
             cut_err(terminated(
                 opt(terminated(
-                    separated(1.., ws(move |i: &mut _| Self::parse(i, level, true)), ','),
+                    separated(1.., ws(move |i: &mut _| Self::parse(i, true)), ','),
                     ws(opt(',')),
                 )),
                 ']',
@@ -658,13 +628,8 @@ impl<'a> Expr<'a> {
         ))
     }
 
-    fn path_var_bool(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<Box<Self>>> {
-        let (ret, span) = (|i: &mut _| path_or_identifier(i, level))
-            .with_span()
-            .parse_next(i)?;
+    fn path_var_bool(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+        let (ret, span) = path_or_identifier.with_span().parse_next(i)?;
         let ret = match ret {
             PathOrIdentifier::Path(v) => Box::new(Self::Path(v)),
             PathOrIdentifier::Identifier(v) if *v == "true" => Box::new(Self::BoolLit(true)),
@@ -674,17 +639,17 @@ impl<'a> Expr<'a> {
         Ok(WithSpan::new(ret, span))
     }
 
-    fn str(i: &mut InputStream<'a>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn str(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let (s, span) = str_lit.with_span().parse_next(i)?;
         Ok(WithSpan::new(Box::new(Self::StrLit(s)), span))
     }
 
-    fn num(i: &mut InputStream<'a>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn num(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let ((num, full), span) = num_lit.with_taken().with_span().parse_next(i)?;
         Ok(WithSpan::new(Box::new(Expr::NumLit(full, num)), span))
     }
 
-    fn char(i: &mut InputStream<'a>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn char(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let (c, span) = char_lit.with_span().parse_next(i)?;
         Ok(WithSpan::new(Box::new(Self::CharLit(c)), span))
     }
@@ -722,7 +687,7 @@ impl<'a> Expr<'a> {
     }
 }
 
-fn token_xor<'a>(i: &mut InputStream<'a>) -> ParseResult<'a> {
+fn token_xor<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a> {
     let (good, span) = alt((keyword("xor").value(true), '^'.value(false)))
         .with_span()
         .parse_next(i)?;
@@ -733,7 +698,7 @@ fn token_xor<'a>(i: &mut InputStream<'a>) -> ParseResult<'a> {
     }
 }
 
-fn token_bitand<'a>(i: &mut InputStream<'a>) -> ParseResult<'a> {
+fn token_bitand<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a> {
     let (good, span) = alt((keyword("bitand").value(true), ('&', not('&')).value(false)))
         .with_span()
         .parse_next(i)?;
@@ -750,12 +715,9 @@ pub struct Filter<'a> {
     pub arguments: Vec<WithSpan<Box<Expr<'a>>>>,
 }
 
-impl<'a> Filter<'a> {
-    pub(crate) fn parse(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, Self> {
-        let mut p = (
-            ws(|i: &mut _| path_or_identifier(i, level)),
-            opt(|i: &mut _| Expr::arguments(i, level)),
-        );
+impl<'a: 'l, 'l> Filter<'a> {
+    pub(crate) fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
+        let mut p = (ws(path_or_identifier), opt(Expr::arguments));
         let (name, arguments) = p.parse_next(i)?;
         Ok(Self {
             name,
@@ -782,17 +744,14 @@ enum Suffix<'a> {
     Try,
 }
 
-impl<'a> Suffix<'a> {
-    fn parse(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
-        let mut level_guard = level.guard();
-        let mut expr = Expr::single(i, level)?;
+impl<'a: 'l, 'l> Suffix<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
+        let mut level_guard = i.state.level.guard();
+        let mut expr = Expr::single(i)?;
         let mut right = opt(alt((
-            |i: &mut _| Self::associated_item(i, level),
-            |i: &mut _| Self::index(i, level),
-            |i: &mut _| Self::call(i, level),
+            Self::associated_item,
+            Self::index,
+            Self::call,
             Self::r#try,
             Self::r#macro,
         )));
@@ -852,7 +811,7 @@ impl<'a> Suffix<'a> {
         Ok(expr)
     }
 
-    fn r#macro(i: &mut InputStream<'a>) -> ParseResult<'a, WithSpan<Self>> {
+    fn r#macro(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         enum Token {
             SomeOther,
@@ -877,14 +836,14 @@ impl<'a> Suffix<'a> {
             }
         }
 
-        fn macro_arguments<'a>(
-            i: &mut InputStream<'a>,
+        fn macro_arguments<'a: 'l, 'l>(
+            i: &mut InputStream<'a, 'l>,
             open_token: Group,
         ) -> ParseResult<'a, Suffix<'a>> {
-            fn inner<'a>(
-                i: &mut InputStream<'a>,
+            fn inner<'a: 'l, 'l>(
+                i: &mut InputStream<'a, 'l>,
                 open_token: Group,
-            ) -> ParseResult<'a, <InputStream<'a> as Stream>::Checkpoint> {
+            ) -> ParseResult<'a, <InputStream<'a, 'l> as Stream>::Checkpoint> {
                 let mut open_list = vec![open_token];
                 loop {
                     let before = i.checkpoint();
@@ -925,36 +884,50 @@ impl<'a> Suffix<'a> {
             Ok(Suffix::MacroCall(inner))
         }
 
-        fn lifetime<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, ()> {
-            // Before the 2021 edition, we can have whitespace characters between "r#" and the
-            // identifier so we allow it here.
-            let start = *i;
-            '\''.parse_next(i)?;
-            let Some((is_raw, identifier)) = opt(alt((
-                ('r', '#', identifier).map(|(_, _, ident)| (true, ident)),
-                (identifier, not(peek('#'))).map(|(ident, _)| (false, ident)),
-            )))
-            .parse_next(i)?
-            else {
-                return cut_error!("wrong lifetime format", **start);
-            };
-            if !is_raw {
-                if crate::is_rust_keyword(identifier) {
-                    return cut_error!(
-                        "a non-raw lifetime cannot be named like an existing keyword",
-                        **start,
-                    );
+        fn lifetime<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
+            // this code assumes that we tried to match char literals before calling this function
+            let p = (
+                '\''.void(),
+                identifier,
+                opt((repeat(1.., '#'), opt(identifier))),
+                opt('\'').map(|o| o.is_some()),
+            );
+            let ((_, front, back, quot), span) = p.with_span().parse_next(i)?;
+            match (front, back, quot) {
+                // this case should never be encountered
+                (_, _, true) => cut_error!(
+                    "cannot have multiple characters in a character literal, \
+                    use `\"...\"` to write a string",
+                    span
+                ),
+                // a normal lifetime
+                (identifier, None, _) => {
+                    if !is_rust_keyword(identifier) {
+                        Ok(())
+                    } else {
+                        cut_error!(
+                            "a non-raw lifetime cannot be named like an existing keyword",
+                            span,
+                        )
+                    }
                 }
-            } else if ["Self", "self", "crate", "super", "_"].contains(&identifier) {
-                return cut_error!(format!("`{identifier}` cannot be a raw lifetime"), **start,);
+                // a raw lifetime
+                ("r", Some((1, Some(identifier))), _) => {
+                    if matches!(identifier, "Self" | "self" | "crate" | "super" | "_") {
+                        cut_error!(
+                            format!("`{}` cannot be a raw lifetime", identifier.escape_debug()),
+                            span,
+                        )
+                    } else {
+                        Ok(())
+                    }
+                }
+                // an illegal prefix (not `'r#..`, multiple `#` or no identifier after `#`)
+                (_, Some(_), _) => cut_error!("wrong lifetime format", span),
             }
-            if opt(peek('\'')).parse_next(i)?.is_some() {
-                return cut_error!("unexpected `'` after lifetime", **start);
-            }
-            Ok(())
         }
 
-        fn token<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, Token> {
+        fn token<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Token> {
             // <https://doc.rust-lang.org/reference/tokens.html>
             let some_other = alt((
                 // literals
@@ -974,8 +947,8 @@ impl<'a> Suffix<'a> {
             alt((open.map(Token::Open), close.map(Token::Close), some_other)).parse_next(i)
         }
 
-        fn line_comment<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, ()> {
-            fn inner<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, bool> {
+        fn line_comment<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
+            fn inner<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, bool> {
                 let mut p = (
                     "//".span(),
                     alt((
@@ -1000,8 +973,8 @@ impl<'a> Suffix<'a> {
             doc_comment_no_bare_cr(i, inner)
         }
 
-        fn block_comment<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, ()> {
-            fn inner<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, bool> {
+        fn block_comment<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
+            fn inner<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, bool> {
                 let is_doc_comment = alt((
                     ('*', not(peek(one_of(['*', '/'])))).value(true),
                     '!'.value(true),
@@ -1034,7 +1007,9 @@ impl<'a> Suffix<'a> {
             doc_comment_no_bare_cr(i, inner)
         }
 
-        fn identifier_or_prefixed_string<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, ()> {
+        fn identifier_or_prefixed_string<'a: 'l, 'l>(
+            i: &mut InputStream<'a, 'l>,
+        ) -> ParseResult<'a, ()> {
             // <https://doc.rust-lang.org/reference/tokens.html#r-lex.token.literal.str-raw.syntax>
 
             let ((prefix, hashes, quot), prefix_span): ((_, usize, _), _) =
@@ -1145,7 +1120,7 @@ impl<'a> Suffix<'a> {
             }
         }
 
-        fn hash<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, Token> {
+        fn hash<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Token> {
             let (quot, span) = preceded('#', opt('"')).with_span().parse_next(i)?;
             if quot.is_some() {
                 return cut_error!(
@@ -1156,7 +1131,7 @@ impl<'a> Suffix<'a> {
             Ok(Token::SomeOther)
         }
 
-        fn punctuation<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, ()> {
+        fn punctuation<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
             // <https://doc.rust-lang.org/reference/tokens.html#punctuation>
             // hash '#' omitted
 
@@ -1200,7 +1175,7 @@ impl<'a> Suffix<'a> {
             alt((three_chars, two_chars, one_char)).parse_next(i)
         }
 
-        fn open<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, Group> {
+        fn open<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Group> {
             alt((
                 '('.value(Group::Paren),
                 '{'.value(Group::Brace),
@@ -1209,7 +1184,7 @@ impl<'a> Suffix<'a> {
             .parse_next(i)
         }
 
-        fn close<'a>(i: &mut InputStream<'a>) -> ParseResult<'a, Group> {
+        fn close<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Group> {
             alt((
                 ')'.value(Group::Paren),
                 '}'.value(Group::Brace),
@@ -1223,10 +1198,7 @@ impl<'a> Suffix<'a> {
         Ok(WithSpan::new(inner, span))
     }
 
-    fn associated_item(
-        i: &mut InputStream<'a>,
-        level: Level<'_>,
-    ) -> ParseResult<'a, WithSpan<Self>> {
+    fn associated_item(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
         let mut p = (
             ws(terminated('.'.span(), not('.'))),
             cut_err((
@@ -1240,7 +1212,7 @@ impl<'a> Suffix<'a> {
                     }
                     Ok(WithSpan::new(name, span))
                 },
-                opt(|i: &mut _| call_generics(i, level)),
+                opt(call_generics),
             )),
         );
         let (span, (name, generics)) = p.parse_next(i)?;
@@ -1250,10 +1222,10 @@ impl<'a> Suffix<'a> {
         ))
     }
 
-    fn index(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Self>> {
+    fn index(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
         let mut p = (
             ws('['.span()),
-            cut_err((ws(move |i: &mut _| Expr::parse(i, level, true)), opt(']'))),
+            cut_err((ws(move |i: &mut _| Expr::parse(i, true)), opt(']'))),
         );
         let (span, (expr, closed)) = p.parse_next(i)?;
         if closed.is_none() {
@@ -1262,24 +1234,22 @@ impl<'a> Suffix<'a> {
         Ok(WithSpan::new(Self::Index(expr), span))
     }
 
-    fn call(i: &mut InputStream<'a>, level: Level<'_>) -> ParseResult<'a, WithSpan<Self>> {
-        let mut p = (opt(|i: &mut _| call_generics(i, level)), |i: &mut _| {
-            Expr::arguments(i, level)
-        });
+    fn call(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+        let mut p = (opt(call_generics), Expr::arguments);
         let (generics, args) = p.parse_next(i)?;
         let (args, span) = args.deconstruct();
         Ok(WithSpan::new(Self::Call { generics, args }, span))
     }
 
-    fn r#try(i: &mut InputStream<'a>) -> ParseResult<'a, WithSpan<Self>> {
+    fn r#try(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
         let span = preceded(skip_ws0, '?'.span()).parse_next(i)?;
         Ok(WithSpan::new(Self::Try, span))
     }
 }
 
-fn doc_comment_no_bare_cr<'a>(
-    i: &mut InputStream<'a>,
-    inner: fn(i: &mut InputStream<'a>) -> ParseResult<'a, bool>,
+fn doc_comment_no_bare_cr<'a: 'l, 'l>(
+    i: &mut InputStream<'a, 'l>,
+    inner: fn(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, bool>,
 ) -> ParseResult<'a, ()> {
     let ((is_doc_comment, comment), span) = inner.with_taken().with_span().parse_next(i)?;
     if is_doc_comment && comment.split('\r').skip(1).any(|s| !s.starts_with('\n')) {
@@ -1307,8 +1277,8 @@ pub struct TyGenerics<'a> {
     pub args: Option<WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
 }
 
-impl<'i> TyGenerics<'i> {
-    fn parse(i: &mut InputStream<'i>, level: Level<'_>) -> ParseResult<'i, WithSpan<Self>> {
+impl<'a: 'l, 'l> TyGenerics<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
         let path = separated(
             1..,
             ws(identifier
@@ -1318,11 +1288,7 @@ impl<'i> TyGenerics<'i> {
         )
         .map(|v: Vec<_>| v);
 
-        let p = ws((
-            repeat(0.., ws('&')),
-            path,
-            opt(|i: &mut _| Self::args(i, level)),
-        ));
+        let p = ws((repeat(0.., ws('&')), path, opt(Self::args)));
         let ((refs, path, args), span) = p.with_span().parse_next(i)?;
 
         if let [name] = path.as_slice() {
@@ -1347,27 +1313,25 @@ impl<'i> TyGenerics<'i> {
     }
 
     fn args(
-        i: &mut InputStream<'i>,
-        level: Level<'_>,
-    ) -> ParseResult<'i, WithSpan<Vec<WithSpan<TyGenerics<'i>>>>> {
+        i: &mut InputStream<'a, 'l>,
+    ) -> ParseResult<'a, WithSpan<Vec<WithSpan<TyGenerics<'a>>>>> {
         let mut p = cut_err(terminated(
             opt(terminated(
-                separated(1.., |i: &mut _| TyGenerics::parse(i, level), ws(',')),
+                separated(1.., TyGenerics::parse, ws(',')),
                 ws(opt(',')),
             )),
             '>',
         ));
 
         let span = ws('<'.span()).parse_next(i)?;
-        let _level_guard = level.nest(i)?;
+        let _level_guard = i.state.level.nest(i)?;
         let args = p.parse_next(i)?;
         Ok(WithSpan::new(args.unwrap_or_default(), span))
     }
 }
 
-pub(crate) fn call_generics<'i>(
-    i: &mut InputStream<'i>,
-    level: Level<'_>,
-) -> ParseResult<'i, WithSpan<Vec<WithSpan<TyGenerics<'i>>>>> {
-    preceded(ws("::"), cut_err(|i: &mut _| TyGenerics::args(i, level))).parse_next(i)
+pub(crate) fn call_generics<'a: 'l, 'l>(
+    i: &mut InputStream<'a, 'l>,
+) -> ParseResult<'a, WithSpan<Vec<WithSpan<TyGenerics<'a>>>>> {
+    preceded(ws("::"), cut_err(TyGenerics::args)).parse_next(i)
 }
