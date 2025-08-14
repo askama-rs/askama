@@ -6,8 +6,8 @@ use winnow::{ModalParser, Parser};
 
 use crate::{
     CharLit, ErrorContext, InputStream, Num, ParseErr, ParseResult, PathComponent,
-    PathOrIdentifier, Span, State, StrLit, WithSpan, bool_lit, can_be_variable_name, char_lit,
-    cut_error, identifier, is_rust_keyword, keyword, num_lit, path_or_identifier, str_lit, ws,
+    PathOrIdentifier, Span, StrLit, WithSpan, bool_lit, can_be_variable_name, char_lit, cut_error,
+    identifier, is_rust_keyword, keyword, num_lit, path_or_identifier, str_lit, ws,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -40,7 +40,7 @@ impl<'a> From<(WithSpan<&'a str>, Target<'a>)> for NamedTarget<'a> {
     }
 }
 
-impl<'a> Target<'a> {
+impl<'a: 'l, 'l> Target<'a> {
     pub fn span(&self) -> Span {
         match self {
             Target::Name(v) => v.span(),
@@ -59,17 +59,15 @@ impl<'a> Target<'a> {
     }
 
     /// Parses multiple targets with `or` separating them
-    pub(super) fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Self> {
+    pub(super) fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
         enum OneOrMany<'a> {
             One(Target<'a>),
             Many(Vec<Target<'a>>),
         }
 
-        let mut or_more = opt(preceded(ws(keyword("or")), |i: &mut _| {
-            Self::parse_one(i, s)
-        }));
+        let mut or_more = opt(preceded(ws(keyword("or")), Self::parse_one));
         let one_or_many = |i: &mut _| {
-            let target = Self::parse_one(i, s)?;
+            let target = Self::parse_one(i)?;
             let Some(snd_target) = or_more.parse_next(i)? else {
                 return Ok(OneOrMany::One(target));
             };
@@ -81,7 +79,7 @@ impl<'a> Target<'a> {
             Ok(OneOrMany::Many(targets))
         };
 
-        let _level_guard = s.level.nest(i)?;
+        let _level_guard = i.state.level.nest(i)?;
         let (inner, span) = one_or_many.with_span().parse_next(i)?;
         match inner {
             OneOrMany::One(target) => Ok(target),
@@ -90,7 +88,7 @@ impl<'a> Target<'a> {
     }
 
     /// Parses a single target without an `or`, unless it is wrapped in parentheses.
-    fn parse_one(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Self> {
+    fn parse_one(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
         let mut opt_opening_paren = opt(ws('(').span()).map(|o| o.is_some());
         let mut opt_opening_brace = opt(ws('{').span()).map(|o| o.is_some());
         let mut opt_opening_bracket = opt(ws('[').span()).map(|o| o.is_some());
@@ -105,8 +103,7 @@ impl<'a> Target<'a> {
         // match tuples
         let target_is_tuple = opt_opening_paren.parse_next(i)?;
         if target_is_tuple {
-            let (is_singleton, mut targets) =
-                collect_targets(i, ')', |i: &mut _| Self::unnamed(i, s))?;
+            let (is_singleton, mut targets) = collect_targets(i, ')', Self::unnamed)?;
             if is_singleton && let Some(target) = targets.pop() {
                 return Ok(target);
             }
@@ -119,14 +116,14 @@ impl<'a> Target<'a> {
         // match array
         let target_is_array = opt_opening_bracket.parse_next(i)?;
         if target_is_array {
-            let targets = collect_targets(i, ']', |i: &mut _| Self::unnamed(i, s))?.1;
+            let targets = collect_targets(i, ']', Self::unnamed)?.1;
             let inner = only_one_rest_pattern(targets, true, "array")?;
             let range = start..i.current_token_start();
             return Ok(Self::Array(WithSpan::new(inner, range)));
         }
 
         // match structs
-        let path = (|i: &mut _| path_or_identifier(i, s.level)).verify_map(|r| match r {
+        let path = path_or_identifier.verify_map(|r| match r {
             PathOrIdentifier::Path(v) => Some(v),
             PathOrIdentifier::Identifier(_) => None,
         });
@@ -137,14 +134,14 @@ impl<'a> Target<'a> {
 
             let is_unnamed_struct = opt_opening_paren.parse_next(i)?;
             if is_unnamed_struct {
-                let targets = collect_targets(i, ')', |i: &mut _| Self::unnamed(i, s))?.1;
+                let targets = collect_targets(i, ')', Self::unnamed)?.1;
                 let inner = only_one_rest_pattern(targets, false, "struct")?;
                 return Ok(Self::Tuple(WithSpan::new((path, inner), path_span)));
             }
 
             let is_named_struct = opt_opening_brace.parse_next(i)?;
             if is_named_struct {
-                let targets = collect_targets(i, '}', |i: &mut _| Self::named(i, s))?.1;
+                let targets = collect_targets(i, '}', Self::named)?.1;
                 return Ok(Self::Struct(WithSpan::new((path, targets), path_span)));
             }
 
@@ -184,7 +181,7 @@ impl<'a> Target<'a> {
         }
     }
 
-    fn lit(i: &mut InputStream<'a>) -> ParseResult<'a, Self> {
+    fn lit(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
         enum Lit<'a> {
             Str(StrLit<'a>),
             Bool(&'a str),
@@ -208,13 +205,12 @@ impl<'a> Target<'a> {
         }
     }
 
-    fn unnamed(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Self> {
-        alt((Self::rest, |i: &mut _| Self::parse(i, s))).parse_next(i)
+    fn unnamed(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
+        alt((Self::rest, Self::parse)).parse_next(i)
     }
 
     fn named<O: From<(WithSpan<&'a str>, Self)>>(
-        i: &mut InputStream<'a>,
-        s: &State<'_, '_>,
+        i: &mut InputStream<'a, 'l>,
     ) -> ParseResult<'a, O> {
         if let Some(rest) = opt(Self::rest_inner).parse_next(i)? {
             let chr = peek(ws(opt(one_of([',', ':']).with_span()))).parse_next(i)?;
@@ -233,11 +229,8 @@ impl<'a> Target<'a> {
             }
             Ok((WithSpan::new("..", rest.span), Target::Rest(rest)).into())
         } else {
-            let ((src, span), target) = (
-                identifier.with_span(),
-                opt(preceded(ws(':'), |i: &mut _| Self::parse(i, s))),
-            )
-                .parse_next(i)?;
+            let ((src, span), target) =
+                (identifier.with_span(), opt(preceded(ws(':'), Self::parse))).parse_next(i)?;
 
             let src = WithSpan::new(src, span);
             if *src == "_" {
@@ -255,11 +248,13 @@ impl<'a> Target<'a> {
         }
     }
 
-    fn rest(i: &mut InputStream<'a>) -> ParseResult<'a, Self> {
+    fn rest(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
         Self::rest_inner.map(Self::Rest).parse_next(i)
     }
 
-    fn rest_inner(i: &mut InputStream<'a>) -> ParseResult<'a, WithSpan<Option<WithSpan<&'a str>>>> {
+    fn rest_inner(
+        i: &mut InputStream<'a, 'l>,
+    ) -> ParseResult<'a, WithSpan<Option<WithSpan<&'a str>>>> {
         let p = |i: &mut _| {
             let id =
                 terminated(opt(terminated(identifier.with_span(), ws('@'))), "..").parse_next(i)?;
@@ -297,10 +292,10 @@ fn verify_name<'a>(name: WithSpan<&'a str>) -> Result<Target<'a>, ErrMode<ErrorC
     }
 }
 
-fn collect_targets<'a, T>(
-    i: &mut InputStream<'a>,
+fn collect_targets<'a: 'l, 'l, T>(
+    i: &mut InputStream<'a, 'l>,
     delim: char,
-    one: impl ModalParser<InputStream<'a>, T, ErrorContext>,
+    one: impl ModalParser<InputStream<'a, 'l>, T, ErrorContext>,
 ) -> ParseResult<'a, (bool, Vec<T>)> {
     let opt_comma = ws(opt(',')).map(|o| o.is_some());
     let mut opt_end = ws(opt(one_of(delim))).map(|o| o.is_some());

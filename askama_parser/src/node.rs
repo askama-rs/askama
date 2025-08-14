@@ -10,9 +10,9 @@ use winnow::token::{any, literal, rest, take, take_until};
 use winnow::{ModalParser, Parser};
 
 use crate::{
-    ErrorContext, Expr, Filter, HashSet, InputStream, ParseErr, ParseResult, Span, State, Target,
-    WithSpan, cut_error, filter, identifier, is_rust_keyword, keyword, skip_ws0,
-    str_lit_without_prefix, ws,
+    ErrorContext, Expr, Filter, HashSet, InputStream, ParseErr, ParseResult, Span, Target,
+    WithSpan, block_end, block_start, cut_error, expr_end, expr_start, filter, identifier,
+    is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
 };
 
 #[derive(Debug, PartialEq)]
@@ -36,18 +36,12 @@ pub enum Node<'a> {
     FilterBlock(WithSpan<FilterBlock<'a>>),
 }
 
-impl<'a> Node<'a> {
-    pub(super) fn parse_template(
-        i: &mut InputStream<'a>,
-        s: &State<'_, '_>,
-    ) -> ParseResult<'a, Vec<Box<Self>>> {
-        let mut p = parse_with_unexpected_fallback(
-            |i: &mut _| Self::many(i, s),
-            |i: &mut _| unexpected_tag(i, s),
-        );
+impl<'a: 'l, 'l> Node<'a> {
+    pub(super) fn parse_template(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Vec<Box<Self>>> {
+        let mut p = parse_with_unexpected_fallback(Self::many, unexpected_tag);
         let nodes = p.parse_next(i)?;
         if !i.is_empty() {
-            opt(|i: &mut _| unexpected_tag(i, s)).parse_next(i)?;
+            opt(unexpected_tag).parse_next(i)?;
             return cut_error!(
                 "cannot parse entire template\n\
                 you should never encounter this error\n\
@@ -58,24 +52,19 @@ impl<'a> Node<'a> {
         Ok(nodes)
     }
 
-    fn many(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Vec<Box<Self>>> {
+    fn many(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Vec<Box<Self>>> {
         repeat(
             0..,
-            alt((
-                |i: &mut _| Lit::parse(i, s),
-                |i: &mut _| Comment::parse(i, s),
-                |i: &mut _| Self::expr(i, s),
-                |i: &mut _| Self::parse(i, s),
-            )),
+            alt((Lit::parse, Comment::parse, Self::expr, Self::parse)),
         )
         .map(|v: Vec<_>| v)
         .parse_next(i)
     }
 
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Self>> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         let start = i.checkpoint();
         let (span, tag) = (
-            s.syntax.block_start.span(),
+            block_start.span(),
             peek(preceded((opt(Whitespace::parse), skip_ws0), identifier)),
         )
             .parse_next(i)?;
@@ -86,9 +75,9 @@ impl<'a> Node<'a> {
             "if" => If::parse,
             "for" => Loop::parse,
             "match" => Match::parse,
-            "extends" => |i: &mut InputStream<'a>, _s: &State<'_, '_>| Extends::parse(i),
-            "include" => |i: &mut InputStream<'a>, _s: &State<'_, '_>| Include::parse(i),
-            "import" => |i: &mut InputStream<'a>, _s: &State<'_, '_>| Import::parse(i),
+            "extends" => Extends::parse,
+            "include" => Include::parse,
+            "import" => Import::parse,
             "block" => BlockDef::parse,
             "macro" => Macro::parse,
             "raw" => Raw::parse,
@@ -101,23 +90,22 @@ impl<'a> Node<'a> {
             }
         };
 
-        let _level_guard = s.level.nest(i)?;
-        let node = func(i, s)?;
-        let closed = cut_node(
-            None,
-            alt((
-                ws(eof).value(false),
-                (|i: &mut _| s.tag_block_end(i)).value(true),
-            )),
-        )
-        .parse_next(i)?;
+        let _level_guard = i.state.level.nest(i)?;
+        let node = func(i)?;
+        let closed =
+            cut_node(None, alt((ws(eof).value(false), block_end.value(true)))).parse_next(i)?;
         match closed {
             true => Ok(node),
-            false => Err(ErrorContext::unclosed("block", s.syntax.block_end, span).cut()),
+            false => {
+                Err(
+                    ErrorContext::unclosed("block", i.state.syntax.block_end, Span::new(span))
+                        .cut(),
+                )
+            }
         }
     }
 
-    fn r#break(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
+    fn r#break(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let mut p = (
             opt(Whitespace::parse),
             ws(keyword("break").span()),
@@ -125,13 +113,13 @@ impl<'a> Node<'a> {
         );
 
         let (pws, span, nws) = p.parse_next(i)?;
-        if !s.is_in_loop() {
+        if !i.state.is_in_loop() {
             return cut_error!("you can only `break` inside a `for` loop", span);
         }
         Ok(Box::new(Self::Break(WithSpan::new(Ws(pws, nws), span))))
     }
 
-    fn r#continue(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
+    fn r#continue(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let mut p = (
             opt(Whitespace::parse),
             ws(keyword("continue").span()),
@@ -139,27 +127,27 @@ impl<'a> Node<'a> {
         );
 
         let (pws, span, nws) = p.parse_next(i)?;
-        if !s.is_in_loop() {
+        if !i.state.is_in_loop() {
             return cut_error!("you can only `continue` inside a `for` loop", span);
         }
         Ok(Box::new(Self::Continue(WithSpan::new(Ws(pws, nws), span))))
     }
 
-    fn expr(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Self>> {
+    fn expr(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         let mut p = (
-            s.syntax.expr_start.span(),
+            expr_start.span(),
             cut_node(
                 None,
                 (
                     opt(Whitespace::parse),
-                    ws(|i: &mut _| Expr::parse(i, s.level, false)),
+                    ws(|i: &mut _| Expr::parse(i, false)),
                 ),
             ),
             cut_node(
                 None,
                 (
                     opt(Whitespace::parse),
-                    alt((s.syntax.expr_end.value(true), ws(eof).value(false))),
+                    alt((expr_end.value(true), ws(eof).value(false))),
                 ),
             ),
         );
@@ -168,7 +156,7 @@ impl<'a> Node<'a> {
         if closed {
             Ok(Box::new(Self::Expr(Ws(pws, nws), expr)))
         } else {
-            Err(ErrorContext::unclosed("expression", s.syntax.expr_end, start).cut())
+            Err(ErrorContext::unclosed("expression", i.state.syntax.expr_end, start).cut())
         }
     }
 
@@ -197,15 +185,15 @@ impl<'a> Node<'a> {
 }
 
 #[inline]
-fn parse_with_unexpected_fallback<'a, O>(
-    mut parser: impl ModalParser<InputStream<'a>, O, ErrorContext>,
-    mut unexpected_parser: impl FnMut(&mut InputStream<'a>) -> ParseResult<'a, ()>,
-) -> impl ModalParser<InputStream<'a>, O, ErrorContext> {
+fn parse_with_unexpected_fallback<'a: 'l, 'l, O>(
+    mut parser: impl ModalParser<InputStream<'a, 'l>, O, ErrorContext>,
+    mut unexpected_parser: impl FnMut(&mut InputStream<'a, 'l>) -> ParseResult<'a, ()>,
+) -> impl ModalParser<InputStream<'a, 'l>, O, ErrorContext> {
     #[cold]
     #[inline(never)]
-    fn try_assign_fallback_error<'a>(
-        i: &mut InputStream<'a>,
-        unexpected_parser: &mut dyn FnMut(&mut InputStream<'a>) -> ParseResult<'a, ()>,
+    fn try_assign_fallback_error<'a: 'l, 'l>(
+        i: &mut InputStream<'a, 'l>,
+        unexpected_parser: &mut dyn FnMut(&mut InputStream<'a, 'l>) -> ParseResult<'a, ()>,
         err: &mut ErrMode<ErrorContext>,
     ) {
         let (ErrMode::Backtrack(err_ctx) | ErrMode::Cut(err_ctx)) = &err else {
@@ -227,7 +215,7 @@ fn parse_with_unexpected_fallback<'a, O>(
         i.reset(&checkpoint);
     }
 
-    move |i: &mut InputStream<'a>| {
+    move |i: &mut InputStream<'a, 'l>| {
         let mut result = parser.parse_next(i);
         if let Err(err) = &mut result {
             try_assign_fallback_error(i, &mut unexpected_parser, err);
@@ -237,26 +225,24 @@ fn parse_with_unexpected_fallback<'a, O>(
 }
 
 #[inline]
-fn cut_node<'a, O>(
+fn cut_node<'a: 'l, 'l, O>(
     kind: Option<&'static str>,
-    inner: impl ModalParser<InputStream<'a>, O, ErrorContext>,
-) -> impl ModalParser<InputStream<'a>, O, ErrorContext> {
+    inner: impl ModalParser<InputStream<'a, 'l>, O, ErrorContext>,
+) -> impl ModalParser<InputStream<'a, 'l>, O, ErrorContext> {
     parse_with_unexpected_fallback(cut_err(inner), move |i: &mut _| unexpected_raw_tag(kind, i))
 }
 
-fn unexpected_tag<'a>(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, ()> {
-    (
-        |i: &mut _| s.tag_block_start(i),
-        opt(Whitespace::parse),
-        |i: &mut _| unexpected_raw_tag(None, i),
-    )
+fn unexpected_tag<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
+    (block_start, opt(Whitespace::parse), |i: &mut _| {
+        unexpected_raw_tag(None, i)
+    })
         .void()
         .parse_next(i)
 }
 
-fn unexpected_raw_tag<'a>(
+fn unexpected_raw_tag<'a: 'l, 'l>(
     kind: Option<&'static str>,
-    i: &mut InputStream<'a>,
+    i: &mut InputStream<'a, 'l>,
 ) -> ParseResult<'a, ()> {
     let (tag, span) = peek(ws(identifier.with_span())).parse_next(i)?;
     cut_error!(
@@ -281,18 +267,18 @@ pub struct When<'a> {
     pub nodes: Vec<Box<Node<'a>>>,
 }
 
-impl<'a> When<'a> {
-    fn r#else(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<Self>> {
+impl<'a: 'l, 'l> When<'a> {
+    fn r#else(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
         let mut p = (
-            |i: &mut _| s.tag_block_start(i),
+            block_start,
             opt(Whitespace::parse),
             ws(keyword("else").span()),
             cut_node(
                 Some("match-else"),
                 (
                     opt(Whitespace::parse),
-                    |i: &mut _| s.tag_block_end(i),
-                    cut_node(Some("match-else"), |i: &mut _| Node::many(i, s)),
+                    block_end,
+                    cut_node(Some("match-else"), Node::many),
                 ),
             ),
         );
@@ -308,19 +294,19 @@ impl<'a> When<'a> {
     }
 
     #[allow(clippy::self_named_constructors)]
-    fn when(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<Self>> {
+    fn when(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
         let mut p = (
-            |i: &mut _| s.tag_block_start(i),
+            block_start,
             opt(Whitespace::parse),
             ws(keyword("when").span()),
             cut_node(
                 Some("match-when"),
                 (
-                    separated(1.., ws(|i: &mut _| Target::parse(i, s)), '|'),
+                    separated(1.., ws(Target::parse), '|'),
                     opt(Whitespace::parse),
-                    |i: &mut _| s.tag_block_end(i),
-                    cut_node(Some("match-when"), |i: &mut _| Node::many(i, s)),
-                    opt(|i: &mut _| Self::endwhen(i, s)),
+                    block_end,
+                    cut_node(Some("match-when"), Node::many),
+                    opt(Self::endwhen),
                 ),
             ),
         );
@@ -338,10 +324,10 @@ impl<'a> When<'a> {
         ))
     }
 
-    fn endwhen(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
+    fn endwhen(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let mut p = ws(terminated(
             (
-                |i: &mut _| s.tag_block_start(i),
+                block_start,
                 opt(Whitespace::parse),
                 ws(keyword("endwhen").span()),
             ),
@@ -349,8 +335,8 @@ impl<'a> When<'a> {
                 Some("match-endwhen"),
                 (
                     opt(Whitespace::parse),
-                    |i: &mut _| s.tag_block_end(i),
-                    repeat(0.., ws(|i: &mut _| Comment::parse(i, s)).void()).map(|()| ()),
+                    block_end,
+                    repeat(0.., ws(Comment::parse).void()).map(|()| ()),
                 ),
             ),
         ));
@@ -372,28 +358,25 @@ pub struct Cond<'a> {
     pub nodes: Vec<Box<Node<'a>>>,
 }
 
-impl<'a> Cond<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<Self>> {
-        let alt_else = (
-            ws(keyword("else").span()),
-            opt(|i: &mut _| CondTest::parse(i, s)),
-        );
+impl<'a: 'l, 'l> Cond<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+        let alt_else = (ws(keyword("else").span()), opt(CondTest::parse));
         let alt_elif = |i: &mut _| {
             let mut p = (
                 ws(keyword("elif").span()),
-                cut_node(Some("if-elif"), |i: &mut _| CondTest::parse_cond(i, s)),
+                cut_node(Some("if-elif"), CondTest::parse_cond),
             );
             let (span, cond) = p.parse_next(i)?;
             Ok((span.clone(), Some(WithSpan::new(cond, span))))
         };
 
         let (_, pws, (span, cond), nws, _, nodes) = (
-            |i: &mut _| s.tag_block_start(i),
+            block_start,
             opt(Whitespace::parse),
             alt((alt_else, alt_elif)),
             opt(Whitespace::parse),
-            cut_node(Some("if"), |i: &mut _| s.tag_block_end(i)),
-            cut_node(Some("if"), |i: &mut _| Node::many(i, s)),
+            cut_node(Some("if"), block_end),
+            cut_node(Some("if"), Node::many),
         )
             .parse_next(i)?;
 
@@ -415,39 +398,37 @@ pub struct CondTest<'a> {
     pub contains_bool_lit_or_is_defined: bool,
 }
 
-impl<'a> CondTest<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, WithSpan<Self>> {
+impl<'a: 'l, 'l> CondTest<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
         let mut p = (
             ws(keyword("if").span()),
-            cut_node(Some("if"), |i: &mut _| Self::parse_cond(i, s)),
+            cut_node(Some("if"), Self::parse_cond),
         );
         let (span, cond) = p.parse_next(i)?;
         Ok(WithSpan::new(cond, span))
     }
 
-    fn parse_cond(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Self> {
+    fn parse_cond(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
         let (target, expr) = (
             opt(delimited(
                 ws(alt((keyword("let"), keyword("set")))),
-                ws(|i: &mut _| Target::parse(i, s)),
+                ws(Target::parse),
                 ws('='),
             )),
-            ws(|i: &mut InputStream<'a>| {
+            ws(|i: &mut InputStream<'a, 'l>| {
                 let start_checkpoint = i.checkpoint();
                 let start_offset = i.current_token_start();
 
-                let mut expr = Expr::parse(i, s.level, false)?;
+                let mut expr = Expr::parse(i, false)?;
                 if let Expr::BinOp(v) = &mut *expr.inner
                     && matches!(*v.rhs.inner, Expr::Var("set" | "let"))
                 {
-                    let _level_guard = s.level.nest(i)?;
+                    let _level_guard = i.state.level.nest(i)?;
 
                     i.reset(&start_checkpoint);
                     i.next_slice(v.rhs.span.start - start_offset);
 
-                    let (new_right, span) = (|i: &mut _| Self::parse_cond(i, s))
-                        .with_span()
-                        .parse_next(i)?;
+                    let (new_right, span) = Self::parse_cond.with_span().parse_next(i)?;
                     v.rhs.inner = Box::new(Expr::LetCond(WithSpan::new(new_right, span)));
                 }
                 Ok(expr)
@@ -474,7 +455,7 @@ pub enum Whitespace {
 }
 
 impl Whitespace {
-    fn parse<'i>(i: &mut InputStream<'i>) -> ParseResult<'i, Self> {
+    fn parse<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
         any.verify_map(Self::parse_char).parse_next(i)
     }
 
@@ -509,10 +490,9 @@ impl FromStr for Whitespace {
     }
 }
 
-fn check_block_start<'a>(
-    i: &mut InputStream<'a>,
+fn check_block_start<'a: 'l, 'l>(
+    i: &mut InputStream<'a, 'l>,
     start: Span,
-    s: &State<'_, '_>,
     node: &str,
     expected: &str,
 ) -> ParseResult<'a, ()> {
@@ -522,7 +502,7 @@ fn check_block_start<'a>(
             start,
         );
     }
-    (|i: &mut _| s.tag_block_start(i)).parse_next(i)
+    i.state.syntax.block_start.void().parse_next(i)
 }
 
 #[derive(Debug, PartialEq)]
@@ -537,15 +517,12 @@ pub struct Loop<'a> {
     pub ws3: Ws,
 }
 
-impl<'a> Loop<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
-        fn content<'a>(
-            i: &mut InputStream<'a>,
-            s: &State<'_, '_>,
-        ) -> ParseResult<'a, Vec<Box<Node<'a>>>> {
-            s.enter_loop();
-            let result = (|i: &mut _| Node::many(i, s)).parse_next(i);
-            s.leave_loop();
+impl<'a: 'l, 'l> Loop<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
+        fn content<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Vec<Box<Node<'a>>>> {
+            i.state.enter_loop();
+            let result = Node::many(i);
+            i.state.leave_loop();
             result
         }
 
@@ -554,24 +531,17 @@ impl<'a> Loop<'a> {
 
         let if_cond = preceded(
             ws(keyword("if")),
-            cut_node(
-                Some("for-if"),
-                ws(|i: &mut _| Expr::parse(i, s.level, true)),
-            ),
+            cut_node(Some("for-if"), ws(|i: &mut _| Expr::parse(i, true))),
         );
 
-        let else_block = |i: &mut _| {
+        let else_block = |i: &mut InputStream<'a, 'l>| {
             let mut p = preceded(
                 ws(keyword("else")),
                 cut_node(
                     Some("for-else"),
                     (
                         opt(Whitespace::parse),
-                        delimited(
-                            |i: &mut _| s.tag_block_end(i),
-                            |i: &mut _| Node::many(i, s),
-                            |i: &mut _| s.tag_block_start(i),
-                        ),
+                        delimited(block_end, Node::many, block_start),
                         opt(Whitespace::parse),
                     ),
                 ),
@@ -584,11 +554,11 @@ impl<'a> Loop<'a> {
             let (body, (_, pws, else_block, _, nws)) = cut_node(
                 Some("for"),
                 (
-                    |i: &mut _| content(i, s),
+                    content,
                     cut_node(
                         Some("for"),
                         (
-                            |i: &mut _| check_block_start(i, span, s, "for", "endfor"),
+                            |i: &mut _| check_block_start(i, span, "for", "endfor"),
                             opt(Whitespace::parse),
                             opt(else_block),
                             end_node("for", "endfor"),
@@ -604,15 +574,15 @@ impl<'a> Loop<'a> {
         let mut p = cut_node(
             Some("for"),
             (
-                ws(|i: &mut _| Target::parse(i, s)),
+                ws(Target::parse),
                 ws(keyword("in")),
                 cut_node(
                     Some("for"),
                     (
-                        ws(|i: &mut _| Expr::parse(i, s.level, true)),
+                        ws(|i: &mut _| Expr::parse(i, true)),
                         opt(if_cond),
                         opt(Whitespace::parse),
-                        |i: &mut _| s.tag_block_end(i),
+                        block_end,
                         body_and_end,
                     ),
                 ),
@@ -664,8 +634,8 @@ fn check_duplicated_name<'a>(
     Ok(())
 }
 
-impl<'a> Macro<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
+impl<'a: 'l, 'l> Macro<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let (pws1, keyword_span, (name, name_span)) = (
             opt(Whitespace::parse),
             ws(keyword("macro").span()),
@@ -683,10 +653,7 @@ impl<'a> Macro<'a> {
         let macro_arg = |i: &mut _| {
             let mut p = (
                 ws(identifier.with_span()),
-                opt(preceded(
-                    '=',
-                    ws(|i: &mut _| Expr::parse(i, s.level, false)),
-                )),
+                opt(preceded('=', ws(|i: &mut _| Expr::parse(i, false)))),
             );
             let ((name, name_span), default) = p.parse_next(i)?;
             Ok(MacroArg {
@@ -709,7 +676,7 @@ impl<'a> Macro<'a> {
 
         let (params, nws1, _) = cut_node(
             Some("macro"),
-            (parameters, opt(Whitespace::parse), s.syntax.block_end),
+            (parameters, opt(Whitespace::parse), block_end),
         )
         .parse_next(i)?;
 
@@ -745,11 +712,11 @@ impl<'a> Macro<'a> {
         let mut end = cut_node(
             Some("macro"),
             (
-                |i: &mut _| Node::many(i, s),
+                Node::many,
                 cut_node(
                     Some("macro"),
                     (
-                        |i: &mut _| check_block_start(i, keyword_span, s, "macro", "endmacro"),
+                        |i: &mut _| check_block_start(i, keyword_span, "macro", "endmacro"),
                         opt(Whitespace::parse),
                         end_node("macro", "endmacro"),
                         check_end_name(name, "macro"),
@@ -780,21 +747,19 @@ pub struct FilterBlock<'a> {
     pub ws2: Ws,
 }
 
-impl<'a> FilterBlock<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
+impl<'a: 'l, 'l> FilterBlock<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let (pws1, span) = (opt(Whitespace::parse), ws(keyword("filter").span())).parse_next(i)?;
         let span = Span::new(span);
 
-        fn filters<'a>(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Filter<'a>> {
-            let mut filter = opt(ws(|i: &mut InputStream<'a>| filter(i, s.level)).with_span());
+        fn filters<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Filter<'a>> {
+            let mut filter = opt(ws(filter.with_span()));
 
-            let (mut res, span) = (|i: &mut _| Filter::parse(i, s.level))
-                .with_span()
-                .parse_next(i)?;
+            let (mut res, span) = Filter::parse.with_span().parse_next(i)?;
             res.arguments
                 .insert(0, WithSpan::new(Box::new(Expr::FilterSource), span));
 
-            let mut level_guard = s.level.guard();
+            let mut level_guard = i.state.level.guard();
             let mut i_before = *i;
             while let Some((mut filter, span)) = filter.parse_next(i)? {
                 level_guard.nest(&i_before)?;
@@ -810,17 +775,13 @@ impl<'a> FilterBlock<'a> {
         let mut p = (
             cut_node(
                 Some("filter"),
-                (
-                    ws(|i: &mut _| filters(i, s)),
-                    opt(Whitespace::parse),
-                    |i: &mut _| s.tag_block_end(i),
-                ),
+                (ws(filters), opt(Whitespace::parse), block_end),
             ),
-            cut_node(Some("filter"), |i: &mut _| Node::many(i, s)),
+            cut_node(Some("filter"), Node::many),
             cut_node(
                 Some("filter"),
                 (
-                    |i: &mut _| check_block_start(i, span, s, "filter", "endfilter"),
+                    |i: &mut _| check_block_start(i, span, "filter", "endfilter"),
                     opt(Whitespace::parse),
                     end_node("filter", "endfilter"),
                     opt(Whitespace::parse),
@@ -848,8 +809,8 @@ pub struct Import<'a> {
     pub scope: &'a str,
 }
 
-impl<'a> Import<'a> {
-    fn parse(i: &mut InputStream<'a>) -> ParseResult<'a, Box<Node<'a>>> {
+impl<'a: 'l, 'l> Import<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let mut p = (
             opt(Whitespace::parse),
             ws(keyword("import").span()),
@@ -885,8 +846,8 @@ pub struct Call<'a> {
     pub ws2: Ws,
 }
 
-impl<'a> Call<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
+impl<'a: 'l, 'l> Call<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let (pws, span) = (opt(Whitespace::parse), ws(keyword("call").span())).parse_next(i)?;
         let keyword_span = Span::new(span);
 
@@ -915,9 +876,9 @@ impl<'a> Call<'a> {
                         Ok(WithSpan::new(scope, span))
                     }),
                     ws(identifier.with_span()),
-                    opt(ws(|nested: &mut _| Expr::arguments(nested, s.level))),
+                    opt(ws(Expr::arguments)),
                     opt(Whitespace::parse),
-                    |i: &mut _| s.tag_block_end(i),
+                    block_end,
                 ),
             ),
         );
@@ -926,11 +887,11 @@ impl<'a> Call<'a> {
         let mut end = cut_node(
             Some("call"),
             (
-                |i: &mut _| Node::many(i, s),
+                Node::many,
                 cut_node(
                     Some("call"),
                     (
-                        |i: &mut _| check_block_start(i, keyword_span, s, "call", "endcall"),
+                        |i: &mut _| check_block_start(i, keyword_span, "call", "endcall"),
                         opt(Whitespace::parse),
                         end_node("call", "endcall"),
                         opt(Whitespace::parse),
@@ -963,28 +924,28 @@ pub struct Match<'a> {
     pub ws2: Ws,
 }
 
-impl<'a> Match<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
+impl<'a: 'l, 'l> Match<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let (pws1, span) = (opt(Whitespace::parse), ws(keyword("match").span())).parse_next(i)?;
         let span = Span::new(span);
         let mut p = cut_node(
             Some("match"),
             (
-                ws(|i: &mut _| Expr::parse(i, s.level, false)),
+                ws(|i: &mut _| Expr::parse(i, false)),
                 opt(Whitespace::parse),
-                |i: &mut _| s.tag_block_end(i),
+                block_end,
                 cut_node(
                     Some("match"),
                     (
-                        ws(repeat(0.., ws(|i: &mut _| Comment::parse(i, s)))).map(|()| ()),
-                        repeat(0.., |i: &mut _| When::when(i, s)).map(|v: Vec<_>| v),
+                        ws(repeat(0.., ws(Comment::parse))).map(|()| ()),
+                        repeat(0.., When::when).map(|v: Vec<_>| v),
                     ),
                 ),
-                cut_node(Some("match"), opt(|i: &mut _| When::r#else(i, s))),
+                cut_node(Some("match"), opt(When::r#else)),
                 cut_node(
                     Some("match"),
                     (
-                        ws(|i: &mut _| check_block_start(i, span, s, "match", "endmatch")),
+                        ws(|i: &mut _| check_block_start(i, span, "match", "endmatch")),
                         opt(Whitespace::parse),
                         end_node("match", "endmatch"),
                         opt(Whitespace::parse),
@@ -1024,8 +985,8 @@ pub struct BlockDef<'a> {
     pub ws2: Ws,
 }
 
-impl<'a> BlockDef<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
+impl<'a: 'l, 'l> BlockDef<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let mut start = (
             opt(Whitespace::parse),
             ws(keyword("block").span()),
@@ -1034,7 +995,7 @@ impl<'a> BlockDef<'a> {
                 (
                     ws(identifier.with_span()),
                     opt(Whitespace::parse),
-                    |i: &mut _| s.tag_block_end(i),
+                    block_end,
                 ),
             ),
         );
@@ -1044,11 +1005,11 @@ impl<'a> BlockDef<'a> {
         let mut end = cut_node(
             Some("block"),
             (
-                |i: &mut _| Node::many(i, s),
+                Node::many,
                 cut_node(
                     Some("block"),
                     (
-                        |i: &mut _| check_block_start(i, keyword_span, s, "block", "endblock"),
+                        |i: &mut _| check_block_start(i, keyword_span, "block", "endblock"),
                         opt(Whitespace::parse),
                         end_node("block", "endblock"),
                         check_end_name(name, "block"),
@@ -1070,11 +1031,11 @@ impl<'a> BlockDef<'a> {
     }
 }
 
-fn check_end_name<'a>(
+fn check_end_name<'a: 'l, 'l>(
     name: &'a str,
     kind: &'static str,
-) -> impl ModalParser<InputStream<'a>, Option<Whitespace>, ErrorContext> {
-    let name = move |i: &mut InputStream<'a>| {
+) -> impl ModalParser<InputStream<'a, 'l>, Option<Whitespace>, ErrorContext> {
+    let name = move |i: &mut InputStream<'a, 'l>| {
         let Some((end_name, span)) = ws(opt(identifier.with_span())).parse_next(i)? else {
             return Ok(());
         };
@@ -1101,14 +1062,14 @@ pub struct Lit<'a> {
     pub rws: WithSpan<&'a str>,
 }
 
-impl<'a> Lit<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
+impl<'a: 'l, 'l> Lit<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let content = take_until(
             ..,
             (
-                s.syntax.block_start,
-                s.syntax.comment_start,
-                s.syntax.expr_start,
+                i.state.syntax.block_start,
+                i.state.syntax.comment_start,
+                i.state.syntax.expr_start,
             ),
         );
         let (content, span) = preceded(not(eof), alt((content, rest)))
@@ -1153,11 +1114,10 @@ pub struct Raw<'a> {
     pub ws2: Ws,
 }
 
-impl<'a> Raw<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
-        fn endraw<'a>(
-            i: &mut InputStream<'a>,
-            s: &State<'_, '_>,
+impl<'a: 'l, 'l> Raw<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
+        fn endraw<'a: 'l, 'l>(
+            i: &mut InputStream<'a, 'l>,
         ) -> ParseResult<'a, (Ws, WithSpan<Lit<'a>>)> {
             let start_i = ***i;
             let start_idx = i.current_token_start();
@@ -1178,7 +1138,7 @@ impl<'a> Raw<'a> {
                     (inner, None)
                 };
 
-                let Some(inner) = inner.strip_suffix(s.syntax.block_start) else {
+                let Some(inner) = inner.strip_suffix(i.state.syntax.block_start) else {
                     continue;
                 };
                 let span = start_idx..start_idx + inner.len();
@@ -1187,7 +1147,7 @@ impl<'a> Raw<'a> {
                 skip_ws0(i)?;
                 let i_before_nws = i.checkpoint();
                 let nws = opt(Whitespace::parse).parse_next(i)?;
-                if opt(peek(s.syntax.block_end)).parse_next(i)?.is_none() {
+                if opt(peek(block_end)).parse_next(i)?.is_none() {
                     i.reset(&i_before_nws); // `block_start` might start with the `nws` character
                     continue;
                 }
@@ -1204,11 +1164,7 @@ impl<'a> Raw<'a> {
             ws(keyword("raw").span()),
             cut_node(
                 Some("raw"),
-                separated_pair(
-                    opt(Whitespace::parse),
-                    |i: &mut _| s.tag_block_end(i),
-                    |i: &mut _| endraw(i, s),
-                ),
+                separated_pair(opt(Whitespace::parse), block_end, endraw),
             ),
         );
         let (pws, span, (nws, (ws2, lit))) = p.parse_next(i)?;
@@ -1228,8 +1184,8 @@ pub struct Let<'a> {
     pub is_mutable: bool,
 }
 
-impl<'a> Let<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
+impl<'a: 'l, 'l> Let<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let mut p = (
             opt(Whitespace::parse),
             ws(alt((keyword("let"), keyword("set"))).span()),
@@ -1237,11 +1193,8 @@ impl<'a> Let<'a> {
             cut_node(
                 Some("let"),
                 (
-                    ws((|i: &mut _| Target::parse(i, s)).with_span()),
-                    opt(preceded(
-                        ws('='),
-                        ws(|i: &mut _| Expr::parse(i, s.level, false)),
-                    )),
+                    ws(Target::parse.with_span()),
+                    opt(preceded(ws('='), ws(|i: &mut _| Expr::parse(i, false)))),
                     opt(Whitespace::parse),
                 ),
             ),
@@ -1300,15 +1253,14 @@ pub struct If<'a> {
     pub branches: Vec<WithSpan<Cond<'a>>>,
 }
 
-impl<'a> If<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
-        let (pws1, cond) =
-            (opt(Whitespace::parse), (|i: &mut _| CondTest::parse(i, s))).parse_next(i)?;
+impl<'a: 'l, 'l> If<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
+        let (pws1, cond) = (opt(Whitespace::parse), CondTest::parse).parse_next(i)?;
         let cond_span = cond.span;
         let end_if = cut_node(
             Some("if"),
             (
-                |i: &mut _| check_block_start(i, cond_span, s, "if", "endif"),
+                |i: &mut _| check_block_start(i, cond_span, "if", "endif"),
                 opt(Whitespace::parse),
                 end_node("if", "endif"),
                 opt(Whitespace::parse),
@@ -1318,12 +1270,12 @@ impl<'a> If<'a> {
             Some("if"),
             (
                 opt(Whitespace::parse),
-                |i: &mut _| s.tag_block_end(i),
+                block_end,
                 cut_node(
                     Some("if"),
                     (
-                        |i: &mut _| Node::many(i, s),
-                        repeat(0.., |i: &mut _| Cond::parse(i, s)).map(|v: Vec<_>| v),
+                        Node::many,
+                        repeat(0.., Cond::parse).map(|v: Vec<_>| v),
                         end_if,
                     ),
                 ),
@@ -1357,8 +1309,8 @@ pub struct Include<'a> {
     pub path: &'a str,
 }
 
-impl<'a> Include<'a> {
-    fn parse(i: &mut InputStream<'a>) -> ParseResult<'a, Box<Node<'a>>> {
+impl<'a: 'l, 'l> Include<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let p = (
             opt(Whitespace::parse),
             ws(keyword("include")),
@@ -1383,8 +1335,8 @@ pub struct Extends<'a> {
     pub path: &'a str,
 }
 
-impl<'a> Extends<'a> {
-    fn parse(i: &mut InputStream<'a>) -> ParseResult<'a, Box<Node<'a>>> {
+impl<'a: 'l, 'l> Extends<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let p = preceded(
             (opt(Whitespace::parse), ws(keyword("extends"))),
             cut_node(
@@ -1403,18 +1355,22 @@ pub struct Comment<'a> {
     pub content: &'a str,
 }
 
-impl<'a> Comment<'a> {
-    fn parse(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, Box<Node<'a>>> {
-        fn content<'a>(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a, ()> {
+impl<'a: 'l, 'l> Comment<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
+        fn content<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
             let mut depth = 0usize;
             loop {
-                take_until(.., (s.syntax.comment_start, s.syntax.comment_end)).parse_next(i)?;
-                let is_open = opt(s.syntax.comment_start).parse_next(i)?.is_some();
+                take_until(
+                    ..,
+                    (i.state.syntax.comment_start, i.state.syntax.comment_end),
+                )
+                .parse_next(i)?;
+                let is_open = opt(i.state.syntax.comment_start).parse_next(i)?.is_some();
                 if is_open {
                     // cannot overflow: `i` cannot be longer than `isize::MAX`, cf. [std::alloc::Layout]
                     depth += 1;
                 } else if let Some(new_depth) = depth.checked_sub(1) {
-                    literal(s.syntax.comment_end).parse_next(i)?;
+                    literal(i.state.syntax.comment_end).parse_next(i)?;
                     depth = new_depth;
                 } else {
                     return Ok(());
@@ -1422,19 +1378,18 @@ impl<'a> Comment<'a> {
             }
         }
 
-        fn comment<'a>(i: &mut InputStream<'a>, s: &State<'_, '_>) -> ParseResult<'a> {
-            let start = s.syntax.comment_start.span().parse_next(i)?;
-            let mut content = opt(terminated(
-                (|i: &mut _| content(i, s)).take(),
-                s.syntax.comment_end,
-            ));
+        fn comment<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a> {
+            let start = i.state.syntax.comment_start.span().parse_next(i)?;
+            let mut content = opt(terminated(content.take(), i.state.syntax.comment_end));
             let Some(content) = content.parse_next(i)? else {
-                return Err(ErrorContext::unclosed("comment", s.syntax.comment_end, start).cut());
+                return Err(
+                    ErrorContext::unclosed("comment", i.state.syntax.comment_end, start).cut(),
+                );
             };
             Ok(content)
         }
 
-        let (content, span) = (|i: &mut _| comment(i, s)).with_span().parse_next(i)?;
+        let (content, span) = comment.with_span().parse_next(i)?;
         let ws = match *content.as_bytes() {
             [b'-' | b'+' | b'~'] => {
                 return cut_error!(
@@ -1442,7 +1397,7 @@ impl<'a> Comment<'a> {
                         "ambiguous whitespace stripping\n\
                         use `{}{content} {content}{}` to apply the same whitespace stripping on \
                         both sides",
-                        s.syntax.comment_start, s.syntax.comment_end,
+                        i.state.syntax.comment_start, i.state.syntax.comment_end,
                     ),
                     span,
                 );
@@ -1463,11 +1418,11 @@ impl<'a> Comment<'a> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Ws(pub Option<Whitespace>, pub Option<Whitespace>);
 
-fn end_node<'a, 'g: 'a>(
+fn end_node<'a: 'l, 'g: 'a, 'l>(
     node: &'g str,
     expected: &'g str,
-) -> impl ModalParser<InputStream<'a>, &'a str, ErrorContext> + 'g {
-    move |i: &mut InputStream<'a>| {
+) -> impl ModalParser<InputStream<'a, 'l>, &'a str, ErrorContext> + 'g {
+    move |i: &mut InputStream<'a, 'l>| {
         let start = i.checkpoint();
         let (actual, span) = ws(identifier.with_span()).parse_next(i)?;
         if actual == expected {

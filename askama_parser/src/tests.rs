@@ -1,10 +1,12 @@
+use std::cell::Cell;
+
 use winnow::{LocatingSlice, Parser};
 
 use crate::expr::BinOp;
 use crate::node::{Let, Lit, Raw, Whitespace, Ws};
 use crate::{
-    Ast, Expr, Filter, InnerSyntax, InputStream, Node, Num, PathComponent, PathOrIdentifier,
-    StrLit, Syntax, SyntaxBuilder, Target, WithSpan,
+    Ast, Expr, Filter, InnerSyntax, InputStream, Level, Node, Num, PathComponent, PathOrIdentifier,
+    State, StrLit, Syntax, SyntaxBuilder, Target, WithSpan,
 };
 
 fn as_path<'a>(path: &'a [&'a str]) -> Vec<PathComponent<'a>> {
@@ -36,7 +38,8 @@ fn test_ws_splitter() {
 #[test]
 #[should_panic]
 fn test_invalid_block() {
-    Ast::from_str("{% extend \"blah\" %}", None, &Syntax::default()).unwrap();
+    let syntax = Syntax::default();
+    Ast::from_str("{% extend \"blah\" %}", None, &syntax).unwrap();
 }
 
 fn int_lit<'a>(i: &'a str) -> WithSpan<Box<Expr<'a>>> {
@@ -133,17 +136,17 @@ fn test_parse_numbers() {
 
 #[test]
 fn test_parse_var() {
-    let s = Syntax::default();
+    let syntax = Syntax::default();
 
     assert_eq!(
-        Ast::from_str("{{ foo }}", None, &s).unwrap().nodes,
+        Ast::from_str("{{ foo }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Var("foo")))
         ))]
     );
     assert_eq!(
-        Ast::from_str("{{ foo_bar }}", None, &s).unwrap().nodes,
+        Ast::from_str("{{ foo_bar }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Var("foo_bar")))
@@ -151,7 +154,7 @@ fn test_parse_var() {
     );
 
     assert_eq!(
-        Ast::from_str("{{ none }}", None, &s).unwrap().nodes,
+        Ast::from_str("{{ none }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Var("none")))
@@ -161,17 +164,17 @@ fn test_parse_var() {
 
 #[test]
 fn test_parse_const() {
-    let s = Syntax::default();
+    let syntax = Syntax::default();
 
     assert_eq!(
-        Ast::from_str("{{ FOO }}", None, &s).unwrap().nodes,
+        Ast::from_str("{{ FOO }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Path(as_path(&["FOO"]))))
         ))]
     );
     assert_eq!(
-        Ast::from_str("{{ FOO_BAR }}", None, &s).unwrap().nodes,
+        Ast::from_str("{{ FOO_BAR }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Path(as_path(&["FOO_BAR"]))))
@@ -179,7 +182,7 @@ fn test_parse_const() {
     );
 
     assert_eq!(
-        Ast::from_str("{{ NONE }}", None, &s).unwrap().nodes,
+        Ast::from_str("{{ NONE }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Path(as_path(&["NONE"]))))
@@ -189,17 +192,19 @@ fn test_parse_const() {
 
 #[test]
 fn test_parse_path() {
-    let s = Syntax::default();
+    let syntax = Syntax::default();
 
     assert_eq!(
-        Ast::from_str("{{ None }}", None, &s).unwrap().nodes,
+        Ast::from_str("{{ None }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Path(as_path(&["None"])))),
         ))]
     );
     assert_eq!(
-        Ast::from_str("{{ Some(123) }}", None, &s).unwrap().nodes,
+        Ast::from_str("{{ Some(123) }}", None, &syntax)
+            .unwrap()
+            .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
@@ -210,7 +215,7 @@ fn test_parse_path() {
     );
 
     assert_eq!(
-        Ast::from_str("{{ Ok(123) }}", None, &s).unwrap().nodes,
+        Ast::from_str("{{ Ok(123) }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
@@ -220,7 +225,9 @@ fn test_parse_path() {
         ))],
     );
     assert_eq!(
-        Ast::from_str("{{ Err(123) }}", None, &s).unwrap().nodes,
+        Ast::from_str("{{ Err(123) }}", None, &syntax)
+            .unwrap()
+            .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
@@ -233,8 +240,10 @@ fn test_parse_path() {
 
 #[test]
 fn test_parse_var_call() {
+    let syntax = Syntax::default();
+
     assert_eq!(
-        Ast::from_str("{{ function(\"123\", 3) }}", None, &Syntax::default())
+        Ast::from_str("{{ function(\"123\", 3) }}", None, &syntax)
             .unwrap()
             .nodes,
         [Box::new(Node::Expr(
@@ -259,17 +268,19 @@ fn test_parse_var_call() {
 
 #[test]
 fn test_parse_path_call() {
-    let s = Syntax::default();
+    let syntax = Syntax::default();
 
     assert_eq!(
-        Ast::from_str("{{ Option::None }}", None, &s).unwrap().nodes,
+        Ast::from_str("{{ Option::None }}", None, &syntax)
+            .unwrap()
+            .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
             WithSpan::no_span(Box::new(Expr::Path(as_path(&["Option", "None"])))),
         ))],
     );
     assert_eq!(
-        Ast::from_str("{{ Option::Some(123) }}", None, &s)
+        Ast::from_str("{{ Option::Some(123) }}", None, &syntax)
             .unwrap()
             .nodes,
         [Box::new(Node::Expr(
@@ -282,7 +293,7 @@ fn test_parse_path_call() {
     );
 
     assert_eq!(
-        Ast::from_str("{{ self::function(\"123\", 3) }}", None, &s)
+        Ast::from_str("{{ self::function(\"123\", 3) }}", None, &syntax)
             .unwrap()
             .nodes,
         [Box::new(Node::Expr(
@@ -741,8 +752,8 @@ fn test_odd_calls() {
 fn test_parse_comments() {
     #[track_caller]
     fn one_comment_ws(source: &str, ws: Ws) {
-        let s = &Syntax::default();
-        let mut nodes = Ast::from_str(source, None, s).unwrap().nodes;
+        let syntax = Syntax::default();
+        let mut nodes = Ast::from_str(source, None, &syntax).unwrap().nodes;
         assert_eq!(nodes.len(), 1, "expected to parse one node");
         match *nodes.pop().unwrap() {
             Node::Comment(comment) => assert_eq!(comment.ws, ws),
@@ -1055,10 +1066,12 @@ fn fuzzed_unary_recursion() {
 
 #[test]
 fn fuzzed_comment_depth() {
+    let syntax = Syntax::default();
+
     let (sender, receiver) = std::sync::mpsc::channel();
     let test = std::thread::spawn(move || {
         const TEMPLATE: &str = include_str!("../tests/comment-depth.txt");
-        assert!(Ast::from_str(TEMPLATE, None, &Syntax::default()).is_ok());
+        assert!(Ast::from_str(TEMPLATE, None, &syntax).is_ok());
         sender.send(()).unwrap();
     });
     receiver
@@ -1069,13 +1082,10 @@ fn fuzzed_comment_depth() {
 
 #[test]
 fn let_set() {
+    let syntax = Syntax::default();
     assert_eq!(
-        Ast::from_str("{% let a %}", None, &Syntax::default())
-            .unwrap()
-            .nodes(),
-        Ast::from_str("{% set a %}", None, &Syntax::default())
-            .unwrap()
-            .nodes(),
+        Ast::from_str("{% let a %}", None, &syntax).unwrap().nodes(),
+        Ast::from_str("{% set a %}", None, &syntax).unwrap().nodes(),
     );
 }
 
@@ -1181,110 +1191,35 @@ fn fuzzed_excessive_filter_block() {
 
 #[test]
 fn test_generics_parsing() {
+    let syntax = Syntax::default();
+
     // Method call.
-    Ast::from_str("{{ a.b::<&str, H<B<C>>>() }}", None, &Syntax::default()).unwrap();
-    Ast::from_str(
-        "{{ a.b::<&str, H<B<C> , &u32>>() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
+    Ast::from_str("{{ a.b::<&str, H<B<C>>>() }}", None, &syntax).unwrap();
+    Ast::from_str("{{ a.b::<&str, H<B<C> , &u32>>() }}", None, &syntax).unwrap();
 
     // Call.
-    Ast::from_str(
-        "{{ a::<&str, H<B<C> , &u32>>() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
+    Ast::from_str("{{ a::<&str, H<B<C> , &u32>>() }}", None, &syntax).unwrap();
 
     // Filter.
-    Ast::from_str("{{ 12 | a::<&str> }}", None, &Syntax::default()).unwrap();
-    Ast::from_str("{{ 12 | a::<&str, u32>('a') }}", None, &Syntax::default()).unwrap();
+    Ast::from_str("{{ 12 | a::<&str> }}", None, &syntax).unwrap();
+    Ast::from_str("{{ 12 | a::<&str, u32>('a') }}", None, &syntax).unwrap();
 
     // Unclosed `<`.
-    assert!(
-        Ast::from_str(
-            "{{ a.b::<&str, H<B<C> , &u32>() }}",
-            None,
-            &Syntax::default()
-        )
-        .is_err()
-    );
+    assert!(Ast::from_str("{{ a.b::<&str, H<B<C> , &u32>() }}", None, &syntax).is_err());
 
     // With path and spaces
-    Ast::from_str(
-        "{{ a.b::<&&core::primitive::str>() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
-    Ast::from_str(
-        "{{ a.b ::<&&core::primitive::str>() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
-    Ast::from_str(
-        "{{ a.b:: <&&core::primitive::str>() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
-    Ast::from_str(
-        "{{ a.b::< &&core::primitive::str>() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
-    Ast::from_str(
-        "{{ a.b::<& &core::primitive::str>() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
-    Ast::from_str(
-        "{{ a.b::<&& core::primitive::str>() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
-    Ast::from_str(
-        "{{ a.b::<&&core ::primitive::str>() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
-    Ast::from_str(
-        "{{ a.b::<&&core:: primitive::str>() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
-    Ast::from_str(
-        "{{ a.b::<&&core::primitive ::str>() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
-    Ast::from_str(
-        "{{ a.b::<&&core::primitive:: str>() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
-    Ast::from_str(
-        "{{ a.b::<&&core::primitive::str >() }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
-    Ast::from_str(
-        "{{ a.b::<&&core::primitive::str> () }}",
-        None,
-        &Syntax::default(),
-    )
-    .unwrap();
+    Ast::from_str("{{ a.b::<&&core::primitive::str>() }}", None, &syntax).unwrap();
+    Ast::from_str("{{ a.b ::<&&core::primitive::str>() }}", None, &syntax).unwrap();
+    Ast::from_str("{{ a.b:: <&&core::primitive::str>() }}", None, &syntax).unwrap();
+    Ast::from_str("{{ a.b::< &&core::primitive::str>() }}", None, &syntax).unwrap();
+    Ast::from_str("{{ a.b::<& &core::primitive::str>() }}", None, &syntax).unwrap();
+    Ast::from_str("{{ a.b::<&& core::primitive::str>() }}", None, &syntax).unwrap();
+    Ast::from_str("{{ a.b::<&&core ::primitive::str>() }}", None, &syntax).unwrap();
+    Ast::from_str("{{ a.b::<&&core:: primitive::str>() }}", None, &syntax).unwrap();
+    Ast::from_str("{{ a.b::<&&core::primitive ::str>() }}", None, &syntax).unwrap();
+    Ast::from_str("{{ a.b::<&&core::primitive:: str>() }}", None, &syntax).unwrap();
+    Ast::from_str("{{ a.b::<&&core::primitive::str >() }}", None, &syntax).unwrap();
+    Ast::from_str("{{ a.b::<&&core::primitive::str> () }}", None, &syntax).unwrap();
 }
 
 #[test]
@@ -1365,9 +1300,14 @@ fn test_filter_with_path() {
 
 #[test]
 fn underscore_is_an_identifier() {
+    let state = State {
+        syntax: Syntax::default(),
+        loop_depth: Cell::new(0),
+        level: Level::default(),
+    };
     let mut input = InputStream {
         input: LocatingSlice::new("_"),
-        state: (),
+        state: &state,
     };
     let result = crate::identifier.parse_next(&mut input);
     assert_eq!(result.unwrap(), "_");
@@ -1512,6 +1452,7 @@ fn macro_comments_in_macro_calls() {
 #[test]
 fn test_raw() {
     let syntax = Syntax::default();
+
     let val = "hello {{ endraw %} my {%* endraw %} green {% endraw }} world";
     assert_eq!(
         Ast::from_str(
