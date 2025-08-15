@@ -1,44 +1,18 @@
 use std::borrow::Cow;
-use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::Arc;
 
 use parser::node::Whitespace;
 use parser::{Node, Parsed};
-use proc_macro2::{Literal, Span};
+use proc_macro2::Span;
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{Attribute, Expr, ExprLit, ExprPath, Ident, Lit, LitBool, LitStr, Meta, Token};
 
 use crate::config::{Config, SyntaxAndCache};
+use crate::spans::SourceSpan;
 use crate::{CompileError, FileInfo, HashMap, MsgValidEscapers};
-
-#[derive(Clone, Debug)]
-pub(crate) enum LiteralOrSpan {
-    Literal(Literal),
-    // TODO: transclude source file
-    Path(Span),
-    // TODO: implement for "code-in-doc"
-    #[cfg_attr(not(feature = "code-in-doc"), allow(dead_code))]
-    Span(Span),
-}
-
-impl LiteralOrSpan {
-    pub(crate) fn config_span(&self) -> Span {
-        match self {
-            LiteralOrSpan::Literal(literal) => literal.span(),
-            LiteralOrSpan::Path(span) | LiteralOrSpan::Span(span) => *span,
-        }
-    }
-
-    pub(crate) fn content_subspan(&self, bytes: Range<usize>) -> Option<Span> {
-        match self {
-            Self::Literal(lit) => lit.subspan(bytes),
-            Self::Path(_) | Self::Span(_) => None,
-        }
-    }
-}
 
 #[derive(Clone)]
 pub(crate) struct TemplateInput<'a> {
@@ -47,7 +21,7 @@ pub(crate) struct TemplateInput<'a> {
     pub(crate) config: &'a Config,
     pub(crate) syntax: &'a SyntaxAndCache<'a>,
     pub(crate) source: &'a Source,
-    pub(crate) source_span: Option<LiteralOrSpan>,
+    pub(crate) source_span: Option<SourceSpan>,
     pub(crate) block: Option<(&'a str, Span)>,
     #[cfg(feature = "blocks")]
     pub(crate) blocks: &'a [Block],
@@ -444,7 +418,7 @@ pub(crate) struct Block {
 }
 
 pub(crate) struct TemplateArgs {
-    pub(crate) source: (Source, Option<LiteralOrSpan>),
+    pub(crate) source: (Source, Option<SourceSpan>),
     block: Option<(String, Span)>,
     #[cfg(feature = "blocks")]
     blocks: Vec<Block>,
@@ -481,15 +455,15 @@ impl TemplateArgs {
                 #[cfg(feature = "external-sources")]
                 Some(PartialTemplateArgsSource::Path(s)) => (
                     Source::Path(s.value().into()),
-                    Some(LiteralOrSpan::Path(s.span())),
+                    Some(SourceSpan::Path(s.span())),
                 ),
-                Some(PartialTemplateArgsSource::Source(s)) => (
-                    Source::Source(s.value().into()),
-                    Some(LiteralOrSpan::Literal(s.token())),
-                ),
+                Some(PartialTemplateArgsSource::Source(s)) => {
+                    let (source, span) = SourceSpan::from_source(s)?;
+                    (Source::Source(source.into()), Some(span))
+                }
                 #[cfg(feature = "code-in-doc")]
                 Some(PartialTemplateArgsSource::InDoc(span, source)) => {
-                    (source, Some(LiteralOrSpan::Span(span)))
+                    (source, Some(SourceSpan::Span(span)))
                 }
                 None => {
                     return Err(CompileError::no_file_info(

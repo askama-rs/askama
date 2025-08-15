@@ -11,6 +11,7 @@ mod heritage;
 mod html;
 mod input;
 mod integration;
+mod spans;
 #[cfg(test)]
 mod tests;
 
