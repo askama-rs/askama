@@ -275,7 +275,7 @@ fn filter_block_conditions() {
 // The output of `|upper` is not marked as `|safe`, so the output of `|paragraphbreaks` gets
 // escaped. The '&' in the input is is not marked as `|safe`, so it should get escaped, twice.
 #[test]
-#[expect(unused_variables)] // `canary` inside the filter block is intentionally unused
+#[allow(unused_variables)] // `canary` inside the filter block is intentionally unused
 fn filter_nested_filter_blocks() {
     #[derive(Template)]
     #[template(

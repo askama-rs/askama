@@ -1,6 +1,6 @@
 error: unknown loop variable `index1`
- --> UnknownLoopField.txt:1:24
-       "loop.index1 }} {% endfor %}"
+ --> UnknownLoopField.txt:1:29
+       "index1 }} {% endfor %}"
  --> tests/ui/loop-fields.rs:7:14
   |
 7 |     source = "{% for _ in 0..10 %} {{ loop.index1 }} {% endfor %}",

@@ -16,12 +16,13 @@ use crate::{CompileError, FileInfo, HashMap, MsgValidEscapers};
 
 #[derive(Clone)]
 pub(crate) struct TemplateInput<'a> {
+    pub(crate) template_span: Span,
     pub(crate) ast: &'a syn::DeriveInput,
     pub(crate) enum_ast: Option<&'a syn::DeriveInput>,
     pub(crate) config: &'a Config,
     pub(crate) syntax: &'a SyntaxAndCache<'a>,
     pub(crate) source: &'a Source,
-    pub(crate) source_span: Option<SourceSpan>,
+    pub(crate) source_span: SourceSpan,
     pub(crate) block: Option<(&'a str, Span)>,
     #[cfg(feature = "blocks")]
     pub(crate) blocks: &'a [Block],
@@ -42,6 +43,7 @@ impl TemplateInput<'_> {
         args: &'n TemplateArgs,
     ) -> Result<TemplateInput<'n>, CompileError> {
         let TemplateArgs {
+            template_span,
             source: (source, source_span),
             block,
             #[cfg(feature = "blocks")]
@@ -59,12 +61,9 @@ impl TemplateInput<'_> {
         // of `ext` is merged into a synthetic `path` value here.
         let path: Arc<Path> = match (&source, &ext) {
             #[cfg(feature = "external-sources")]
-            (Source::Path(path), _) => config.find_template(
-                path,
-                None,
-                None,
-                source_span.as_ref().map(|s| s.config_span()),
-            )?,
+            (Source::Path(path), _) => {
+                config.find_template(path, None, None, Some(source_span.config_span()))?
+            }
             (&Source::Source(_), Some(ext)) => {
                 PathBuf::from(format!("{}.{}", ast.ident, ext)).into()
             }
@@ -135,6 +134,7 @@ impl TemplateInput<'_> {
         .collect::<Vec<_>>();
 
         Ok(TemplateInput {
+            template_span: *template_span,
             ast,
             enum_ast,
             config,
@@ -226,7 +226,7 @@ impl TemplateInput<'_> {
                                     extends.path,
                                     Some(&path),
                                     Some(FileInfo::of(extends.span(), &path, &parsed)),
-                                    self.source_span.as_ref().map(|s| s.config_span()),
+                                    Some(self.source_span.config_span()),
                                 )?;
                                 let dependency_path = (path.clone(), extends.clone());
                                 if path == extends {
@@ -259,7 +259,7 @@ impl TemplateInput<'_> {
                                     import.path,
                                     Some(&path),
                                     Some(FileInfo::of(import.span(), &path, &parsed)),
-                                    self.source_span.as_ref().map(|s| s.config_span()),
+                                    Some(self.source_span.config_span()),
                                 )?;
                                 add_to_check(import)?;
                             }
@@ -283,7 +283,7 @@ impl TemplateInput<'_> {
                                     include.path,
                                     Some(&path),
                                     Some(FileInfo::of(include.span(), &path, &parsed)),
-                                    self.source_span.as_ref().map(|s| s.config_span()),
+                                    Some(self.source_span.config_span()),
                                 )?;
                                 add_to_check(include)?;
                             }
@@ -418,7 +418,8 @@ pub(crate) struct Block {
 }
 
 pub(crate) struct TemplateArgs {
-    pub(crate) source: (Source, Option<SourceSpan>),
+    template_span: Span,
+    pub(crate) source: (Source, SourceSpan),
     block: Option<(String, Span)>,
     #[cfg(feature = "blocks")]
     blocks: Vec<Block>,
@@ -430,7 +431,6 @@ pub(crate) struct TemplateArgs {
     config: Option<String>,
     crate_name: Option<ExprPath>,
     pub(crate) whitespace: Option<Whitespace>,
-    pub(crate) template_span: Option<Span>,
     pub(crate) config_span: Option<Span>,
 }
 
@@ -451,19 +451,19 @@ impl TemplateArgs {
             ));
         };
         Ok(Self {
+            template_span: args.template_span,
             source: match args.source {
                 #[cfg(feature = "external-sources")]
-                Some(PartialTemplateArgsSource::Path(s)) => (
-                    Source::Path(s.value().into()),
-                    Some(SourceSpan::Path(s.span())),
-                ),
+                Some(PartialTemplateArgsSource::Path(s)) => {
+                    (Source::Path(s.value().into()), SourceSpan::Path(s.span()))
+                }
                 Some(PartialTemplateArgsSource::Source(s)) => {
                     let (source, span) = SourceSpan::from_source(s)?;
-                    (Source::Source(source.into()), Some(span))
+                    (Source::Source(source.into()), span)
                 }
                 #[cfg(feature = "code-in-doc")]
                 Some(PartialTemplateArgsSource::InDoc(span, source)) => {
-                    (source, Some(SourceSpan::Span(span)))
+                    (source, SourceSpan::Span(span))
                 }
                 None => {
                     return Err(CompileError::no_file_info(
@@ -471,7 +471,7 @@ impl TemplateArgs {
                         "specify one template argument `path` or `source`",
                         #[cfg(feature = "code-in-doc")]
                         "specify one template argument `path`, `source` or `in_doc`",
-                        Some(args.template.span()),
+                        Some(args.template_span),
                     ));
                 }
             },
@@ -494,14 +494,14 @@ impl TemplateArgs {
             config: args.config.as_ref().map(|value| value.value()),
             crate_name: args.crate_name,
             whitespace: args.whitespace,
-            template_span: Some(args.template.span()),
             config_span: args.config.as_ref().map(|value| value.span()),
         })
     }
 
     pub(crate) fn fallback() -> Self {
         Self {
-            source: (Source::Source("".into()), None),
+            template_span: Span::call_site(),
+            source: (Source::Source("".into()), SourceSpan::empty()),
             block: None,
             #[cfg(feature = "blocks")]
             blocks: vec![],
@@ -513,7 +513,6 @@ impl TemplateArgs {
             config: None,
             crate_name: None,
             whitespace: None,
-            template_span: None,
             config_span: None,
         }
     }
@@ -756,7 +755,7 @@ pub(crate) fn get_template_source(
 }
 
 pub(crate) struct PartialTemplateArgs {
-    pub(crate) template: Ident,
+    pub(crate) template_span: Span,
     pub(crate) source: Option<PartialTemplateArgsSource>,
     pub(crate) block: Option<LitStr>,
     pub(crate) print: Option<Print>,
@@ -822,7 +821,7 @@ const _: () = {
         let mut meta_docs = vec![];
 
         let mut this = PartialTemplateArgs {
-            template: Ident::new("template", Span::call_site()),
+            template_span: Span::call_site(),
             source: None,
             block: None,
             print: None,
@@ -842,7 +841,7 @@ const _: () = {
                 continue;
             };
             if ident == "template" {
-                this.template = ident.clone();
+                this.template_span = ident.span();
                 has_data = true;
             } else {
                 #[cfg(feature = "code-in-doc")]

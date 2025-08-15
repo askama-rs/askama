@@ -283,6 +283,12 @@ pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -
             dead_code,
             // We intentionally add extraneous underscores in type and variable names.
             non_camel_case_types, non_snake_case,
+            // We have too little context information to generate better code.
+            // The generated source does not have to be perfect, anyway.
+            clippy::double_parens, clippy::identity_op, clippy::into_iter_on_ref,
+            clippy::needless_borrow, clippy::needless_borrows_for_generic_args,
+            clippy::nonminimal_bool, clippy::op_ref, clippy::useless_conversion, unused_braces,
+            unused_parens,
         )]
         const _: () = {
             #import_askama
@@ -316,12 +322,7 @@ pub(crate) fn build_template(
     let err_span;
     let mut result = match args {
         AnyTemplateArgs::Struct(item) => {
-            err_span = item
-                .source
-                .1
-                .as_ref()
-                .map(|l| l.config_span())
-                .or(item.template_span);
+            err_span = Some(item.source.1.config_span());
             build_template_item(buf, ast, None, &item, TmplKind::Struct)
         }
         AnyTemplateArgs::Enum {
@@ -333,7 +334,7 @@ pub(crate) fn build_template(
                 .as_ref()
                 .and_then(|v| v.source.as_ref())
                 .map(|s| s.span())
-                .or_else(|| enum_args.as_ref().map(|v| v.template.span()));
+                .or_else(|| enum_args.as_ref().map(|v| v.template_span));
             build_template_enum(buf, ast, enum_args, vars_args, has_default_impl)
         }
     };
@@ -375,7 +376,7 @@ fn build_template_item(
                 path,
                 parsed,
                 input.source_span.clone(),
-                ast.span(),
+                input.template_span,
             )?,
         );
     }
