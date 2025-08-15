@@ -6,7 +6,7 @@ use parser::node::{BlockDef, Macro};
 use parser::{Node, Parsed, Span};
 
 use crate::config::Config;
-use crate::input::LiteralOrSpan;
+use crate::spans::SourceSpan;
 use crate::{CompileError, FileInfo, HashMap};
 
 pub(crate) struct Heritage<'a, 'h> {
@@ -47,7 +47,7 @@ pub(crate) struct Context<'a> {
     pub(crate) imports: HashMap<&'a str, Arc<Path>>,
     pub(crate) path: Option<&'a Path>,
     pub(crate) parsed: &'a Parsed,
-    pub(crate) literal: Option<LiteralOrSpan>,
+    pub(crate) literal: Option<SourceSpan>,
     pub(crate) template_span: proc_macro2::Span,
 }
 
@@ -70,7 +70,7 @@ impl<'a> Context<'a> {
         config: &Config,
         path: &'a Path,
         parsed: &'a Parsed,
-        literal: Option<LiteralOrSpan>,
+        literal: Option<SourceSpan>,
         template_span: proc_macro2::Span,
     ) -> Result<Self, CompileError> {
         let mut extends = None;
