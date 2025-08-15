@@ -465,7 +465,7 @@ impl<'a> Generator<'a, '_> {
                 name => {
                     return Err(ctx.generate_error(
                         format!("unknown loop variable `{}`", name.escape_debug()),
-                        obj.span(),
+                        associated_item.name.span(),
                     ));
                 }
             });
@@ -566,7 +566,7 @@ impl<'a> Generator<'a, '_> {
             .iter()
             .find(|&arg| matches!(***arg, Expr::NamedArgument(_, _)))
         {
-            return Err(ctx.generate_error("Unsupported use of named arguments", arg.span()));
+            return Err(ctx.generate_error("unsupported use of named arguments", arg.span()));
         }
 
         match &***left {
@@ -575,10 +575,10 @@ impl<'a> Generator<'a, '_> {
             {
                 match **name {
                     "cycle" => {
-                        if let [generic, ..] = generics.as_slice() {
+                        if generics.is_some() {
                             return Err(ctx.generate_error(
                                 "loop.cycle(…) doesn't use generics",
-                                generic.span(),
+                                name.span(),
                             ));
                         }
                         match args {
@@ -586,7 +586,7 @@ impl<'a> Generator<'a, '_> {
                                 if matches!(***arg, Expr::Array(ref arr) if arr.is_empty()) {
                                     return Err(ctx.generate_error(
                                         "loop.cycle(…) cannot use an empty array",
-                                        arg.span(),
+                                        name.span(),
                                     ));
                                 }
                                 let mut expr_buf = Buffer::new();
@@ -611,15 +611,15 @@ impl<'a> Generator<'a, '_> {
                             _ => {
                                 return Err(ctx.generate_error(
                                     "loop.cycle(…) cannot use an empty array",
-                                    left.span(),
+                                    name.span(),
                                 ));
                             }
                         }
                     }
                     s => {
                         return Err(ctx.generate_error(
-                            format_args!("unknown loop method: {s:?}"),
-                            left.span(),
+                            format_args!("unknown loop method: `{}`", s.escape_debug()),
+                            name.span(),
                         ));
                     }
                 }
@@ -942,14 +942,14 @@ impl<'a> Generator<'a, '_> {
                         .insert(Cow::Borrowed(name), LocalMeta::var_def()),
                     false => self.locals.insert_with_default(Cow::Borrowed(name)),
                 }
-                buf.write_field(name, ctx.template_span);
+                buf.write_field(name, ctx.span_for_node(name.span()));
             }
-            Target::OrChain(targets) => match targets.first() {
-                None => quote_into!(buf, ctx.template_span, { _ }),
-                Some(first_target) => {
+            Target::OrChain(targets) => match targets.as_slice() {
+                [] => quote_into!(buf, ctx.span_for_node(targets.span()), { _ }),
+                [first_target, targets @ ..] => {
                     self.visit_target(ctx, buf, initialized, first_level, first_target, span);
-                    for target in &targets[1..] {
-                        buf.write_token(Token![|], ctx.template_span);
+                    for target in targets {
+                        buf.write_token(Token![|], ctx.span_for_node(target.span()));
                         self.visit_target(ctx, buf, initialized, first_level, target, span);
                     }
                 }
@@ -960,7 +960,7 @@ impl<'a> Generator<'a, '_> {
                 let mut targets_buf = Buffer::new();
                 for target in targets {
                     self.visit_target(ctx, &mut targets_buf, initialized, false, target, span);
-                    targets_buf.write_token(Token![,], ctx.template_span);
+                    targets_buf.write_token(Token![,], ctx.span_for_node(target.span()));
                 }
                 let targets_buf = targets_buf.into_token_stream();
                 quote_into!(buf, span, { (#targets_buf) });
@@ -969,7 +969,7 @@ impl<'a> Generator<'a, '_> {
                 let mut targets_buf = Buffer::new();
                 for target in &**targets {
                     self.visit_target(ctx, &mut targets_buf, initialized, false, target, span);
-                    targets_buf.write_token(Token![,], ctx.template_span);
+                    targets_buf.write_token(Token![,], ctx.span_for_node(target.span()));
                 }
                 let targets_buf = targets_buf.into_token_stream();
                 quote_into!(buf, span, { [#targets_buf] });
@@ -979,13 +979,14 @@ impl<'a> Generator<'a, '_> {
                 buf.write_separated_path(ctx, path);
                 let mut targets_buf = Buffer::new();
                 for named_target in targets {
-                    if let Target::Rest(_) = named_target.dest {
-                        targets_buf.write_token(Token![..], ctx.template_span);
+                    if let Target::Rest(rest) = named_target.dest {
+                        targets_buf.write_token(Token![..], ctx.span_for_node(rest.span()));
                         continue;
                     }
 
-                    targets_buf.write_field(&named_target.src, ctx.template_span);
-                    targets_buf.write_token(Token![:], ctx.template_span);
+                    let span = ctx.span_for_node(named_target.src.span());
+                    targets_buf.write_field(&named_target.src, span);
+                    targets_buf.write_token(Token![:], ctx.span_for_node(named_target.src.span()));
                     self.visit_target(
                         ctx,
                         &mut targets_buf,
@@ -994,14 +995,14 @@ impl<'a> Generator<'a, '_> {
                         &named_target.dest,
                         span,
                     );
-                    targets_buf.write_token(Token![,], ctx.template_span);
+                    targets_buf.write_token(Token![,], ctx.span_for_node(named_target.src.span()));
                 }
                 let targets_buf = targets_buf.into_token_stream();
                 quote_into!(buf, span, { { #targets_buf } });
             }
             Target::Path(path) => {
                 self.visit_path(ctx, buf, path);
-                quote_into!(buf, ctx.template_span, { {} });
+                quote_into!(buf, ctx.span_for_node(path.span()), { {} });
             }
             Target::StrLit(s) => {
                 let span = ctx.span_for_node(s.span());

@@ -82,7 +82,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             this.flush_ws(self.macro_def.ws2);
             size_hint += this.write_buf_writable(self.callsite_ctx, &mut content)?;
             let content = content.into_token_stream();
-            quote_into!(buf, self.callsite_ctx.template_span, {{ #content }});
+            quote_into!(buf, self.callsite_ctx.span_for_node(self.callsite_span), {{ #content }});
 
             this.prepare_ws(self.callsite_ws);
             this.seen_callers.pop();
@@ -200,7 +200,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                 _ => {
                     value.clear();
                     value.write_tokens(generator.visit_expr_root(self.callsite_ctx, expr)?);
-                    let span = self.callsite_ctx.template_span;
+                    let span = self.callsite_ctx.span_for_node(arg.name.span());
                     let id = field_new(&arg.name, span);
                     buf.write_tokens(if !is_copyable(expr) {
                         quote_spanned! { span => let #id = &(#value); }

@@ -40,7 +40,7 @@ pub(crate) fn template_to_string(
     );
     let size_hint = match generator.impl_template(buf, tmpl_kind) {
         Err(mut err) if err.span.is_none() => {
-            err.span = input.source_span.as_ref().map(|l| l.config_span());
+            err.span = Some(input.source_span.config_span());
             Err(err)
         }
         result => result,

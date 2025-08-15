@@ -47,7 +47,7 @@ pub(crate) struct Context<'a> {
     pub(crate) imports: HashMap<&'a str, Arc<Path>>,
     pub(crate) path: Option<&'a Path>,
     pub(crate) parsed: &'a Parsed,
-    pub(crate) literal: Option<SourceSpan>,
+    pub(crate) literal: SourceSpan,
     pub(crate) template_span: proc_macro2::Span,
 }
 
@@ -61,7 +61,7 @@ impl<'a> Context<'a> {
             imports: HashMap::default(),
             path: None,
             parsed,
-            literal: None,
+            literal: SourceSpan::empty(),
             template_span,
         }
     }
@@ -70,7 +70,7 @@ impl<'a> Context<'a> {
         config: &Config,
         path: &'a Path,
         parsed: &'a Parsed,
-        literal: Option<SourceSpan>,
+        literal: SourceSpan,
         template_span: proc_macro2::Span,
     ) -> Result<Self, CompileError> {
         let mut extends = None;
@@ -164,14 +164,13 @@ impl<'a> Context<'a> {
     }
 
     pub(crate) fn span_for_node(&self, node: Span) -> proc_macro2::Span {
-        let call_site_span = proc_macro2::Span::call_site();
-        if let Some(range) = node.byte_range()
-            && let Some(literal) = &self.literal
-            && let Some(span) = literal.content_subspan(range)
+        if proc_macro::is_available()
+            && let Some(range) = node.byte_range()
+            && let Some(span) = self.literal.content_subspan(range)
         {
-            span.resolved_at(call_site_span)
+            span.resolved_at(self.template_span)
         } else {
-            call_site_span
+            proc_macro2::Span::call_site()
         }
     }
 

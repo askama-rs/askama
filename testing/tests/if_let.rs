@@ -40,6 +40,7 @@ struct Digits {
     three: i32,
 }
 
+#[allow(irrefutable_let_patterns)] // part of the test
 #[test]
 fn test_if_let_struct() {
     #[derive(Template)]
@@ -57,6 +58,7 @@ fn test_if_let_struct() {
     assert_eq!(s.render().unwrap(), "1 2 3");
 }
 
+#[allow(irrefutable_let_patterns)] // part of the test
 #[test]
 fn test_if_let_struct_ref() {
     #[derive(Template)]
