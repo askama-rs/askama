@@ -8,6 +8,7 @@ use prettyplease::unparse;
 use proc_macro2::TokenStream;
 use quote::quote;
 use similar::{Algorithm, ChangeTag, TextDiffConfig};
+use syn::parse_quote;
 
 use crate::integration::Buffer;
 use crate::{AnyTemplateArgs, derive_template};
@@ -1514,4 +1515,30 @@ fn regression_tests_span_change() {
         &[],
         11,
     );
+
+    let _ = build_template(&parse_quote! {
+        #[template(source = "{{ \"x\" | ΔxΔyΔ }}", ext = "txt")]
+        struct Foo;
+    });
+    let _ = build_template(&parse_quote! {
+        #[template(source = r"{{ "x" | ΔxΔyΔ }}", ext = "txt")]
+        struct Foo;
+    });
+    let _ = build_template(&parse_quote! {
+        #[template(source = r#"{{ "x" | ΔxΔyΔ }}"#, ext = "txt")]
+        struct Foo;
+    });
+
+    let _ = build_template(&parse_quote! {
+        #[template(source = "{{ \"ΔxΔyΔ\" | x }}", ext = "txt")]
+        struct Foo;
+    });
+    let _ = build_template(&parse_quote! {
+        #[template(source = r"{{ "ΔxΔyΔ" | x }}", ext = "txt")]
+        struct Foo;
+    });
+    let _ = build_template(&parse_quote! {
+        #[template(source = r#"{{ "ΔxΔyΔ" | x }}"#, ext = "txt")]
+        struct Foo;
+    });
 }
