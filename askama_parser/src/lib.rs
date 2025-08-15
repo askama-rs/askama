@@ -2,6 +2,7 @@
 #![deny(elided_lifetimes_in_paths)]
 #![deny(unreachable_pub)]
 #![allow(clippy::vec_box)] // intentional, less copying
+#![doc = include_str!("../README.md")]
 
 mod ascii_str;
 pub mod expr;
