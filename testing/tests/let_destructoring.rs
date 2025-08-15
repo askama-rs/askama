@@ -120,6 +120,7 @@ fn test_let_destruct_with_path_and_with_keyword() {
     assert_eq!(t.render().unwrap(), "hello");
 }
 
+#[allow(irrefutable_let_patterns)] // part of the test
 #[test]
 fn test_has_rest_pattern() {
     #[derive(Template)]
@@ -152,6 +153,7 @@ struct X {
     b: u32,
 }
 
+#[allow(irrefutable_let_patterns)] // part of the test
 #[test]
 fn test_t1() {
     #[derive(Template)]
@@ -171,6 +173,7 @@ fn test_t1() {
     assert_eq!(t.render().unwrap(), "hello 1");
 }
 
+#[allow(irrefutable_let_patterns)] // part of the test
 #[test]
 fn test_t2() {
     #[derive(Template)]

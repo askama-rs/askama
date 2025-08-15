@@ -162,14 +162,14 @@ impl<'a> Generator<'a, '_> {
                 Node::Break(ref ws) => {
                     self.handle_ws(**ws);
                     self.write_buf_writable(ctx, buf)?;
-                    quote_into!(buf, ctx.template_span, {
+                    quote_into!(buf, ctx.span_for_node(ws.span()), {
                         break;
                     });
                 }
                 Node::Continue(ref ws) => {
                     self.handle_ws(**ws);
                     self.write_buf_writable(ctx, buf)?;
-                    quote_into!(buf, ctx.template_span, {
+                    quote_into!(buf, ctx.span_for_node(ws.span()), {
                         continue;
                     });
                 }
@@ -344,26 +344,27 @@ impl<'a> Generator<'a, '_> {
 
                 if let Some(CondTest { target, expr, .. }) = cond.cond.as_deref() {
                     let expr = cond_info.cond_expr.as_ref().unwrap_or(expr);
-                    let span = ctx.span_for_node(expr.span());
+                    let expr_span = ctx.span_for_node(expr.span());
 
                     if pos == 0 {
                         if cond_info.generate_condition {
-                            buf.write_token(Token![if], ctx.template_span);
+                            buf.write_token(Token![if], expr_span);
                         } else {
                             has_cond = false;
                         }
                         // Otherwise it means it will be the only condition generated,
                         // so nothing to be added here.
                     } else if cond_info.generate_condition {
-                        quote_into!(buf, ctx.template_span, { else if });
+                        quote_into!(buf, expr_span, { else if });
                     } else {
-                        buf.write_token(Token![else], ctx.template_span);
+                        buf.write_token(Token![else], expr_span);
                         has_else = true;
                     }
 
                     if let Some(target) = target {
                         let mut expr_buf = Buffer::new();
-                        buf.write_token(Token![let], ctx.template_span);
+                        let target_span = ctx.span_for_node(target.span());
+                        buf.write_token(Token![let], target_span);
                         // If this is a chain condition, then we need to declare the variable after the
                         // left expression has been handled but before the right expression is handled
                         // but this one should have access to the let-bound variable.
@@ -371,31 +372,30 @@ impl<'a> Generator<'a, '_> {
                             Expr::BinOp(v) if matches!(v.op, "||" | "&&") => {
                                 let display_wrap =
                                     this.visit_expr_first(ctx, &mut expr_buf, &v.lhs)?;
-                                this.visit_target(ctx, buf, true, true, target, span);
+                                this.visit_target(ctx, buf, true, true, target, expr_span);
                                 this.visit_expr_not_first(
                                     ctx,
                                     &mut expr_buf,
                                     &v.lhs,
                                     display_wrap,
                                 )?;
-                                let op = logic_op(v.op, span);
-                                quote_into!(buf, span, { = &#expr_buf #op });
+                                let op = logic_op(v.op, expr_span);
+                                quote_into!(buf, expr_span, { = &#expr_buf #op });
                                 this.visit_condition(ctx, buf, &v.rhs)?;
                             }
                             _ => {
                                 let display_wrap =
                                     this.visit_expr_first(ctx, &mut expr_buf, expr)?;
-                                this.visit_target(ctx, buf, true, true, target, span);
+                                this.visit_target(ctx, buf, true, true, target, expr_span);
                                 this.visit_expr_not_first(ctx, &mut expr_buf, expr, display_wrap)?;
-                                quote_into!(buf, ctx.template_span, { = &#expr_buf });
+                                quote_into!(buf, target_span, { = &#expr_buf });
                             }
                         }
                     } else if cond_info.generate_condition {
                         this.visit_condition(ctx, buf, expr)?;
                     }
                 } else if pos != 0 {
-                    // FIXME: Should have a span.
-                    buf.write_token(Token![else], ctx.template_span);
+                    buf.write_token(Token![else], ctx.span_for_node(cond.span()));
                     has_else = true;
                 } else {
                     has_cond = false;
@@ -425,8 +425,7 @@ impl<'a> Generator<'a, '_> {
                 }
                 if has_cond {
                     let block_buf = block_buf.into_token_stream();
-                    // FIXME Should have a span.
-                    quote_into!(buf, ctx.template_span, { { #block_buf } });
+                    quote_into!(buf, ctx.span_for_node(cond.span()), { { #block_buf } });
                 } else {
                     buf.write_buf(block_buf);
                 }
@@ -1288,6 +1287,14 @@ impl<'a> Generator<'a, '_> {
         let items = mem::take(&mut self.buf_writable.buf);
         let mut it = items.iter().enumerate().peekable();
 
+        let Some((_, start)) = it.peek() else {
+            return Ok(0);
+        };
+        let start_span = match start {
+            Writable::Lit(v) => v.span(),
+            Writable::Expr(v) => v.span(),
+        };
+
         if let Some((_, Writable::Lit(lit))) = it.peek() {
             let mut literal = String::new();
 
@@ -1378,17 +1385,13 @@ impl<'a> Generator<'a, '_> {
                 }
             }
         }
-        quote_into!(
-            buf,
-            ctx.template_span,
-            {
-                match (#matched_expr_buf) {
-                    (#targets) => {
-                        #lines
-                    }
+        quote_into!(buf, ctx.span_for_node(start_span), {
+            match (#matched_expr_buf) {
+                (#targets) => {
+                    #lines
                 }
             }
-        );
+        });
 
         if !trailing_simple_lines.is_empty() {
             let mut literal = String::new();

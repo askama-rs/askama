@@ -17,6 +17,7 @@ pub(crate) enum SourceSpan {
     // TODO: implement for "code-in-doc"
     #[cfg_attr(not(feature = "code-in-doc"), allow(dead_code))]
     Span(Span),
+    Empty(Span),
 }
 
 impl SourceSpan {
@@ -28,7 +29,7 @@ impl SourceSpan {
     pub(crate) fn config_span(&self) -> Span {
         match self {
             SourceSpan::Source(literal) => literal.config_span(),
-            SourceSpan::Path(span) | SourceSpan::Span(span) => *span,
+            SourceSpan::Path(span) | SourceSpan::Span(span) | Self::Empty(span) => *span,
         }
     }
 
@@ -36,7 +37,12 @@ impl SourceSpan {
         match self {
             Self::Source(source) => source.content_subspan(bytes),
             Self::Path(_) | Self::Span(_) => None,
+            Self::Empty(_) => None,
         }
+    }
+
+    pub(crate) fn empty() -> SourceSpan {
+        Self::Empty(Span::call_site())
     }
 }
 
