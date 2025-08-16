@@ -10,3 +10,6 @@ publish = false
 askama = { path = "../askama", version = "0.14.0", default-features = false, features = ["alloc", "derive"] }
 
 assert_matches = "1.5.0"
+
+[features]
+nightly-spans = ["askama/nightly-spans"]

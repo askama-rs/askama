@@ -39,6 +39,9 @@ prettyplease = "0.2.20"
 similar = "2.6.0"
 syn = { version = "2.0.3", features = ["full"] }
 
+[build-dependencies]
+autocfg = { version = "1.5.0", optional = true }
+
 [features]
 # Use every feature to aid testing. `askama_macros` will opt-out of default features.
 default = [
@@ -56,9 +59,21 @@ default = [
 alloc = []
 blocks = ["syn/full"]
 code-in-doc = ["dep:pulldown-cmark"]
-config = ["external-sources", "dep:basic-toml", "dep:serde", "dep:serde_derive", "parser/config"]
+config = [
+    "external-sources",
+    "dep:basic-toml",
+    "dep:serde",
+    "dep:serde_derive",
+    "parser/config",
+]
 external-sources = []
+nightly-spans = ["autocfg"]
 proc-macro = ["proc-macro2/proc-macro"]
 serde_json = []
 std = ["alloc"]
 urlencode = []
+
+[lints.rust]
+# Gets set by `build.rs` if `all(cfg(feature = "external-sources"), cfg(feature = "nightly-spans"))`
+# AND a nightly compiler is used.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(USE_NIGHTLY_SPANS)'] }

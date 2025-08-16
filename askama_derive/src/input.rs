@@ -455,7 +455,7 @@ impl TemplateArgs {
             source: match args.source {
                 #[cfg(feature = "external-sources")]
                 Some(PartialTemplateArgsSource::Path(s)) => {
-                    (Source::Path(s.value().into()), SourceSpan::Path(s.span()))
+                    (Source::Path(s.value().into()), SourceSpan::from_path(s)?)
                 }
                 Some(PartialTemplateArgsSource::Source(s)) => {
                     let (source, span) = SourceSpan::from_source(s)?;
@@ -463,7 +463,7 @@ impl TemplateArgs {
                 }
                 #[cfg(feature = "code-in-doc")]
                 Some(PartialTemplateArgsSource::InDoc(span, source)) => {
-                    (source, SourceSpan::Span(span))
+                    (source, SourceSpan::CodeInDoc(span))
                 }
                 None => {
                     return Err(CompileError::no_file_info(

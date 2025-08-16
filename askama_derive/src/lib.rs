@@ -1,6 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![deny(elided_lifetimes_in_paths)]
 #![deny(unreachable_pub)]
+#![cfg_attr(USE_NIGHTLY_SPANS, feature(proc_macro_def_site, proc_macro_expand))]
 
 extern crate proc_macro;
 
