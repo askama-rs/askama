@@ -1,6 +1,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![deny(elided_lifetimes_in_paths)]
 #![deny(unreachable_pub)]
+#![cfg_attr(USE_NIGHTLY_SPANS, feature(proc_macro_def_site, proc_macro_expand))]
 
 extern crate proc_macro;
 
@@ -11,6 +12,7 @@ mod heritage;
 mod html;
 mod input;
 mod integration;
+mod spans;
 #[cfg(test)]
 mod tests;
 
@@ -282,6 +284,12 @@ pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -
             dead_code,
             // We intentionally add extraneous underscores in type and variable names.
             non_camel_case_types, non_snake_case,
+            // We have too little context information to generate better code.
+            // The generated source does not have to be perfect, anyway.
+            clippy::double_parens, clippy::identity_op, clippy::into_iter_on_ref,
+            clippy::needless_borrow, clippy::needless_borrows_for_generic_args,
+            clippy::nonminimal_bool, clippy::op_ref, clippy::useless_conversion, unused_braces,
+            unused_parens,
         )]
         const _: () = {
             #import_askama
@@ -315,12 +323,7 @@ pub(crate) fn build_template(
     let err_span;
     let mut result = match args {
         AnyTemplateArgs::Struct(item) => {
-            err_span = item
-                .source
-                .1
-                .as_ref()
-                .and_then(|l| l.span())
-                .or(item.template_span);
+            err_span = Some(item.source.1.config_span());
             build_template_item(buf, ast, None, &item, TmplKind::Struct)
         }
         AnyTemplateArgs::Enum {
@@ -332,7 +335,7 @@ pub(crate) fn build_template(
                 .as_ref()
                 .and_then(|v| v.source.as_ref())
                 .map(|s| s.span())
-                .or_else(|| enum_args.as_ref().map(|v| v.template.span()));
+                .or_else(|| enum_args.as_ref().map(|v| v.template_span));
             build_template_enum(buf, ast, enum_args, vars_args, has_default_impl)
         }
     };
@@ -374,7 +377,7 @@ fn build_template_item(
                 path,
                 parsed,
                 input.source_span.clone(),
-                ast.span(),
+                input.template_span,
             )?,
         );
     }
@@ -388,8 +391,8 @@ fn build_template_item(
 
     if let Some((block_name, block_span)) = input.block {
         let has_block = match &heritage {
-            Some(heritage) => heritage.blocks.contains_key(block_name),
-            None => ctx.blocks.contains_key(block_name),
+            Some(heritage) => heritage.blocks.contains_key(&block_name),
+            None => ctx.blocks.contains_key(&block_name),
         };
         if !has_block {
             return Err(CompileError::no_file_info(
@@ -480,12 +483,14 @@ impl<'a> FileInfo<'a> {
         }
     }
 
-    fn of(node: parser::Span<'a>, path: &'a Path, parsed: &'a Parsed) -> Self {
+    fn of(node: parser::Span, path: &'a Path, parsed: &'a Parsed) -> Self {
         let source = parsed.source();
         Self {
             path,
             source: Some(source),
-            node_source: node.as_suffix_of(source),
+            node_source: node
+                .byte_range()
+                .and_then(|range| source.get(range.start..)),
         }
     }
 }

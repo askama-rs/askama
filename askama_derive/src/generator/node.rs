@@ -162,14 +162,14 @@ impl<'a> Generator<'a, '_> {
                 Node::Break(ref ws) => {
                     self.handle_ws(**ws);
                     self.write_buf_writable(ctx, buf)?;
-                    quote_into!(buf, ctx.template_span, {
+                    quote_into!(buf, ctx.span_for_node(ws.span()), {
                         break;
                     });
                 }
                 Node::Continue(ref ws) => {
                     self.handle_ws(**ws);
                     self.write_buf_writable(ctx, buf)?;
-                    quote_into!(buf, ctx.template_span, {
+                    quote_into!(buf, ctx.span_for_node(ws.span()), {
                         continue;
                     });
                 }
@@ -189,7 +189,7 @@ impl<'a> Generator<'a, '_> {
 
     fn evaluate_condition(
         &self,
-        expr: WithSpan<'a, Box<Expr<'a>>>,
+        expr: WithSpan<Box<Expr<'a>>>,
         only_contains_is_defined: &mut bool,
     ) -> EvaluatedResult<'a> {
         let (expr, span) = expr.deconstruct();
@@ -216,7 +216,7 @@ impl<'a> Generator<'a, '_> {
             | Expr::LetCond(_)
             | Expr::ArgumentPlaceholder => {
                 *only_contains_is_defined = false;
-                EvaluatedResult::Unknown(WithSpan::new_with_full(expr, span))
+                EvaluatedResult::Unknown(WithSpan::new(expr, span))
             }
             Expr::BoolLit(true) => EvaluatedResult::AlwaysTrue,
             Expr::BoolLit(false) => EvaluatedResult::AlwaysFalse,
@@ -224,12 +224,13 @@ impl<'a> Generator<'a, '_> {
                 match self.evaluate_condition(inner, only_contains_is_defined) {
                     EvaluatedResult::AlwaysTrue => EvaluatedResult::AlwaysFalse,
                     EvaluatedResult::AlwaysFalse => EvaluatedResult::AlwaysTrue,
-                    EvaluatedResult::Unknown(expr) => EvaluatedResult::Unknown(
-                        WithSpan::new_with_full(Box::new(Expr::Unary("!", expr)), span),
-                    ),
+                    EvaluatedResult::Unknown(expr) => EvaluatedResult::Unknown(WithSpan::new(
+                        Box::new(Expr::Unary("!", expr)),
+                        span,
+                    )),
                 }
             }
-            Expr::Unary(_, _) => EvaluatedResult::Unknown(WithSpan::new_with_full(expr, span)),
+            Expr::Unary(_, _) => EvaluatedResult::Unknown(WithSpan::new(expr, span)),
             Expr::BinOp(v) if v.op == "&&" => {
                 let lhs = match self.evaluate_condition(v.lhs, only_contains_is_defined) {
                     EvaluatedResult::AlwaysTrue => {
@@ -249,7 +250,7 @@ impl<'a> Generator<'a, '_> {
                     }
                     EvaluatedResult::AlwaysFalse => {
                         // Keep the side effect.
-                        let rhs = WithSpan::new_without_span(Box::new(Expr::BoolLit(false)));
+                        let rhs = WithSpan::no_span(Box::new(Expr::BoolLit(false)));
                         EvaluatedResult::Unknown(bin_op(span, v.op, lhs, rhs))
                     }
                     EvaluatedResult::Unknown(rhs) => {
@@ -272,7 +273,7 @@ impl<'a> Generator<'a, '_> {
                 match self.evaluate_condition(v.rhs, only_contains_is_defined) {
                     EvaluatedResult::AlwaysTrue => {
                         // Keep the side effect.
-                        let rhs = WithSpan::new_without_span(Box::new(Expr::BoolLit(true)));
+                        let rhs = WithSpan::no_span(Box::new(Expr::BoolLit(true)));
                         EvaluatedResult::Unknown(bin_op(span, v.op, lhs, rhs))
                     }
                     EvaluatedResult::AlwaysFalse => {
@@ -286,12 +287,12 @@ impl<'a> Generator<'a, '_> {
             }
             Expr::BinOp(_) => {
                 *only_contains_is_defined = false;
-                EvaluatedResult::Unknown(WithSpan::new_with_full(expr, span))
+                EvaluatedResult::Unknown(WithSpan::new(expr, span))
             }
             Expr::Group(inner) => match self.evaluate_condition(inner, only_contains_is_defined) {
-                EvaluatedResult::Unknown(expr) => EvaluatedResult::Unknown(
-                    WithSpan::new_with_full(Box::new(Expr::Group(expr)), span),
-                ),
+                EvaluatedResult::Unknown(expr) => {
+                    EvaluatedResult::Unknown(WithSpan::new(Box::new(Expr::Group(expr)), span))
+                }
                 known => known,
             },
             Expr::IsDefined(left) => {
@@ -341,28 +342,29 @@ impl<'a> Generator<'a, '_> {
             self.push_locals(|this| {
                 let mut has_cond = true;
 
-                if let Some(CondTest { target, expr, .. }) = &cond.cond {
+                if let Some(CondTest { target, expr, .. }) = cond.cond.as_deref() {
                     let expr = cond_info.cond_expr.as_ref().unwrap_or(expr);
-                    let span = ctx.span_for_node(expr.span());
+                    let expr_span = ctx.span_for_node(expr.span());
 
                     if pos == 0 {
                         if cond_info.generate_condition {
-                            buf.write_token(Token![if], ctx.template_span);
+                            buf.write_token(Token![if], expr_span);
                         } else {
                             has_cond = false;
                         }
                         // Otherwise it means it will be the only condition generated,
                         // so nothing to be added here.
                     } else if cond_info.generate_condition {
-                        quote_into!(buf, ctx.template_span, { else if });
+                        quote_into!(buf, expr_span, { else if });
                     } else {
-                        buf.write_token(Token![else], ctx.template_span);
+                        buf.write_token(Token![else], expr_span);
                         has_else = true;
                     }
 
                     if let Some(target) = target {
                         let mut expr_buf = Buffer::new();
-                        buf.write_token(Token![let], ctx.template_span);
+                        let target_span = ctx.span_for_node(target.span());
+                        buf.write_token(Token![let], target_span);
                         // If this is a chain condition, then we need to declare the variable after the
                         // left expression has been handled but before the right expression is handled
                         // but this one should have access to the let-bound variable.
@@ -370,31 +372,30 @@ impl<'a> Generator<'a, '_> {
                             Expr::BinOp(v) if matches!(v.op, "||" | "&&") => {
                                 let display_wrap =
                                     this.visit_expr_first(ctx, &mut expr_buf, &v.lhs)?;
-                                this.visit_target(ctx, buf, true, true, target, span);
+                                this.visit_target(ctx, buf, true, true, target, expr_span);
                                 this.visit_expr_not_first(
                                     ctx,
                                     &mut expr_buf,
                                     &v.lhs,
                                     display_wrap,
                                 )?;
-                                let op = logic_op(v.op, span);
-                                quote_into!(buf, span, { = &#expr_buf #op });
+                                let op = logic_op(v.op, expr_span);
+                                quote_into!(buf, expr_span, { = &#expr_buf #op });
                                 this.visit_condition(ctx, buf, &v.rhs)?;
                             }
                             _ => {
                                 let display_wrap =
                                     this.visit_expr_first(ctx, &mut expr_buf, expr)?;
-                                this.visit_target(ctx, buf, true, true, target, span);
+                                this.visit_target(ctx, buf, true, true, target, expr_span);
                                 this.visit_expr_not_first(ctx, &mut expr_buf, expr, display_wrap)?;
-                                quote_into!(buf, ctx.template_span, { = &#expr_buf });
+                                quote_into!(buf, target_span, { = &#expr_buf });
                             }
                         }
                     } else if cond_info.generate_condition {
                         this.visit_condition(ctx, buf, expr)?;
                     }
                 } else if pos != 0 {
-                    // FIXME: Should have a span.
-                    buf.write_token(Token![else], ctx.template_span);
+                    buf.write_token(Token![else], ctx.span_for_node(cond.span()));
                     has_else = true;
                 } else {
                     has_cond = false;
@@ -424,8 +425,7 @@ impl<'a> Generator<'a, '_> {
                 }
                 if has_cond {
                     let block_buf = block_buf.into_token_stream();
-                    // FIXME Should have a span.
-                    quote_into!(buf, ctx.template_span, { { #block_buf } });
+                    quote_into!(buf, ctx.span_for_node(cond.span()), { { #block_buf } });
                 } else {
                     buf.write_buf(block_buf);
                 }
@@ -505,7 +505,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        loop_block: &'a WithSpan<'a, Loop<'_>>,
+        loop_block: &'a WithSpan<Loop<'_>>,
     ) -> Result<usize, CompileError> {
         self.handle_ws(loop_block.ws1);
         let span = ctx.span_for_node(loop_block.span());
@@ -601,7 +601,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        call: &'a WithSpan<'a, Call<'_>>,
+        call: &'a WithSpan<Call<'_>>,
     ) -> Result<usize, CompileError> {
         let Call {
             ws1,
@@ -613,22 +613,35 @@ impl<'a> Generator<'a, '_> {
         } = **call;
 
         let (def, own_ctx) = if let Some(s) = scope {
-            let path = ctx.imports.get(s).ok_or_else(|| {
-                ctx.generate_error(format_args!("no import found for scope {s:?}"), call.span())
+            let path = ctx.imports.get(*s).ok_or_else(|| {
+                ctx.generate_error(
+                    format_args!("no import found for scope `{}`", s.escape_debug()),
+                    call.span(),
+                )
             })?;
             let mctx = self.contexts.get(path).ok_or_else(|| {
-                ctx.generate_error(format_args!("context for {path:?} not found"), call.span())
-            })?;
-            let def = mctx.macros.get(name).ok_or_else(|| {
                 ctx.generate_error(
-                    format_args!("macro {name:?} not found in scope {s:?}"),
+                    format_args!("context for `{}` not found", path.display()),
+                    call.span(),
+                )
+            })?;
+            let def = mctx.macros.get(&*name).ok_or_else(|| {
+                ctx.generate_error(
+                    format_args!(
+                        "macro `{}` not found in scope `{}`",
+                        name.escape_debug(),
+                        s.escape_debug(),
+                    ),
                     call.span(),
                 )
             })?;
             (*def, mctx)
         } else {
-            let def = ctx.macros.get(name).ok_or_else(|| {
-                ctx.generate_error(format_args!("macro {name:?} not found"), call.span())
+            let def = ctx.macros.get(&*name).ok_or_else(|| {
+                ctx.generate_error(
+                    format_args!("macro `{}` not found", name.escape_debug()),
+                    call.span(),
+                )
             })?;
             (*def, ctx)
         };
@@ -641,7 +654,7 @@ impl<'a> Generator<'a, '_> {
             callsite_span: call.span(),
             call: Some(call),
             callsite_ws: Ws(ws1.0, ws2.1),
-            call_args: args,
+            call_args: args.as_deref().unwrap_or_default(),
             macro_def: def,
             macro_ctx: own_ctx,
         }
@@ -652,7 +665,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        filter: &'a WithSpan<'a, FilterBlock<'_>>,
+        filter: &'a WithSpan<FilterBlock<'_>>,
     ) -> Result<usize, CompileError> {
         let var_filter_source = crate::var_filter_source();
 
@@ -720,7 +733,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        i: &'a WithSpan<'a, Include<'_>>,
+        i: &'a WithSpan<Include<'_>>,
     ) -> Result<usize, CompileError> {
         self.flush_ws(i.ws);
         self.write_buf_writable(ctx, buf)?;
@@ -739,7 +752,7 @@ impl<'a> Generator<'a, '_> {
         // child's ones to preserve this template's context.
         let child_ctx = &mut self.contexts[&path].clone();
         for (name, mac) in &ctx.macros {
-            child_ctx.macros.entry(name).or_insert(mac);
+            child_ctx.macros.entry(*name).or_insert(mac);
         }
         for (name, import) in &ctx.imports {
             child_ctx
@@ -777,7 +790,7 @@ impl<'a> Generator<'a, '_> {
         &self,
         ctx: &Context<'_>,
         var: &Target<'a>,
-        l: Span<'_>,
+        l: Span,
     ) -> Result<bool, CompileError> {
         match var {
             Target::Name(name) => {
@@ -800,8 +813,8 @@ impl<'a> Generator<'a, '_> {
                 }
                 Ok(false)
             }
-            Target::Tuple(_, targets) => {
-                for target in targets {
+            Target::Tuple(v) => {
+                for target in &v.1 {
                     match self.is_shadowing_variable(ctx, target, l) {
                         Ok(false) => continue,
                         outcome => return outcome,
@@ -809,8 +822,17 @@ impl<'a> Generator<'a, '_> {
                 }
                 Ok(false)
             }
-            Target::Struct(_, named_targets) => {
-                for (_, target) in named_targets {
+            Target::Struct(v) => {
+                for target in &v.1 {
+                    match self.is_shadowing_variable(ctx, &target.dest, l) {
+                        Ok(false) => continue,
+                        outcome => return outcome,
+                    }
+                }
+                Ok(false)
+            }
+            Target::Array(v) => {
+                for target in v.iter() {
                     match self.is_shadowing_variable(ctx, target, l) {
                         Ok(false) => continue,
                         outcome => return outcome,
@@ -829,7 +851,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        l: &'a WithSpan<'a, Let<'_>>,
+        l: &'a WithSpan<Let<'_>>,
     ) -> Result<(), CompileError> {
         self.handle_ws(l.ws);
         let span = ctx.span_for_node(l.span());
@@ -850,8 +872,10 @@ impl<'a> Generator<'a, '_> {
             && let Expr::Var(srcvar) = ***val
             && let Some(caller_alias) = self.locals.get_caller(srcvar)
         {
-            self.locals
-                .insert(dstvar.into(), LocalMeta::CallerAlias(caller_alias.clone()));
+            self.locals.insert(
+                Cow::Borrowed(*dstvar),
+                LocalMeta::CallerAlias(caller_alias.clone()),
+            );
             return Ok(());
         }
 
@@ -895,9 +919,9 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        name: Option<&'a str>,
+        name: Option<WithSpan<&'a str>>,
         outer: Ws,
-        node: Span<'_>,
+        node: Span,
     ) -> Result<usize, CompileError> {
         if self.is_in_filter_block > 0 {
             return Err(ctx.generate_error("cannot have a block inside a filter block", node));
@@ -907,16 +931,19 @@ impl<'a> Generator<'a, '_> {
 
         let cur = match (name, self.super_block) {
             // The top-level context contains a block definition
-            (Some(cur_name), None) => (cur_name, 0),
+            (Some(cur_name), None) => (*cur_name, 0),
             // A block definition contains a block definition of the same name
-            (Some(cur_name), Some((prev_name, _))) if cur_name == prev_name => {
+            (Some(cur_name), Some((prev_name, _))) if *cur_name == prev_name => {
                 return Err(ctx.generate_error(
-                    format_args!("cannot define recursive blocks ({cur_name})"),
+                    format_args!(
+                        "cannot define recursive blocks (`{}`)",
+                        cur_name.escape_debug(),
+                    ),
                     node,
                 ));
             }
             // A block definition contains a definition of another block
-            (Some(cur_name), Some((_, _))) => (cur_name, 0),
+            (Some(cur_name), Some((_, _))) => (*cur_name, 0),
             // `super()` was called inside a block
             (None, Some((prev_name, r#gen))) => (prev_name, r#gen + 1),
             // `super()` is called from outside a block
@@ -927,8 +954,9 @@ impl<'a> Generator<'a, '_> {
 
         self.write_buf_writable(ctx, buf)?;
 
-        let block_fragment_write =
-            self.input.block.map(|(block, _)| block) == name && self.buf_writable.discard;
+        let block_fragment_write = self.input.block.map(|(block, _)| block)
+            == name.as_deref().copied()
+            && self.buf_writable.discard;
         // Allow writing to the buffer if we're in the block fragment
         if block_fragment_write {
             self.buf_writable.discard = false;
@@ -940,11 +968,16 @@ impl<'a> Generator<'a, '_> {
         let heritage = self
             .heritage
             .ok_or_else(|| ctx.generate_error("no block ancestors available", node))?;
-        let (child_ctx, def) = *heritage.blocks[cur.0].get(cur.1).ok_or_else(|| {
+        let (child_ctx, def) = *heritage.blocks[&cur.0].get(cur.1).ok_or_else(|| {
             ctx.generate_error(
                 match name {
-                    None => fmt_left!("no super() block found for block '{}'", cur.0),
-                    Some(name) => fmt_right!(move "no block found for name '{name}'"),
+                    None => fmt_left!(
+                        "no super() block found for block `{}`",
+                        cur.0.escape_debug()
+                    ),
+                    Some(name) => {
+                        fmt_right!(move "no block found for name `{}", name.escape_debug())
+                    }
                 },
                 node,
             )
@@ -955,7 +988,7 @@ impl<'a> Generator<'a, '_> {
         // child's ones to preserve this template's context.
         let mut child_ctx = child_ctx.clone();
         for (name, mac) in &ctx.macros {
-            child_ctx.macros.entry(name).or_insert(mac);
+            child_ctx.macros.entry(*name).or_insert(mac);
         }
         for (name, import) in &ctx.imports {
             child_ctx
@@ -1005,7 +1038,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'a>,
         buf: &mut Buffer,
         ws: Ws,
-        mut expr: &'a WithSpan<'a, Box<Expr<'a>>>,
+        mut expr: &'a WithSpan<Box<Expr<'a>>>,
     ) -> Result<usize, CompileError> {
         while let Expr::Group(inner) = &***expr {
             expr = inner;
@@ -1023,7 +1056,7 @@ impl<'a> Generator<'a, '_> {
         Ok(0)
     }
 
-    fn write_expr_item(&mut self, expr: &'a WithSpan<'a, Box<Expr<'a>>>) {
+    fn write_expr_item(&mut self, expr: &'a WithSpan<Box<Expr<'a>>>) {
         match &***expr {
             Expr::Group(expr) => self.write_expr_item(expr),
             Expr::Concat(items) => {
@@ -1044,11 +1077,11 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'a>,
         buf: &mut Buffer,
         ws: Ws,
-        span: Span<'a>,
+        span: Span,
         call: &'a parser::expr::Call<'a>,
     ) -> Result<ControlFlow<usize>, CompileError> {
         fn check_num_args<'a>(
-            span: Span<'a>,
+            span: Span,
             ctx: &Context<'a>,
             expected: usize,
             found: usize,
@@ -1085,7 +1118,7 @@ impl<'a> Generator<'a, '_> {
             }
 
             // short call-expression for macro invocations, like `{{ macro_name() }}`.
-            if let Some(macro_def) = ctx.macros.get(var_name) {
+            if let Some(macro_def) = ctx.macros.get(&var_name) {
                 return helpers::MacroInvocation {
                     callsite_ctx: ctx,
                     callsite_span: span,
@@ -1201,11 +1234,11 @@ impl<'a> Generator<'a, '_> {
         // short call-expression for scoped macro invocations, like `{{ scope::macro_name() }}`.
         if let Expr::Path(path_components) = &**call.path
             && let [scope, macro_name] = path_components.as_slice()
-            && scope.generics.is_empty()
-            && macro_name.generics.is_empty()
-            && let Some(scope) = ctx.imports.get(&scope.name)
+            && scope.generics.is_none()
+            && macro_name.generics.is_none()
+            && let Some(scope) = ctx.imports.get(*scope.name)
             && let Some(macro_ctx) = self.contexts.get(scope)
-            && let Some(macro_def) = macro_ctx.macros.get(&macro_name.name)
+            && let Some(macro_def) = macro_ctx.macros.get(*macro_name.name)
         {
             return helpers::MacroInvocation {
                 callsite_ctx: ctx,
@@ -1222,11 +1255,11 @@ impl<'a> Generator<'a, '_> {
 
         if let Expr::Path(path_components) = &**call.path
             && let [scope, macro_name] = path_components.as_slice()
-            && scope.generics.is_empty()
-            && macro_name.generics.is_empty()
-            && let Some(scope) = ctx.imports.get(&scope.name)
+            && scope.generics.is_none()
+            && macro_name.generics.is_none()
+            && let Some(scope) = ctx.imports.get(*scope.name)
             && let Some(macro_ctx) = self.contexts.get(scope)
-            && let Some(macro_def) = macro_ctx.macros.get(&macro_name.name)
+            && let Some(macro_def) = macro_ctx.macros.get(*macro_name.name)
         {
             return helpers::MacroInvocation {
                 callsite_ctx: ctx,
@@ -1253,6 +1286,14 @@ impl<'a> Generator<'a, '_> {
         let mut size_hint = 0;
         let items = mem::take(&mut self.buf_writable.buf);
         let mut it = items.iter().enumerate().peekable();
+
+        let Some((_, start)) = it.peek() else {
+            return Ok(0);
+        };
+        let start_span = match start {
+            Writable::Lit(v) => v.span(),
+            Writable::Expr(v) => v.span(),
+        };
 
         if let Some((_, Writable::Lit(lit))) = it.peek() {
             let mut literal = String::new();
@@ -1344,17 +1385,13 @@ impl<'a> Generator<'a, '_> {
                 }
             }
         }
-        quote_into!(
-            buf,
-            ctx.template_span,
-            {
-                match (#matched_expr_buf) {
-                    (#targets) => {
-                        #lines
-                    }
+        quote_into!(buf, ctx.span_for_node(start_span), {
+            match (#matched_expr_buf) {
+                (#targets) => {
+                    #lines
                 }
             }
-        );
+        });
 
         if !trailing_simple_lines.is_empty() {
             let mut literal = String::new();
@@ -1369,11 +1406,11 @@ impl<'a> Generator<'a, '_> {
         Ok(size_hint)
     }
 
-    fn write_comment(&mut self, comment: &'a WithSpan<'a, Comment<'_>>) {
+    fn write_comment(&mut self, comment: &'a WithSpan<Comment<'_>>) {
         self.handle_ws(comment.ws);
     }
 
-    fn write_lit(&mut self, lit: &'a WithSpan<'_, Lit<'_>>) {
+    fn write_lit(&mut self, lit: &'a WithSpan<Lit<'_>>) {
         assert!(self.next_ws.is_none());
         let Lit { lws, val, rws } = **lit;
         if !lws.is_empty() {
@@ -1384,32 +1421,29 @@ impl<'a> Generator<'a, '_> {
                     self.next_ws = Some(lws);
                 }
                 Whitespace::Preserve => {
-                    self.buf_writable
-                        .push(Writable::Lit(WithSpan::new_with_full(
-                            Cow::Borrowed(lws),
-                            lit.span(),
-                        )));
+                    self.buf_writable.push(Writable::Lit(WithSpan::new(
+                        Cow::Borrowed(*lws),
+                        lws.span(),
+                    )));
                 }
                 Whitespace::Minimize => {
-                    self.buf_writable
-                        .push(Writable::Lit(WithSpan::new_with_full(
-                            Cow::Borrowed(match lws.contains('\n') {
-                                true => "\n",
-                                false => " ",
-                            }),
-                            lit.span(),
-                        )));
+                    self.buf_writable.push(Writable::Lit(WithSpan::new(
+                        Cow::Borrowed(match lws.contains('\n') {
+                            true => "\n",
+                            false => " ",
+                        }),
+                        lws.span(),
+                    )));
                 }
             }
         }
 
         if !val.is_empty() {
             self.skip_ws = Whitespace::Preserve;
-            self.buf_writable
-                .push(Writable::Lit(WithSpan::new_with_full(
-                    Cow::Borrowed(val),
-                    lit.span(),
-                )));
+            self.buf_writable.push(Writable::Lit(WithSpan::new(
+                Cow::Borrowed(*val),
+                val.span(),
+            )));
         }
 
         if !rws.is_empty() {
@@ -1444,24 +1478,22 @@ impl<'a> Generator<'a, '_> {
             Whitespace::Preserve => {
                 let val = self.next_ws.unwrap();
                 if !val.is_empty() {
-                    self.buf_writable
-                        .push(Writable::Lit(WithSpan::new_with_full(
-                            Cow::Borrowed(val),
-                            val,
-                        )));
+                    self.buf_writable.push(Writable::Lit(WithSpan::new(
+                        Cow::Borrowed(*val),
+                        val.span(),
+                    )));
                 }
             }
             Whitespace::Minimize => {
                 let val = self.next_ws.unwrap();
                 if !val.is_empty() {
-                    self.buf_writable
-                        .push(Writable::Lit(WithSpan::new_with_full(
-                            Cow::Borrowed(match val.contains('\n') {
-                                true => "\n",
-                                false => " ",
-                            }),
-                            val,
-                        )));
+                    self.buf_writable.push(Writable::Lit(WithSpan::new(
+                        Cow::Borrowed(match val.contains('\n') {
+                            true => "\n",
+                            false => " ",
+                        }),
+                        val.span(),
+                    )));
                 }
             }
             Whitespace::Suppress => {}
@@ -1478,17 +1510,17 @@ impl<'a> Generator<'a, '_> {
 }
 
 fn bin_op<'a>(
-    span: impl Into<Span<'a>>,
+    span: impl Into<Span>,
     op: &'a str,
-    lhs: WithSpan<'a, Box<Expr<'a>>>,
-    rhs: WithSpan<'a, Box<Expr<'a>>>,
-) -> WithSpan<'a, Box<Expr<'a>>> {
-    WithSpan::new_with_full(Box::new(Expr::BinOp(BinOp { op, lhs, rhs })), span)
+    lhs: WithSpan<Box<Expr<'a>>>,
+    rhs: WithSpan<Box<Expr<'a>>>,
+) -> WithSpan<Box<Expr<'a>>> {
+    WithSpan::new(Box::new(Expr::BinOp(BinOp { op, lhs, rhs })), span)
 }
 
 struct CondInfo<'a> {
-    cond: &'a WithSpan<'a, Cond<'a>>,
-    cond_expr: Option<WithSpan<'a, Box<Expr<'a>>>>,
+    cond: &'a WithSpan<Cond<'a>>,
+    cond_expr: Option<WithSpan<Box<Expr<'a>>>>,
     generate_condition: bool,
     generate_content: bool,
 }
@@ -1503,7 +1535,7 @@ struct Conds<'a> {
 enum EvaluatedResult<'a> {
     AlwaysTrue,
     AlwaysFalse,
-    Unknown(WithSpan<'a, Box<Expr<'a>>>),
+    Unknown(WithSpan<Box<Expr<'a>>>),
 }
 
 impl<'a> Conds<'a> {
@@ -1522,7 +1554,7 @@ impl<'a> Conds<'a> {
                 expr,
                 contains_bool_lit_or_is_defined,
                 ..
-            }) = &cond.cond
+            }) = cond.cond.as_deref()
             {
                 let mut only_contains_is_defined = true;
 
@@ -1550,10 +1582,7 @@ impl<'a> Conds<'a> {
                         }
                         conds.push(CondInfo {
                             cond,
-                            cond_expr: Some(WithSpan::new_with_full(
-                                Box::new(Expr::BoolLit(false)),
-                                span,
-                            )),
+                            cond_expr: Some(WithSpan::new(Box::new(Expr::BoolLit(false)), span)),
                             generate_condition: true,
                             generate_content: false,
                         });
@@ -1566,10 +1595,7 @@ impl<'a> Conds<'a> {
                         let generate_condition = !only_contains_is_defined;
                         conds.push(CondInfo {
                             cond,
-                            cond_expr: Some(WithSpan::new_with_full(
-                                Box::new(Expr::BoolLit(true)),
-                                span,
-                            )),
+                            cond_expr: Some(WithSpan::new(Box::new(Expr::BoolLit(true)), span)),
                             generate_condition,
                             generate_content: true,
                         });
@@ -1633,7 +1659,7 @@ pub(crate) enum AstLevel {
 /// Returns `true` if the outcome of this expression may be used multiple times in the same
 /// `write!()` call, without evaluating the expression again, i.e. the expression should be
 /// side-effect free.
-fn is_cacheable(expr: &WithSpan<'_, Box<Expr<'_>>>) -> bool {
+fn is_cacheable(expr: &WithSpan<Box<Expr<'_>>>) -> bool {
     match &***expr {
         // Literals are the definition of pure:
         Expr::BoolLit(_) => true,

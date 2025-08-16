@@ -1,8 +1,8 @@
 error: Found recursion in macro calls:
- --> Direct.html:3:10
-       " call one %}{% endcall %}\n    "
-         --> Direct.html:2:25
-       " call one %}{% endcall %}{% endmacro %}\n        {% call one %}{% endcall %}\n    "
+ --> Direct.html:3:11
+       "call one %}{% endcall %}\n    "
+         --> Direct.html:2:26
+       "call one %}{% endcall %}{% endmacro %}\n        {% call one %}{% endcall %}\n    "
  --> tests/ui/macro-recursion.rs:5:14
   |
 5 |       source = "
@@ -13,18 +13,18 @@ error: Found recursion in macro calls:
   | |_____^
 
 error: Found recursion in macro calls:
- --> Indirect.html:7:10
-       " call one %}{% endcall %}\n    "
-         --> Indirect.html:2:25
-       " call two %}{% endcall %}{% endmacro %}\n        {% macro two %}{% call three %}{"...
-         --> Indirect.html:3:25
-       " call three %}{% endcall %}{% endmacro %}\n        {% macro three %}{% call four "...
-         --> Indirect.html:4:27
-       " call four %}{% endcall %}{% endmacro %}\n        {% macro four %}{% call five %}"...
-         --> Indirect.html:5:26
-       " call five %}{% endcall %}{% endmacro %}\n        {% macro five %}{% call one %}{"...
-         --> Indirect.html:6:26
-       " call one %}{% endcall %}{% endmacro %}\n        {% call one %}{% endcall %}\n    "
+ --> Indirect.html:7:11
+       "call one %}{% endcall %}\n    "
+         --> Indirect.html:2:26
+       "call two %}{% endcall %}{% endmacro %}\n        {% macro two %}{% call three %}{%"...
+         --> Indirect.html:3:26
+       "call three %}{% endcall %}{% endmacro %}\n        {% macro three %}{% call four %"...
+         --> Indirect.html:4:28
+       "call four %}{% endcall %}{% endmacro %}\n        {% macro four %}{% call five %}{"...
+         --> Indirect.html:5:27
+       "call five %}{% endcall %}{% endmacro %}\n        {% macro five %}{% call one %}{%"...
+         --> Indirect.html:6:27
+       "call one %}{% endcall %}{% endmacro %}\n        {% call one %}{% endcall %}\n    "
   --> tests/ui/macro-recursion.rs:15:14
    |
 15 |       source = "
@@ -38,16 +38,16 @@ error: Found recursion in macro calls:
    | |_____^
 
 error: Found recursion in macro calls:
- --> AcrossImports.html:6:10
-       " call some_macro %}{% endcall %}\n    "
-         --> AcrossImports.html:4:14
-       " call next::some_macro %}{% endcall %}\n        {% endmacro %}\n        {% call so"...
-         --> testing/templates/macro-recursion-1.html:4:6
-       " call next::some_macro %}{% endcall %}\n{% endmacro %}"
-         --> testing/templates/macro-recursion-2.html:4:6
-       " call next::some_macro %}{% endcall %}\n{% endmacro %}"
-         --> testing/templates/macro-recursion-3.html:4:6
-       " call next::some_macro %}{% endcall %}\n{% endmacro %}"
+ --> AcrossImports.html:6:11
+       "call some_macro %}{% endcall %}\n    "
+         --> AcrossImports.html:4:15
+       "call next::some_macro %}{% endcall %}\n        {% endmacro %}\n        {% call som"...
+         --> testing/templates/macro-recursion-1.html:4:7
+       "call next::some_macro %}{% endcall %}\n{% endmacro %}"
+         --> testing/templates/macro-recursion-2.html:4:7
+       "call next::some_macro %}{% endcall %}\n{% endmacro %}"
+         --> testing/templates/macro-recursion-3.html:4:7
+       "call next::some_macro %}{% endcall %}\n{% endmacro %}"
   --> tests/ui/macro-recursion.rs:29:14
    |
 29 |       source = r#"

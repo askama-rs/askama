@@ -269,13 +269,13 @@ fn filter_block_conditions() {
         x: 21,
         v: Some("hoho".to_string()),
     };
-    assert_eq!(s.render().unwrap(), "21x Is Big\n\n    V Is Hoho",);
+    assert_eq!(s.render().unwrap(), "21x Is Big\n\n    V Is Hoho");
 }
 
 // The output of `|upper` is not marked as `|safe`, so the output of `|paragraphbreaks` gets
 // escaped. The '&' in the input is is not marked as `|safe`, so it should get escaped, twice.
 #[test]
-#[expect(unused_variables)] // `canary` inside the filter block is intentionally unused
+#[allow(unused_variables)] // `canary` inside the filter block is intentionally unused
 fn filter_nested_filter_blocks() {
     #[derive(Template)]
     #[template(

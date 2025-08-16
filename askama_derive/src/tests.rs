@@ -8,6 +8,7 @@ use prettyplease::unparse;
 use proc_macro2::TokenStream;
 use quote::quote;
 use similar::{Algorithm, ChangeTag, TextDiffConfig};
+use syn::parse_quote;
 
 use crate::integration::Buffer;
 use crate::{AnyTemplateArgs, derive_template};
@@ -1442,4 +1443,102 @@ fn check_expr_ungrouping() {
         &[],
         11,
     );
+}
+
+#[test]
+fn regression_tests_span_change() {
+    // This test contains regression test for errors occurred during the big refactoring:
+    // "Add a nightly feature which allows to manipulate spans to underline which part of the
+    // template is failing compilation" <https://github.com/askama-rs/askama/issues/420>
+
+    // Custom filters with and without generics.
+    compare(
+        "Hello, {{ user | cased }}!",
+        r#"
+            __askama_writer.write_str("Hello, ")?;
+            match (
+                &((&&askama::filters::AutoEscaper::new(
+                    &(filters::cased(&(self.user), __askama_values)?),
+                    askama::filters::Text,
+                ))
+                    .askama_auto_escape()?),
+            ) {
+                (__askama_expr2,) => {
+                    (&&&askama::filters::Writable(__askama_expr2))
+                        .askama_write(__askama_writer, __askama_values)?;
+                }
+            }
+            __askama_writer.write_str("!")?;
+        "#,
+        &[],
+        11,
+    );
+    compare(
+        "Hello, {{ user | cased::<> }}!",
+        r#"
+            __askama_writer.write_str("Hello, ")?;
+            match (
+                &((&&askama::filters::AutoEscaper::new(
+                    &(filters::cased(&(self.user), __askama_values)?),
+                    askama::filters::Text,
+                ))
+                    .askama_auto_escape()?),
+            ) {
+                (__askama_expr2,) => {
+                    (&&&askama::filters::Writable(__askama_expr2))
+                        .askama_write(__askama_writer, __askama_values)?;
+                }
+            }
+            __askama_writer.write_str("!")?;
+        "#,
+        &[],
+        11,
+    );
+    compare(
+        "Hello, {{ user | cased::<T> }}!",
+        r#"
+            __askama_writer.write_str("Hello, ")?;
+            match (
+                &((&&askama::filters::AutoEscaper::new(
+                    &(filters::cased::<T>(&(self.user), __askama_values)?),
+                    askama::filters::Text,
+                ))
+                    .askama_auto_escape()?),
+            ) {
+                (__askama_expr2,) => {
+                    (&&&askama::filters::Writable(__askama_expr2))
+                        .askama_write(__askama_writer, __askama_values)?;
+                }
+            }
+            __askama_writer.write_str("!")?;
+        "#,
+        &[],
+        11,
+    );
+
+    let _ = build_template(&parse_quote! {
+        #[template(source = "{{ \"x\" | ΔxΔyΔ }}", ext = "txt")]
+        struct Foo;
+    });
+    let _ = build_template(&parse_quote! {
+        #[template(source = r"{{ "x" | ΔxΔyΔ }}", ext = "txt")]
+        struct Foo;
+    });
+    let _ = build_template(&parse_quote! {
+        #[template(source = r#"{{ "x" | ΔxΔyΔ }}"#, ext = "txt")]
+        struct Foo;
+    });
+
+    let _ = build_template(&parse_quote! {
+        #[template(source = "{{ \"ΔxΔyΔ\" | x }}", ext = "txt")]
+        struct Foo;
+    });
+    let _ = build_template(&parse_quote! {
+        #[template(source = r"{{ "ΔxΔyΔ" | x }}", ext = "txt")]
+        struct Foo;
+    });
+    let _ = build_template(&parse_quote! {
+        #[template(source = r#"{{ "ΔxΔyΔ" | x }}"#, ext = "txt")]
+        struct Foo;
+    });
 }

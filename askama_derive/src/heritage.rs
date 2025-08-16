@@ -6,7 +6,7 @@ use parser::node::{BlockDef, Macro};
 use parser::{Node, Parsed, Span};
 
 use crate::config::Config;
-use crate::input::LiteralOrSpan;
+use crate::spans::SourceSpan;
 use crate::{CompileError, FileInfo, HashMap};
 
 pub(crate) struct Heritage<'a, 'h> {
@@ -28,7 +28,7 @@ impl<'a, 'h> Heritage<'a, 'h> {
         while let Some(path) = &root.extends {
             root = &contexts[path];
             for (name, def) in &root.blocks {
-                blocks.entry(name).or_default().push((root, def));
+                blocks.entry(*name).or_default().push((root, def));
             }
         }
 
@@ -47,7 +47,7 @@ pub(crate) struct Context<'a> {
     pub(crate) imports: HashMap<&'a str, Arc<Path>>,
     pub(crate) path: Option<&'a Path>,
     pub(crate) parsed: &'a Parsed,
-    pub(crate) literal: Option<LiteralOrSpan>,
+    pub(crate) literal: SourceSpan,
     pub(crate) template_span: proc_macro2::Span,
 }
 
@@ -61,7 +61,7 @@ impl<'a> Context<'a> {
             imports: HashMap::default(),
             path: None,
             parsed,
-            literal: None,
+            literal: SourceSpan::empty(),
             template_span,
         }
     }
@@ -70,7 +70,7 @@ impl<'a> Context<'a> {
         config: &Config,
         path: &'a Path,
         parsed: &'a Parsed,
-        literal: Option<LiteralOrSpan>,
+        literal: SourceSpan,
         template_span: proc_macro2::Span,
     ) -> Result<Self, CompileError> {
         let mut extends = None;
@@ -96,14 +96,14 @@ impl<'a> Context<'a> {
                     }
                     Node::Macro(m) => {
                         ensure_top(top, m.span(), path, parsed, "macro")?;
-                        macros.insert(m.name, &**m);
+                        macros.insert(*m.name, &**m);
                     }
                     Node::Import(import) => {
                         ensure_top(top, import.span(), path, parsed, "import")?;
                         imports.push(import);
                     }
                     Node::BlockDef(b) => {
-                        blocks.insert(b.name, &**b);
+                        blocks.insert(*b.name, &**b);
                         nested.push(&b.nodes);
                     }
                     Node::If(i) => {
@@ -158,37 +158,35 @@ impl<'a> Context<'a> {
         Ok(ctx)
     }
 
-    pub(crate) fn generate_error(&self, msg: impl fmt::Display, node: Span<'_>) -> CompileError {
+    pub(crate) fn generate_error(&self, msg: impl fmt::Display, node: Span) -> CompileError {
         let file_info = self.file_info_of(node);
         CompileError::new_with_span(msg, file_info, Some(self.span_for_node(node)))
     }
 
-    pub(crate) fn span_for_node(&self, node: Span<'_>) -> proc_macro2::Span {
-        let call_site_span = proc_macro2::Span::call_site();
-        if let Some(LiteralOrSpan::Literal(ref literal)) = self.literal
-            && let source = self.parsed.source()
-            && let Some(mut offset) = node.offset_from(source)
-            && let Some(original_code) = literal.span().source_text()
-            && let Some(extra) = original_code.find('"')
+    pub(crate) fn span_for_node(&self, node: Span) -> proc_macro2::Span {
+        if proc_macro::is_available()
+            && let Some(range) = node.byte_range()
+            && let Some(span) = self.literal.content_subspan(range)
         {
-            offset += extra + 1;
-            literal
-                .subspan(offset..offset + node.len())
-                .map(|span| span.resolved_at(call_site_span))
-                .unwrap_or(call_site_span)
+            span.resolved_at(self.template_span)
         } else {
-            call_site_span
+            proc_macro2::Span::call_site()
         }
     }
 
-    pub(crate) fn file_info_of(&self, node: Span<'a>) -> Option<FileInfo<'a>> {
+    pub(crate) fn file_info_of(&self, node: Span) -> Option<FileInfo<'a>> {
         self.path.map(|path| FileInfo::of(node, path, self.parsed))
+    }
+
+    #[cfg(USE_NIGHTLY_SPANS)]
+    pub(crate) fn resolve_path(&self, path: &str) {
+        self.literal.resolve_path(path);
     }
 }
 
 fn ensure_top(
     top: bool,
-    node: Span<'_>,
+    node: Span,
     path: &Path,
     parsed: &Parsed,
     kind: &str,

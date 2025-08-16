@@ -1,6 +1,6 @@
-error: 'caller' is not a valid name for a macro
- --> <source attribute>:1:2
-       "- macro caller() -%}{%- endmacro -%}"
+error: `caller` is not a valid name for a macro
+ --> <source attribute>:1:10
+       "caller() -%}{%- endmacro -%}"
  --> tests/ui/macro-caller.rs:4:21
   |
 4 | #[template(source = "{%- macro caller() -%}{%- endmacro -%}", ext = "html")]

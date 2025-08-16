@@ -1,4 +1,4 @@
-error: `as` operator expects the name of a primitive type on its right-hand side
+error: `as` operator expects the name of a primitive type on its right-hand side, not a path or alias
  --> <source attribute>:1:8
        "as 4567 }}"
  --> tests/ui/as-primitive-type.rs:4:21
@@ -6,7 +6,7 @@ error: `as` operator expects the name of a primitive type on its right-hand side
 4 | #[template(source = r#"{{ 1234 as 4567 }}"#, ext = "html")]
   |                     ^^^^^^^^^^^^^^^^^^^^^^^
 
-error: `as` operator expects the name of a primitive type on its right-hand side
+error: `as` operator expects the name of a primitive type on its right-hand side, not a path or alias
  --> <source attribute>:1:8
        "as ? }}"
  --> tests/ui/as-primitive-type.rs:8:21
@@ -22,7 +22,7 @@ error: `as` operator expects the name of a primitive type on its right-hand side
 12 | #[template(source = r#"{{ 1234 as u1234 }}"#, ext = "html")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: `as` operator expects the name of a primitive type on its right-hand side, found `core`
+error: `as` operator expects the name of a primitive type on its right-hand side, not a path or alias
  --> <source attribute>:1:8
        "as core::primitive::u32 }}"
   --> tests/ui/as-primitive-type.rs:16:21

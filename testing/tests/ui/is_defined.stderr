@@ -1,46 +1,46 @@
 error: `is defined` operator can only be used on variables, not on their fields
- --> <source attribute>:1:6
-       "x.y is defined %}{% endif %}"
+ --> <source attribute>:1:10
+       "is defined %}{% endif %}"
  --> tests/ui/is_defined.rs:6:14
   |
 6 |     source = r#"{% if x.y is defined %}{% endif %}"#,
   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: `is defined` operator can only be used on variables
- --> <source attribute>:1:6
-       "true is defined %}{% endif %}"
+ --> <source attribute>:1:11
+       "is defined %}{% endif %}"
   --> tests/ui/is_defined.rs:13:14
    |
 13 |     source = r#"{% if true is defined %}{% endif %}"#,
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `defined` or `not defined` after `is`
- --> <source attribute>:1:6
-       "true is %}{% endif %}"
+ --> <source attribute>:1:11
+       "is %}{% endif %}"
   --> tests/ui/is_defined.rs:20:14
    |
 20 |     source = r#"{% if true is %}{% endif %}"#,
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `defined` or `not defined` after `is`
- --> <source attribute>:1:6
-       "x is %}{% endif %}"
+ --> <source attribute>:1:8
+       "is %}{% endif %}"
   --> tests/ui/is_defined.rs:27:14
    |
 27 |     source = r#"{% if x is %}{% endif %}"#,
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `defined` or `not defined` after `is`
- --> <source attribute>:1:6
-       "x is blue %}{% endif %}"
+ --> <source attribute>:1:8
+       "is blue %}{% endif %}"
   --> tests/ui/is_defined.rs:34:14
    |
 34 |     source = r#"{% if x is blue %}{% endif %}"#,
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `defined` or `not defined` after `is`
- --> <source attribute>:1:6
-       "x is blue.red %}{% endif %}"
+ --> <source attribute>:1:8
+       "is blue.red %}{% endif %}"
   --> tests/ui/is_defined.rs:41:14
    |
 41 |     source = r#"{% if x is blue.red %}{% endif %}"#,

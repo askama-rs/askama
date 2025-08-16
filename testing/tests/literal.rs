@@ -44,6 +44,7 @@ fn test_prefix_str_literal_in_expr() {
     assert_eq!(t.render().unwrap(), "bc hoy");
 }
 
+#[allow(irrefutable_let_patterns)] // part of the test
 #[test]
 fn test_prefix_str_literal_in_target() {
     #[derive(Template)]

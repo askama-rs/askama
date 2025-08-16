@@ -17,7 +17,7 @@ pub(crate) mod some {
 }
 
 #[test]
-fn hello_world() {
+fn test_source() {
     #[derive(Template)]
     #[template(
         ext = "html",
@@ -28,28 +28,41 @@ fn hello_world() {
         user: Result<Option<&'a str>, fmt::Error>,
     }
 
-    let tmpl = Hello { user: Ok(None) };
+    test_common(|user| Hello { user });
+}
+
+#[test]
+fn test_path() {
+    #[derive(Template)]
+    #[template(
+        path = "hello-world.html",
+        askama = some::deeply::nested::path::with::some_name
+    )]
+    struct Hello<'a> {
+        user: Result<Option<&'a str>, fmt::Error>,
+    }
+
+    test_common(|user| Hello { user });
+}
+
+#[track_caller]
+fn test_common<'a, T: Template + 'a>(hello: fn(Result<Option<&'a str>, fmt::Error>) -> T) {
+    let tmpl = hello(Ok(None));
     let mut cursor = String::new();
     assert_matches!(tmpl.render_into(&mut cursor), Ok(()));
     assert_eq!(cursor, "Hello!");
 
-    let tmpl = Hello {
-        user: Ok(Some("user")),
-    };
+    let tmpl = hello(Ok(Some("user")));
     let mut cursor = String::new();
     assert_matches!(tmpl.render_into(&mut cursor), Ok(()));
     assert_eq!(cursor, "Hello, user!");
 
-    let tmpl = Hello {
-        user: Ok(Some("<user>")),
-    };
+    let tmpl = hello(Ok(Some("<user>")));
     let mut cursor = String::new();
     assert_matches!(tmpl.render_into(&mut cursor), Ok(()));
     assert_eq!(cursor, "Hello, &#60;user&#62;!");
 
-    let tmpl = Hello {
-        user: Err(fmt::Error),
-    };
+    let tmpl = hello(Err(fmt::Error));
     let mut cursor = String::new();
     assert_matches!(tmpl.render_into(&mut cursor), Err(some_name::Error::Fmt));
 }

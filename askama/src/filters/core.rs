@@ -565,7 +565,7 @@ impl<S: fmt::Display> fmt::Display for Wordcount<S> {
     #[inline]
     fn fmt(&self, _: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut inner = self.count.get();
-        write!(WordCountWriter(&mut inner), "{}", self.source,)?;
+        write!(WordCountWriter(&mut inner), "{}", self.source)?;
         self.count.set(inner);
         Ok(())
     }

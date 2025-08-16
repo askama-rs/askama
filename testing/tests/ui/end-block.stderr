@@ -1,54 +1,54 @@
 error: expected `endif` to terminate `if` node, found nothing
- --> <source attribute>:1:2
-       " if x %}{% if x %}{% endif %}"
+ --> <source attribute>:1:3
+       "if x %}{% if x %}{% endif %}"
  --> tests/ui/end-block.rs:6:14
   |
 6 |     source = "{% if x %}{% if x %}{% endif %}",
   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected `endif` to terminate `if` node, found nothing
- --> <source attribute>:1:2
-       " if x %}"
+ --> <source attribute>:1:3
+       "if x %}"
   --> tests/ui/end-block.rs:15:14
    |
 15 |     source = "{% if x %}",
    |              ^^^^^^^^^^^^
 
 error: expected `endmatch` to terminate `match` node, found nothing
- --> <source attribute>:1:2
-       " match x %}"
+ --> <source attribute>:1:3
+       "match x %}"
   --> tests/ui/end-block.rs:24:14
    |
 24 |     source = "{% match x %}",
    |              ^^^^^^^^^^^^^^^
 
 error: expected `endfor` to terminate `for` node, found nothing
- --> <source attribute>:1:2
-       " for a in x %}"
+ --> <source attribute>:1:3
+       "for a in x %}"
   --> tests/ui/end-block.rs:33:14
    |
 33 |     source = "{% for a in x %}",
    |              ^^^^^^^^^^^^^^^^^^
 
 error: expected `endmacro` to terminate `macro` node, found nothing
- --> <source attribute>:1:2
-       " macro bla %}"
+ --> <source attribute>:1:3
+       "macro bla %}"
   --> tests/ui/end-block.rs:42:14
    |
 42 |     source = "{% macro bla %}",
    |              ^^^^^^^^^^^^^^^^^
 
 error: expected `endfilter` to terminate `filter` node, found nothing
- --> <source attribute>:1:2
-       " filter bla %}"
+ --> <source attribute>:1:3
+       "filter bla %}"
   --> tests/ui/end-block.rs:49:14
    |
 49 |     source = "{% filter bla %}",
    |              ^^^^^^^^^^^^^^^^^^
 
 error: expected `endblock` to terminate `block` node, found nothing
- --> <source attribute>:1:2
-       " block bla %}"
+ --> <source attribute>:1:3
+       "block bla %}"
   --> tests/ui/end-block.rs:56:14
    |
 56 |     source = "{% block bla %}",

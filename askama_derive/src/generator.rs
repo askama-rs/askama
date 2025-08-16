@@ -40,7 +40,7 @@ pub(crate) fn template_to_string(
     );
     let size_hint = match generator.impl_template(buf, tmpl_kind) {
         Err(mut err) if err.span.is_none() => {
-            err.span = input.source_span.as_ref().and_then(|l| l.span());
+            err.span = Some(input.source_span.config_span());
             Err(err)
         }
         result => result,
@@ -75,7 +75,7 @@ struct Generator<'a, 'h> {
     /// Suffix whitespace from the previous literal. Will be flushed to the
     /// output buffer unless suppressed by whitespace suppression on the next
     /// non-literal.
-    next_ws: Option<&'a str>,
+    next_ws: Option<WithSpan<&'a str>>,
     /// Whitespace suppression from the previous non-literal. Will be used to
     /// determine whether to flush prefix whitespace from the next literal.
     skip_ws: Whitespace,
@@ -174,40 +174,49 @@ impl<'a, 'h> Generator<'a, 'h> {
             TmplKind::Block(trait_name) => field_new(trait_name, span),
         };
 
-        let mut full_paths = TokenStream::new();
+        let mut paths_ts = TokenStream::new();
+
         if let Some(full_config_path) = &self.input.config.full_config_path {
             let full_config_path = self.rel_path(full_config_path).display().to_string();
-            full_paths = quote_spanned!(span=>
+            paths_ts.extend(quote_spanned!(span =>
                 const _: &[askama::helpers::core::primitive::u8] =
-                 askama::helpers::core::include_bytes!(#full_config_path);
-            );
+                    askama::helpers::core::include_bytes!(#full_config_path);
+            ));
         }
 
         // Make sure the compiler understands that the generated code depends on the template files.
         let mut paths = self
             .contexts
-            .keys()
-            .map(|path| -> &Path { path })
-            .collect::<Vec<_>>();
-        paths.sort();
-        let paths = paths
-            .into_iter()
-            .filter(|path| {
+            .iter()
+            .map(|(path, _ctx)| {
+                (
+                    &***path,
+                    #[cfg(not(feature = "external-sources"))]
+                    (),
+                    #[cfg(feature = "external-sources")]
+                    _ctx,
+                )
+            })
+            .filter(|&(path, _)| {
                 // Skip the fake path of templates defined in rust source.
                 match self.input.source {
                     #[cfg(feature = "external-sources")]
                     Source::Path(_) => true,
-                    Source::Source(_) => **path != *self.input.path,
+                    Source::Source(_) => *path != *self.input.path,
                 }
             })
-            .fold(TokenStream::new(), |mut acc, path| {
-                let path = self.rel_path(path).display().to_string();
-                acc.extend(quote_spanned!(span=>
-                    const _: &[askama::helpers::core::primitive::u8] =
-                        askama::helpers::core::include_bytes!(#path);
-                ));
-                acc
-            });
+            .collect::<Vec<_>>();
+        paths.sort_by_key(|&(path, _)| path);
+        for (path, _ctx) in paths {
+            let path = self.rel_path(path).display().to_string();
+            paths_ts.extend(quote_spanned!(span=>
+                const _: &[askama::helpers::core::primitive::u8] =
+                    askama::helpers::core::include_bytes!(#path);
+            ));
+
+            #[cfg(USE_NIGHTLY_SPANS)]
+            _ctx.resolve_path(&path);
+        }
 
         let mut content = Buffer::new();
         let size_hint = self.impl_template_inner(ctx, &mut content)?;
@@ -238,8 +247,7 @@ impl<'a, 'h> Generator<'a, 'h> {
                     helpers::{ResultConverter as _, core::fmt::Write as _},
                 };
 
-                #full_paths
-                #paths
+                #paths_ts
                 #content
                 askama::Result::Ok(())
             }
@@ -439,10 +447,7 @@ const _: () = {
 
 /// In here, we inspect in the expression if it is a literal, and if it is, whether it
 /// can be escaped at compile time.
-fn compile_time_escape<'a>(
-    expr: &WithSpan<'a, Box<Expr<'a>>>,
-    escaper: &str,
-) -> Option<Writable<'a>> {
+fn compile_time_escape<'a>(expr: &WithSpan<Box<Expr<'a>>>, escaper: &str) -> Option<Writable<'a>> {
     // we only optimize for known escapers
     enum OutputKind {
         Html,
@@ -547,13 +552,13 @@ fn compile_time_escape<'a>(
 
     // escape the un-string-escaped input using the selected escaper
     Some(Writable::Lit(match output {
-        OutputKind::Text => WithSpan::new_with_full(value, expr.span()),
+        OutputKind::Text => WithSpan::new(value, expr.span()),
         OutputKind::Html => {
             let mut escaped = String::with_capacity(value.len() + 20);
             write_escaped_str(&mut escaped, &value).ok()?;
             match escaped == value {
-                true => WithSpan::new_with_full(value, expr.span()),
-                false => WithSpan::new_with_full(Cow::Owned(escaped), expr.span()),
+                true => WithSpan::new(value, expr.span()),
+                false => WithSpan::new(Cow::Owned(escaped), expr.span()),
             }
         }
     }))
@@ -781,8 +786,8 @@ impl<'a> Deref for WritableBuffer<'a> {
 
 #[derive(Debug)]
 enum Writable<'a> {
-    Lit(WithSpan<'a, Cow<'a, str>>),
-    Expr(&'a WithSpan<'a, Box<Expr<'a>>>),
+    Lit(WithSpan<Cow<'a, str>>),
+    Expr(&'a WithSpan<Box<Expr<'a>>>),
 }
 
 macro_rules! make_token_match {

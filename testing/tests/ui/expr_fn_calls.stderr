@@ -1,4 +1,4 @@
-error: Unsupported use of named arguments
+error: unsupported use of named arguments
  --> NamedArgsInRustExprMemberFn.html:1:11
        "arg = 5) }}"
   --> tests/ui/expr_fn_calls.rs:10:21
@@ -6,7 +6,7 @@ error: Unsupported use of named arguments
 10 | #[template(source = "{{ test_fn(arg = 5) }}", ext = "html")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: Unsupported use of named arguments
+error: unsupported use of named arguments
  --> NamedArgsInRustExprStaticCall.html:1:19
        "arg = \"test\") }}"
   --> tests/ui/expr_fn_calls.rs:21:21
@@ -14,7 +14,7 @@ error: Unsupported use of named arguments
 21 | #[template(source = r#"{{ self::static_fn(arg = "test") }}"#, ext = "html")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: Unsupported use of named arguments
+error: unsupported use of named arguments
  --> NamedArgsInRustExprStaticCall2.html:1:35
        "arg = \"test\") }}"
   --> tests/ui/expr_fn_calls.rs:26:21
@@ -22,7 +22,7 @@ error: Unsupported use of named arguments
 26 | #[template(source = r#"{{ self::static_fn2("test").unwrap(arg = "test") }}"#, ext = "html")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: Unsupported use of named arguments
+error: unsupported use of named arguments
  --> NamedArgsInRustExprStaticCall3.html:1:30
        "arg = \"test\") %}"
   --> tests/ui/expr_fn_calls.rs:31:21

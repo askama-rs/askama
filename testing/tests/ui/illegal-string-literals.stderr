@@ -63,104 +63,104 @@ error: out of range hex escape
    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: unicode escape must be at most 10FFFF
- --> <source attribute>:1:4
-       "hello \\u{128521} world\" }}"
+ --> <source attribute>:1:12
+       "{128521} world\" }}"
   --> tests/ui/illegal-string-literals.rs:64:34
    |
 64 | #[template(ext = "txt", source = r#"{{ "hello \u{128521} world" }}"#)]
    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: unicode escape must not be a surrogate
- --> <source attribute>:1:4
-       "hello \\u{d83d}\\u{de09} world\" }}"
+ --> <source attribute>:1:12
+       "{d83d}\\u{de09} world\" }}"
   --> tests/ui/illegal-string-literals.rs:70:34
    |
 70 | #[template(ext = "txt", source = r#"{{ "hello \u{d83d}\u{de09} world" }}"#)]
    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: unicode escape must not be a surrogate
- --> <source attribute>:1:4
-       "hello \\u{d83d} world\" }}"
+ --> <source attribute>:1:12
+       "{d83d} world\" }}"
   --> tests/ui/illegal-string-literals.rs:74:34
    |
 74 | #[template(ext = "txt", source = r#"{{ "hello \u{d83d} world" }}"#)]
    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: unicode escape must not be a surrogate
- --> <source attribute>:1:4
-       "hello \\u{de09} world\" }}"
+ --> <source attribute>:1:12
+       "{de09} world\" }}"
   --> tests/ui/illegal-string-literals.rs:78:34
    |
 78 | #[template(ext = "txt", source = r#"{{ "hello \u{de09} world" }}"#)]
    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: unicode escape must not be a surrogate
- --> <source attribute>:1:5
-       "hello \\u{d83d}\\u{de09} world\" }}"
+ --> <source attribute>:1:13
+       "{d83d}\\u{de09} world\" }}"
   --> tests/ui/illegal-string-literals.rs:82:34
    |
 82 | #[template(ext = "txt", source = r#"{{ b"hello \u{d83d}\u{de09} world" }}"#)]
    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: unicode escape must not be a surrogate
- --> <source attribute>:1:5
-       "hello \\u{d83d} world\" }}"
+ --> <source attribute>:1:13
+       "{d83d} world\" }}"
   --> tests/ui/illegal-string-literals.rs:86:34
    |
 86 | #[template(ext = "txt", source = r#"{{ b"hello \u{d83d} world" }}"#)]
    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: unicode escape must not be a surrogate
- --> <source attribute>:1:5
-       "hello \\u{de09} world\" }}"
+ --> <source attribute>:1:13
+       "{de09} world\" }}"
   --> tests/ui/illegal-string-literals.rs:90:34
    |
 90 | #[template(ext = "txt", source = r#"{{ b"hello \u{de09} world" }}"#)]
    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: unicode escape must not be a surrogate
- --> <source attribute>:1:5
-       "hello \\u{d83d}\\u{de09} world\" }}"
+ --> <source attribute>:1:13
+       "{d83d}\\u{de09} world\" }}"
   --> tests/ui/illegal-string-literals.rs:94:34
    |
 94 | #[template(ext = "txt", source = r#"{{ c"hello \u{d83d}\u{de09} world" }}"#)]
    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: unicode escape must not be a surrogate
- --> <source attribute>:1:5
-       "hello \\u{d83d} world\" }}"
+ --> <source attribute>:1:13
+       "{d83d} world\" }}"
   --> tests/ui/illegal-string-literals.rs:98:34
    |
 98 | #[template(ext = "txt", source = r#"{{ c"hello \u{d83d} world" }}"#)]
    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: unicode escape must not be a surrogate
- --> <source attribute>:1:5
-       "hello \\u{de09} world\" }}"
+ --> <source attribute>:1:13
+       "{de09} world\" }}"
    --> tests/ui/illegal-string-literals.rs:102:34
     |
 102 | #[template(ext = "txt", source = r#"{{ c"hello \u{de09} world" }}"#)]
     |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: a bare CR (Mac linebreak) is not allowed in string literals, use NL (Unix linebreak) or CRNL (Windows linebreak) instead, or type `\r` explicitly
- --> <source attribute>:1:4
-       "hello \r world\" }}"
+ --> <source attribute>:1:10
+       "\r world\" }}"
    --> tests/ui/illegal-string-literals.rs:109:34
     |
 109 | #[template(ext = "txt", source = "{{ \"hello \r world\" }}")]
     |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: a bare CR (Mac linebreak) is not allowed in string literals, use NL (Unix linebreak) or CRNL (Windows linebreak) instead, or type `\r` explicitly
- --> <source attribute>:1:5
-       "hello \r world\" }}"
+ --> <source attribute>:1:11
+       "\r world\" }}"
    --> tests/ui/illegal-string-literals.rs:113:34
     |
 113 | #[template(ext = "txt", source = "{{ b\"hello \r world\" }}")]
     |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: a bare CR (Mac linebreak) is not allowed in string literals, use NL (Unix linebreak) or CRNL (Windows linebreak) instead, or type `\r` explicitly
- --> <source attribute>:1:5
-       "hello \r world\" }}"
+ --> <source attribute>:1:11
+       "\r world\" }}"
    --> tests/ui/illegal-string-literals.rs:117:34
     |
 117 | #[template(ext = "txt", source = "{{ c\"hello \r world\" }}")]

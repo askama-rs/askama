@@ -23,17 +23,17 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: &PathOrIdentifier<'a>,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        let (name, generics): (&str, &[WithSpan<'_, TyGenerics<'_>>]) = match name {
+        let (name, generics) = match name {
             PathOrIdentifier::Path(path) => match path.as_slice() {
-                [arg] => (arg.name, arg.generics.as_slice()),
+                [arg] => (arg.name, arg.generics.as_ref()),
                 _ => return self.visit_custom_filter_with_path(ctx, buf, path, args, node),
             },
-            PathOrIdentifier::Identifier(name) => (*name, &[]),
+            PathOrIdentifier::Identifier(name) => (*name, None),
         };
-        let filter = match name {
+        let filter = match *name {
             "assigned_or" => Self::visit_assigned_or,
             "center" => Self::visit_center_filter,
             "default" => Self::visit_default_filter,
@@ -58,7 +58,7 @@ impl<'a> Generator<'a, '_> {
             "urlencode_strict" => Self::visit_urlencode_strict_filter,
             "value" => return self.visit_value(ctx, buf, args, generics, node, "`value` filter"),
             "wordcount" => Self::visit_wordcount_filter,
-            name => {
+            _ => {
                 let filter = match () {
                     _ if BUILTIN_FILTERS.contains(&name) => Self::visit_builtin_filter,
                     _ if BUILTIN_FILTERS_ALLOC.contains(&name) => Self::visit_builtin_filter_alloc,
@@ -69,7 +69,7 @@ impl<'a> Generator<'a, '_> {
             }
         };
 
-        ensure_no_generics(ctx, name, node, generics)?;
+        ensure_no_generics(ctx, *name, generics)?;
         filter(self, ctx, buf, args, node)
     }
 
@@ -77,58 +77,69 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        path: &[WithSpan<'a, PathComponent<'a>>],
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        path: &[PathComponent<'a>],
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_no_named_arguments(ctx, path.last().unwrap().name, args, node)?;
+        ensure_no_named_arguments(ctx, &path.last().unwrap().name, args)?;
         self.visit_path(ctx, buf, path);
-        let span = ctx.span_for_node(node);
-
-        let mut tmp = Buffer::new();
-        tmp.write_tokens(self.visit_arg(ctx, &args[0], ctx.span_for_node(args[0].span()))?);
-        let var_values = crate::var_values();
-        quote_into!(&mut tmp, span, { ,#var_values });
-        if args.len() > 1 {
-            tmp.write_token(Token![,], span);
-            self.visit_args(ctx, &mut tmp, &args[1..])?;
-        }
-        let tmp = tmp.into_token_stream();
-        quote_into!(buf, span, { (#tmp)? });
-        Ok(DisplayWrap::Unwrapped)
+        self.do_visit_custom_filter(ctx, buf, args, node)
     }
 
     fn visit_custom_filter(
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: &'a str,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        _: &[WithSpan<'a, TyGenerics<'a>>],
-        node: Span<'_>,
+        name: WithSpan<&'a str>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        self.visit_custom_filter_with_path(
-            ctx,
-            buf,
-            &[
-                WithSpan::new_without_span(PathComponent::new_with_name("filters")),
-                WithSpan::new_without_span(PathComponent::new_with_name(name)),
-            ],
-            args,
-            node,
-        )
+        let (name, span) = name.deconstruct();
+        ensure_no_named_arguments(ctx, name, args)?;
+
+        let span = ctx.span_for_node(span);
+        let name = field_new(name, span);
+        quote_into!(buf, span, { filters::#name });
+        if let Some(generics) = generics {
+            buf.write_token(Token![::], span);
+            self.visit_ty_generics(ctx, buf, generics);
+        }
+
+        self.do_visit_custom_filter(ctx, buf, args, node)
+    }
+
+    fn do_visit_custom_filter(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
+    ) -> Result<DisplayWrap, CompileError> {
+        let span = ctx.span_for_node(node);
+        let mut tmp = Buffer::new();
+        tmp.write_tokens(self.visit_arg(ctx, &args[0], ctx.span_for_node(args[0].span()))?);
+        let var_values = crate::var_values();
+        quote_into!(&mut tmp, span, { ,#var_values });
+        if let [_, args @ ..] = args {
+            tmp.write_token(Token![,], span);
+            self.visit_args(ctx, &mut tmp, args)?;
+        }
+        let tmp = tmp.into_token_stream();
+        quote_into!(buf, span, { (#tmp)? });
+        Ok(DisplayWrap::Unwrapped)
     }
 
     fn visit_builtin_filter_alloc(
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: &'a str,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        generics: &[WithSpan<'a, TyGenerics<'a>>],
-        node: Span<'_>,
+        name: WithSpan<&'a str>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_filter_has_feature_alloc(ctx, name, node)?;
+        ensure_filter_has_feature_alloc(ctx, *name, node)?;
         self.visit_builtin_filter(ctx, buf, name, args, generics, node)
     }
 
@@ -136,12 +147,12 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: &'a str,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        generics: &[WithSpan<'a, TyGenerics<'a>>],
-        node: Span<'_>,
+        name: WithSpan<&'a str>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_filter_has_feature_std(ctx, name, node)?;
+        ensure_filter_has_feature_std(ctx, *name, node)?;
         self.visit_builtin_filter(ctx, buf, name, args, generics, node)
     }
 
@@ -149,18 +160,21 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: &'a str,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        generics: &[WithSpan<'a, TyGenerics<'a>>],
-        node: Span<'_>,
+        name: WithSpan<&'a str>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_no_generics(ctx, name, node, generics)?;
+        let name = *name;
+        ensure_no_generics(ctx, name, generics)?;
         let span = ctx.span_for_node(node);
 
         let arg = no_arguments(ctx, name, args)?;
         let name = field_new(name, span);
         quote_into!(buf, span, { askama::filters::#name });
-        self.visit_call_generics(ctx, buf, generics);
+        if let Some(generics) = generics {
+            self.visit_call_generics(ctx, buf, generics);
+        }
         let arg = self.visit_arg(ctx, arg, span)?;
         quote_into!(buf, span, { (#arg)? });
         Ok(DisplayWrap::Unwrapped)
@@ -170,8 +184,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_urlencode_filter_inner(ctx, buf, "urlencode", args, node)
     }
@@ -180,8 +194,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_urlencode_filter_inner(ctx, buf, "urlencode_strict", args, node)
     }
@@ -191,8 +205,8 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: &str,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         if cfg!(not(feature = "urlencode")) {
             return Err(ctx.generate_error(
@@ -217,8 +231,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, "wordcount", node)?;
 
@@ -245,11 +259,11 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        const DEFAULT_PRECISION: &WithSpan<'_, &Expr<'_>> =
-            &WithSpan::new_without_span(&Expr::NumLit("2", Num::Int("2", Some(IntKind::U8))));
+        const DEFAULT_PRECISION: &WithSpan<&Expr<'_>> =
+            &WithSpan::no_span(&Expr::NumLit("2u8", Num::Int("2", Some(IntKind::U8))));
         const ARGUMENTS: &[&FilterArgument; 2] = &[
             FILTER_SOURCE,
             &FilterArgument {
@@ -279,8 +293,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
             FILTER_SOURCE,
@@ -317,27 +331,25 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        const SINGULAR: &WithSpan<'_, &Expr<'_>> =
-            &WithSpan::new_without_span(&Expr::StrLit(StrLit {
-                prefix: None,
-                content: "",
-                contains_null: false,
-                contains_unicode_character: false,
-                contains_unicode_escape: false,
-                contains_high_ascii: false,
-            }));
-        const PLURAL: &WithSpan<'_, &Expr<'_>> =
-            &WithSpan::new_without_span(&Expr::StrLit(StrLit {
-                prefix: None,
-                content: "s",
-                contains_null: false,
-                contains_unicode_character: false,
-                contains_unicode_escape: false,
-                contains_high_ascii: false,
-            }));
+        const SINGULAR: &WithSpan<&Expr<'_>> = &WithSpan::no_span(&Expr::StrLit(StrLit {
+            prefix: None,
+            content: "",
+            contains_null: false,
+            contains_unicode_character: false,
+            contains_unicode_escape: false,
+            contains_high_ascii: false,
+        }));
+        const PLURAL: &WithSpan<&Expr<'_>> = &WithSpan::no_span(&Expr::StrLit(StrLit {
+            prefix: None,
+            content: "s",
+            contains_null: false,
+            contains_unicode_character: false,
+            contains_unicode_escape: false,
+            contains_high_ascii: false,
+        }));
         const ARGUMENTS: &[&FilterArgument; 3] = &[
             FILTER_SOURCE,
             &FilterArgument {
@@ -373,8 +385,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_linebreaks_filters(ctx, buf, "paragraphbreaks", args, node)
     }
@@ -383,8 +395,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_linebreaks_filters(ctx, buf, "linebreaksbr", args, node)
     }
@@ -393,8 +405,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_linebreaks_filters(ctx, buf, "linebreaks", args, node)
     }
@@ -404,8 +416,8 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: &str,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let arg = no_arguments(ctx, name, args)?;
         let arg = self.visit_arg(ctx, arg, ctx.span_for_node(arg.span()))?;
@@ -426,8 +438,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let arg = no_arguments(ctx, "ref", args)?;
         buf.write_token(Token![&], ctx.span_for_node(node));
@@ -439,8 +451,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let arg = no_arguments(ctx, "deref", args)?;
         buf.write_token(Token![*], ctx.span_for_node(node));
@@ -452,8 +464,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
             FILTER_SOURCE,
@@ -487,8 +499,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 4] = &[
             FILTER_SOURCE,
@@ -529,8 +541,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let arg = no_arguments(ctx, "safe", args)?;
         let arg = self.visit_arg(ctx, arg, ctx.span_for_node(node))?;
@@ -545,8 +557,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
             FILTER_SOURCE,
@@ -616,11 +628,11 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, "format", node)?;
-        ensure_no_named_arguments(ctx, "format", args, node)?;
+        ensure_no_named_arguments(ctx, "format", args)?;
         if let [head, tail @ ..] = args
             && let Expr::StrLit(ref fmt) = ***head
         {
@@ -645,8 +657,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
             FILTER_SOURCE,
@@ -677,8 +689,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
             FILTER_SOURCE,
@@ -703,8 +715,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_center_truncate_filter(ctx, buf, args, node, "center")
     }
@@ -713,8 +725,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_center_truncate_filter(ctx, buf, args, node, "truncate")
     }
@@ -723,9 +735,9 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
-        name: &str,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
+        name: &'a str,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
             FILTER_SOURCE,
@@ -754,8 +766,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 3] = &[
             FILTER_SOURCE,
@@ -788,8 +800,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
             FILTER_SOURCE,
@@ -807,9 +819,9 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        node: Span<'_>,
-        value: &WithSpan<'a, Box<Expr<'a>>>,
-        fallback: &WithSpan<'a, Box<Expr<'a>>>,
+        node: Span,
+        value: &WithSpan<Box<Expr<'a>>>,
+        fallback: &WithSpan<Box<Expr<'a>>>,
     ) -> Result<DisplayWrap, CompileError> {
         if let Expr::Var(var_name) = ***value
             && !self.is_var_assigned(var_name)
@@ -841,8 +853,8 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<'a, Box<Expr<'a>>>],
-        node: Span<'_>,
+        args: &[WithSpan<Box<Expr<'a>>>],
+        node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
             FILTER_SOURCE,
@@ -860,9 +872,9 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        node: Span<'_>,
-        value: &WithSpan<'a, Box<Expr<'a>>>,
-        fallback: &WithSpan<'a, Box<Expr<'a>>>,
+        node: Span,
+        value: &WithSpan<Box<Expr<'a>>>,
+        fallback: &WithSpan<Box<Expr<'a>>>,
         name: &str,
     ) -> Result<DisplayWrap, CompileError> {
         let Expr::Var(var_name) = ***value else {
@@ -882,52 +894,65 @@ impl<'a> Generator<'a, '_> {
     }
 }
 
+const FALSE: &WithSpan<&Expr<'static>> = &WithSpan::no_span(&Expr::BoolLit(false));
+
+#[inline]
 fn ensure_filter_has_feature_alloc(
     ctx: &Context<'_>,
     name: &str,
-    node: Span<'_>,
+    node: Span,
 ) -> Result<(), CompileError> {
     if !cfg!(feature = "alloc") {
-        return Err(ctx.generate_error(
-            format_args!("the `{name}` filter requires the `alloc` feature to be enabled"),
-            node,
-        ));
+        return fail_missing_feature(ctx, name, node, "std");
     }
     Ok(())
 }
 
-const FALSE: &WithSpan<'static, &Expr<'static>> =
-    &WithSpan::new_without_span(&Expr::BoolLit(false));
-
+#[inline]
 fn ensure_filter_has_feature_std(
     ctx: &Context<'_>,
     name: &str,
-    node: Span<'_>,
+    node: Span,
 ) -> Result<(), CompileError> {
     if !cfg!(feature = "alloc") {
+        return fail_missing_feature(ctx, name, node, "alloc");
+    }
+    Ok(())
+}
+
+#[cold]
+#[inline(never)]
+fn fail_missing_feature(
+    ctx: &Context<'_>,
+    name: &str,
+    node: Span,
+    feature: &str,
+) -> Result<(), CompileError> {
+    Err(ctx.generate_error(
+        format_args!(
+            "the `{}` filter requires the `{feature}` feature to be enabled",
+            name.escape_debug(),
+        ),
+        node,
+    ))
+}
+
+#[inline]
+fn ensure_no_generics(
+    ctx: &Context<'_>,
+    name: &str,
+    generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'_>>>>>,
+) -> Result<(), CompileError> {
+    if let Some(generics) = generics {
         return Err(ctx.generate_error(
-            format_args!("the `{name}` filter requires the `std` feature to be enabled"),
-            node,
+            format_args!("unexpected generics on filter `{}`", name.escape_debug()),
+            generics.span(),
         ));
     }
     Ok(())
 }
 
-fn ensure_no_generics(
-    ctx: &Context<'_>,
-    name: &str,
-    node: Span<'_>,
-    generics: &[WithSpan<'_, TyGenerics<'_>>],
-) -> Result<(), CompileError> {
-    if !generics.is_empty() {
-        return Err(
-            ctx.generate_error(format_args!("unexpected generics on filter `{name}`"), node)
-        );
-    }
-    Ok(())
-}
-
-fn expr_is_int_lit_plus_minus_one(expr: &WithSpan<'_, Box<Expr<'_>>>) -> Option<bool> {
+fn expr_is_int_lit_plus_minus_one(expr: &WithSpan<Box<Expr<'_>>>) -> Option<bool> {
     fn is_signed_singular<T: Eq + Default, E>(
         from_str_radix: impl Fn(&str, u32) -> Result<T, E>,
         value: &str,
@@ -992,13 +1017,13 @@ struct FilterArgument {
     /// If set to `None`, then a value is needed.
     /// If set to `Some(ARGUMENT_PLACEHOLDER)`, then no value has to be assigned.
     /// If set to `Some(&WithSpan...)`, then this value will be used if no argument was supplied.
-    default_value: Option<&'static WithSpan<'static, &'static Expr<'static>>>,
+    default_value: Option<&'static WithSpan<&'static Expr<'static>>>,
 }
 
 #[repr(C)] // rationale: needs to have the same layout as `FilterArgument`
 struct StaticBoxFilterArgument {
     name: &'static str,
-    default_value: Option<&'static WithSpan<'static, Box<Expr<'static>>>>,
+    default_value: Option<&'static WithSpan<Box<Expr<'static>>>>,
 }
 
 /// Must be the first entry to `collect_filter_args()`'s argument `filter_args`.
@@ -1007,19 +1032,18 @@ const FILTER_SOURCE: &FilterArgument = &FilterArgument {
     default_value: None,
 };
 
-const ARGUMENT_PLACEHOLDER: &WithSpan<'_, &Expr<'_>> =
-    &WithSpan::new_without_span(&Expr::ArgumentPlaceholder);
+const ARGUMENT_PLACEHOLDER: &WithSpan<&Expr<'_>> = &WithSpan::no_span(&Expr::ArgumentPlaceholder);
 
 #[inline]
-fn is_argument_placeholder(arg: &WithSpan<'_, Box<Expr<'_>>>) -> bool {
+fn is_argument_placeholder(arg: &WithSpan<Box<Expr<'_>>>) -> bool {
     matches!(***arg, Expr::ArgumentPlaceholder)
 }
 
 fn no_arguments<'a, 'b>(
     ctx: &Context<'_>,
     name: &str,
-    args: &'b [WithSpan<'a, Box<Expr<'a>>>],
-) -> Result<&'b WithSpan<'a, Box<Expr<'a>>>, CompileError> {
+    args: &'b [WithSpan<Box<Expr<'a>>>],
+) -> Result<&'b WithSpan<Box<Expr<'a>>>, CompileError> {
     match args {
         [arg] => Ok(arg),
         [_, arg, ..] => Err(ctx.generate_error(
@@ -1034,24 +1058,24 @@ fn no_arguments<'a, 'b>(
 fn collect_filter_args<'a, 'b, const N: usize>(
     ctx: &Context<'_>,
     name: &str,
-    node: Span<'_>,
-    input_args: &'b [WithSpan<'a, Box<Expr<'a>>>],
+    node: Span,
+    input_args: &'b [WithSpan<Box<Expr<'a>>>],
     filter_args: &'static [&'static FilterArgument; N],
-) -> Result<[&'b WithSpan<'a, Box<Expr<'a>>>; N], CompileError> {
+) -> Result<[&'b WithSpan<Box<Expr<'a>>>; N], CompileError> {
     // The transmutations are needed, because you cannot build a `Box` in a `const` context,
     // not even `&Box`.
 
     // Cannot use `transmute() to transmute dependently sized types: `[_; N]`
-    // SAFETY: `&WithSpan<'_, &Expr<'_>>` has the same layout as `&WithSpan<'_, Box<Expr<'_>>>`.
+    // SAFETY: `&WithSpan<&Expr<'_>>` has the same layout as `&WithSpan<Box<Expr<'_>>>`.
     //         `WithSpan` is `repr(C)`, and `Box<T>` has the same layout as `&T`.
-    //         Since we work with `&WithSpan<'_, Box<_>>`, there is no need to use `ManuallyDrop`.
-    let mut collected_args: [&WithSpan<'_, Box<Expr<'_>>>; N] = unsafe {
-        let collected_args: [&WithSpan<'_, &Expr<'_>>; N] = [ARGUMENT_PLACEHOLDER; N];
+    //         Since we work with `&WithSpan<Box<_>>`, there is no need to use `ManuallyDrop`.
+    let mut collected_args: [&WithSpan<Box<Expr<'_>>>; N] = unsafe {
+        let collected_args: [&WithSpan<&Expr<'_>>; N] = [ARGUMENT_PLACEHOLDER; N];
         ptr::read(ptr::addr_of!(collected_args).cast())
     };
 
     // SAFETY: `StaticBoxFilterArgument` has the same layout as `FilterArgument`.
-    //         It contains a `&WithSpan<'_, Box<Expr<'_>>>` instead of `&WithSpan<'_, &Expr<'_>>`.
+    //         It contains a `&WithSpan<Box<Expr<'_>>>` instead of `&WithSpan<&Expr<'_>>`.
     //         See the comments for `collected_args` for further explanations.
     let filter_args: &[&StaticBoxFilterArgument; N] = unsafe { std::mem::transmute(filter_args) };
 
@@ -1070,23 +1094,26 @@ fn collect_filter_args<'a, 'b, const N: usize>(
 fn collect_filter_args_inner<'a, 'b>(
     ctx: &Context<'_>,
     name: &str,
-    node: Span<'_>,
-    input_args: &'b [WithSpan<'a, Box<Expr<'a>>>],
+    node: Span,
+    input_args: &'b [WithSpan<Box<Expr<'a>>>],
     filter_args: &'static [&'static StaticBoxFilterArgument],
-    collected_args: &mut [&'b WithSpan<'a, Box<Expr<'a>>>],
+    collected_args: &mut [&'b WithSpan<Box<Expr<'a>>>],
 ) -> Result<(), CompileError> {
     // invariant: the parser ensures that named arguments come after positional arguments
     let mut arg_idx = 0;
     for arg in input_args {
-        let (idx, value) = if let Expr::NamedArgument(arg_name, ref value) = ***arg {
+        let (idx, value) = if let Expr::NamedArgument(arg_name, value) = &***arg {
             let Some(idx) = filter_args
                 .iter()
                 .enumerate()
-                .find_map(|(idx, arg)| (arg.name == arg_name).then_some(idx))
+                .find_map(|(idx, arg)| (arg.name == **arg_name).then_some(idx))
             else {
                 return Err(ctx.generate_error(
                     match filter_args.len() {
-                        1 => fmt_left!("`{name}` filter does not have any arguments"),
+                        1 => fmt_left!(
+                            "`{}` filter does not have any arguments",
+                            name.escape_debug()
+                        ),
                         _ => fmt_right!(
                             "`{name}` filter does not have an argument `{}`{}",
                             arg_name.escape_debug(),
@@ -1171,8 +1198,7 @@ impl fmt::Display for ItsArgumentsAre {
 fn ensure_no_named_arguments(
     ctx: &Context<'_>,
     name: &str,
-    args: &[WithSpan<'_, Box<Expr<'_>>>],
-    node: Span<'_>,
+    args: &[WithSpan<Box<Expr<'_>>>],
 ) -> Result<(), CompileError> {
     for arg in args {
         if let Expr::NamedArgument(..) = &***arg {
@@ -1181,7 +1207,7 @@ fn ensure_no_named_arguments(
                     "`{}` filter cannot accept named arguments",
                     name.escape_debug()
                 ),
-                node,
+                arg.span(),
             ));
         }
     }
