@@ -145,7 +145,7 @@ jobs:
 
 ####################################################################################################
 # STEP 2: INTERMEDIATE
-# ["Test", "Package", "MSRV"]
+# ["Test", "Package", "Nightly", "MSRV"]
 ####################################################################################################
 
   Test:
@@ -168,8 +168,8 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test --all-features
-      - run: cargo test --all-targets --all-features
+      - run: cargo test --features full
+      - run: cargo test --all-targets --features full
 
   Package:
     needs: ["Rustfmt", "Docs", "Audit", "Book", "Typos", "Jinja2-Assumptions", "DevSkim", "CargoSort"]
@@ -193,6 +193,23 @@ jobs:
       - run: cd ${{ matrix.package }} && cargo test --all-targets
       - run: cd ${{ matrix.package }} && cargo clippy --all-targets -- -D warnings
 
+  Nightly:
+    needs: ["Rustfmt", "Docs", "Audit", "Book", "Typos", "Jinja2-Assumptions", "DevSkim", "CargoSort"]
+    strategy:
+      matrix:
+        package: [
+          askama, askama_derive, askama_escape, askama_macros, askama_parser,
+          testing, testing-alloc, testing-no-std, testing-renamed,
+        ]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - run: cd ${{ matrix.package }} && cargo test --all-features
+
   MSRV:
     needs: ["Rustfmt", "Docs", "Audit", "Book", "Typos", "Jinja2-Assumptions", "DevSkim", "CargoSort"]
     runs-on: ubuntu-latest
@@ -203,7 +220,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: "1.88.0"
-      - run: cargo check --lib -p askama --all-features
+      - run: cargo check --lib -p askama --features full
 
 ####################################################################################################
 # STEP 2: SLOW
@@ -211,7 +228,7 @@ jobs:
 ####################################################################################################
 
   Fuzz:
-    needs: ["Test", "Package", "MSRV"]
+    needs: ["Test", "Package", "Nightly", "MSRV"]
     strategy:
       matrix:
         fuzz_target:
@@ -231,7 +248,7 @@ jobs:
         with:
           toolchain: nightly
           components: rust-src
-      - run: curl --location --silent --show-error --fail https://github.com/cargo-bins/cargo-quickinstall/releases/download/cargo-fuzz-0.12.0/cargo-fuzz-0.12.0-x86_64-unknown-linux-gnu.tar.gz | tar -xzvvf - -C $HOME/.cargo/bin
+      - run: curl --location --silent --show-error --fail https://github.com/cargo-bins/cargo-quickinstall/releases/download/cargo-fuzz-0.13.1/cargo-fuzz-0.13.1-x86_64-unknown-linux-gnu.tar.gz | tar -xzvvf - -C $HOME/.cargo/bin
       - uses: Swatinem/rust-cache@v2
       - run: cargo fuzz run ${{ matrix.fuzz_target }} --jobs 4 -- -max_total_time=600
         working-directory: fuzzing
@@ -239,7 +256,7 @@ jobs:
           RUSTFLAGS: '-Ctarget-feature=-crt-static'
 
   Cluster-Fuzz:
-    needs: ["Test", "Package", "MSRV"]
+    needs: ["Test", "Package", "Nightly", "MSRV"]
     runs-on: ubuntu-latest
     permissions:
       actions: read

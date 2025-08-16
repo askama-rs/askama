@@ -174,40 +174,49 @@ impl<'a, 'h> Generator<'a, 'h> {
             TmplKind::Block(trait_name) => field_new(trait_name, span),
         };
 
-        let mut full_paths = TokenStream::new();
+        let mut paths_ts = TokenStream::new();
+
         if let Some(full_config_path) = &self.input.config.full_config_path {
             let full_config_path = self.rel_path(full_config_path).display().to_string();
-            full_paths = quote_spanned!(span=>
+            paths_ts.extend(quote_spanned!(span =>
                 const _: &[askama::helpers::core::primitive::u8] =
-                 askama::helpers::core::include_bytes!(#full_config_path);
-            );
+                    askama::helpers::core::include_bytes!(#full_config_path);
+            ));
         }
 
         // Make sure the compiler understands that the generated code depends on the template files.
         let mut paths = self
             .contexts
-            .keys()
-            .map(|path| -> &Path { path })
-            .collect::<Vec<_>>();
-        paths.sort();
-        let paths = paths
-            .into_iter()
-            .filter(|path| {
+            .iter()
+            .map(|(path, _ctx)| {
+                (
+                    &***path,
+                    #[cfg(not(feature = "external-sources"))]
+                    (),
+                    #[cfg(feature = "external-sources")]
+                    _ctx,
+                )
+            })
+            .filter(|&(path, _)| {
                 // Skip the fake path of templates defined in rust source.
                 match self.input.source {
                     #[cfg(feature = "external-sources")]
                     Source::Path(_) => true,
-                    Source::Source(_) => **path != *self.input.path,
+                    Source::Source(_) => *path != *self.input.path,
                 }
             })
-            .fold(TokenStream::new(), |mut acc, path| {
-                let path = self.rel_path(path).display().to_string();
-                acc.extend(quote_spanned!(span=>
-                    const _: &[askama::helpers::core::primitive::u8] =
-                        askama::helpers::core::include_bytes!(#path);
-                ));
-                acc
-            });
+            .collect::<Vec<_>>();
+        paths.sort_by_key(|&(path, _)| path);
+        for (path, _ctx) in paths {
+            let path = self.rel_path(path).display().to_string();
+            paths_ts.extend(quote_spanned!(span=>
+                const _: &[askama::helpers::core::primitive::u8] =
+                    askama::helpers::core::include_bytes!(#path);
+            ));
+
+            #[cfg(all(feature = "external-sources", feature = "nightly-spans"))]
+            _ctx.resolve_path(&path);
+        }
 
         let mut content = Buffer::new();
         let size_hint = self.impl_template_inner(ctx, &mut content)?;
@@ -238,8 +247,7 @@ impl<'a, 'h> Generator<'a, 'h> {
                     helpers::{ResultConverter as _, core::fmt::Write as _},
                 };
 
-                #full_paths
-                #paths
+                #paths_ts
                 #content
                 askama::Result::Ok(())
             }

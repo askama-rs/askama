@@ -11,38 +11,53 @@ use crate::spans::rustc_literal_escaper::unescape;
 #[allow(private_interfaces)] // don't look behind the curtain
 #[derive(Clone, Debug)]
 pub(crate) enum SourceSpan {
+    Empty(Span),
     Source(SpannedSource),
-    // TODO: transclude source file
-    Path(Span),
+    #[cfg(feature = "external-sources")]
+    Path(SpannedPath),
     // TODO: implement for "code-in-doc"
     #[cfg_attr(not(feature = "code-in-doc"), allow(dead_code))]
-    Span(Span),
-    Empty(Span),
+    CodeInDoc(Span),
 }
 
 impl SourceSpan {
+    pub(crate) fn empty() -> SourceSpan {
+        Self::Empty(Span::call_site())
+    }
+
     pub(crate) fn from_source(source: LitStr) -> Result<(String, Self), CompileError> {
-        let (source, span) = SpannedSource::from_source(source)?;
+        let (source, span) = SpannedSource::new(source)?;
         Ok((source, Self::Source(span)))
+    }
+
+    #[cfg(feature = "external-sources")]
+    pub(crate) fn from_path(config: LitStr) -> Result<SourceSpan, CompileError> {
+        Ok(Self::Path(SpannedPath::new(config)?))
     }
 
     pub(crate) fn config_span(&self) -> Span {
         match self {
-            SourceSpan::Source(literal) => literal.config_span(),
-            SourceSpan::Path(span) | SourceSpan::Span(span) | Self::Empty(span) => *span,
+            SourceSpan::Source(v) => v.config_span(),
+            #[cfg(feature = "external-sources")]
+            SourceSpan::Path(v) => v.config_span(),
+            SourceSpan::CodeInDoc(span) | Self::Empty(span) => *span,
         }
     }
 
     pub(crate) fn content_subspan(&self, bytes: Range<usize>) -> Option<Span> {
         match self {
-            Self::Source(source) => source.content_subspan(bytes),
-            Self::Path(_) | Self::Span(_) => None,
-            Self::Empty(_) => None,
+            Self::Source(v) => v.content_subspan(bytes),
+            #[cfg(feature = "external-sources")]
+            SourceSpan::Path(v) => v.content_subspan(bytes),
+            Self::CodeInDoc(_) | Self::Empty(_) => None,
         }
     }
 
-    pub(crate) fn empty() -> SourceSpan {
-        Self::Empty(Span::call_site())
+    #[cfg(all(feature = "external-sources", feature = "nightly-spans"))]
+    pub(crate) fn resolve_path(&self, path: &str) {
+        if let Self::Path(v) = self {
+            v.resolve_path(path);
+        }
     }
 }
 
@@ -76,7 +91,7 @@ impl SpannedSource {
         }
     }
 
-    fn from_source(source: LitStr) -> Result<(String, Self), CompileError> {
+    fn new(source: LitStr) -> Result<(String, Self), CompileError> {
         let literal = source.token();
         let unparsed = literal.to_string();
         let result = if unparsed.starts_with('r') {
@@ -134,3 +149,114 @@ impl SpannedSource {
         Ok((source, Self { literal, positions }))
     }
 }
+
+#[cfg(feature = "external-sources")]
+#[cfg_attr(not(feature = "nightly-spans"), derive(Debug, Clone))]
+struct SpannedPath {
+    config: Span,
+    #[cfg(feature = "nightly-spans")]
+    literal: std::cell::Cell<Option<Literal>>,
+}
+
+#[cfg(feature = "external-sources")]
+impl SpannedPath {
+    fn new(config: LitStr) -> Result<Self, CompileError> {
+        Ok(Self {
+            config: config.span(),
+            #[cfg(feature = "nightly-spans")]
+            literal: std::cell::Cell::new(None),
+        })
+    }
+
+    #[inline]
+    fn config_span(&self) -> Span {
+        self.config
+    }
+}
+
+#[cfg(all(feature = "external-sources", not(feature = "nightly-spans")))]
+impl SpannedPath {
+    #[inline]
+    fn content_subspan(&self, _: Range<usize>) -> Option<Span> {
+        None
+    }
+}
+
+#[cfg(all(feature = "external-sources", feature = "nightly-spans"))]
+const _: () = {
+    use std::cell::Cell;
+    use std::fmt;
+
+    use proc_macro::TokenStream as TokenStream1;
+    use proc_macro2::{TokenStream as TokenStream2, TokenTree};
+    use quote::quote_spanned;
+
+    impl fmt::Debug for SpannedPath {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("SpannedPath")
+                .field("config", &self.config)
+                .field("span", &self.literal_span())
+                .finish()
+        }
+    }
+
+    impl Clone for SpannedPath {
+        fn clone(&self) -> Self {
+            Self {
+                config: self.config.clone(),
+                literal: Cell::new(self.literal()),
+            }
+        }
+    }
+
+    impl SpannedPath {
+        fn content_subspan(&self, bytes: Range<usize>) -> Option<Span> {
+            let literal = self.literal.take()?;
+            let span = literal.subspan(bytes);
+            self.literal.set(Some(literal));
+            span
+        }
+
+        fn literal_span(&self) -> Option<Span> {
+            let literal = self.literal.take()?;
+            let span = literal.span();
+            self.literal.set(Some(literal));
+            Some(span)
+        }
+
+        fn literal(&self) -> Option<Literal> {
+            let literal = self.literal.take()?;
+            self.literal.set(Some(literal.clone()));
+            Some(literal)
+        }
+
+        fn resolve_path(&self, path: &str) {
+            if proc_macro::is_available()
+                && let Ok(stream) = TokenStream1::from(quote_spanned! {
+                    // In token expansion, `extern crate some_name` does not work. Only crates that
+                    // were imported output _before_ the `#[derive(Template)]` invocation can be
+                    // used.
+                    //
+                    // In the macro expansion, using an identifier that was not defined will emit
+                    // an error `Diagnostic`. We cannot un-emit a `Diagnostic`, so this would be a
+                    // hard compilation error.
+                    //
+                    // At `call_site()`, macro `include_str!` may not exist (`#[no_implicit_prelude]`),
+                    // or may be shadowed. The symbol `askama` may not exist or be shadowed, too.
+                    //
+                    // At `def_site()`, the we know that the macro exists. We do not know if `core`
+                    // or `::core` exists, but the unprefixed macro `include_str!` does exist, and
+                    // it cannot be shadowed from outside of this function call.
+                    //
+                    // <https://doc.rust-lang.org/reference/names/preludes.html#r-names.preludes.lang.entities>
+                    proc_macro::Span::def_site().into() => include_str!(#path)
+                })
+                .expand_expr()
+                && let Some(TokenTree::Literal(literal)) =
+                    TokenStream2::from(stream).into_iter().next()
+            {
+                self.literal.set(Some(literal));
+            }
+        }
+    }
+};

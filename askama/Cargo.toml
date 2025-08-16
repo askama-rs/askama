@@ -57,6 +57,7 @@ blocks = ["askama_macros?/blocks"]
 code-in-doc = ["askama_macros?/code-in-doc"]
 config = ["askama_macros?/config"]
 derive = ["dep:askama_macros", "dep:askama_macros"]
+nightly-spans = ["askama_macros/nightly-spans"]
 serde_json = ["std", "askama_macros?/serde_json", "dep:serde", "dep:serde_json"]
 std = [
     "alloc",

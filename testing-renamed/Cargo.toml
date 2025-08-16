@@ -10,3 +10,6 @@ publish = false
 some_name = { package = "askama", path = "../askama", version = "0.14.0", default-features = false, features = ["derive"] }
 
 assert_matches = "1.5.0"
+
+[features]
+nightly-spans = ["some_name/nightly-spans"]

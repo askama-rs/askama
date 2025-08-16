@@ -31,6 +31,7 @@ trybuild = "1.0.100"
 default = ["blocks", "code-in-doc", "serde_json"]
 blocks = ["askama/blocks"]
 code-in-doc = ["askama/code-in-doc"]
+nightly-spans = ["askama/nightly-spans"]
 serde_json = ["dep:serde_json", "askama/serde_json"]
 
 [lints.rust]
