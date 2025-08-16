@@ -56,8 +56,15 @@ default = [
 alloc = []
 blocks = ["syn/full"]
 code-in-doc = ["dep:pulldown-cmark"]
-config = ["external-sources", "dep:basic-toml", "dep:serde", "dep:serde_derive", "parser/config"]
+config = [
+    "external-sources",
+    "dep:basic-toml",
+    "dep:serde",
+    "dep:serde_derive",
+    "parser/config",
+]
 external-sources = []
+nightly-spans = []
 proc-macro = ["proc-macro2/proc-macro"]
 serde_json = []
 std = ["alloc"]

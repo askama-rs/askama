@@ -177,6 +177,11 @@ impl<'a> Context<'a> {
     pub(crate) fn file_info_of(&self, node: Span) -> Option<FileInfo<'a>> {
         self.path.map(|path| FileInfo::of(node, path, self.parsed))
     }
+
+    #[cfg(all(feature = "external-sources", feature = "nightly-spans"))]
+    pub(crate) fn resolve_path(&self, path: &str) {
+        self.literal.resolve_path(path);
+    }
 }
 
 fn ensure_top(

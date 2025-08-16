@@ -2,14 +2,26 @@
 
 use ::askama::Template;
 
-#[derive(Template)]
-#[template(path = "hello.html")]
-struct HelloTemplate<'a> {
-    name: &'a str,
+#[test]
+fn test_source() {
+    #[derive(Template)]
+    #[template(ext = "html", source = "Hello, {{ name }}!")]
+    struct HelloTemplate<'a> {
+        name: &'a str,
+    }
+
+    let hello = HelloTemplate { name: "world" };
+    ::std::assert_eq!("Hello, world!", hello.render().unwrap());
 }
 
 #[test]
-fn main() {
+fn test_path() {
+    #[derive(Template)]
+    #[template(path = "hello.html")]
+    struct HelloTemplate<'a> {
+        name: &'a str,
+    }
+
     let hello = HelloTemplate { name: "world" };
     ::std::assert_eq!("Hello, world!", hello.render().unwrap());
 }
