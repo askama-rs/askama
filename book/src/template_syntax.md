@@ -557,7 +557,7 @@ const x = {{ x is defined }};
 Due to proc-macro limitations, askama can only see the fields of your current type and the variables
 declared in the templates. Because of this, you can not check if a field or a function is defined:
 
-```jinja
+```jinja,error
 {% if x.y is defined %}
   This code will not compile
 {% endif %}
@@ -650,7 +650,7 @@ you can also use an optional `{% endwhen %}` node to close a `{% when %}` case:
   {% when 1 | 3 | 5 | 7 | 9 %}
     odd
   {% endwhen %}
-  {% else }
+  {% else %}
     unknown
 {% endmatch %}
 ```
@@ -885,7 +885,7 @@ To have a small library of reusable snippets, it's best to declare the macros in
 Additionally to specifying arguments positionally, you can also pass arguments by name. This allows passing the arguments in any order:
 
 ```jinja
-{% macro heading(title, font_weight = "normal", font_size = 13)}
+{% macro heading(title, font_weight = "normal", font_size = 13) %}
     <h1 style="font-weight: {{ font_weight }}; font-size: {{ font_size }};">
         {{ title }}
     </h1>
@@ -949,7 +949,7 @@ Invoking this macro using the call expression syntax shown above (`{{ centered()
 However, you can declare macros in a way that allows invoking them with and without body:
 
 ```jinja
-{% macro render_dialog(title, class='dialog') -%}
+{% macro render_dialog(title, class="dialog") -%}
     <div class="{{ class }}">
         <h2>{{ title }}</h2>
         <div class="contents">
@@ -1010,7 +1010,7 @@ Macro invocations instantly overwrite the `caller` variable with their own. To b
     <div class="container">
         {{ caller() }}
     </div>
-{% endmacro }
+{% endmacro %}
 
 {% macro outer_container() %}
     {# Create an alias to our `caller`, so we can access it within container: #}
@@ -1020,7 +1020,7 @@ Macro invocations instantly overwrite the `caller` variable with their own. To b
         {# nested macro invocation - will overwrite the `caller` variable: #}
         {% call container() %}
             {{ outer_caller() }}
-        {% endmacro %}
+        {% endcall %}
     </div>
 {% endmacro %}
 ```
