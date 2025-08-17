@@ -39,6 +39,9 @@ fn check_markdown(file: &Path, errors: &mut usize) {
             if !label.contains("jinja") {
                 continue;
             }
+            if label.split(",").any(|part| part == "ignore") {
+                continue;
+            }
             let expects_error = label.split(",").any(|part| part == "error");
             let has_jinja = label.split(",").any(|part| part == "jinja");
             if !has_jinja {
