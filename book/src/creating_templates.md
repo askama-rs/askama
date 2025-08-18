@@ -265,7 +265,7 @@ of the template item.
 Instead of `path = "…"` or `source = "…"`, specify `in_doc = true` in the `#[template]` attribute,
 and in the item's documentation, add a code block with the `askama` attribute:
 
-```rust
+`````rust
 /// Here you can put our usual comments.
 ///
 /// ```askama
@@ -287,7 +287,7 @@ and in the item's documentation, add a code block with the `askama` attribute:
 struct Example<'a> {
     lines: &'a str,
 }
-```
+`````
 
 If you want to supply the template code in the comments,
 then you have to specify the `ext` argument, too, e.g. `#[template(ext = "html")]`.

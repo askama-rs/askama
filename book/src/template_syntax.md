@@ -110,9 +110,9 @@ name collision, the built in filters take precedence.
 You can apply a **filter** on a whole block at once using **filter
 blocks**:
 
-```text
+```jinja
 {% filter lower %}
-    {{ t }} / HELLO / {{ u }}
+  {{ t }} / HELLO / {{ u }}
 {% endfilter %}
 ```
 
@@ -120,9 +120,9 @@ The `lower` filter will be applied on the whole content.
 
 Just like filters, you can combine them:
 
-```text
+```jinja
 {% filter lower|capitalize %}
-    {{ t }} / HELLO / {{ u }}
+  {{ t }} / HELLO / {{ u }}
 {% endfilter %}
 ```
 
@@ -140,10 +140,10 @@ start delimiter or leading into an end delimiter.
 
 Here is an example:
 
-```text
+```jinja
 {% if foo %}
   {{- bar -}}
-{% else if -%}
+{% else if another -%}
   nothing
 {%- endif %}
 ```
@@ -157,7 +157,7 @@ If the whitespace default control is set to "suppress" and you want
 to preserve whitespace characters on one side of a block or of an
 expression, you need to use `+`. Example:
 
-```text
+```jinja
 <a href="/" {#+ #}
    class="something">text</a>
 ```
@@ -337,7 +337,7 @@ A base template defines **blocks** that child templates can override.
 
 ### Base template
 
-```html
+```jinja
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -362,7 +362,7 @@ bodies.
 It is also possible to use the name of the `block` in `endblock` (both in
 declaration and use):
 
-```html
+```jinja
 {% block content %}<p>Placeholder content</p>{% endblock content %}
 ```
 
@@ -370,7 +370,7 @@ declaration and use):
 
 Here's an example child template:
 
-```html
+```jinja
 {% extends "base.html" %}
 
 {% block title %}Index{% endblock %}
@@ -398,7 +398,7 @@ the parent block's contents.
 Because top-level content from the child template is thus ignored, the `extends`
 tag doesn't support whitespace control:
 
-```html
+```jinja
 {%- extends "base.html" +%}
 ```
 
@@ -462,7 +462,7 @@ fn main() {
 
 Loop over each item in an iterator. For example:
 
-```html
+```jinja
 <h1>Users</h1>
 <ul>
 {% for user in users %}
@@ -479,7 +479,7 @@ Inside for-loop blocks, some useful variables are accessible:
 * *loop.last*: whether this is the last iteration of the loop
 
 
-```html
+```jinja
 <h1>Users</h1>
 <ul>
 {% for user in users %}
@@ -497,7 +497,7 @@ Inside for-loop blocks, some useful variables are accessible:
 The `if` statement essentially mirrors Rust's [`if` expression],
 and is used as you might expect:
 
-```text
+```jinja
 {% if users.len() == 0 %}
   No users
 {% else if users.len() == 1 %}
@@ -516,7 +516,7 @@ and is used as you might expect:
 Additionally, `if let` statements are also supported and similarly
 mirror Rust's [`if let` expressions]:
 
-```text
+```jinja
 {% if let Some(user) = user %}
   {{ user.name }}
 {% else %}
@@ -569,7 +569,7 @@ In order to deal with Rust `enum`s in a type-safe way, templates support
 match blocks from version 0.6. Here is a simple example showing how to
 expand an `Option`:
 
-```text
+```jinja
 {% match item %}
   {% when Some with ("foo") %}
     Found literal foo
@@ -686,13 +686,15 @@ The *include* statement lets you split large or repetitive blocks into
 separate template files. Included templates get full access to the context
 in which they're used, including local variables like those from loops:
 
-```text
+```jinja
 {% for i in iter %}
   {% include "item.html" %}
 {% endfor %}
 ```
 
-```text
+`item.html` file:
+
+```jinja
 * Item: {{ i }}
 ```
 
