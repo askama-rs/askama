@@ -9,6 +9,7 @@ use askama::{Template, Values};
 mod filters {
     use super::*;
 
+    #[askama::filter_fn]
     pub fn cased(value: impl ToString, values: &dyn Values) -> askama::Result<String> {
         let value = value.to_string();
         let case = askama::get_value(values, "case").ok();

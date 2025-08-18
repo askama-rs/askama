@@ -59,7 +59,6 @@ pub(crate) enum TmplKind<'a> {
     /// [`askama::helpers::EnumVariantTemplate`]
     Variant,
     /// Used in `blocks` implementation
-    #[allow(unused)]
     Block(&'a str),
 }
 
@@ -246,7 +245,6 @@ impl<'a, 'h> Generator<'a, 'h> {
             #size_hint_s
         } });
 
-        #[cfg(feature = "blocks")]
         for block in self.input.blocks {
             self.impl_block(buf, block)?;
         }
@@ -254,7 +252,6 @@ impl<'a, 'h> Generator<'a, 'h> {
         Ok(size_hint)
     }
 
-    #[cfg(feature = "blocks")]
     fn impl_block(
         &self,
         buf: &mut Buffer,

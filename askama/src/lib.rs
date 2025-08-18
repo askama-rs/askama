@@ -82,6 +82,8 @@ use std::io;
 
 #[cfg(feature = "derive")]
 pub use askama_macros::Template;
+#[cfg(feature = "derive")]
+pub use askama_macros::filter_fn;
 
 pub use crate::error::{Error, Result};
 pub use crate::helpers::PrimitiveType;

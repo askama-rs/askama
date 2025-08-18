@@ -45,7 +45,7 @@ maintenance = { status = "actively-developed" }
 
 [features]
 default = ["config", "derive", "std", "urlencode"]
-full = ["default", "blocks", "code-in-doc", "serde_json"]
+full = ["default", "code-in-doc", "serde_json"]
 
 alloc = [
     "askama_macros?/alloc",
@@ -53,7 +53,6 @@ alloc = [
     "serde_json?/alloc",
     "percent-encoding?/alloc",
 ]
-blocks = ["askama_macros?/blocks"]
 code-in-doc = ["askama_macros?/code-in-doc"]
 config = ["askama_macros?/config"]
 derive = ["dep:askama_macros", "dep:askama_macros"]
