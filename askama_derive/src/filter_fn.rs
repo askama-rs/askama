@@ -3,33 +3,57 @@
 //! into an internal intermediate representation (the `FilterSignature` struct).
 //! Then, the output code is generated from said struct.
 
-use std::collections::{HashMap, HashSet};
+use std::ops::ControlFlow;
 
-use proc_macro2::{Ident, TokenStream as TokenStream2};
-use quote::{ToTokens, format_ident, quote};
+use proc_macro2::{Ident, Span, TokenStream};
+use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
 use syn::{
-    Block, Expr, FnArg, GenericParam, ItemFn, Pat, PatType, ReturnType, Signature, Token, Type,
-    TypeParamBound, Visibility,
+    Block, Expr, FnArg, GenericParam, ItemFn, Lifetime, Pat, PatType, ReturnType, Signature, Token,
+    Type, TypeParamBound, Visibility,
 };
 
-use crate::CompileError;
-use crate::helpers::{self, type_contains_ident};
+use crate::{CompileError, HashMap, HashSet, parse_ts_or_compile_error};
+
+pub fn derive_filter_fn(
+    attr: TokenStream,
+    item: TokenStream,
+    import_askama: fn() -> TokenStream,
+) -> TokenStream {
+    let ffn: ItemFn = match parse_ts_or_compile_error(item, import_askama) {
+        ControlFlow::Continue(ffn) => ffn,
+        ControlFlow::Break(err) => return err,
+    };
+    match filter_fn_impl(attr, &ffn) {
+        Ok(tt) => tt,
+        Err(CompileError { msg, span }) => {
+            let import_askama = import_askama();
+            quote_spanned! {
+                span.unwrap_or_else(|| ffn.sig.ident.span()) =>
+                const _: () = {
+                    #import_askama
+                    askama::helpers::core::compile_error!(#msg);
+                };
+            }
+        }
+    }
+}
 
 /// Helper macro to produce proc macro compiler error messages with a given span
 /// if a given condition is not met.
 macro_rules! p_assert {
-    ($cond:expr, $span:expr => $msg:literal) => {
+    ($cond:expr, $span:expr => $msg:literal $(,)?) => {
         match $cond {
             true => Ok(()),
             false => p_err!($span => $msg)
         }
     };
 }
+
 macro_rules! p_err {
-    ($span:expr => $msg:literal) => {
-        Err(CompileError::new($span, $msg))
+    ($span:expr => $msg:literal $(,)?) => {
+        Err(CompileError::new_with_span_stable($msg, None, Some($span)))
     };
 }
 
@@ -90,10 +114,12 @@ impl FilterSignature {
     fn try_from_signature(sig: &Signature) -> Result<FilterSignature, CompileError> {
         // preliminary validation
         p_assert!(!sig.inputs.is_empty(), sig.paren_token.span.open() =>
-            "Filter function missing required input and environment arguments. Example: `fn filter0(_: &dyn std::fmt::Display, _: &dyn askama::Values) -> askama::Result<String>`"
+            "Filter function missing required input and environment arguments. Example: \
+            `fn filter0(_: &dyn std::fmt::Display, _: &dyn askama::Values) -> askama::Result<String>`"
         )?;
         p_assert!(sig.inputs.len() >= 2, sig.paren_token.span.open() =>
-            "Filter function missing required environment argument. Example: `fn filter0(_: &dyn std::fmt::Display, _: &dyn askama::Values) -> askama::Result<String>`"
+            "Filter function missing required environment argument. Example: \
+            `fn filter0(_: &dyn std::fmt::Display, _: &dyn askama::Values) -> askama::Result<String>`"
         )?;
         if let Some(gc_arg) = sig.generics.const_params().next() {
             p_err!(gc_arg.span() => "Const generics are currently not supported for filters")?;
@@ -108,7 +134,7 @@ impl FilterSignature {
 
         // ########################################
         // generics
-        let mut generics = HashMap::new();
+        let mut generics = HashMap::default();
         for gp in sig.generics.type_params() {
             p_assert!(gp.default.is_none(), gp.default.span() => "Filter functions don't support generic parameter defaults")?;
 
@@ -131,7 +157,7 @@ impl FilterSignature {
         // user arguments
         let mut args_required = vec![];
         let mut args_optional = vec![];
-        let mut args_required_generics = HashMap::new();
+        let mut args_required_generics = HashMap::default();
         for (arg_idx, arg) in sig.inputs.iter().skip(2).enumerate() {
             let FnArg::Typed(arg) = arg else {
                 continue;
@@ -145,7 +171,7 @@ impl FilterSignature {
             )?;
 
             // reference-parameters without explicit lifetime, inherit the 'filter lifetime
-            let arg_type = helpers::patch_ref_with_lifetime(&arg.ty, &format_ident!("filter"));
+            let arg_type = patch_ref_with_lifetime(&arg.ty, &format_ident!("filter"));
 
             match Self::get_optional_arg_attr(arg)? {
                 // required argument (= has no default value)
@@ -155,7 +181,7 @@ impl FilterSignature {
                     // determine all generic parameters used by this argument
                     let used_generics: HashSet<_> = generics
                         .keys()
-                        .filter(|i| helpers::type_contains_ident(&arg.ty, i).is_some())
+                        .filter(|i| type_contains_ident(&arg.ty, i).is_some())
                         .cloned()
                         .collect();
                     // mark the used generic parameters
@@ -174,7 +200,7 @@ impl FilterSignature {
                     // check if the argument uses any generics (which is not allowed for optional arguments)
                     if let Some(span) = generics
                         .keys()
-                        .filter_map(|i| helpers::type_contains_ident(&arg.ty, i))
+                        .filter_map(|i| type_contains_ident(&arg.ty, i))
                         .next()
                     {
                         p_err!(span => "Optional arguments must not use generic parameters")?;
@@ -269,7 +295,7 @@ impl FilterSignature {
     /// `askama::filters::ValidArgIdx<const IDX: usize>` on the generated struct (where IDX = arg.idx).
     /// During code generation, the line: `const _: bool = askama::filters::ValidArgIdx<n>::VALID`
     /// can then check at compile-time whether there is an argument with the given index.
-    fn gen_struct_definition(&self, vis: Visibility) -> TokenStream2 {
+    fn gen_struct_definition(&self, vis: &Visibility) -> TokenStream {
         let ident = &self.ident;
         // struct generic parameters
         let struct_generics = self
@@ -321,7 +347,7 @@ impl FilterSignature {
     /// This entry point starts with a type of `()` for all the generic parameter
     /// used by required arguments. They are only filled with the correct type
     /// as soon as the argument is supplied into the corresponding setter.
-    fn gen_default_impl(&self) -> TokenStream2 {
+    fn gen_default_impl(&self) -> TokenStream {
         let ident = &self.ident;
         // initial field values
         let required_defaults = self
@@ -359,7 +385,7 @@ impl FilterSignature {
     /// Whereas required arguments construct a new struct instance, because they need to
     /// - Patch generic arguments (that started out with `()`)
     /// - Change the const generic bool parameter that tracks their presence to `true`
-    fn gen_setters(&self) -> TokenStream2 {
+    fn gen_setters(&self) -> TokenStream {
         let optional_setters = self.gen_setters_optional();
         let required_setters = self
             .args_required
@@ -380,7 +406,7 @@ impl FilterSignature {
     ///
     /// So setters for required arguments do not just return a copy of the builder struct,
     /// they also change its type signature (due to differing generic arguments).
-    fn gen_required_setter(&self, arg: &FilterArgumentRequired) -> TokenStream2 {
+    fn gen_required_setter(&self, arg: &FilterArgumentRequired) -> TokenStream {
         let ident = &self.ident;
         let cur_arg_ident = &arg.ident;
         let cur_arg_ty = &arg.ty;
@@ -465,7 +491,7 @@ impl FilterSignature {
     /// Compared to required arguments, they don't need to create a new struct instance,
     /// because they don't need to change the struct's generic parameters.
     /// Each getter just overwrites its corresponding field with the new value.
-    fn gen_setters_optional(&self) -> TokenStream2 {
+    fn gen_setters_optional(&self) -> TokenStream {
         let ident = &self.ident;
         // generics (use stupid enumeration instead of named arguments for simplicity)
         let required_generics: Vec<_> = (0..self.args_required_generics.len())
@@ -513,7 +539,7 @@ impl FilterSignature {
     /// fields into the local context by consuming them. Required arguments are unwrapped from
     /// their `Option<>` container, and optional arguments are moved as is.
     /// Then, the actual filter code is inserted after.
-    fn gen_exec_impl(&self, filter_impl: &Block) -> TokenStream2 {
+    fn gen_exec_impl(&self, filter_impl: &Block) -> TokenStream {
         let ident = &self.ident;
         // input variable
         // method generics (only the parameters not already present on struct)
@@ -564,11 +590,16 @@ impl FilterSignature {
 
 // ######################################################
 
-pub(crate) fn filter_fn_impl(ffn: ItemFn) -> Result<TokenStream2, CompileError> {
+fn filter_fn_impl(attr: TokenStream, ffn: &ItemFn) -> Result<TokenStream, CompileError> {
+    p_assert!(
+        attr.is_empty(),
+        attr.span() => "`#[askama::filter_fn]` does not expect any attributes"
+    )?;
+
     let fsig = FilterSignature::try_from_signature(&ffn.sig)?;
 
-    let mut arg_generics = HashMap::new();
-    for gp in ffn.sig.generics.params {
+    let mut arg_generics = HashMap::default();
+    for gp in &ffn.sig.generics.params {
         if let GenericParam::Type(gp) = gp {
             arg_generics.insert(gp.ident.clone(), gp.clone());
         } else {
@@ -576,7 +607,7 @@ pub(crate) fn filter_fn_impl(ffn: ItemFn) -> Result<TokenStream2, CompileError> 
         }
     }
 
-    let struct_def = fsig.gen_struct_definition(ffn.vis);
+    let struct_def = fsig.gen_struct_definition(&ffn.vis);
     let default_impl = fsig.gen_default_impl();
     let setter_impl = fsig.gen_setters();
     let exec_impl = fsig.gen_exec_impl(&ffn.block);
@@ -587,4 +618,68 @@ pub(crate) fn filter_fn_impl(ffn: ItemFn) -> Result<TokenStream2, CompileError> 
         #setter_impl
         #exec_impl
     ))
+}
+
+/// Recursively check if a type contains one of the given Idents
+fn type_contains_ident(ty: &Type, ident: &Ident) -> Option<Span> {
+    match ty {
+        Type::Path(type_path) => {
+            for segment in &type_path.path.segments {
+                // Check if the segment ident matches
+                if &segment.ident == ident {
+                    return Some(segment.ident.span());
+                }
+
+                // Check generic arguments recursively
+                if let syn::PathArguments::AngleBracketed(ref args) = segment.arguments {
+                    for arg in &args.args {
+                        match arg {
+                            syn::GenericArgument::Type(inner_ty) => {
+                                if let Some(span) = type_contains_ident(inner_ty, ident) {
+                                    return Some(span);
+                                }
+                            }
+                            syn::GenericArgument::AssocType(assoc) => {
+                                if let Some(span) = type_contains_ident(&assoc.ty, ident) {
+                                    return Some(span);
+                                }
+                            }
+                            _ => {} // Not types -> skip
+                        }
+                    }
+                }
+            }
+            None
+        }
+        Type::Reference(type_ref) => type_contains_ident(&type_ref.elem, ident),
+        Type::Slice(type_slice) => type_contains_ident(&type_slice.elem, ident),
+        Type::Array(type_array) => type_contains_ident(&type_array.elem, ident),
+        Type::Tuple(type_tuple) => type_tuple
+            .elems
+            .iter()
+            .filter_map(|elem_ty| type_contains_ident(elem_ty, ident))
+            .next(),
+        Type::Paren(type_paren) => type_contains_ident(&type_paren.elem, ident),
+        Type::Group(type_group) => type_contains_ident(&type_group.elem, ident),
+        _ => None, // covers everything else
+    }
+}
+
+fn patch_ref_with_lifetime(ty: &Type, lifetime: &Ident) -> Type {
+    match ty {
+        Type::Reference(type_ref) => {
+            let mut new_type_ref = type_ref.clone();
+
+            // Inject the lifetime if it's missing
+            if new_type_ref.lifetime.is_none() {
+                new_type_ref.lifetime = Some(Lifetime {
+                    apostrophe: Span::call_site(),
+                    ident: lifetime.clone(),
+                });
+            }
+
+            Type::Reference(new_type_ref)
+        }
+        _ => ty.clone(), // Only patch reference types; others remain unchanged
+    }
 }
