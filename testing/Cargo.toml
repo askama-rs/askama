@@ -19,7 +19,7 @@ serde_json = { version = "1.0", optional = true }
 core = { package = "intentionally-empty", version = "1.0.0" }
 
 [dev-dependencies]
-askama = { path = "../askama", version = "0.14.0", features = ["blocks", "code-in-doc", "serde_json"] }
+askama = { path = "../askama", version = "0.14.0", features = ["code-in-doc", "serde_json"] }
 askama_parser = { path = "../askama_parser", version = "0.14.0" }
 
 assert_matches = "1.5.0"
@@ -28,8 +28,7 @@ pulldown-cmark = "0.13"
 trybuild = "1.0.100"
 
 [features]
-default = ["blocks", "code-in-doc", "serde_json"]
-blocks = ["askama/blocks"]
+default = ["code-in-doc", "serde_json"]
 code-in-doc = ["askama/code-in-doc"]
 nightly-spans = ["askama/nightly-spans"]
 serde_json = ["dep:serde_json", "askama/serde_json"]

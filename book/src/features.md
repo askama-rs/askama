@@ -92,19 +92,11 @@ The most useful catch-all feature for a quick start might be `"full"`,
 which enables all implemented features, i.e.:
 
 ```toml
-full = ["default", "blocks", "code-in-doc", "serde_json"]
+full = ["default", "code-in-doc", "serde_json"]
 ```
 
 In production or once your project is “maturing” you might want to manually opt-in to any needed
 features with a finer granularity instead of depending on `"full"`.
-
-### `"blocks"`
-
-<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
-enabled by <code>"full"</code>
-</blockquote>
-
-Enables using [the template attribute `blocks`](creating_templates.html#the-template-attribute).
 
 ### `"serde_json"`
 
