@@ -87,6 +87,8 @@ struct Generator<'a, 'h> {
     is_in_filter_block: usize,
     /// Set of called macros we are currently in. Used to prevent (indirect) recursions.
     seen_callers: Vec<(&'a Macro<'a>, Option<FileInfo<'a>>)>,
+    /// Blocks already used.
+    called_blocks: Vec<(&'a str, Option<FileInfo<'a>>)>,
     /// The directory path of the calling file.
     caller_dir: CallerDir,
 }
@@ -121,6 +123,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             is_in_filter_block,
             seen_callers: Vec::new(),
             caller_dir: CallerDir::Unresolved,
+            called_blocks: Vec::new(),
         }
     }
 

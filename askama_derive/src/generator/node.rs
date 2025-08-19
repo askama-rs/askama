@@ -948,7 +948,7 @@ impl<'a> Generator<'a, '_> {
             (None, Some((prev_name, r#gen))) => (prev_name, r#gen + 1),
             // `super()` is called from outside a block
             (None, None) => {
-                return Err(ctx.generate_error("cannot call 'super()' outside block", node));
+                return Err(ctx.generate_error("cannot call `super()` outside block", node));
             }
         };
 
@@ -972,7 +972,7 @@ impl<'a> Generator<'a, '_> {
             ctx.generate_error(
                 match name {
                     None => fmt_left!(
-                        "no super() block found for block `{}`",
+                        "no `super()` block found for block `{}`",
                         cur.0.escape_debug()
                     ),
                     Some(name) => {
@@ -982,6 +982,45 @@ impl<'a> Generator<'a, '_> {
                 node,
             )
         })?;
+
+        if let Some(name) = name {
+            // This checks if the same block is called in a "parent".
+            if let Some((_, first_call)) = self.called_blocks.iter().find(|block| block.0 == *name)
+            {
+                let first_call = if let Some(first_call) = first_call {
+                    format!("{first_call:#}")
+                } else {
+                    "<inline source>".to_string()
+                };
+                let current = if let Some(node) = ctx.file_info_of(node) {
+                    format!("{node:#}")
+                } else {
+                    "<inline source>".to_string()
+                };
+
+                eprintln!(
+                    "⚠️ {}: block `{}` was already called at `{}` so the previous one will be ignored",
+                    current, cur.0, first_call,
+                );
+            } else if child_ctx.blocks.contains_key(*name) {
+                let first = match child_ctx.path {
+                    Some(p) => p.display().to_string(),
+                    None => "<inline source>".to_string(),
+                };
+                let current = if let Some(node) = ctx.file_info_of(node) {
+                    format!("{node:#}")
+                } else {
+                    "<inline source>".to_string()
+                };
+
+                eprintln!(
+                    "⚠️ {}: block `{}` was already called at `{first}` so the previous one will be ignored",
+                    current, cur.0,
+                );
+            } else {
+                self.called_blocks.push((*name, ctx.file_info_of(node)));
+            }
+        }
 
         // We clone the context of the child in order to preserve their macros and imports.
         // But also add all the imports and macros from this template that don't override the
@@ -995,6 +1034,9 @@ impl<'a> Generator<'a, '_> {
                 .imports
                 .entry(name)
                 .or_insert_with(|| import.clone());
+        }
+        for (name, block) in &ctx.blocks {
+            child_ctx.blocks.entry(name).or_insert(block);
         }
 
         let size_hint = self.with_child(Some(heritage), |child| {
