@@ -9,9 +9,8 @@ use winnow::token::{any, one_of, take, take_until};
 use crate::node::CondTest;
 use crate::{
     CharLit, ErrorContext, HashSet, InputStream, Num, ParseResult, PathOrIdentifier, StrLit,
-    StrPrefix, WithSpan, can_be_variable_name, char_lit, cut_error, filter, identifier,
-    is_rust_keyword, keyword, not_suffix_with_hash, num_lit, path_or_identifier, skip_ws0,
-    skip_ws1, str_lit, ws,
+    StrPrefix, WithSpan, char_lit, cut_error, filter, identifier, is_rust_keyword, keyword,
+    not_suffix_with_hash, num_lit, path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
 };
 
 macro_rules! expr_prec_layer {
@@ -1100,7 +1099,7 @@ impl<'a: 'l, 'l> Suffix<'a> {
                     )
                 } else {
                     // a raw identifier like `r#async`
-                    if !can_be_variable_name(id) {
+                    if matches!(id, "self" | "Self" | "super" | "crate" | "_") {
                         cut_error!(
                             format!("`{}` cannot be a raw identifier", id.escape_debug()),
                             span,
