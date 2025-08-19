@@ -2,6 +2,7 @@ use std::any::type_name_of_val;
 use std::fmt::{Debug, Display};
 
 use askama::Template;
+use assert_matches::assert_matches;
 
 #[test]
 fn test_book_example() {
@@ -143,18 +144,25 @@ fn test_simple_enum() {
     assert_eq!(tmpl.render().unwrap(), "E { a: hello, b: X }");
 
     let tmpl: SimpleEnum<'_, X> = SimpleEnum::F;
-    assert_eq!(
-        tmpl.render().unwrap(),
-        "&enum::test_simple_enum::SimpleEnum<enum::X> | F",
+    assert_matches!(
+        tmpl.render().unwrap().as_str(),
+        "&enum::test_simple_enum::SimpleEnum<enum::X> | F"
+        // output since rustc 1.91.0-nightly 2025-08-17
+        | "&enum::test_simple_enum::SimpleEnum<'_, enum::X> | F"
     );
 
     let tmpl: SimpleEnum<'_, X> = SimpleEnum::G;
-    assert_eq!(
-        tmpl.render().unwrap(),
+    assert_matches!(
+        tmpl.render().unwrap().as_str(),
         "&enum::test_simple_enum::_::__Askama__SimpleEnum__G<enum::X> | \
         __Askama__SimpleEnum__G(\
             PhantomData<&enum::test_simple_enum::SimpleEnum<enum::X>>\
-        )",
+        )"
+        // output since rustc 1.91.0-nightly 2025-08-17
+        | "&enum::test_simple_enum::_::__Askama__SimpleEnum__G<'_, '_, enum::X> | \
+        __Askama__SimpleEnum__G(\
+            PhantomData<&enum::test_simple_enum::SimpleEnum<'_, enum::X>>\
+        )"
     );
 }
 
@@ -190,9 +198,11 @@ fn test_enum_blocks() {
     let tmpl: BlockEnum<'_, X> = BlockEnum::C { c: X };
     assert_eq!(tmpl.render().unwrap(), "<c = X>");
 
-    assert_eq!(
-        BlockEnum::<'_, X>::D.render().unwrap(),
+    assert_matches!(
+        BlockEnum::<'_, X>::D.render().unwrap().as_str(),
         "<d = &enum::test_enum_blocks::_::__Askama__BlockEnum__D<enum::X>>"
+        // output since rustc 1.91.0-nightly 2025-08-17
+        | "<d = &enum::test_enum_blocks::_::__Askama__BlockEnum__D<'_, '_, enum::X>>"
     );
 }
 
