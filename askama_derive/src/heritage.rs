@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use parser::node::{BlockDef, Macro};
-use parser::{Node, Parsed, Span};
+use parser::{Node, Parsed, Span, WithSpan};
 
 use crate::config::Config;
 use crate::spans::SourceSpan;
@@ -74,7 +74,7 @@ impl<'a> Context<'a> {
         template_span: proc_macro2::Span,
     ) -> Result<Self, CompileError> {
         let mut extends = None;
-        let mut blocks = HashMap::default();
+        let mut blocks: HashMap<&'a str, &'a WithSpan<BlockDef<'a>>> = HashMap::default();
         let mut macros = HashMap::default();
         let mut nested = vec![parsed.nodes()];
         let mut top = true;
@@ -103,7 +103,16 @@ impl<'a> Context<'a> {
                         imports.push(import);
                     }
                     Node::BlockDef(b) => {
-                        blocks.insert(*b.name, &**b);
+                        // This checks if the same block is called in a file.
+                        if let Some(prev) = blocks.get(&*b.name) {
+                            let prev = Self::file_info_of_inner(prev.span(), path, parsed);
+                            let current = Self::file_info_of_inner(b.span(), path, parsed);
+                            eprintln!(
+                                "⚠️ {:#}: block `{}` was already called at `{:#}` so the previous one will be ignored",
+                                current, &*b.name, prev,
+                            );
+                        }
+                        blocks.insert(*b.name, b);
                         nested.push(&b.nodes);
                     }
                     Node::If(i) => {
@@ -125,6 +134,11 @@ impl<'a> Context<'a> {
             }
             top = false;
         }
+
+        let blocks = blocks
+            .into_iter()
+            .map(|(k, v)| (k, &**v))
+            .collect::<HashMap<_, _>>();
 
         let mut ctx = Context {
             nodes: parsed.nodes(),
@@ -174,8 +188,14 @@ impl<'a> Context<'a> {
         }
     }
 
+    #[inline]
+    fn file_info_of_inner(node: Span, path: &'a Path, parsed: &'a Parsed) -> FileInfo<'a> {
+        FileInfo::of(node, path, parsed)
+    }
+
     pub(crate) fn file_info_of(&self, node: Span) -> Option<FileInfo<'a>> {
-        self.path.map(|path| FileInfo::of(node, path, self.parsed))
+        self.path
+            .map(|path| Self::file_info_of_inner(node, path, self.parsed))
     }
 
     #[cfg(all(feature = "external-sources", feature = "nightly-spans"))]

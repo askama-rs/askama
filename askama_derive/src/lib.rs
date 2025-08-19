@@ -500,19 +500,29 @@ impl<'a> FileInfo<'a> {
 
 impl fmt::Display for FileInfo<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if !f.alternate() {
+            f.write_str("\n  --> ")?;
+        }
         if let (Some(source), Some(node_source)) = (self.source, self.node_source) {
             let (error_info, file_path) = generate_error_info(source, node_source, self.path);
             write!(
                 f,
-                "\n  --> {file_path}:{row}:{column}\n{source_after}",
+                "{file_path}:{row}:{column}",
                 row = error_info.row,
                 column = error_info.column,
-                source_after = error_info.source_after,
-            )
+            )?;
+            if !f.alternate() {
+                write!(
+                    f,
+                    "\n{source_after}",
+                    source_after = error_info.source_after,
+                )?;
+            }
+            Ok(())
         } else {
             write!(
                 f,
-                "\n --> {}",
+                "{}",
                 match std::env::current_dir() {
                     Ok(cwd) => fmt_left!(move "{}", strip_common(&cwd, self.path)),
                     Err(_) => fmt_right!("{}", self.path.display()),
