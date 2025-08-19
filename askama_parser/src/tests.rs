@@ -1625,7 +1625,7 @@ fn test_macro_call_illegal_raw_identifier() {
     // Regression test for <https://issues.oss-fuzz.com/issues/435218013>.
     let syntax = Syntax::default();
 
-    for id in ["crate", "self", "Self", "super"] {
+    for id in ["crate", "self", "Self", "super", "_"] {
         assert!(
             Ast::from_str(&format!("{{{{ z!(r#{id}) }}}}"), None, &syntax)
                 .unwrap_err()
