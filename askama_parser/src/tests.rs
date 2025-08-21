@@ -1710,3 +1710,17 @@ fn regression_tests_span_change() {
         ))]
     );
 }
+
+#[test]
+fn test_unclosed_prefixed_string() {
+    // Regression test for <https://issues.oss-fuzz.com/issues/440177293>.
+    let syntax = Syntax::default();
+    for test in ["{{ x!(i\") }}", "{{ x!(i\"\") }}"] {
+        assert!(
+            Ast::from_str(test, None, &syntax)
+                .unwrap_err()
+                .to_string()
+                .contains("reserved prefix `i#`")
+        );
+    }
+}
