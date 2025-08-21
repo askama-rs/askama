@@ -1029,7 +1029,7 @@ impl<'a: 'l, 'l> Suffix<'a> {
                 // raw string string or identifier
                 "r" => None,
                 // a simple identifier
-                _ if hashes == 0 => return Ok(()),
+                _ if hashes == 0 && quot.is_none() => return Ok(()),
                 // reserved prefix: reject
                 _ => {
                     return cut_error!(
