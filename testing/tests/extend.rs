@@ -25,3 +25,17 @@ fn test_macro_in_block_inheritance() {
 
     assert_eq!(A.render().unwrap(), "\n\n1 1\n2 2\n--> 3");
 }
+
+// This test ensures that comments are allowed before `extends` block.
+#[test]
+fn test_comment_before_extend() {
+    #[derive(Template)]
+    #[template(
+        source = r##"{# comment #}{% extends "base.html" %}"##,
+        ext = "txt",
+        print = "ast"
+    )]
+    pub struct X {
+        title: &'static str,
+    }
+}

@@ -44,7 +44,9 @@ fn compare_ex(
 ) {
     let generated = jinja_to_rust(jinja, fields, prefix);
 
-    let expected: TokenStream = expected.parse().unwrap();
+    let expected: TokenStream = expected
+        .parse()
+        .expect("`TokenStream` failed to parse input");
     let expected: syn::File = syn::parse_quote! {
         #[automatically_derived]
         impl askama::Template for Foo {
@@ -159,7 +161,10 @@ struct Foo {{ {} }}"##,
             .join(","),
     );
 
-    let generated = build_template(&syn::parse_str::<syn::DeriveInput>(&jinja).unwrap()).unwrap();
+    let generated = build_template(
+        &syn::parse_str::<syn::DeriveInput>(&jinja).expect("`syn` failed to parse code"),
+    )
+    .expect("`build_template` failed");
     match syn::parse2(generated.clone()) {
         Ok(generated) => generated,
         Err(err) => panic!(
@@ -1150,11 +1155,11 @@ fn test_concat() {
 fn extends_with_whitespace_control() {
     const CONTROL: &[&str] = &["", "\t", "-", "+", "~"];
 
-    let expected = jinja_to_rust(r#"front {% extends "a.html" %} back"#, &[], "");
+    let expected = jinja_to_rust(r#"{% extends "a.html" %} back"#, &[], "");
     let expected = unparse(&expected);
     for front in CONTROL {
         for back in CONTROL {
-            let src = format!(r#"front {{%{front} extends "a.html" {back}%}} back"#);
+            let src = format!(r#"{{%{front} extends "a.html" {back}%}} back"#);
             let actual = jinja_to_rust(&src, &[], "");
             let actual = unparse(&actual);
             assert_eq!(expected, actual, "source: {src:?}");

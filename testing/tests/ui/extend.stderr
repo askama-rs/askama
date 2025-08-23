@@ -1,0 +1,10 @@
+error: `extends` block must come first in a template
+ --> <source attribute>:2:2
+       " extends \"base.html\" %}\n"
+ --> tests/ui/extend.rs:5:14
+  |
+5 |       source = r##"bla
+  |  ______________^
+6 | | {% extends "base.html" %}
+7 | | "##,
+  | |___^

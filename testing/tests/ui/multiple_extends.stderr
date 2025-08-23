@@ -1,5 +1,5 @@
-error: multiple extend blocks found
- --> MyTemplate4.txt:3:2
+error: `extends` block must come first in a template
+ --> <source attribute>:3:2
        " extends \"foo.html\" %}\n"
  --> tests/ui/multiple_extends.rs:4:21
   |

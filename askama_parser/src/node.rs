@@ -53,12 +53,29 @@ impl<'a: 'l, 'l> Node<'a> {
     }
 
     fn many(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Vec<Box<Self>>> {
-        repeat(
-            0..,
-            alt((Lit::parse, Comment::parse, Self::expr, Self::parse)),
-        )
-        .map(|v: Vec<_>| v)
-        .parse_next(i)
+        let mut nb_nodes = 0;
+
+        repeat(0.., move |i: &mut _| Self::parse_nodes(i, &mut nb_nodes))
+            .map(|v: Vec<_>| v)
+            .parse_next(i)
+    }
+
+    fn parse_nodes(
+        i: &mut InputStream<'a, 'l>,
+        nb_nodes: &mut usize,
+    ) -> ParseResult<'a, Box<Self>> {
+        let node = alt((Lit::parse, Comment::parse, Self::expr, Self::parse)).parse_next(i)?;
+        match *node {
+            Self::Extends(..) if *nb_nodes > 0 => {
+                return cut_error!("`extends` block must come first in a template", node.span());
+            }
+            // Since comments don't impact generated code, we allow them before `extends`.
+            Self::Comment(..) => {}
+            // If it only contains whitespace characters, it's fine too.
+            Self::Lit(ref lit) if lit.val.trim().is_empty() => {}
+            _ => *nb_nodes += 1,
+        }
+        Ok(node)
     }
 
     fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
