@@ -264,6 +264,10 @@ impl Span {
         // `source` cannot be longer than `isize::MAX`, cf. [`std::alloc`].
         source.get(self.start..)
     }
+
+    pub fn is_overlapping(&self, other: Span) -> bool {
+        (self.start < other.end) & (other.start < self.end)
+    }
 }
 
 impl<T> WithSpan<T> {
