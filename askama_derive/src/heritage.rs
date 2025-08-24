@@ -72,6 +72,7 @@ impl<'a> Context<'a> {
         parsed: &'a Parsed,
         literal: SourceSpan,
         template_span: proc_macro2::Span,
+        called_blocks: &mut crate::CalledBlocks<'a>,
     ) -> Result<Self, CompileError> {
         let mut extends = None;
         let mut blocks: HashMap<&'a str, &'a WithSpan<BlockDef<'a>>> = HashMap::default();
@@ -103,14 +104,23 @@ impl<'a> Context<'a> {
                         imports.push(import);
                     }
                     Node::BlockDef(b) => {
+                        let current = Self::file_info_of_inner(b.span(), path, parsed);
                         // This checks if the same block is called in a file.
                         if let Some(prev) = blocks.get(&*b.name) {
                             let prev = Self::file_info_of_inner(prev.span(), path, parsed);
-                            let current = Self::file_info_of_inner(b.span(), path, parsed);
                             eprintln!(
                                 "⚠️ {:#}: block `{}` was already called at `{:#}` so the previous one will be ignored",
                                 current, &*b.name, prev,
                             );
+                        } else if extends.is_none() {
+                            called_blocks.check_if_already_called(*b.name, current);
+                            called_blocks
+                                .called_blocks
+                                .entry(*b.name)
+                                .or_default()
+                                .push(current);
+                        } else {
+                            called_blocks.unprocessed.push((*b.name, current));
                         }
                         blocks.insert(*b.name, b);
                         nested.push(&b.nodes);
