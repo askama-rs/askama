@@ -1,5 +1,5 @@
-error: `extends` blocks are not allowed below top level
- --> MyTemplate1.txt:3:2
+error: `extends` block must come first in a template
+ --> <source attribute>:3:2
        " extends \"bla.txt\" %}\n{% endblock %}\n"
  --> tests/ui/blocks_below_top_level.rs:4:21
   |

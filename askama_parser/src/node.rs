@@ -38,8 +38,27 @@ pub enum Node<'a> {
 
 impl<'a: 'l, 'l> Node<'a> {
     pub(super) fn parse_template(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Vec<Box<Self>>> {
-        let mut p = parse_with_unexpected_fallback(Self::many, unexpected_tag);
-        let nodes = p.parse_next(i)?;
+        let mut nodes = vec![];
+        let mut allow_extends = true;
+        while let Some(node) = parse_with_unexpected_fallback(
+            opt(move |i: &mut _| Self::one(i, allow_extends)),
+            unexpected_tag,
+        )
+        .parse_next(i)?
+        {
+            if allow_extends {
+                match &*node {
+                    // Since comments don't impact generated code, we allow them before `extends`.
+                    Node::Comment(_) => {}
+                    // If it only contains whitespace characters, it's fine too.
+                    Node::Lit(lit) if lit.val.is_empty() => {}
+                    // Everything else must not come before an `extends` block.
+                    _ => allow_extends = false,
+                }
+            }
+            nodes.push(node);
+        }
+
         if !i.is_empty() {
             opt(unexpected_tag).parse_next(i)?;
             return cut_error!(
@@ -53,12 +72,15 @@ impl<'a: 'l, 'l> Node<'a> {
     }
 
     fn many(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Vec<Box<Self>>> {
-        repeat(
-            0..,
-            alt((Lit::parse, Comment::parse, Self::expr, Self::parse)),
-        )
-        .map(|v: Vec<_>| v)
-        .parse_next(i)
+        repeat(0.., |i: &mut _| Self::one(i, false)).parse_next(i)
+    }
+
+    fn one(i: &mut InputStream<'a, 'l>, allow_extends: bool) -> ParseResult<'a, Box<Self>> {
+        let node = alt((Lit::parse, Comment::parse, Self::expr, Self::parse)).parse_next(i)?;
+        if !allow_extends && let Node::Extends(node) = &*node {
+            return cut_error!("`extends` block must come first in a template", node.span());
+        }
+        Ok(node)
     }
 
     fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
