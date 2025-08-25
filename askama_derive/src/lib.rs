@@ -350,6 +350,26 @@ pub(crate) fn build_template(
     result
 }
 
+#[derive(Default)]
+pub(crate) struct CalledBlocks<'a> {
+    pub(crate) called_blocks: HashMap<&'a str, Vec<FileInfo<'a>>>,
+    pub(crate) unprocessed: Vec<(&'a str, FileInfo<'a>)>,
+}
+
+impl CalledBlocks<'_> {
+    fn check_if_already_called(&self, block_name: &str, current: FileInfo<'_>) {
+        if let Some(calls) = self.called_blocks.get(&block_name)
+            // The first one is always the definition so we skip it.
+            && let Some(prev) = calls.iter().skip(1).last()
+        {
+            eprintln!(
+                "⚠️ {:#}: block `{}` was already called at `{:#}` so the previous one will be ignored",
+                current, block_name, prev,
+            );
+        }
+    }
+}
+
 fn build_template_item(
     buf: &mut Buffer,
     ast: &syn::DeriveInput,
@@ -372,6 +392,8 @@ fn build_template_item(
     input.find_used_templates(&mut templates)?;
 
     let mut contexts = HashMap::default();
+    let mut called_blocks = CalledBlocks::default();
+
     for (path, parsed) in &templates {
         contexts.insert(
             path,
@@ -381,8 +403,21 @@ fn build_template_item(
                 parsed,
                 input.source_span.clone(),
                 input.template_span,
+                &mut called_blocks,
             )?,
         );
+    }
+
+    // Now that all `extends` have been processed, we can finish to check for duplicated block
+    // calls.
+    let mut unprocessed_items = std::mem::take(&mut called_blocks.unprocessed);
+    while let Some((name, file_info)) = unprocessed_items.pop() {
+        called_blocks.check_if_already_called(name, file_info);
+        called_blocks
+            .called_blocks
+            .entry(name)
+            .or_default()
+            .push(file_info);
     }
 
     let ctx = &contexts[&input.path];

@@ -983,45 +983,6 @@ impl<'a> Generator<'a, '_> {
             )
         })?;
 
-        if let Some(name) = name {
-            // This checks if the same block is called in a "parent".
-            if let Some((_, first_call)) = self.called_blocks.iter().find(|block| block.0 == *name)
-            {
-                let first_call = if let Some(first_call) = first_call {
-                    format!("{first_call:#}")
-                } else {
-                    "<inline source>".to_string()
-                };
-                let current = if let Some(node) = ctx.file_info_of(node) {
-                    format!("{node:#}")
-                } else {
-                    "<inline source>".to_string()
-                };
-
-                eprintln!(
-                    "⚠️ {}: block `{}` was already called at `{}` so the previous one will be ignored",
-                    current, cur.0, first_call,
-                );
-            } else if child_ctx.blocks.contains_key(*name) {
-                let first = match child_ctx.path {
-                    Some(p) => p.display().to_string(),
-                    None => "<inline source>".to_string(),
-                };
-                let current = if let Some(node) = ctx.file_info_of(node) {
-                    format!("{node:#}")
-                } else {
-                    "<inline source>".to_string()
-                };
-
-                eprintln!(
-                    "⚠️ {}: block `{}` was already called at `{first}` so the previous one will be ignored",
-                    current, cur.0,
-                );
-            } else {
-                self.called_blocks.push((*name, ctx.file_info_of(node)));
-            }
-        }
-
         // We clone the context of the child in order to preserve their macros and imports.
         // But also add all the imports and macros from this template that don't override the
         // child's ones to preserve this template's context.
