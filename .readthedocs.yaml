@@ -12,12 +12,11 @@ build:
     - asdf global rust 1.88.0
 
     # Install mdbook.
-    - mkdir -p $HOME/bin
-    - curl --location --silent --show-error --fail https://github.com/cargo-bins/cargo-quickinstall/releases/download/mdbook-0.4.52/mdbook-0.4.52-x86_64-unknown-linux-gnu.tar.gz | tar -xzvvf - -C $HOME/bin
+    - cargo install mdbook
     # Generate "book/theme/index.hbs" as "skeleton" of the generated pages.
-    - PATH="$HOME/bin:$PATH" book/update-theme.py
+    - PATH=".cargo/bin:$PATH" book/update-theme.py
     # Convert the book to HTML.
-    - $HOME/bin/mdbook build book --dest-dir $READTHEDOCS_OUTPUT/html
+    - $HOME/.cargo/bin/mdbook build book --dest-dir $READTHEDOCS_OUTPUT/html
     # Make the ads readable.
     - cat book/ethicalads-theme.css >> $READTHEDOCS_OUTPUT/html/css/general.css
     # We are done!
