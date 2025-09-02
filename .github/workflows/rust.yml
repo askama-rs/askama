@@ -70,14 +70,12 @@ jobs:
         with:
           persist-credentials: false
       - name: Install mdbook
-        run: |
-          mkdir -p $HOME/bin
-          curl --location --silent --show-error --fail https://github.com/cargo-bins/cargo-quickinstall/releases/download/mdbook-0.4.52/mdbook-0.4.52-x86_64-unknown-linux-gnu.tar.gz | tar -xzvvf - -C $HOME/bin
+        run: cargo install mdbook
       - name: Generate "book/theme/index.hbs" as "skeleton" of the generated pages.
-        run: PATH="$HOME/bin:$PATH" ./update-theme.py
+        run: PATH="$HOME/.cargo/bin:$PATH" ./update-theme.py
         working-directory: book
       - name: Convert the book to HTML
-        run: $HOME/bin/mdbook build
+        run: $HOME/.cargo/bin/mdbook build
         working-directory: book
 
   Typos:
@@ -248,7 +246,7 @@ jobs:
         with:
           toolchain: nightly
           components: rust-src
-      - run: curl --location --silent --show-error --fail https://github.com/cargo-bins/cargo-quickinstall/releases/download/cargo-fuzz-0.13.1/cargo-fuzz-0.13.1-x86_64-unknown-linux-gnu.tar.gz | tar -xzvvf - -C $HOME/.cargo/bin
+      - run: cargo install cargo-fuzz
       - uses: Swatinem/rust-cache@v2
       - run: cargo fuzz run ${{ matrix.fuzz_target }} --jobs 4 -- -max_total_time=600
         working-directory: fuzzing
