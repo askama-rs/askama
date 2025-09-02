@@ -14,9 +14,9 @@ build:
     # Install mdbook.
     - cargo install mdbook
     # Generate "book/theme/index.hbs" as "skeleton" of the generated pages.
-    - PATH=".cargo/bin:$PATH" book/update-theme.py
+    - book/update-theme.py
     # Convert the book to HTML.
-    - $HOME/.cargo/bin/mdbook build book --dest-dir $READTHEDOCS_OUTPUT/html
+    - mdbook build book --dest-dir $READTHEDOCS_OUTPUT/html
     # Make the ads readable.
     - cat book/ethicalads-theme.css >> $READTHEDOCS_OUTPUT/html/css/general.css
     # We are done!
