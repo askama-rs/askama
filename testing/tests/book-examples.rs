@@ -102,7 +102,6 @@ fn test_book_examples() {
         panic!(">> cannot get `CARGO_MANIFEST_DIR` env variable");
     };
     let mut errors = 0;
-    eprintln!("{cargo_home:?}");
     go_through_book(
         &Path::new(&cargo_home).parent().unwrap().join("book/src"),
         &mut errors,

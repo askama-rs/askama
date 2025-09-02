@@ -6,7 +6,6 @@ use askama::Template;
 {% extends "base.html" %}
 "##,
     ext = "txt",
-    print = "ast"
 )]
 pub struct X;
 
