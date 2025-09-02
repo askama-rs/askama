@@ -30,11 +30,7 @@ fn test_macro_in_block_inheritance() {
 #[test]
 fn test_comment_before_extend() {
     #[derive(Template)]
-    #[template(
-        source = r##"{# comment #}{% extends "base.html" %}"##,
-        ext = "txt",
-        print = "ast"
-    )]
+    #[template(source = r##"{# comment #}{% extends "base.html" %}"##, ext = "txt")]
     pub struct X {
         title: &'static str,
     }
