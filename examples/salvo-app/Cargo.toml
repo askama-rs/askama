@@ -9,7 +9,7 @@ publish = false
 # and salvo as your web-framework.
 [dependencies]
 askama = { version = "0.14.0", path = "../../askama" }
-salvo = { version = "0.78.0", default-features = false, features = ["http1", "logging", "server"] }
+salvo = { version = "0.84.0", default-features = false, features = ["http1", "logging", "server"] }
 tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread"] }
 
 # serde and strum are used to parse (deserialize) and generate (serialize) information
