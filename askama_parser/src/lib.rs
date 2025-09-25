@@ -528,6 +528,35 @@ pub enum Num<'a> {
     Float(&'a str, Option<FloatKind>),
 }
 
+fn check_base_digits<'a>(digits: &'a str, base: u32, span: Range<usize>) -> ParseResult<'a, ()> {
+    let allowed_digits: &[char] = match base {
+        2 => &['0', '1'],
+        8 => &['0', '1', '2', '3', '4', '5', '6', '7'],
+        16 => &[
+            '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
+        ],
+        _ => panic!("unsupported base `{base}`"),
+    };
+
+    for digit in digits.chars() {
+        let lower = digit.to_ascii_lowercase();
+        if lower != '_' && !allowed_digits.iter().any(|c| *c == digit || *c == lower) {
+            let allowed = allowed_digits.iter().collect::<String>();
+            let base = match base {
+                2 => 'b',
+                8 => 'o',
+                16 => 'x',
+                _ => unreachable!(),
+            };
+            return cut_error!(
+                format!("only expected `{allowed}` digits for `0{base}` integers, found `{digit}`"),
+                span,
+            );
+        }
+    }
+    Ok(())
+}
+
 fn num_lit<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Num<'a>> {
     fn num_lit_suffix<'a: 'l, 'l, T: Copy>(
         kind: &'a str,
@@ -552,8 +581,8 @@ fn num_lit<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Num<'a>> 
             .with_taken()
             .with_span()
             .parse_next(i)?;
-        match opt(separated_digits(base, false)).parse_next(i)? {
-            Some(_) => Ok(()),
+        match opt(separated_digits(if base == 16 { base } else { 10 }, false)).parse_next(i)? {
+            Some(digits) => check_base_digits(digits, base, span),
             None => cut_error!(format!("expected digits after `{kind}`"), span),
         }
     });
@@ -1811,5 +1840,18 @@ mod test {
         assert!(is_rust_keyword("become"));
         assert!(!is_rust_keyword("supeeeer"));
         assert!(!is_rust_keyword("sur"));
+    }
+
+    #[test]
+    fn test_check_base_digits() {
+        assert!(check_base_digits("10", 2, 0..1).is_ok());
+        assert!(check_base_digits("13", 2, 0..1).is_err());
+        assert!(check_base_digits("13", 8, 0..1).is_ok());
+        assert!(check_base_digits("79", 8, 0..1).is_err());
+        // Checking that it's case insensitive.
+        assert!(check_base_digits("13F", 16, 0..1).is_ok());
+        assert!(check_base_digits("13f", 16, 0..1).is_ok());
+        // Checking that `_` is allowed.
+        assert!(check_base_digits("13_f", 16, 0..1).is_ok());
     }
 }
