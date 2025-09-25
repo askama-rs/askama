@@ -3,11 +3,11 @@ error: expected 3 arguments in `caller`, found 2
        "(\"a\", \"b\") -}}\n    {%- endmacro -%}\n    {%- call(a,b,c) test() -%}\n        {{- a"...
   --> tests/ui/caller_arguments.rs:5:14
    |
-5  |       source = r#"
+ 5 |       source = r#"
    |  ______________^
-6  | |     {% macro test() %}
-7  | |         {{- caller("a", "b") -}}
-8  | |     {%- endmacro -%}
+ 6 | |     {% macro test() %}
+ 7 | |         {{- caller("a", "b") -}}
+ 8 | |     {%- endmacro -%}
 ...  |
 11 | |     {%- endcall -%}
 12 | |     "#,

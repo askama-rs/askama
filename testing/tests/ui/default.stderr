@@ -62,24 +62,24 @@ error: `fallback` argument is missing when calling `defined_or` filter; its argu
 40 | #[template(ext = "html", source = "{{ var | defined_or }}")]
    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^
 
-error[E0277]: `Mutex<u32>` is not `|assigned_or` filterable
+error[E0277]: `std::sync::Mutex<u32>` is not `|assigned_or` filterable
   --> tests/ui/default.rs:17:10
    |
 17 | #[derive(Template)]
-   |          ^^^^^^^^ `Mutex<u32>` is not `|assigned_or` filterable
+   |          ^^^^^^^^ `std::sync::Mutex<u32>` is not `|assigned_or` filterable
    |
-   = help: the trait `DefaultFilterable` is not implemented for `Mutex<u32>`
+   = help: the trait `DefaultFilterable` is not implemented for `std::sync::Mutex<u32>`
    = help: the following other types implement trait `DefaultFilterable`:
              &T
              &mut T
              Arc<T>
              Box<T>
              Cow<'_, T>
-             MutexGuard<'_, T>
              NonZero<i128>
              NonZero<i16>
+             NonZero<i32>
            and $N others
-   = note: required for `&Mutex<u32>` to implement `DefaultFilterable`
+   = note: required for `&std::sync::Mutex<u32>` to implement `DefaultFilterable`
 note: required by a bound in `assigned_or`
   --> $WORKSPACE/askama/src/filters/default.rs
    |

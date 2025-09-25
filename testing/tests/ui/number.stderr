@@ -1,0 +1,21 @@
+error: only expected `01234567` digits for `0o` integers, found `8`
+ --> <source attribute>:1:6
+       "0o08) }}"
+ --> tests/ui/number.rs:4:21
+  |
+4 | #[template(source = r#"{{ e!(0o08) }}"#, ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^^
+
+error: only expected `01` digits for `0b` integers, found `3`
+ --> <source attribute>:1:6
+       "0b3) }}"
+ --> tests/ui/number.rs:8:21
+  |
+8 | #[template(source = r#"{{ e!(0b3) }}"#, ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^
+
+error[E0601]: `main` function not found in crate `$CRATE`
+ --> tests/ui/number.rs:9:10
+  |
+9 | struct B;
+  |          ^ consider adding a `main` function to `$DIR/tests/ui/number.rs`
