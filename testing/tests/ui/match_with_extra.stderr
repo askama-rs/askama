@@ -3,11 +3,11 @@ error: failed to parse template source
        "// Help, I forgot how to write comments!\n    {%- when true %}\n        good\n    {"...
   --> tests/ui/match_with_extra.rs:6:14
    |
-6  |       source = r#"
+ 6 |       source = r#"
    |  ______________^
-7  | | {%- match good -%}
-8  | |     // Help, I forgot how to write comments!
-9  | |     {%- when true %}
+ 7 | | {%- match good -%}
+ 8 | |     // Help, I forgot how to write comments!
+ 9 | |     {%- when true %}
 ...  |
 12 | |         bad
 13 | | {%- endmatch -%}"#

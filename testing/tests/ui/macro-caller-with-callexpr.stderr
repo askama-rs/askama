@@ -3,9 +3,9 @@ error: block is not defined for `caller`
        "()}}\n{% endmacro %}\n{{ testmacro() }}\n    "
   --> tests/ui/macro-caller-with-callexpr.rs:8:14
    |
-8  |       source = r#"
+ 8 |       source = r#"
    |  ______________^
-9  | | {% macro testmacro() %}
+ 9 | | {% macro testmacro() %}
 10 | |     {{caller()}}
 11 | | {% endmacro %}
 12 | | {{ testmacro() }}

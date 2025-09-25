@@ -3,11 +3,11 @@ error: cannot have a block inside a filter block
        "block title %}New title{% endblock %}\n        a b\n    {% endfilter %}\n{%- endblo"...
   --> tests/ui/block_in_filter_block.rs:5:14
    |
-5  |       source = r#"{% extends "html-base.html" %}
+ 5 |       source = r#"{% extends "html-base.html" %}
    |  ______________^
-6  | |
-7  | | {%- block body -%}
-8  | |     <h1>Metadata</h1>
+ 6 | |
+ 7 | | {%- block body -%}
+ 8 | |     <h1>Metadata</h1>
 ...  |
 14 | | {%- endblock body %}
 15 | | "#,
