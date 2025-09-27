@@ -705,6 +705,23 @@ You got it
 {% endif %}
 ```
 
+### Question mark operator
+
+You can use the `?` operator similarly as [`?` operator in Rust] but only on `Result` types.
+
+```jinja
+{{ some_result? }}
+{% let value = some_result? %}
+```
+
+When the operator unwraps erroneous value, the template rendering will fail with
+[`askama::Error::Custom`](./doc/askama/enum.Error.html#variant.Custom) error that 
+wraps the error.
+
+Note that this operator currently only works with `Result` types - it doesn't support `Option` types.
+
+[`?` operator in Rust]: https://doc.rust-lang.org/reference/expressions/operator-expr.html#the-question-mark-operator
+
 ### Include
 
 The *include* statement lets you split large or repetitive blocks into
