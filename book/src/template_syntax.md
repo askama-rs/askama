@@ -1,5 +1,29 @@
 # Template Syntax
 
+## Syntax overview
+
+| Syntax | Description |
+| - | - |
+| `{{ ... }}` | Expression to be evaluated, escaped and printed |
+| `{{ ... \| ... }}` | [Expression with filter(s)](#filters) |
+| `{% filter ... %} ... {% endfilter %}` | [Filter block](#filter-blocks) |
+| `{# ... #}` | [Comment](#comments) |
+| `{% let ... = ... %}` or `{% set ... = ... %}` | [Variable assignment](#assignments) |
+| `{% if ... %} ... {% else if ... %} ... {% else %} ... {% endif %}` | [If-Else conditional block](#if) |
+| `{% match ... %} {% when ... %} ... {% else %} ... {% endmatch %}` | [Match block](#match) |
+| `{% for ... in ... %} ... {% else %} ... {% endfor %}` | [For loop block](#for) |
+| `{% continue %}` | Continue to next iteration of loop |
+| `{% break %}` | Break out of loop |
+| `{% include "..." %}` | [Include another template](#include) |
+| `{% extends "..." %}` | [Template inheritance](#template-inheritance) |
+| `{% block ... %} ... {% endblock %}` | [Block definition for inheritance](#template-inheritance) |
+| `{% macro ...(...) %} ... {% endmacro %}` | [Macro definition](#macros) |
+| `{{ ...(...) }}` | [Macro invocation](#macros) |
+| `{% call ...(...) %}{% endcall %}` | [Macro call block](#macro-call-blocks) |
+| `{% import "..." as ... %}` | [Import macros from another template](#imports--scopes) |
+| `{% raw %} ... {% endraw %}` | Raw block - prints contents as-is (without templating) |
+
+
 ## Variables
 
 Top-level template variables are defined by the template's context type.
