@@ -206,6 +206,7 @@ impl<'a> Generator<'a, '_> {
             | Expr::Filter(_)
             | Expr::Range(_)
             | Expr::Call { .. }
+            | Expr::Struct(_)
             | Expr::RustMacro(_, _)
             | Expr::Try(_)
             | Expr::Tuple(_)
@@ -1693,6 +1694,10 @@ fn is_cacheable(expr: &WithSpan<Box<Expr<'_>>>) -> bool {
         Expr::LetCond(_) => false,
         // We have too little information to tell if the expression is pure:
         Expr::Call { .. } => false,
+        Expr::Struct(s) => {
+            s.fields.iter().all(|(_, expr)| is_cacheable(expr))
+                && s.base.as_ref().is_none_or(is_cacheable)
+        }
         Expr::RustMacro(_, _) => false,
         // Should never be encountered:
         Expr::FilterSource => unreachable!("FilterSource in expression?"),

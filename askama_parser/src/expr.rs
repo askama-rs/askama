@@ -1,7 +1,8 @@
 use winnow::Parser;
 use winnow::ascii::digit1;
 use winnow::combinator::{
-    alt, cut_err, empty, fail, not, opt, peek, preceded, repeat, separated, terminated,
+    alt, cut_err, empty, fail, not, opt, peek, preceded, repeat, separated, separated_pair,
+    terminated,
 };
 use winnow::stream::Stream;
 use winnow::token::{any, one_of, take, take_until};
@@ -129,6 +130,27 @@ fn check_expr<'a>(expr: &WithSpan<Box<Expr<'a>>>, allowed: Allowed) -> ParseResu
             }
             Ok(())
         }
+        Expr::Struct(s) => {
+            check_expr(
+                &s.path,
+                Allowed {
+                    underscore: false,
+                    super_keyword: true,
+                },
+            )?;
+            for field in &s.fields {
+                if field.0.inner == "_" {
+                    return err_underscore_identifier(&field.0);
+                } else if !crate::can_be_variable_name(field.0.inner) {
+                    return err_reserved_identifier(&field.0);
+                }
+                check_expr(&field.1, Allowed::default())?;
+            }
+            if let Some(base) = &s.base {
+                check_expr(base, Allowed::default())?;
+            }
+            Ok(())
+        }
         Expr::LetCond(cond) => check_expr(&cond.expr, Allowed::default()),
         Expr::ArgumentPlaceholder => cut_error!("unreachable", expr.span),
         Expr::BoolLit(_)
@@ -203,6 +225,7 @@ pub enum Expr<'a> {
     Call(Call<'a>),
     RustMacro(Vec<WithSpan<&'a str>>, WithSpan<&'a str>),
     Try(WithSpan<Box<Expr<'a>>>),
+    Struct(Struct<'a>),
     /// This variant should never be used directly. It is created when generating filter blocks.
     FilterSource,
     IsDefined(&'a str),
@@ -234,6 +257,13 @@ pub struct BinOp<'a> {
     pub op: &'a str,
     pub lhs: WithSpan<Box<Expr<'a>>>,
     pub rhs: WithSpan<Box<Expr<'a>>>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Struct<'a> {
+    pub path: WithSpan<Box<Expr<'a>>>,
+    pub fields: Vec<(WithSpan<&'a str>, WithSpan<Box<Expr<'a>>>)>,
+    pub base: Option<WithSpan<Box<Expr<'a>>>>,
 }
 
 impl<'a: 'l, 'l> Expr<'a> {
@@ -671,6 +701,7 @@ impl<'a: 'l, 'l> Expr<'a> {
             | Self::Call { .. }
             | Self::Range(_)
             | Self::Try(_)
+            | Self::Struct(_)
             | Self::NamedArgument(_, _)
             | Self::Filter(_)
             | Self::AssociatedItem(_, _)
@@ -738,6 +769,10 @@ enum Suffix<'a> {
         generics: Option<WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
         args: Vec<WithSpan<Box<Expr<'a>>>>,
     },
+    Struct {
+        fields: Vec<(WithSpan<&'a str>, WithSpan<Box<Expr<'a>>>)>,
+        base: Option<WithSpan<Box<Expr<'a>>>>,
+    },
     // The value is the arguments of the macro call.
     MacroCall(&'a str),
     Try,
@@ -753,6 +788,7 @@ impl<'a: 'l, 'l> Suffix<'a> {
             Self::call,
             Self::r#try,
             Self::r#macro,
+            Self::r#struct,
         )));
 
         let mut i_before = i.checkpoint();
@@ -768,6 +804,11 @@ impl<'a: 'l, 'l> Suffix<'a> {
                     path: expr,
                     generics,
                     args,
+                })),
+                Self::Struct { fields, base } => Box::new(Expr::Struct(Struct {
+                    path: expr,
+                    fields,
+                    base,
                 })),
                 Self::Try => Box::new(Expr::Try(expr)),
                 Self::MacroCall(args) => {
@@ -1243,6 +1284,46 @@ impl<'a: 'l, 'l> Suffix<'a> {
     fn r#try(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
         let span = preceded(skip_ws0, '?'.span()).parse_next(i)?;
         Ok(WithSpan::new(Self::Try, span))
+    }
+
+    fn r#struct(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+        let _level_guard = i.state.level.nest(i)?;
+        let mut p = (
+            ws('{'.span()),
+            cut_err((
+                alt((
+                    (
+                        separated(1.., Self::struct_field, ws(',')),
+                        opt(preceded(ws(","), opt(Self::struct_base))).map(|b| b.flatten()),
+                    ),
+                    opt(Self::struct_base).map(|b| (vec![], b)),
+                )),
+                opt('}'.span()),
+            )),
+        );
+        let (span, ((fields, base), closed)) = p.parse_next(i)?;
+        if closed.is_none() {
+            return cut_error!("expected closing `}` of struct expression", span);
+        }
+        Ok(WithSpan::new(Self::Struct { fields, base }, span))
+    }
+
+    fn struct_base(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
+        let (base, _) = preceded(ws(".."), ws(move |i: &mut _| Expr::parse(i, true)))
+            .with_span()
+            .parse_next(i)?;
+        Ok(base)
+    }
+
+    fn struct_field(
+        i: &mut InputStream<'a, 'l>,
+    ) -> ParseResult<'a, (WithSpan<&'a str>, WithSpan<Box<Expr<'a>>>)> {
+        separated_pair(
+            ws(alt((identifier, digit1)).with_span()).map(|(name, span)| WithSpan::new(name, span)),
+            ws(':'.span()),
+            ws(move |i: &mut _| Expr::parse(i, true)),
+        )
+        .parse_next(i)
     }
 }
 
