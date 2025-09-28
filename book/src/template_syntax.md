@@ -329,6 +329,21 @@ you want to call a function, you will need to use a path instead:
 {{ super::b::f() }}
 ```
 
+## Creating structs
+
+Askama supports creating structs similarly as [in Rust](https://doc.rust-lang.org/reference/expressions/struct-expr.html):
+
+```jinja
+{{ MyStruct { field1: 1, field2: "foo" }.to_string() }}
+```
+
+Using base structs is supported too:
+
+```jinja
+{{ MyStruct { field1: 1, ..other_struct } }}
+{{ MyStruct { field1: 1, ..Default::default() } }}
+```
+
 ## Template inheritance
 
 Template inheritance allows you to build a base template with common
