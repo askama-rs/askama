@@ -48,7 +48,7 @@ struct MacroCallRawBinaryString2;
 )]
 struct MacroCallRawBinaryString3;
 
-// Only `r#` is allowed as prefix idenfiers
+// Only `r#` is allowed as prefix identifiers.
 
 #[derive(Template)]
 #[template(
