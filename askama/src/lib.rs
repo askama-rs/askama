@@ -54,7 +54,7 @@
 //! as well as Jinja-derivatives like [Twig](https://twig.symfony.com/) or
 //! [Tera](https://github.com/Keats/tera).
 
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![deny(elided_lifetimes_in_paths)]
 #![deny(unreachable_pub)]
 #![deny(missing_docs)]
