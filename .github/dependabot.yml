@@ -1,7 +1,12 @@
 version: 2
 updates:
   - package-ecosystem: "cargo"
-    directory: "/"
+    directories:
+      - "/"
+      - "bench-build"
+      - "examples/*"
+      - "fuzzing"
+      - "fuzzing/fuzz"
     schedule:
       interval: "daily"
 
@@ -9,3 +14,13 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "pip"
+    directory: "testing/jinja2-assumptions"
+    schedule:
+      interval: "weekly"
