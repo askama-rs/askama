@@ -7,6 +7,7 @@ pub struct InnerCell {
     pub number: u32,
     pub other: u32,
 }
+
 impl std::fmt::Display for InnerCell {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Hello, {} and {}!", self.number, self.other)
@@ -21,31 +22,31 @@ impl std::fmt::Display for InnerCell {
 struct OuterTemplate1;
 
 #[derive(Template)]
-#[template(source = r#"some{{ InnerCell { }}thing"#, ext = "txt")]
+#[template(source = r#"some{{ InnerCell { }}"#, ext = "txt")]
 struct OuterTemplate2;
 
 #[derive(Template)]
-#[template(source = r#"some{{ InnerCell { foo }}thing"#, ext = "txt")]
+#[template(source = r#"some{{ InnerCell { foo: } }}"#, ext = "txt")]
 struct OuterTemplate3;
 
 #[derive(Template)]
-#[template(source = r#"some{{ InnerCell { foo: }}thing"#, ext = "txt")]
+#[template(source = r#"some{{ InnerCell { foo: 32, .. } }}"#, ext = "txt")]
 struct OuterTemplate4;
 
 #[derive(Template)]
-#[template(source = r#"some{{ InnerCell { foo: 32 }}thing"#, ext = "txt")]
+#[template(source = r#"some{{ InnerCell { . } }}"#, ext = "txt")]
 struct OuterTemplate5;
 
 #[derive(Template)]
-#[template(source = r#"some{{ InnerCell { foo: 32, }}thing"#, ext = "txt")]
+#[template(source = r#"some{{ InnerCell { , } }}"#, ext = "txt")]
 struct OuterTemplate6;
 
 #[derive(Template)]
-#[template(source = r#"some{{ InnerCell { foo: 32, .. }}thing"#, ext = "txt")]
+#[template(source = r#"some{{ InnerCell { ..Default::default(): 32 } }}"#, ext = "txt")]
 struct OuterTemplate7;
 
 #[derive(Template)]
-#[template(source = r#"some{{ InnerCell { foo: 32, ..Default::Default }}thing"#, ext = "txt")]
+#[template(source = r#"some{{ InnerCell { ..Default::default(32) } }}"#, ext = "txt")]
 struct OuterTemplate8;
 
 fn main() {}

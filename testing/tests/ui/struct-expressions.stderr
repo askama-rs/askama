@@ -1,63 +1,63 @@
-error: expected closing `}` of struct expression
- --> <source attribute>:1:13
-       "{ ..Default::default(), other: 24 } }}"
-  --> tests/ui/struct-expressions.rs:18:14
+error: expected `}` after `..` was used
+ --> <source attribute>:1:37
+       "other: 24 } }}"
+  --> tests/ui/struct-expressions.rs:19:14
    |
-18 |     source = r#"{{ InnerCell { ..Default::default(), other: 24 } }}"#,
+19 |     source = r#"{{ InnerCell { ..Default::default(), other: 24 } }}"#,
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: failed to parse template source
  --> <source attribute>:1:20
-       "}thing"
-  --> tests/ui/struct-expressions.rs:24:21
+       "}"
+  --> tests/ui/struct-expressions.rs:25:21
    |
-24 | #[template(source = r#"some{{ InnerCell { }}thing"#, ext = "txt")]
-   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+25 | #[template(source = r#"some{{ InnerCell { }}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: expected closing `}` of struct expression
+error: missing `}` at the end of the struct
  --> <source attribute>:1:17
-       "{ foo }}thing"
-  --> tests/ui/struct-expressions.rs:28:21
+       "{ foo: } }}"
+  --> tests/ui/struct-expressions.rs:29:21
    |
-28 | #[template(source = r#"some{{ InnerCell { foo }}thing"#, ext = "txt")]
-   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+29 | #[template(source = r#"some{{ InnerCell { foo: } }}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: expected closing `}` of struct expression
+error: missing `}` at the end of the struct
  --> <source attribute>:1:17
-       "{ foo: }}thing"
-  --> tests/ui/struct-expressions.rs:32:21
+       "{ foo: 32, .. } }}"
+  --> tests/ui/struct-expressions.rs:33:21
    |
-32 | #[template(source = r#"some{{ InnerCell { foo: }}thing"#, ext = "txt")]
-   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-error: failed to parse template source
- --> <source attribute>:1:28
-       "}thing"
-  --> tests/ui/struct-expressions.rs:36:21
-   |
-36 | #[template(source = r#"some{{ InnerCell { foo: 32 }}thing"#, ext = "txt")]
-   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-error: failed to parse template source
- --> <source attribute>:1:29
-       "}thing"
-  --> tests/ui/struct-expressions.rs:40:21
-   |
-40 | #[template(source = r#"some{{ InnerCell { foo: 32, }}thing"#, ext = "txt")]
+33 | #[template(source = r#"some{{ InnerCell { foo: 32, .. } }}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: expected closing `}` of struct expression
+error: missing `}` at the end of the struct
  --> <source attribute>:1:17
-       "{ foo: 32, .. }}thing"
-  --> tests/ui/struct-expressions.rs:44:21
+       "{ . } }}"
+  --> tests/ui/struct-expressions.rs:37:21
    |
-44 | #[template(source = r#"some{{ InnerCell { foo: 32, .. }}thing"#, ext = "txt")]
-   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+37 | #[template(source = r#"some{{ InnerCell { . } }}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: failed to parse template source
- --> <source attribute>:1:48
-       "}thing"
-  --> tests/ui/struct-expressions.rs:48:21
+error: missing `}` at the end of the struct
+ --> <source attribute>:1:17
+       "{ , } }}"
+  --> tests/ui/struct-expressions.rs:41:21
    |
-48 | #[template(source = r#"some{{ InnerCell { foo: 32, ..Default::Default }}thing"#, ext = "txt")]
-   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+41 | #[template(source = r#"some{{ InnerCell { , } }}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: missing `}` at the end of the struct
+ --> <source attribute>:1:17
+       "{ ..Default::default(): 32 } }}"
+  --> tests/ui/struct-expressions.rs:45:21
+   |
+45 | #[template(source = r#"some{{ InnerCell { ..Default::default(): 32 } }}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: didn't expect arguments in base call
+ --> <source attribute>:1:19
+       "..Default::default(32) } }}"
+  --> tests/ui/struct-expressions.rs:49:21
+   |
+49 | #[template(source = r#"some{{ InnerCell { ..Default::default(32) } }}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

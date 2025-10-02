@@ -87,7 +87,7 @@ impl<'a> Generator<'a, '_> {
             Expr::Group(ref inner) => self.visit_group(ctx, buf, inner, expr.span())?,
             Expr::Call(ref v) => self.visit_call(ctx, buf, &v.path, &v.args)?,
             Expr::Struct(ref s) => {
-                self.visit_struct(ctx, buf, &s.path, &s.fields, &s.base, expr.span())?
+                self.visit_struct(ctx, buf, s, expr.span())?
             }
             Expr::RustMacro(ref path, args) => {
                 self.visit_rust_macro(ctx, buf, path, args, expr.span())
@@ -671,14 +671,12 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        path: &WithSpan<Box<Expr<'a>>>,
-        fields: &[(WithSpan<&'a str>, WithSpan<Box<Expr<'a>>>)],
-        base: &Option<WithSpan<Box<Expr<'a>>>>,
+        struct_: &parser::expr::ExprStruct<'a>,
         span: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let span = ctx.span_for_node(span);
-        let path_span = ctx.span_for_node(path.span());
-        match &***path {
+        let path_span = ctx.span_for_node(struct_.path.span());
+        match &**struct_.path {
             Expr::Var(name) => match self.locals.resolve(name) {
                 Some(resolved) => write_resolved(buf, &resolved, path_span),
                 None => {
@@ -687,26 +685,26 @@ impl<'a> Generator<'a, '_> {
                 }
             },
             _ => {
-                self.visit_expr(ctx, buf, path)?;
+                self.visit_expr(ctx, buf, &struct_.path)?;
             }
         }
         let mut tmp = Buffer::new();
-        for (i, (name, expr)) in fields.iter().enumerate() {
-            let span = ctx.span_for_node(name.span());
+        for (i, field) in struct_.fields.iter().enumerate() {
+            let span = ctx.span_for_node(field.name.span());
             if i > 0 {
                 tmp.write_token(Token![,], span);
             }
-            tmp.write_field(name, span);
+            tmp.write_field(&*field.name, span);
             tmp.write_token(Token![:], span);
-            tmp.write_tokens(self.visit_arg(ctx, expr, span)?);
+            tmp.write_tokens(self.visit_arg(ctx, &field.value, span)?);
         }
-        if let Some(base) = base {
+        if let Some(ref base) = struct_.base {
             let span = ctx.span_for_node(base.span());
-            if !fields.is_empty() {
+            if !struct_.fields.is_empty() {
                 tmp.write_token(Token![,], span);
             }
             tmp.write_token(Token![..], span);
-            self.visit_expr(ctx, &mut tmp, base)?;
+            self.visit_call(ctx, &mut tmp, &base.path, &base.args)?;
         }
         let tmp = tmp.into_token_stream();
         quote_into!(buf, span, { {#tmp} });

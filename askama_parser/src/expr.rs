@@ -139,15 +139,12 @@ fn check_expr<'a>(expr: &WithSpan<Box<Expr<'a>>>, allowed: Allowed) -> ParseResu
                 },
             )?;
             for field in &s.fields {
-                if field.0.inner == "_" {
-                    return err_underscore_identifier(&field.0);
-                } else if !crate::can_be_variable_name(field.0.inner) {
-                    return err_reserved_identifier(&field.0);
+                if field.name.inner == "_" {
+                    return err_underscore_identifier(&field.name);
+                } else if !crate::can_be_variable_name(field.name.inner) {
+                    return err_reserved_identifier(&field.name);
                 }
-                check_expr(&field.1, Allowed::default())?;
-            }
-            if let Some(base) = &s.base {
-                check_expr(base, Allowed::default())?;
+                check_expr(&field.value, Allowed::default())?;
             }
             Ok(())
         }
@@ -225,7 +222,8 @@ pub enum Expr<'a> {
     Call(Call<'a>),
     RustMacro(Vec<WithSpan<&'a str>>, WithSpan<&'a str>),
     Try(WithSpan<Box<Expr<'a>>>),
-    Struct(Struct<'a>),
+    /// A struct expression (ie `Foo {a: u32, ..Default::default() })`).
+    Struct(ExprStruct<'a>),
     /// This variant should never be used directly. It is created when generating filter blocks.
     FilterSource,
     IsDefined(&'a str),
@@ -260,10 +258,10 @@ pub struct BinOp<'a> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Struct<'a> {
+pub struct ExprStruct<'a> {
     pub path: WithSpan<Box<Expr<'a>>>,
-    pub fields: Vec<(WithSpan<&'a str>, WithSpan<Box<Expr<'a>>>)>,
-    pub base: Option<WithSpan<Box<Expr<'a>>>>,
+    pub fields: Vec<ExprStructField<'a>>,
+    pub base: Option<WithSpan<Box<Call<'a>>>>,
 }
 
 impl<'a: 'l, 'l> Expr<'a> {
@@ -762,6 +760,12 @@ pub struct AssociatedItem<'a> {
     pub generics: Option<WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExprStructField<'a> {
+    pub name: WithSpan<&'a str>,
+    pub value: WithSpan<Box<Expr<'a>>>,
+}
+
 enum Suffix<'a> {
     AssociatedItem(AssociatedItem<'a>),
     Index(WithSpan<Box<Expr<'a>>>),
@@ -770,12 +774,18 @@ enum Suffix<'a> {
         args: Vec<WithSpan<Box<Expr<'a>>>>,
     },
     Struct {
-        fields: Vec<(WithSpan<&'a str>, WithSpan<Box<Expr<'a>>>)>,
-        base: Option<WithSpan<Box<Expr<'a>>>>,
+        fields: Vec<ExprStructField<'a>>,
+        base: Option<WithSpan<Box<Call<'a>>>>,
     },
     // The value is the arguments of the macro call.
     MacroCall(&'a str),
     Try,
+}
+
+#[derive(Debug)]
+enum Field<'a> {
+    Base(WithSpan<Box<Call<'a>>>),
+    Field(ExprStructField<'a>),
 }
 
 impl<'a: 'l, 'l> Suffix<'a> {
@@ -805,7 +815,7 @@ impl<'a: 'l, 'l> Suffix<'a> {
                     generics,
                     args,
                 })),
-                Self::Struct { fields, base } => Box::new(Expr::Struct(Struct {
+                Self::Struct { fields, base } => Box::new(Expr::Struct(ExprStruct {
                     path: expr,
                     fields,
                     base,
@@ -1291,39 +1301,61 @@ impl<'a: 'l, 'l> Suffix<'a> {
         let mut p = (
             ws('{'.span()),
             cut_err((
-                alt((
-                    (
-                        separated(1.., Self::struct_field, ws(',')),
-                        opt(preceded(ws(","), opt(Self::struct_base))).map(|b| b.flatten()),
-                    ),
-                    opt(Self::struct_base).map(|b| (vec![], b)),
-                )),
-                opt('}'.span()),
+                separated(0.., alt((Self::struct_field, Self::struct_base)), ws(',')),
             )),
+            opt(ws('}'.span())),
         );
-        let (span, ((fields, base), closed)) = p.parse_next(i)?;
-        if closed.is_none() {
-            return cut_error!("expected closing `}` of struct expression", span);
+        let (span, (all_fields,), closed): (_, (Vec<Field<'_>>,), Option<_>) = p.parse_next(i)?;
+        let mut base: Option<WithSpan<Box<Call<'a>>>> = None;
+        let mut fields = Vec::with_capacity(all_fields.len());
+        for field in all_fields {
+            match field {
+                Field::Field(field) => {
+                    if base.is_some() {
+                        return cut_error!("expected `}` after `..` was used", field.name.span());
+                    }
+                    fields.push(field);
+                }
+                Field::Base(new_base) => {
+                    if base.is_some() {
+                        return cut_error!("expected `}}` after `..` was used", new_base.span());
+                    }
+                    base = Some(new_base);
+                }
+            }
         }
+        if closed.is_none() {
+            return cut_error!("missing `}` at the end of the struct", span);
+        }
+
         Ok(WithSpan::new(Self::Struct { fields, base }, span))
     }
 
-    fn struct_base(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
-        let (base, _) = preceded(ws(".."), ws(move |i: &mut _| Expr::parse(i, true)))
+    fn struct_base(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Field<'a>> {
+        let (WithSpan { inner, .. }, span) = preceded(ws(".."), ws(move |i: &mut _| Expr::parse(i, true)))
             .with_span()
             .parse_next(i)?;
-        Ok(base)
+        match *inner {
+            Expr::Call(call) => {
+                if !call.args.is_empty() {
+                    return cut_error!("didn't expect arguments in base call", span);
+                }
+                Ok(Field::Base(WithSpan::new(Box::new(call), span)))
+            }
+            _ => cut_error!("expected a call after `..`", span),
+        }
     }
 
     fn struct_field(
         i: &mut InputStream<'a, 'l>,
-    ) -> ParseResult<'a, (WithSpan<&'a str>, WithSpan<Box<Expr<'a>>>)> {
+    ) -> ParseResult<'a, Field<'a>> {
         separated_pair(
             ws(alt((identifier, digit1)).with_span()).map(|(name, span)| WithSpan::new(name, span)),
             ws(':'.span()),
             ws(move |i: &mut _| Expr::parse(i, true)),
         )
         .parse_next(i)
+        .map(|(name, value)| Field::Field(ExprStructField { name, value }))
     }
 }
 
