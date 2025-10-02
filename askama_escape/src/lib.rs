@@ -1,4 +1,4 @@
-#![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(docsrs), no_std)]
 #![deny(elided_lifetimes_in_paths)]
 #![deny(unreachable_pub)]
