@@ -1,63 +1,63 @@
-error: expected `}` after `..` was used
+error: expected end of struct expression after `..` was used
  --> <source attribute>:1:37
        "other: 24 } }}"
-  --> tests/ui/struct-expressions.rs:19:14
-   |
-19 |     source = r#"{{ InnerCell { ..Default::default(), other: 24 } }}"#,
-   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ --> tests/ui/struct-expressions.rs:7:14
+  |
+7 |     source = r#"{{ InnerCell { ..Default::default(), other: 24 } }}"#,
+  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: failed to parse template source
  --> <source attribute>:1:20
        "}"
-  --> tests/ui/struct-expressions.rs:25:21
+  --> tests/ui/struct-expressions.rs:13:21
    |
-25 | #[template(source = r#"some{{ InnerCell { }}"#, ext = "txt")]
+13 | #[template(source = r#"some{{ InnerCell { }}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: missing `}` at the end of the struct
- --> <source attribute>:1:17
-       "{ foo: } }}"
-  --> tests/ui/struct-expressions.rs:29:21
+error: expected expression after `:`
+ --> <source attribute>:1:24
+       "} }}"
+  --> tests/ui/struct-expressions.rs:17:21
    |
-29 | #[template(source = r#"some{{ InnerCell { foo: } }}"#, ext = "txt")]
+17 | #[template(source = r#"some{{ InnerCell { foo: } }}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: missing `}` at the end of the struct
- --> <source attribute>:1:17
-       "{ foo: 32, .. } }}"
-  --> tests/ui/struct-expressions.rs:33:21
+error: expected expression after `..`
+ --> <source attribute>:1:28
+       ".. } }}"
+  --> tests/ui/struct-expressions.rs:21:21
    |
-33 | #[template(source = r#"some{{ InnerCell { foo: 32, .. } }}"#, ext = "txt")]
+21 | #[template(source = r#"some{{ InnerCell { foo: 32, .. } }}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: missing `}` at the end of the struct
- --> <source attribute>:1:17
-       "{ . } }}"
-  --> tests/ui/struct-expressions.rs:37:21
+error: expected field name, `..` or `}`
+ --> <source attribute>:1:19
+       ". } }}"
+  --> tests/ui/struct-expressions.rs:25:21
    |
-37 | #[template(source = r#"some{{ InnerCell { . } }}"#, ext = "txt")]
+25 | #[template(source = r#"some{{ InnerCell { . } }}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: missing `}` at the end of the struct
+error: missing field before `,`
  --> <source attribute>:1:17
        "{ , } }}"
-  --> tests/ui/struct-expressions.rs:41:21
+  --> tests/ui/struct-expressions.rs:29:21
    |
-41 | #[template(source = r#"some{{ InnerCell { , } }}"#, ext = "txt")]
+29 | #[template(source = r#"some{{ InnerCell { , } }}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: missing `}` at the end of the struct
- --> <source attribute>:1:17
-       "{ ..Default::default(): 32 } }}"
-  --> tests/ui/struct-expressions.rs:45:21
+error: expected end of struct expression after `..` was used
+ --> <source attribute>:1:39
+       ": 32 } }}"
+  --> tests/ui/struct-expressions.rs:33:21
    |
-45 | #[template(source = r#"some{{ InnerCell { ..Default::default(): 32 } }}"#, ext = "txt")]
+33 | #[template(source = r#"some{{ InnerCell { ..Default::default(): 32 } }}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: didn't expect arguments in base call
- --> <source attribute>:1:19
-       "..Default::default(32) } }}"
-  --> tests/ui/struct-expressions.rs:49:21
+error: expected end of struct expression after `..` was used
+ --> <source attribute>:1:41
+       "a: 12 } }}"
+  --> tests/ui/struct-expressions.rs:37:21
    |
-49 | #[template(source = r#"some{{ InnerCell { ..Default::default(32) } }}"#, ext = "txt")]
-   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+37 | #[template(source = r#"some{{ InnerCell { ..Default::default(), a: 12 } }}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

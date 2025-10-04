@@ -1695,7 +1695,11 @@ fn is_cacheable(expr: &WithSpan<Box<Expr<'_>>>) -> bool {
         // We have too little information to tell if the expression is pure:
         Expr::Call { .. } => false,
         Expr::Struct(s) => {
-            s.base.is_none() && s.fields.iter().all(|field| is_cacheable(&field.value))
+            s.base.is_none()
+                && s.fields
+                    .iter()
+                    .filter_map(|field| field.value.as_ref())
+                    .all(|value| is_cacheable(value))
         }
         Expr::RustMacro(_, _) => false,
         // Should never be encountered:

@@ -24,6 +24,12 @@ fn test_struct_expressions() {
     }
     let template = OuterTemplate2 { my_number: 42 };
     assert_eq!(template.render().unwrap(), "Hello, 42!");
+
+    // With trailing comma.
+    #[derive(Template)]
+    #[template(source = r#"{{ InnerCell { number: 42, } }}"#, ext = "txt")]
+    struct OuterTemplate3;
+    assert_eq!(OuterTemplate3.render().unwrap(), "Hello, 42!");
 }
 
 #[test]
@@ -64,14 +70,18 @@ fn test_struct_expressions_default() {
         ext = "txt"
     )]
     struct OuterTemplate;
-    let template = OuterTemplate;
-    assert_eq!(template.render().unwrap(), "Hello, 42 and 0!");
+    assert_eq!(OuterTemplate.render().unwrap(), "Hello, 42 and 0!");
 
     #[derive(Template)]
     #[template(source = r#"{{ InnerCell { ..Default::default() } }}"#, ext = "txt")]
     struct OuterTemplate2;
-    let template = OuterTemplate2;
-    assert_eq!(template.render().unwrap(), "Hello, 0 and 0!");
+    assert_eq!(OuterTemplate2.render().unwrap(), "Hello, 0 and 0!");
+
+    // With trailing comma.
+    #[derive(Template)]
+    #[template(source = r#"{{ InnerCell { ..Default::default(), } }}"#, ext = "txt")]
+    struct OuterTemplate3;
+    assert_eq!(OuterTemplate3.render().unwrap(), "Hello, 0 and 0!");
 }
 
 #[test]

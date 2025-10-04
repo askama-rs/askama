@@ -86,9 +86,7 @@ impl<'a> Generator<'a, '_> {
             }
             Expr::Group(ref inner) => self.visit_group(ctx, buf, inner, expr.span())?,
             Expr::Call(ref v) => self.visit_call(ctx, buf, &v.path, &v.args)?,
-            Expr::Struct(ref s) => {
-                self.visit_struct(ctx, buf, s, expr.span())?
-            }
+            Expr::Struct(ref s) => self.visit_struct(ctx, buf, s, expr.span())?,
             Expr::RustMacro(ref path, args) => {
                 self.visit_rust_macro(ctx, buf, path, args, expr.span())
             }
@@ -694,9 +692,11 @@ impl<'a> Generator<'a, '_> {
             if i > 0 {
                 tmp.write_token(Token![,], span);
             }
-            tmp.write_field(&*field.name, span);
-            tmp.write_token(Token![:], span);
-            tmp.write_tokens(self.visit_arg(ctx, &field.value, span)?);
+            tmp.write_field(&field.name, span);
+            if let Some(ref value) = field.value {
+                tmp.write_token(Token![:], span);
+                tmp.write_tokens(self.visit_arg(ctx, value, span)?);
+            }
         }
         if let Some(ref base) = struct_.base {
             let span = ctx.span_for_node(base.span());
@@ -704,7 +704,7 @@ impl<'a> Generator<'a, '_> {
                 tmp.write_token(Token![,], span);
             }
             tmp.write_token(Token![..], span);
-            self.visit_call(ctx, &mut tmp, &base.path, &base.args)?;
+            self.visit_expr(ctx, &mut tmp, base)?;
         }
         let tmp = tmp.into_token_stream();
         quote_into!(buf, span, { {#tmp} });
