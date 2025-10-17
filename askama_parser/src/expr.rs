@@ -1289,6 +1289,10 @@ impl<'a: 'l, 'l> TyGenerics<'a> {
 
         let p = ws((repeat(0.., ws('&')), path, opt(Self::args)));
         let ((refs, path, args), span) = p.with_span().parse_next(i)?;
+        let max_refs = 20;
+        if refs > max_refs {
+            return cut_error!(format!("too many references (> {max_refs})"), span);
+        }
 
         if let [name] = path.as_slice() {
             if matches!(**name, "super" | "self" | "crate") {
