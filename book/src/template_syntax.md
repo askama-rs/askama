@@ -789,7 +789,7 @@ Expressions can be grouped using parentheses.
 
 The HTML special characters `&`, `<` and `>` will be replaced with their
 character entities unless the `escape` mode is disabled for a template,
-or the filter `|safe` is used.
+or the filter `| safe` is used.
 
 Methods can be called on variables that are in scope, including `self`.
 
@@ -855,7 +855,7 @@ assert_eq!(t.render().unwrap(), "Section 1: A=a\nB=b")
 ```
 
 Note that if your inner template like `SectionOne` renders HTML content, then you may want to
-disable escaping when injecting it into an outer template, e.g. `{{ s1|safe }}`.
+disable escaping when injecting it into an outer template, e.g. `{{ s1 | safe }}`.
 Otherwise it will render the HTML content literally, because
 askama [escapes HTML variables](#html-escaping) by default.
 
