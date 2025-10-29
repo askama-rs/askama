@@ -10,6 +10,7 @@ extern crate proc_macro;
 
 mod ascii_str;
 mod config;
+mod filter_fn;
 mod generator;
 mod heritage;
 mod html;
@@ -31,6 +32,7 @@ use std::borrow::{Borrow, Cow};
 use std::collections::hash_map::Entry;
 use std::fmt;
 use std::hash::{BuildHasher, Hash};
+use std::ops::ControlFlow;
 use std::path::Path;
 use std::sync::Mutex;
 
@@ -38,10 +40,12 @@ use parser::{Parsed, is_rust_keyword, strip_common};
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::{ToTokens, quote, quote_spanned};
 use rustc_hash::FxBuildHasher;
-use syn::Ident;
+use syn::parse::Parse;
 use syn::spanned::Spanned;
+use syn::{Ident, parse2};
 
 use crate::config::{Config, read_config_file};
+pub use crate::filter_fn::derive_filter_fn;
 use crate::generator::{TmplKind, template_to_string};
 use crate::heritage::{Context, Heritage};
 use crate::input::{AnyTemplateArgs, Print, TemplateArgs, TemplateInput};
@@ -235,19 +239,33 @@ macro_rules! make_derive_template {
     };
 }
 
-pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -> TokenStream {
-    let ast = match syn::parse2(input) {
-        Ok(ast) => ast,
-        Err(err) => {
-            let msgs = err.into_iter().map(|err| err.to_string());
-            let ts = quote! {
-                const _: () = {
-                    extern crate core;
-                    #(core::compile_error!(#msgs);)*
-                };
-            };
-            return ts;
+#[macro_export]
+#[cfg(feature = "proc-macro")]
+macro_rules! make_filter_fn {
+    (
+        $(#[$meta:meta])*
+        $vis:vis fn $name:ident() {
+            $($import:stmt)+
         }
+    ) => {
+        $(#[$meta])*
+        $vis fn $name(
+            attr: $crate::__macro_support::TokenStream1,
+            item: $crate::__macro_support::TokenStream1,
+        ) -> $crate::__macro_support::TokenStream1 {
+            fn import_askama() -> $crate::__macro_support::TokenStream2 {
+                $crate::__macro_support::quote!($($import)*)
+            }
+
+            $crate::derive_filter_fn(attr.into(), item.into(), import_askama).into()
+        }
+    }
+}
+
+pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -> TokenStream {
+    let ast = match parse_ts_or_compile_error(input, import_askama) {
+        ControlFlow::Continue(ast) => ast,
+        ControlFlow::Break(err) => return err,
     };
 
     let mut buf = Buffer::new();
@@ -298,6 +316,25 @@ pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -
             #import_askama
             #ts
         };
+    }
+}
+
+fn parse_ts_or_compile_error<T: Parse>(
+    input: TokenStream,
+    import_askama: fn() -> TokenStream,
+) -> ControlFlow<TokenStream, T> {
+    match parse2(input) {
+        Ok(ast) => ControlFlow::Continue(ast),
+        Err(err) => {
+            let import_askama = import_askama();
+            let msgs = err.into_iter().map(|err| err.to_string());
+            ControlFlow::Break(quote! {
+                const _: () = {
+                    #import_askama
+                    #(core::compile_error!(#msgs);)*
+                };
+            })
+        }
     }
 }
 
@@ -773,3 +810,4 @@ macro_rules! quote_into {
 pub(crate) use {fmt_left, fmt_right, quote_into};
 
 type HashMap<K, V> = std::collections::hash_map::HashMap<K, V, FxBuildHasher>;
+type HashSet<T> = std::collections::hash_set::HashSet<T, FxBuildHasher>;

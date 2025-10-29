@@ -1205,7 +1205,7 @@ fn test_filter_with_path() {
         r#"
         match (
             &((&&askama::filters::AutoEscaper::new(
-                &(b::c::d(&(self.a), __askama_values)?),
+                &({ b::c::d::default().execute(&(self.a), __askama_values)? }),
                 askama::filters::Text,
             ))
                 .askama_auto_escape()?),
@@ -1463,7 +1463,7 @@ fn regression_tests_span_change() {
             __askama_writer.write_str("Hello, ")?;
             match (
                 &((&&askama::filters::AutoEscaper::new(
-                    &(filters::cased(&(self.user), __askama_values)?),
+                    &({ filters::cased::default().execute(&(self.user), __askama_values)? }),
                     askama::filters::Text,
                 ))
                     .askama_auto_escape()?),
@@ -1484,28 +1484,7 @@ fn regression_tests_span_change() {
             __askama_writer.write_str("Hello, ")?;
             match (
                 &((&&askama::filters::AutoEscaper::new(
-                    &(filters::cased(&(self.user), __askama_values)?),
-                    askama::filters::Text,
-                ))
-                    .askama_auto_escape()?),
-            ) {
-                (__askama_expr2,) => {
-                    (&&&askama::filters::Writable(__askama_expr2))
-                        .askama_write(__askama_writer, __askama_values)?;
-                }
-            }
-            __askama_writer.write_str("!")?;
-        "#,
-        &[],
-        11,
-    );
-    compare(
-        "Hello, {{ user | cased::<T> }}!",
-        r#"
-            __askama_writer.write_str("Hello, ")?;
-            match (
-                &((&&askama::filters::AutoEscaper::new(
-                    &(filters::cased::<T>(&(self.user), __askama_values)?),
+                    &({ filters::cased::default().execute(&(self.user), __askama_values)? }),
                     askama::filters::Text,
                 ))
                     .askama_auto_escape()?),

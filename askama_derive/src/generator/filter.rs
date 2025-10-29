@@ -9,7 +9,7 @@ use parser::{
     WithSpan,
 };
 use proc_macro2::TokenStream;
-use quote::quote_spanned;
+use quote::{ToTokens, format_ident, quote_spanned};
 use syn::Token;
 
 use super::{DisplayWrap, Generator, TargetIsize, TargetUsize};
@@ -81,9 +81,65 @@ impl<'a> Generator<'a, '_> {
         args: &[WithSpan<Box<Expr<'a>>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_no_named_arguments(ctx, &path.last().unwrap().name, args)?;
-        self.visit_path(ctx, buf, path);
-        self.do_visit_custom_filter(ctx, buf, args, node)
+        let span = ctx.span_for_node(node);
+
+        // some sanity checks
+        let generics = &path.last().unwrap().generics.as_ref();
+        if path.is_empty() || generics.is_some() && !generics.unwrap().is_empty() {
+            return Err(ctx.generate_error(
+                "Invalid filter invocation. Generics are not supported",
+                node,
+            ));
+        }
+
+        let filter_path = {
+            let mut tmp = Buffer::new();
+            self.visit_path(ctx, &mut tmp, path);
+            tmp.to_token_stream()
+        };
+
+        // static assertion block for nicer compile errors
+        let mut assertion_block = Buffer::new();
+        if args.len() > 1
+            && let Some(last_arg) = args.last()
+        {
+            // For the last element (highest index), generate a line that tries to cast
+            // our filter struct to the `askama::filters::ValidArgIdx<ARG_IDX>` trait.
+            // If this fails, the user supplied too many arguments and will be shown a
+            // nicer error message.
+            let arg_span = ctx.span_for_node(last_arg.span());
+            let arg_idx = args.len().saturating_sub(2);
+            quote_into!(&mut assertion_block, arg_span, {
+                const _: bool = <#filter_path as askama::filters::ValidArgIdx<#arg_idx>>::VALID;
+            });
+        }
+
+        // filter arguments
+        let mut arg_setter_invocations = Buffer::new();
+        for (arg_idx, arg) in args[1..].iter().enumerate() {
+            let expr: &Expr<'a> = arg;
+            let (arg_setter_ident, arg_expr_span) = match expr {
+                Expr::NamedArgument(name, expr) => (format_ident!("with_{}", **name), expr.span()),
+                _ => (format_ident!("with_{arg_idx}"), arg.span()),
+            };
+            let arg_span = ctx.span_for_node(arg.span());
+            let arg_expr_span = ctx.span_for_node(arg_expr_span);
+            let arg_expr = self.visit_arg(ctx, arg, arg_expr_span)?;
+            quote_into!(&mut arg_setter_invocations, arg_span, { .#arg_setter_ident(#arg_expr) });
+        }
+
+        // call execute() on filter invocation builder - pass in input and askama runtime args
+        let input_expr = self.visit_arg(ctx, &args[0], ctx.span_for_node(args[0].span()))?;
+        let var_values = crate::var_values();
+
+        quote_into!(buf, span, { {
+            #assertion_block
+            #filter_path::default()
+                #arg_setter_invocations
+                .execute(#input_expr, #var_values)?}
+        });
+
+        Ok(DisplayWrap::Unwrapped)
     }
 
     fn visit_custom_filter(
@@ -92,42 +148,19 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         name: WithSpan<&'a str>,
         args: &[WithSpan<Box<Expr<'a>>>],
-        generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+        _generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        let (name, span) = name.deconstruct();
-        ensure_no_named_arguments(ctx, name, args)?;
-
-        let span = ctx.span_for_node(span);
-        let name = field_new(name, span);
-        quote_into!(buf, span, { filters::#name });
-        if let Some(generics) = generics {
-            buf.write_token(Token![::], span);
-            self.visit_ty_generics(ctx, buf, generics);
-        }
-
-        self.do_visit_custom_filter(ctx, buf, args, node)
-    }
-
-    fn do_visit_custom_filter(
-        &mut self,
-        ctx: &Context<'_>,
-        buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
-        node: Span,
-    ) -> Result<DisplayWrap, CompileError> {
-        let span = ctx.span_for_node(node);
-        let mut tmp = Buffer::new();
-        tmp.write_tokens(self.visit_arg(ctx, &args[0], ctx.span_for_node(args[0].span()))?);
-        let var_values = crate::var_values();
-        quote_into!(&mut tmp, span, { ,#var_values });
-        if let [_, args @ ..] = args {
-            tmp.write_token(Token![,], span);
-            self.visit_args(ctx, &mut tmp, args)?;
-        }
-        let tmp = tmp.into_token_stream();
-        quote_into!(buf, span, { (#tmp)? });
-        Ok(DisplayWrap::Unwrapped)
+        self.visit_custom_filter_with_path(
+            ctx,
+            buf,
+            &[
+                PathComponent::new_with_name(WithSpan::no_span("filters")),
+                PathComponent::new_with_name(name),
+            ],
+            args,
+            node,
+        )
     }
 
     fn visit_builtin_filter_alloc(

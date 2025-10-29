@@ -24,7 +24,6 @@ pub(crate) struct TemplateInput<'a> {
     pub(crate) source: &'a Source,
     pub(crate) source_span: SourceSpan,
     pub(crate) block: Option<(&'a str, Span)>,
-    #[cfg(feature = "blocks")]
     pub(crate) blocks: &'a [Block],
     pub(crate) print: Print,
     pub(crate) escaper: &'a str,
@@ -46,7 +45,6 @@ impl TemplateInput<'_> {
             template_span,
             source: (source, source_span),
             block,
-            #[cfg(feature = "blocks")]
             blocks,
             print,
             escaping,
@@ -142,7 +140,6 @@ impl TemplateInput<'_> {
             source,
             source_span: source_span.clone(),
             block: block.as_ref().map(|(block, span)| (block.as_str(), *span)),
-            #[cfg(feature = "blocks")]
             blocks: blocks.as_slice(),
             print: *print,
             escaper,
@@ -411,7 +408,6 @@ impl AnyTemplateArgs {
     }
 }
 
-#[cfg(feature = "blocks")]
 pub(crate) struct Block {
     pub(crate) name: String,
     pub(crate) span: Span,
@@ -421,7 +417,6 @@ pub(crate) struct TemplateArgs {
     template_span: Span,
     pub(crate) source: (Source, SourceSpan),
     block: Option<(String, Span)>,
-    #[cfg(feature = "blocks")]
     blocks: Vec<Block>,
     print: Print,
     escaping: Option<String>,
@@ -476,7 +471,6 @@ impl TemplateArgs {
                 }
             },
             block: args.block.map(|value| (value.value(), value.span())),
-            #[cfg(feature = "blocks")]
             blocks: args
                 .blocks
                 .unwrap_or_default()
@@ -503,7 +497,6 @@ impl TemplateArgs {
             template_span: Span::call_site(),
             source: (Source::Source("".into()), SourceSpan::empty()),
             block: None,
-            #[cfg(feature = "blocks")]
             blocks: vec![],
             print: Print::default(),
             escaping: None,
@@ -765,7 +758,6 @@ pub(crate) struct PartialTemplateArgs {
     pub(crate) config: Option<LitStr>,
     pub(crate) whitespace: Option<Whitespace>,
     pub(crate) crate_name: Option<ExprPath>,
-    #[cfg(feature = "blocks")]
     pub(crate) blocks: Option<Vec<LitStr>>,
 }
 
@@ -831,7 +823,6 @@ const _: () = {
             config: None,
             whitespace: None,
             crate_name: None,
-            #[cfg(feature = "blocks")]
             blocks: None,
         };
         let mut has_data = false;
@@ -886,30 +877,22 @@ const _: () = {
                     this.crate_name = Some(get_exprpath(ident, pair.value)?);
                     continue;
                 } else if ident == "blocks" {
-                    if !cfg!(feature = "blocks") {
-                        return Err(CompileError::no_file_info(
-                            "enable feature `blocks` to use `blocks` argument",
-                            Some(ident.span()),
-                        ));
-                    } else if is_enum_variant {
+                    if is_enum_variant {
                         return Err(CompileError::no_file_info(
                             "template attribute `blocks` can only be used on the `enum`, \
                             not its variants",
                             Some(ident.span()),
                         ));
                     }
-                    #[cfg(feature = "blocks")]
-                    {
-                        ensure_only_once(ident, &mut this.blocks)?;
-                        this.blocks = Some(
-                            get_exprarray(ident, pair.value)?
-                                .elems
-                                .into_iter()
-                                .map(|value| get_strlit(ident, get_lit(ident, value)?))
-                                .collect::<Result<_, _>>()?,
-                        );
-                        continue;
-                    }
+                    ensure_only_once(ident, &mut this.blocks)?;
+                    this.blocks = Some(
+                        get_exprarray(ident, pair.value)?
+                            .elems
+                            .into_iter()
+                            .map(|value| get_strlit(ident, get_lit(ident, value)?))
+                            .collect::<Result<_, _>>()?,
+                    );
+                    continue;
                 }
 
                 let value = get_lit(ident, pair.value)?;
@@ -1081,7 +1064,6 @@ const _: () = {
         }
     }
 
-    #[cfg(feature = "blocks")]
     fn get_exprarray(name: &Ident, mut expr: Expr) -> Result<syn::ExprArray, CompileError> {
         loop {
             match expr {

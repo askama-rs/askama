@@ -30,20 +30,18 @@ memchr = "2"
 proc-macro2 = { version = "1", default-features = false }
 quote = { version = "1", default-features = false }
 rustc-hash = "2.0.0"
-syn = { version = "2.0.3", default-features = false, features = ["clone-impls", "derive", "parsing", "printing"] }
+syn = { version = "2.0.3", default-features = false, features = ["clone-impls", "derive", "full", "parsing", "printing"] }
 
 [dev-dependencies]
 console = "0.16.0"
 criterion = "0.7"
 prettyplease = "0.2.20"
 similar = "2.6.0"
-syn = { version = "2.0.3", features = ["full"] }
 
 [features]
 # Use every feature to aid testing. `askama_macros` will opt-out of default features.
 default = [
     "alloc",
-    "blocks",
     "code-in-doc",
     "config",
     "external-sources",
@@ -54,7 +52,6 @@ default = [
 ]
 
 alloc = []
-blocks = ["syn/full"]
 code-in-doc = ["dep:pulldown-cmark"]
 config = [
     "external-sources",

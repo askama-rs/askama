@@ -1,5 +1,3 @@
-#![cfg(feature = "blocks")]
-
 use std::fmt::Display;
 
 use askama::Template;

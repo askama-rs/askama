@@ -9,3 +9,10 @@ askama_derive::make_derive_template! {
         extern crate askama;
     }
 }
+
+askama_derive::make_filter_fn! {
+    #[proc_macro_attribute]
+    pub fn filter_fn() {
+        extern crate askama;
+    }
+}

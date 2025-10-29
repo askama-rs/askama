@@ -48,3 +48,14 @@ pub use self::urlencode::{urlencode, urlencode_strict};
 
 // MAX_LEN is maximum allowed length for filters.
 const MAX_LEN: usize = 10_000;
+
+/// Internal trait that is used by the `filter_fn` proc-macro to produce nicer error messages when
+/// too many arguments were passed to a filter invocation.
+#[doc(hidden)]
+#[diagnostic::on_unimplemented(
+    message = "Argument at position {IDX} is invalid on filter {Self}. Too many arguments supplied?",
+    label = "Filter function"
+)]
+pub trait ValidArgIdx<const IDX: usize> {
+    const VALID: bool = true;
+}

@@ -17,19 +17,14 @@ rustdoc-args = ["--generate-link-to-definition", "--cfg=docsrs"]
 [lib]
 proc-macro = true
 
-[dependencies.askama_derive]
-package = "askama_derive"
-path = "../askama_derive"
-version = "=0.14.0"
-default-features = false
-features = ["external-sources", "proc-macro"]
+[dependencies]
+askama_derive = { package = "askama_derive", path = "../askama_derive", version = "=0.14.0", default-features = false, features = ["external-sources", "proc-macro"] }
 
 [features]
 default = ["config", "derive", "std", "urlencode"]
-full = ["default", "blocks", "code-in-doc", "serde_json"]
+full = ["default", "code-in-doc", "serde_json"]
 
 alloc = ["askama_derive/alloc"]
-blocks = ["askama_derive/blocks"]
 code-in-doc = ["askama_derive/code-in-doc"]
 config = ["askama_derive/config"]
 nightly-spans = ["askama_derive/nightly-spans"]
