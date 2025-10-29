@@ -828,27 +828,91 @@ Prefix with two &nbsp; characters:
 
 To define your own filters, either have a module named `filters` in scope of the context of your
 `#[derive(Template]) struct`, and define the filters as functions within this module;
-or call the filter with a path, e.g. `{{ value | some_module::my_filter }}`.
+or call the filter with a path, e.g. `{{ value | some_module::my_filter }}`. Alternatively, you can also place your custom filter functions in a crate called `filters` added as dependency to your askama project.
 The expressions `{{ value | my_filter }}` and `{{ value | filters::my_filter }}` behave identically,
 unless "my_filter" happens to be a built-in filter.
+Note that built-in filters take precedence, so your custom filters will always be shadowed by built-in filters (if they have the same name). To avoid this, call your custom filters with a full path.
 
-The functions must have at least two arguments and the return type must be `askama::Result<T>`.
-Although there are no restrictions on `T` for a single filter,
-the final result of a chain of filters must implement `Display`.
+### Anatomy of a custom filter function
+```rust
+#[askama::filter_fn]
+pub fn example_filter1(
+    // Value that's piped into the filter within the jinja template.
+    // This can be of any type. `impl Display` is just an example.
+    value: impl Display,
+    // This is askama's runtime values environment. Together with
+    // values, these two arguments are always passed into a custom filter.
+    env: &dyn askama::Values
+) -> askama::Result<String> {
+    Ok(format!("{value} | example_filter1"))
+}
+```
 
-The arguments to the filters are passed as follows:
-* The first argument corresponds to the expression they are applied to.
-* The second argument are the [runtime values](./runtime.html):
-  [`values: &dyn askama::Values`](./doc/askama/trait.Values.html).
-* Subsequent arguments, if any, must be given directly when calling the filter.
-  The first argument may or may not be a reference, depending on the context in which the filter is called.
+The basic anatomy of a filter function **must always** look like this:
 
-To abstract over ownership, consider defining your argument as a trait bound.
-For example, the `trim` built-in filter accepts any value implementing `Display`.
-Its signature is similar to `fn trim(s: impl std::fmt::Display, values: &dyn askama::Values) -> askama::Result<String>`.
+- The first argument is the value your custom filter function is applied to during a filter invocation. In this template expression: `{{ 1337 | example_filter1 }}`, the value `1337` will be passed in as first argument to your filter function.
+- The second argument is always of type [`values: &dyn askama::Values`](./doc/askama/trait.Values.html), storing askama's [runtime values](./runtime.md) environment.
+- Custom filter functions' return type must be `askama::Result<T>`, where `T` of the last filter invocation of a filter chain must `impl Display`. In this exemplary filter chain: `{{ 1337 | multiply | final_filter }}`, the `multiply` filter may return `askama::Result<MyCustomNonDisplayableStruct>`, but `final_filter` must return `askama::Result<T>` with `T: Display`, otherwise your template will fail to compile.
 
-Note that built-in filters have preference over custom filters, so, in case of name collision, the built-in filter is applied.
-Custom filters cannot have named or optional arguments.
+Additionally to this basic structure, your custom filter function can also have:
+
+**An arbitrary amount of required arguments:**
+```rust
+#[askama::filter_fn]
+pub fn example_filter2<T: ToString>(
+    value: impl Display, env: &dyn askama::Values,
+    // Custom arguments that need to be specified when calling your filter
+    required0: impl Display,
+    required1: T,
+    required2: usize
+) -> askama::Result<String> { /* ... */ }
+```
+
+**An arbitrary amount of optional arguments** (must be located **after** required arguments in your function signature):
+
+```rust
+#[askama::filter_fn]
+pub fn example_filter3(
+    value: impl Display, // filter input
+    env: &dyn askama::Values, // askama runtime values environment
+    required0: impl Display,
+    // Custom arguments that may optionally be specified when calling your filter
+    #[optional(None)] optional0: Option<&str>,
+    #[optional(Some("I am the default value"))] optional1: Option<&str>,
+    #[optional("I am the default value")] optional2: &str,
+) -> askama::Result<String> { /* ... */ }
+```
+
+### Calling custom filters
+Thanks to the `askama::filter_fn` macro, invocations to your custom filter functions can also use named arguments - though currently providing diagnostic compile error messages that are a lot less readable compared to builtin filters, when you're using them wrong in your templates. All of these are valid invocations of the filter functions above:
+
+```jinja
+{{ 1337 | example_filter2("value0", "value1", 2) }}
+{{ "1337" | example_filter2(required0 = "req0", required1 = "req1", required2 = 2) }}
+
+{{  1337  | example_filter3("req0") }}
+{{  1337  | example_filter3("req0", None) }}
+{{ "1337" | example_filter3("req0", None, None) }}
+{{ "1337" | example_filter3("req0", None, Some("opt1"), "opt2") }}
+{{ "1337" | example_filter3("req0", optional2 = "opt2") }}
+{{ "1337" | example_filter3(required0 = "req0", optional2 = "opt2") }}
+```
+
+### Reference Value Passing Issues
+Due to the nature of askama's generated code, you will often encounter a mix of by-value and various degrees of references to your variables in the jinja template. If you declare your custom filter input value as one concrete type, like `&str`, you will often be confronted with the problem of having to (de)-reference your input variables: `{{ value | filter }}`, `{{ *value | filter }}`, `{{ **value | filter }}`, ...
+
+To avoid this, try to declare your filter's input argument using trait bounds, which are also implemented for references. For example, instead of:
+```rust
+#[askama::filter_fn]
+pub fn example_filter4(value: &str, env: &dyn askama::Values) -> askama::Result<String> {}
+```
+instead specify `value` with a trait bound of `Display`:
+```rust
+#[askama::filter_fn]
+pub fn example_filter4(value: impl Display, env: &dyn askama::Values) -> askama::Result<String> {}
+```
+as `Display` is implemented for `&str` as well as for `&&str`, `&&&str`, ....
+This cleans up your invocation sites, as no dereferencing (and no additional compile roundtripping) is required.
 
 ### Examples
 
@@ -865,9 +929,10 @@ struct MyFilterTemplate<'a> {
 // Any filter defined in the module `filters` is accessible in your template.
 mod filters {
     // This filter does not have extra arguments
+    #[askama::filter_fn]
     pub fn myfilter<T: std::fmt::Display>(
-        s: T,
-        _: &dyn askama::Values,
+        value: T,
+        _env: &dyn askama::Values,
     ) -> askama::Result<String> {
         let s = s.to_string();
         Ok(s.replace("oo", "aa"))
@@ -893,9 +958,10 @@ struct MyFilterTemplate<'a> {
 // Any filter defined in the module `filters` is accessible in your template.
 mod filters {
     // This filter requires a `usize` input when called in templates
+    #[askama::filter_fn]
     pub fn myfilter<T: std::fmt::Display>(
         s: T,
-        _: &dyn askama::Values,
+        _env: &dyn askama::Values,
         n: usize,
     ) -> askama::Result<String> {
         let s = s.to_string();
