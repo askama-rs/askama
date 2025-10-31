@@ -7,7 +7,7 @@ use std::str::FromStr;
 
 use parser::expr::BinOp;
 use parser::node::{
-    Call, Comment, Cond, CondTest, FilterBlock, If, Include, Let, Lit, Loop, Match, Whitespace, Ws,
+    Call, Comment, Cond, CondTest, Create, FilterBlock, If, Include, Let, Lit, Loop, Match, Whitespace, Ws,
 };
 use parser::{Expr, Node, Span, Target, WithSpan};
 use proc_macro2::TokenStream;
@@ -102,6 +102,9 @@ impl<'a> Generator<'a, '_> {
                 }
                 Node::Let(ref l) => {
                     self.write_let(ctx, buf, l)?;
+                }
+                Node::Create(ref c) => {
+                    self.write_create(ctx, buf, c)?;
                 }
                 Node::If(ref i) => {
                     size_hint += self.write_if(ctx, buf, i)?;
@@ -910,6 +913,32 @@ impl<'a> Generator<'a, '_> {
         } else {
             quote_spanned! { span => = #expr_buf; }
         });
+        Ok(())
+    }
+
+    fn write_create(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        c: &'a WithSpan<Create<'_>>,
+    ) -> Result<(), CompileError> {
+        let span = ctx.span_for_node(c.span());
+        if *c.var_name == "_" {
+            return Err(ctx.generate_error(
+                "`_` cannot be used when there is no value assigned, use `let` instead",
+                c.var_name.span(),
+            ));
+        }
+        self.handle_ws(c.ws);
+
+        self.write_buf_writable(ctx, buf)?;
+        buf.write_token(Token![let], span);
+        if c.is_mutable {
+            buf.write_token(Token![mut], span);
+        }
+        self.visit_target(ctx, buf, false, true, &Target::Name(c.var_name), span);
+        buf.write_token(Token![;], span);
+
         Ok(())
     }
 

@@ -1,0 +1,7 @@
+error: failed to parse template source
+ --> <source attribute>:1:12
+       "= 'a' %}"
+ --> tests/ui/create.rs:4:21
+  |
+4 | #[template(source = "{% create x = 'a' %}", ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^
