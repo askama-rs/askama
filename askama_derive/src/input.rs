@@ -310,6 +310,7 @@ impl TemplateInput<'_> {
                         | Node::Expr(_, _)
                         | Node::Extends(_)
                         | Node::Let(_)
+                        | Node::Create(_)
                         | Node::Import(_)
                         | Node::Macro(_)
                         | Node::Raw(_)
@@ -672,18 +673,13 @@ pub(crate) enum Source {
     Source(Arc<str>),
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Hash, Default)]
 pub(crate) enum Print {
     All,
     Ast,
     Code,
+    #[default]
     None,
-}
-
-impl Default for Print {
-    fn default() -> Self {
-        Self::None
-    }
 }
 
 impl FromStr for Print {
