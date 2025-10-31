@@ -863,6 +863,14 @@ impl<'a> Generator<'a, '_> {
         let span = ctx.span_for_node(l.span());
 
         let Some(val) = &l.val else {
+            let file_info = ctx
+                .file_info_of(l.span())
+                .map(|info| format!(" {info}:"))
+                .unwrap_or_default();
+            eprintln!(
+                "⚠️{file_info} `let` tag will stop supporting declaring variables without value. \
+                 Use `create` instead for this case",
+            );
             self.write_buf_writable(ctx, buf)?;
             buf.write_token(Token![let], span);
             if l.is_mutable {
