@@ -16,4 +16,16 @@ struct UnderscoreErr3;
 #[template(source = r#"{% match _ %}{% endmatch %}"#, ext = "html")]
 struct UnderscoreErr4;
 
+#[derive(Template)]
+#[template(source = r#"{% let _ %}"#, ext = "html")]
+struct UnderscoreErr5;
+
+#[derive(Template)]
+#[template(source = r#"{% decl _ %}"#, ext = "html")]
+struct UnderscoreErr6;
+
+#[derive(Template)]
+#[template(source = r#"{% declare _ %}"#, ext = "html")]
+struct UnderscoreErr7;
+
 fn main() {}

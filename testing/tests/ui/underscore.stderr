@@ -1,0 +1,55 @@
+error: reserved keyword `_` cannot be used here
+ --> <source attribute>:1:12
+       "_] %}"
+ --> tests/ui/underscore.rs:4:21
+  |
+4 | #[template(source = r#"{% let x = [_] %}"#, ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^
+
+error: reserved keyword `_` cannot be used here
+ --> <source attribute>:1:7
+       "_ + 12) != 0 %}{% endif %}"
+ --> tests/ui/underscore.rs:8:21
+  |
+8 | #[template(source = r#"{% if (_ + 12) != 0 %}{% endif %}"#, ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: reserved keyword `_` cannot be used here
+ --> <source attribute>:1:12
+       "_ %}{% endif %}"
+  --> tests/ui/underscore.rs:12:21
+   |
+12 | #[template(source = r#"{% if 12 == _ %}{% endif %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: reserved keyword `_` cannot be used here
+ --> <source attribute>:1:9
+       "_ %}{% endmatch %}"
+  --> tests/ui/underscore.rs:16:21
+   |
+16 | #[template(source = r#"{% match _ %}{% endmatch %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: when you forward-define a variable, you cannot use a pattern in place of a variable name
+ --> <source attribute>:1:7
+       "_ %}"
+  --> tests/ui/underscore.rs:20:21
+   |
+20 | #[template(source = r#"{% let _ %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^
+
+error: `_` cannot be used when there is no value assigned, use `let` instead
+ --> UnderscoreErr6.html:1:8
+       "_ %}"
+  --> tests/ui/underscore.rs:24:21
+   |
+24 | #[template(source = r#"{% decl _ %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^
+
+error: `_` cannot be used when there is no value assigned, use `let` instead
+ --> UnderscoreErr7.html:1:11
+       "_ %}"
+  --> tests/ui/underscore.rs:28:21
+   |
+28 | #[template(source = r#"{% declare _ %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^

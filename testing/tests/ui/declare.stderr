@@ -1,0 +1,15 @@
+error: failed to parse template source
+ --> <source attribute>:1:10
+       "= 'a' %}"
+ --> tests/ui/declare.rs:4:21
+  |
+4 | #[template(source = "{% decl x = 'a' %}", ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^^^
+
+error: failed to parse template source
+ --> <source attribute>:1:13
+       "= 'a' %}"
+ --> tests/ui/declare.rs:8:21
+  |
+8 | #[template(source = "{% declare x = 'a' %}", ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^
