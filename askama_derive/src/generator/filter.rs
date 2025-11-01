@@ -132,12 +132,13 @@ impl<'a> Generator<'a, '_> {
         let input_expr = self.visit_arg(ctx, &args[0], ctx.span_for_node(args[0].span()))?;
         let var_values = crate::var_values();
 
-        quote_into!(buf, span, { {
+        quote_into!(buf, span, {{
             #assertion_block
-            #filter_path::default()
-                #arg_setter_invocations
-                .execute(#input_expr, #var_values)?}
-        });
+            askama::filters::ValidFilterInvocation::wrap(
+                #filter_path::default()
+                    #arg_setter_invocations
+            ).execute(#input_expr, #var_values)?
+        }});
 
         Ok(DisplayWrap::Unwrapped)
     }
