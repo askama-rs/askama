@@ -59,3 +59,17 @@ const MAX_LEN: usize = 10_000;
 pub trait ValidArgIdx<const IDX: usize> {
     const VALID: bool = true;
 }
+
+/// Internal marker trait that is used by the `filter_fn` proc-macro to produce nicer error messages
+/// too few arguments were passed to a filter invocation.
+#[doc(hidden)]
+#[diagnostic::on_unimplemented(
+    message = "Invalid filter function invocation. Not all required arguments were supplied.",
+    label = "Filter function"
+)]
+pub trait ValidFilterInvocation: Sized {
+    #[inline(always)]
+    fn wrap(self) -> Self {
+        self
+    }
+}
