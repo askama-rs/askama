@@ -466,6 +466,7 @@ impl FilterSignature {
             impl<'filter, #(#required_generics_impl,)* #(const #required_flags: bool,)*>
             #ident<'filter, #(#required_generics_impl,)* #(#required_flags,)*> {
                 // named setter
+                #[inline(always)]
                 pub fn #named_ident<#(#required_generics_fn,)*>(self, new_value: #cur_arg_ty) -> #fn_return_ty {
                     // construct new instance of filter builder struct, by copying over all current values.
                     // But replace the value of the setter's corresponding field with `Some(new_value)`.
@@ -480,6 +481,7 @@ impl FilterSignature {
                 }
 
                 // positional setter
+                #[inline(always)]
                 pub fn #positional_ident<#(#required_generics_fn,)*>(self, new_value: #cur_arg_ty) -> #fn_return_ty {
                     self.#named_ident(new_value)
                 }
@@ -509,11 +511,13 @@ impl FilterSignature {
 
             quote! {
                 // named setter
+                #[inline(always)]
                 pub fn #named_ident(mut self, value: #arg_ty) -> Self {
                     self.#arg_ident = value;
                     self
                 }
                 // positional setter
+                #[inline(always)]
                 pub fn #positioned_ident(self, value: #arg_ty) -> Self {
                     self.#named_ident(value)
                 }
@@ -576,6 +580,7 @@ impl FilterSignature {
             // if all required arguments have been supplied (P0 == true, P1 == true)
             // ... the execute() method is "unlocked":
             impl<#(#required_generics: #required_generic_bounds,)*> #ident<'_, #(#required_generics,)* #(#required_flags,)*> {
+                #[inline(always)]
                 pub fn execute<#(#input_bounds,)*>(self, #input_ident: #input_ty, #env_ident: #env_ty) #result_ty {
                     // map filter variables with original name into scope
                     #( let #required_args = unsafe { self.#required_args.unwrap_unchecked() }; )*
