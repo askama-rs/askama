@@ -22,6 +22,7 @@ pub enum Node<'a> {
     Expr(Ws, WithSpan<Box<Expr<'a>>>),
     Call(WithSpan<Call<'a>>),
     Let(WithSpan<Let<'a>>),
+    Create(WithSpan<Create<'a>>),
     If(WithSpan<If<'a>>),
     Match(WithSpan<Match<'a>>),
     Loop(WithSpan<Loop<'a>>),
@@ -93,6 +94,7 @@ impl<'a: 'l, 'l> Node<'a> {
 
         let func = match tag {
             "call" => Call::parse,
+            "create" => Create::parse,
             "let" | "set" => Let::parse,
             "if" => If::parse,
             "for" => Loop::parse,
@@ -190,6 +192,7 @@ impl<'a: 'l, 'l> Node<'a> {
             Self::Expr(_, span) => span.span,
             Self::Call(span) => span.span,
             Self::Let(span) => span.span,
+            Self::Create(span) => span.span,
             Self::If(span) => span.span,
             Self::Match(span) => span.span,
             Self::Loop(span) => span.span,
@@ -1193,6 +1196,35 @@ impl<'a: 'l, 'l> Raw<'a> {
         let ws1 = Ws(pws, nws);
         Ok(Box::new(Node::Raw(WithSpan::new(
             Self { ws1, lit, ws2 },
+            span,
+        ))))
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Create<'a> {
+    pub ws: Ws,
+    pub var_name: WithSpan<&'a str>,
+    pub is_mutable: bool,
+}
+
+impl<'a: 'l, 'l> Create<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
+        let mut p = (
+            opt(Whitespace::parse),
+            ws(keyword("create").span()),
+            ws(opt(keyword("mut").span())),
+            ws(identifier.with_span()),
+            opt(Whitespace::parse),
+        );
+        let (pws, span, is_mut, (var_name, var_name_span), nws) = p.parse_next(i)?;
+
+        Ok(Box::new(Node::Create(WithSpan::new(
+            Create {
+                ws: Ws(pws, nws),
+                var_name: WithSpan::new(var_name, var_name_span),
+                is_mutable: is_mut.is_some(),
+            },
             span,
         ))))
     }
