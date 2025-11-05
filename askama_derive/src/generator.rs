@@ -510,7 +510,20 @@ fn compile_time_escape<'a>(expr: &WithSpan<Box<Expr<'a>>>, escaper: &str) -> Opt
                 from_str_radix: impl Fn(&str, u32) -> Result<T, E>,
                 value: &str,
             ) -> Option<String> {
-                Some(from_str_radix(value, 10).ok()?.to_string())
+                let mut chars = value.chars();
+                let (value, radix) = if let Some('0') = chars.next() {
+                    match chars.next() {
+                        Some('x') => (&value[2..], 16),
+                        Some('o') => (&value[2..], 8),
+                        Some('b') => (&value[2..], 2),
+                        Some(_) => (value, 10),
+                        None => (value, 10),
+                    }
+                } else {
+                    (value, 10)
+                };
+
+                Some(from_str_radix(value, radix).ok()?.to_string())
             }
 
             let value = match kind {
