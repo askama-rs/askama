@@ -103,7 +103,6 @@ fn block_in_include() {
     );
 }
 
-
 #[test]
 fn test_nested_includes() {
     #[derive(Template)]
@@ -114,5 +113,8 @@ fn test_nested_includes() {
 
     let strs = vec!["foo", "bar"];
     let s = IncludeTemplate { strs: &strs };
-    assert_eq!(s.render().unwrap(), "\n  NESTED: INCLUDED: foo\n  NESTED: INCLUDED: bar");
+    assert_eq!(
+        s.render().unwrap(),
+        "\n  NESTED: INCLUDED: foo\n  NESTED: INCLUDED: bar"
+    );
 }
