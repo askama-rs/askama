@@ -743,7 +743,7 @@ impl<'a> Generator<'a, '_> {
             .map(|path| FileInfo::of(i.span(), path, ctx.parsed));
         let path = self.input.config.find_template(
             i.path,
-            Some(&self.input.path),
+            Some(ctx.path.unwrap_or(self.input.path.as_ref())),
             file_info,
             Some(ctx.span_for_node(i.span())),
         )?;
