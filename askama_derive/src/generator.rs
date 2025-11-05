@@ -516,8 +516,7 @@ fn compile_time_escape<'a>(expr: &WithSpan<Box<Expr<'a>>>, escaper: &str) -> Opt
                         Some('x') => (&value[2..], 16),
                         Some('o') => (&value[2..], 8),
                         Some('b') => (&value[2..], 2),
-                        Some(_) => (value, 10),
-                        None => (value, 10),
+                        Some(_) | None => (value, 10),
                     }
                 } else {
                     (value, 10)
