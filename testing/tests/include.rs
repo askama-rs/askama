@@ -102,3 +102,19 @@ fn block_in_include() {
         "block_in_partial: from partial!\n"
     );
 }
+
+#[test]
+fn test_nested_includes() {
+    #[derive(Template)]
+    #[template(path = "include-nested.html")]
+    struct IncludeTemplate<'a> {
+        strs: &'a [&'a str],
+    }
+
+    let strs = vec!["foo", "bar"];
+    let s = IncludeTemplate { strs: &strs };
+    assert_eq!(
+        s.render().unwrap(),
+        "\n  NESTED: INCLUDED: foo\n  NESTED: INCLUDED: bar"
+    );
+}
