@@ -812,10 +812,10 @@ A
     );
 
     compare(
-        r"{{ 1_2_3_4 }} {{ 4e3 }} {{ false }}",
-        r#"__askama_writer.write_str("1234 4000 false")?;"#,
+        r"{{ 1_2_3_4 }} {{ 4e3 }} {{ false }} {{0x1_1}} {{0o10}} {{0b11}}",
+        r#"__askama_writer.write_str("1234 4000 false 17 8 3")?;"#,
         &[],
-        15,
+        22,
     );
 }
 
