@@ -1205,7 +1205,10 @@ fn test_filter_with_path() {
         r#"
         match (
             &((&&askama::filters::AutoEscaper::new(
-                &({ b::c::d::default().execute(&(self.a), __askama_values)? }),
+                &({
+                    askama::filters::ValidFilterInvocation::wrap(b::c::d::default())
+                        .execute(&(self.a), __askama_values)?
+                }),
                 askama::filters::Text,
             ))
                 .askama_auto_escape()?),
@@ -1463,7 +1466,12 @@ fn regression_tests_span_change() {
             __askama_writer.write_str("Hello, ")?;
             match (
                 &((&&askama::filters::AutoEscaper::new(
-                    &({ filters::cased::default().execute(&(self.user), __askama_values)? }),
+                &({
+                    askama::filters::ValidFilterInvocation::wrap(
+                            filters::cased::default(),
+                        )
+                        .execute(&(self.user), __askama_values)?
+                }),
                     askama::filters::Text,
                 ))
                     .askama_auto_escape()?),
@@ -1484,7 +1492,12 @@ fn regression_tests_span_change() {
             __askama_writer.write_str("Hello, ")?;
             match (
                 &((&&askama::filters::AutoEscaper::new(
-                    &({ filters::cased::default().execute(&(self.user), __askama_values)? }),
+                &({
+                    askama::filters::ValidFilterInvocation::wrap(
+                            filters::cased::default(),
+                        )
+                        .execute(&(self.user), __askama_values)?
+                }),
                     askama::filters::Text,
                 ))
                     .askama_auto_escape()?),

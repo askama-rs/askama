@@ -1,18 +1,18 @@
 error[E0599]: no method named `with_0` found for struct `noargs<'filter>` in the current scope
-  --> tests/ui/filter-invocation-invalid-arguments.rs:15:10
+  --> tests/ui/filter-invocation-invalid-arguments.rs:22:10
    |
  4 |     #[askama::filter_fn]
    |     -------------------- method `with_0` not found for this struct
 ...
-15 | #[derive(Template)]
+22 | #[derive(Template)]
    |          ^^^^^^^^ method not found in `noargs<'_>`
    |
    = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0277]: Argument at position 0 is invalid on filter noargs<'_>. Too many arguments supplied?
-  --> tests/ui/filter-invocation-invalid-arguments.rs:15:10
+  --> tests/ui/filter-invocation-invalid-arguments.rs:22:10
    |
-15 | #[derive(Template)]
+22 | #[derive(Template)]
    |          ^^^^^^^^ Filter function
    |
 help: the trait `ValidArgIdx<0>` is not implemented for `noargs<'_>`
@@ -22,50 +22,85 @@ help: the trait `ValidArgIdx<0>` is not implemented for `noargs<'_>`
    |     ^^^^^^^^^^^^^^^^^^^^
    = note: this error originates in the derive macro `Template` which comes from the expansion of the attribute macro `askama::filter_fn` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0599]: no method named `with_0` found for struct `noargs<'filter>` in the current scope
-  --> tests/ui/filter-invocation-invalid-arguments.rs:19:10
-   |
- 4 |     #[askama::filter_fn]
-   |     -------------------- method `with_0` not found for this struct
-...
-19 | #[derive(Template)]
-   |          ^^^^^^^^ method not found in `noargs<'_>`
-   |
-   = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
-
-error[E0277]: Argument at position 1 is invalid on filter noargs<'_>. Too many arguments supplied?
-  --> tests/ui/filter-invocation-invalid-arguments.rs:19:10
-   |
-19 | #[derive(Template)]
-   |          ^^^^^^^^ Filter function
-   |
-help: the trait `ValidArgIdx<1>` is not implemented for `noargs<'_>`
-  --> tests/ui/filter-invocation-invalid-arguments.rs:4:5
-   |
- 4 |     #[askama::filter_fn]
-   |     ^^^^^^^^^^^^^^^^^^^^
-   = note: this error originates in the derive macro `Template` which comes from the expansion of the attribute macro `askama::filter_fn` (in Nightly builds, run with -Z macro-backtrace for more info)
-
 error[E0599]: no method named `with_req1` found for struct `noargs<'filter>` in the current scope
-  --> tests/ui/filter-invocation-invalid-arguments.rs:23:10
+  --> tests/ui/filter-invocation-invalid-arguments.rs:26:10
    |
  4 |     #[askama::filter_fn]
    |     -------------------- method `with_req1` not found for this struct
 ...
-23 | #[derive(Template)]
+26 | #[derive(Template)]
    |          ^^^^^^^^ method not found in `noargs<'_>`
    |
    = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error[E0277]: Argument at position 1 is invalid on filter noargs<'_>. Too many arguments supplied?
-  --> tests/ui/filter-invocation-invalid-arguments.rs:23:10
+error[E0277]: Argument at position 0 is invalid on filter noargs<'_>. Too many arguments supplied?
+  --> tests/ui/filter-invocation-invalid-arguments.rs:26:10
    |
-23 | #[derive(Template)]
+26 | #[derive(Template)]
    |          ^^^^^^^^ Filter function
    |
-help: the trait `ValidArgIdx<1>` is not implemented for `noargs<'_>`
+help: the trait `ValidArgIdx<0>` is not implemented for `noargs<'_>`
   --> tests/ui/filter-invocation-invalid-arguments.rs:4:5
    |
  4 |     #[askama::filter_fn]
    |     ^^^^^^^^^^^^^^^^^^^^
    = note: this error originates in the derive macro `Template` which comes from the expansion of the attribute macro `askama::filter_fn` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: Invalid filter function invocation. Not all required arguments were supplied.
+  --> tests/ui/filter-invocation-invalid-arguments.rs:32:10
+   |
+32 | #[derive(Template)]
+   |          ^^^^^^^^ Filter function
+   |
+help: the trait `ValidFilterInvocation` is not implemented for `req1<'_>`
+  --> tests/ui/filter-invocation-invalid-arguments.rs:12:5
+   |
+12 |     #[askama::filter_fn]
+   |     ^^^^^^^^^^^^^^^^^^^^
+   = help: the trait `ValidFilterInvocation` is implemented for `req1<'_, true>`
+   = note: this error originates in the derive macro `Template` which comes from the expansion of the attribute macro `askama::filter_fn` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no method named `execute` found for struct `req1<'_>` in the current scope
+  --> tests/ui/filter-invocation-invalid-arguments.rs:32:10
+   |
+12 |     #[askama::filter_fn]
+   |     -------------------- method `execute` not found for this struct
+...
+32 | #[derive(Template)]
+   |          ^^^^^^^^ method not found in `req1<'_>`
+   |
+   = note: the method was found for
+           - `req1<'_, true>`
+   = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no method named `with_1` found for struct `req1<'filter, REQUIRED_ARG_FLAG_0>` in the current scope
+  --> tests/ui/filter-invocation-invalid-arguments.rs:36:10
+   |
+12 |     #[askama::filter_fn]
+   |     -------------------- method `with_1` not found for this struct
+...
+36 | #[derive(Template)]
+   |          ^^^^^^^^
+   |
+   = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0277]: Argument at position 1 is invalid on filter req1<'_>. Too many arguments supplied?
+  --> tests/ui/filter-invocation-invalid-arguments.rs:36:10
+   |
+36 | #[derive(Template)]
+   |          ^^^^^^^^ Filter function
+   |
+   = help: the trait `ValidArgIdx<1>` is not implemented for `req1<'_>`
+           but trait `ValidArgIdx<0>` is implemented for it
+   = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0599]: no method named `with_req2` found for struct `req1<'filter, REQUIRED_ARG_FLAG_0>` in the current scope
+  --> tests/ui/filter-invocation-invalid-arguments.rs:40:10
+   |
+12 |     #[askama::filter_fn]
+   |     -------------------- method `with_req2` not found for this struct
+...
+40 | #[derive(Template)]
+   |          ^^^^^^^^
+   |
+   = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)

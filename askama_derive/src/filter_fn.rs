@@ -576,10 +576,12 @@ impl FilterSignature {
         let required_args = self.args_required.iter().map(|a| &a.ident);
         let optional_args = self.args_optional.iter().map(|a| &a.ident);
 
+        let impl_generics = quote! { #(#required_generics: #required_generic_bounds,)* };
+        let impl_struct_generics = quote! { '_, #(#required_generics,)* #(#required_flags,)* };
         quote! {
             // if all required arguments have been supplied (P0 == true, P1 == true)
             // ... the execute() method is "unlocked":
-            impl<#(#required_generics: #required_generic_bounds,)*> #ident<'_, #(#required_generics,)* #(#required_flags,)*> {
+            impl<#impl_generics> #ident<#impl_struct_generics> {
                 #[inline(always)]
                 pub fn execute<#(#input_bounds,)*>(self, #input_ident: #input_ty, #env_ident: #env_ty) #result_ty {
                     // map filter variables with original name into scope
@@ -589,6 +591,8 @@ impl FilterSignature {
                     #filter_impl
                 }
             }
+
+            impl<#impl_generics> askama::filters::ValidFilterInvocation for #ident<#impl_struct_generics> {}
         }
     }
 }
