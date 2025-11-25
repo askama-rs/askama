@@ -79,6 +79,11 @@ fn check_expr<'a>(expr: &WithSpan<Box<Expr<'a>>>, allowed: Allowed) -> ParseResu
             }
             Ok(())
         }
+        Expr::ArrayRepeat(elem, count) => {
+            check_expr(elem, allowed)?;
+            check_expr(count, allowed)?;
+            Ok(())
+        }
         Expr::AssociatedItem(elem, associated_item) => {
             if *associated_item.name == "_" {
                 err_underscore_identifier(&associated_item.name)
@@ -210,6 +215,7 @@ pub enum Expr<'a> {
     Var(&'a str),
     Path(Vec<PathComponent<'a>>),
     Array(Vec<WithSpan<Box<Expr<'a>>>>),
+    ArrayRepeat(WithSpan<Box<Expr<'a>>>, WithSpan<Box<Expr<'a>>>),
     AssociatedItem(WithSpan<Box<Expr<'a>>>, AssociatedItem<'a>),
     Index(WithSpan<Box<Expr<'a>>>, WithSpan<Box<Expr<'a>>>),
     Filter(Filter<'a>),
@@ -638,22 +644,71 @@ impl<'a: 'l, 'l> Expr<'a> {
     }
 
     fn array(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+        let _level_guard = i.state.level.nest(i)?;
         let (array, span) = preceded(
-            ws('['),
-            cut_err(terminated(
-                opt(terminated(
-                    separated(1.., ws(move |i: &mut _| Self::parse(i, true)), ','),
-                    ws(opt(',')),
-                )),
-                ']',
-            )),
-        )
+            '[',
+            cut_err(alt((
+                // normal array [<expr>,...?]
+                Self::array_elements,
+                // array repeat [<el_expr>; <cnt_expr>]
+                Self::array_repeat,
+            ))), // cut_err
+        ) // preceded
         .with_span()
         .parse_next(i)?;
-        Ok(WithSpan::new(
-            Box::new(Self::Array(array.unwrap_or_default())),
-            span,
-        ))
+        Ok(WithSpan::new(array, span))
+    }
+
+    fn array_elements(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
+        let array = terminated(
+            opt(terminated(
+                separated(1.., ws(move |i: &mut _| Self::parse(i, true)), ','),
+                ws(opt(',')),
+            )),
+            ']',
+        )
+        .parse_next(i)?;
+        Ok(Box::new(Self::Array(array.unwrap_or_default())))
+    }
+
+    fn array_repeat(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
+        let (element, _, count) = terminated(
+            (
+                // element expression
+                Self::array_repeat_element,
+                ';',
+                // count expression
+                cut_err(Self::array_repeat_count),
+            ),
+            ']',
+        )
+        .parse_next(i)?;
+
+        Ok(Box::new(Self::ArrayRepeat(element, count)))
+    }
+
+    fn array_repeat_element(
+        i: &mut InputStream<'a, 'l>,
+    ) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
+        let (expr, span) = opt(ws(move |i: &mut _| Expr::parse(i, true)))
+            .with_span()
+            .parse_next(i)?;
+        match expr {
+            Some(expr) => Ok(expr),
+            None => cut_error!("expected element expression for array repeat syntax", span),
+        }
+    }
+    fn array_repeat_count(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
+        let (expr, span) = opt(ws(move |i: &mut _| Expr::parse(i, true)))
+            .with_span()
+            .parse_next(i)?;
+        match expr {
+            Some(expr) => Ok(expr),
+            None => cut_error!(
+                "expected count expression for array repeat syntax after `;`",
+                span
+            ),
+        }
     }
 
     fn path_var_bool(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
@@ -707,6 +762,7 @@ impl<'a: 'l, 'l> Expr<'a> {
             | Self::Index(_, _)
             | Self::Tuple(_)
             | Self::Array(_)
+            | Self::ArrayRepeat(_, _)
             | Self::BinOp(_)
             | Self::Path(_)
             | Self::Concat(_)
@@ -1401,7 +1457,7 @@ fn doc_comment_no_bare_cr<'a: 'l, 'l>(
     let ((is_doc_comment, comment), span) = inner.with_taken().with_span().parse_next(i)?;
     if is_doc_comment && comment.split('\r').skip(1).any(|s| !s.starts_with('\n')) {
         cut_error!(
-            "bare CR not allowed in doc comment, 
+            "bare CR not allowed in doc comment,
             use NL (Unix linebreak) or CRNL (Windows linebreak) instead",
             span,
         )

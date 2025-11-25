@@ -1,0 +1,63 @@
+error: expected element expression for array repeat syntax
+ --> <source attribute>:1:17
+       ";] %}"
+ --> tests/ui/invalid_array_repeat.rs:4:21
+  |
+4 | #[template(source = r#"{% let my_arr = [;] %}"#, ext = "txt")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected element expression for array repeat syntax
+ --> <source attribute>:1:17
+       ";0] %}"
+ --> tests/ui/invalid_array_repeat.rs:8:21
+  |
+8 | #[template(source = r#"{% let my_arr = [;0] %}"#, ext = "txt")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected count expression for array repeat syntax after `;`
+ --> <source attribute>:1:20
+       "] %}"
+  --> tests/ui/invalid_array_repeat.rs:12:21
+   |
+12 | #[template(source = r#"{% let my_arr = ["";] %}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected element expression for array repeat syntax
+ --> <source attribute>:1:17
+       ",;] %}"
+  --> tests/ui/invalid_array_repeat.rs:16:21
+   |
+16 | #[template(source = r#"{% let my_arr = [,;] %}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected element expression for array repeat syntax
+ --> <source attribute>:1:17
+       "; 10, 10] %}"
+  --> tests/ui/invalid_array_repeat.rs:20:21
+   |
+20 | #[template(source = r#"{% let my_arr = [; 10, 10] %}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected element expression for array repeat syntax
+ --> <source attribute>:1:17
+       ",;,] %}"
+  --> tests/ui/invalid_array_repeat.rs:24:21
+   |
+24 | #[template(source = r#"{% let my_arr = [,;,] %}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: failed to parse template source
+ --> <source attribute>:1:22
+       ";10] %}"
+  --> tests/ui/invalid_array_repeat.rs:28:21
+   |
+28 | #[template(source = r#"{% let my_arr = ["";10;10] %}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: your template code is too deeply nested, or the last expression is too complex
+ --> <source attribute>:1:67
+       "[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[ }}"
+  --> tests/ui/invalid_array_repeat.rs:33:14
+   |
+33 |     source = r#"{{ [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[ }}"#,
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -201,6 +201,7 @@ impl<'a> Generator<'a, '_> {
             | Expr::Var(_)
             | Expr::Path(_)
             | Expr::Array(_)
+            | Expr::ArrayRepeat(_, _)
             | Expr::AssociatedItem(_, _)
             | Expr::Index(_, _)
             | Expr::Filter(_)
@@ -1675,6 +1676,7 @@ fn is_cacheable(expr: &WithSpan<Box<Expr<'_>>>) -> bool {
         Expr::Path(_) => true,
         // Check recursively:
         Expr::Array(args) => args.iter().all(is_cacheable),
+        Expr::ArrayRepeat(elem, cnt) => is_cacheable(elem) && is_cacheable(cnt),
         Expr::AssociatedItem(lhs, _) => is_cacheable(lhs),
         Expr::Index(lhs, rhs) => is_cacheable(lhs) && is_cacheable(rhs),
         Expr::Filter(v) => v.arguments.iter().all(is_cacheable),

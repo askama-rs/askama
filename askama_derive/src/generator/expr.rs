@@ -72,6 +72,9 @@ impl<'a> Generator<'a, '_> {
             Expr::Var(s) => self.visit_var(ctx, buf, s, expr.span()),
             Expr::Path(ref path) => self.visit_path(ctx, buf, path),
             Expr::Array(ref elements) => self.visit_array(ctx, buf, elements, expr.span())?,
+            Expr::ArrayRepeat(ref elem, ref cnt) => {
+                self.visit_array_repeat(ctx, buf, elem, cnt, expr.span())?
+            }
             Expr::AssociatedItem(ref obj, ref associated_item) => {
                 self.visit_associated_item(ctx, buf, obj, associated_item)?
             }
@@ -817,6 +820,25 @@ impl<'a> Generator<'a, '_> {
             self.visit_expr(ctx, &mut tmp, el)?;
             tmp.write_token(Token![,], span);
         }
+        let tmp = tmp.into_token_stream();
+        quote_into!(buf, span, { [#tmp] });
+        Ok(DisplayWrap::Unwrapped)
+    }
+
+    fn visit_array_repeat(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        element: &WithSpan<Box<Expr<'a>>>,
+        count: &WithSpan<Box<Expr<'a>>>,
+        span: Span,
+    ) -> Result<DisplayWrap, CompileError> {
+        let span = ctx.span_for_node(span);
+
+        let mut tmp = Buffer::new();
+        self.visit_expr(ctx, &mut tmp, element)?;
+        tmp.write_token(Token![;], span);
+        self.visit_expr(ctx, &mut tmp, count)?;
         let tmp = tmp.into_token_stream();
         quote_into!(buf, span, { [#tmp] });
         Ok(DisplayWrap::Unwrapped)
