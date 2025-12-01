@@ -23,7 +23,7 @@ askama = { path = "../askama", version = "0.14.0", features = ["code-in-doc", "s
 askama_parser = { path = "../askama_parser", version = "0.14.0" }
 
 assert_matches = "1.5.0"
-criterion = "0.7"
+criterion = "0.8"
 pulldown-cmark = "0.13"
 trybuild = "1.0.100"
 
