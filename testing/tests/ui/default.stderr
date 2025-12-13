@@ -72,12 +72,12 @@ error[E0277]: `std::sync::Mutex<u32>` is not `|assigned_or` filterable
    = help: the following other types implement trait `DefaultFilterable`:
              &T
              &mut T
-             Arc<T>
-             Box<T>
-             Cow<'_, T>
-             NonZero<i128>
-             NonZero<i16>
-             NonZero<i32>
+             bool
+             f32
+             f64
+             i128
+             i16
+             i32
            and $N others
    = note: required for `&std::sync::Mutex<u32>` to implement `DefaultFilterable`
 note: required by a bound in `assigned_or`
