@@ -95,12 +95,17 @@ macro_rules! make_derive_template {
         /// is undefined, which generally makes it impossible to refer to this
         /// template from other templates. If `source` is specified, `ext` must also
         /// be specified (see below). Cannot be used together with `path`.
-        /// `ext` (e.g. `ext = "txt"`): lets you specify the content type as a file
+        ///
+        /// ### ext
+        ///
+        /// E.g. `ext = "txt"`
+        ///
+        /// Lets you specify the content type as a file
         /// extension. This is used to infer an escape mode (see below), and some
         /// web framework integrations use it to determine the content type.
         /// Cannot be used together with `path`.
         ///
-        /// ### `in_doc`
+        /// ### in_doc
         ///
         /// E.g. `in_doc = true`
         ///
