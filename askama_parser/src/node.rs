@@ -451,7 +451,7 @@ impl<'a: 'l, 'l> CondTest<'a> {
                     i.next_slice(v.rhs.span.start - start_offset);
 
                     let (new_right, span) = Self::parse_cond.with_span().parse_next(i)?;
-                    v.rhs.inner = Box::new(Expr::LetCond(WithSpan::new(new_right, span)));
+                    *v.rhs.inner = Expr::LetCond(WithSpan::new(new_right, span));
                 }
                 Ok(expr)
             }),
