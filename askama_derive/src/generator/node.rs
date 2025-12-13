@@ -7,7 +7,8 @@ use std::str::FromStr;
 
 use parser::expr::BinOp;
 use parser::node::{
-    Call, Comment, Cond, CondTest, FilterBlock, If, Include, Let, Lit, Loop, Match, Whitespace, Ws,
+    Call, Comment, Cond, CondTest, Declare, FilterBlock, If, Include, Let, Lit, Loop, Match,
+    Whitespace, Ws,
 };
 use parser::{Expr, Node, Span, Target, WithSpan};
 use proc_macro2::TokenStream;
@@ -102,6 +103,9 @@ impl<'a> Generator<'a, '_> {
                 }
                 Node::Let(ref l) => {
                     self.write_let(ctx, buf, l)?;
+                }
+                Node::Declare(ref c) => {
+                    self.write_decl(ctx, buf, c)?;
                 }
                 Node::If(ref i) => {
                     size_hint += self.write_if(ctx, buf, i)?;
@@ -859,6 +863,14 @@ impl<'a> Generator<'a, '_> {
         let span = ctx.span_for_node(l.span());
 
         let Some(val) = &l.val else {
+            let file_info = ctx
+                .file_info_of(l.span())
+                .map(|info| format!(" {info}:"))
+                .unwrap_or_default();
+            eprintln!(
+                "⚠️{file_info} `let` tag will stop supporting declaring variables without value. \
+                 Use `create` instead for this case",
+            );
             self.write_buf_writable(ctx, buf)?;
             buf.write_token(Token![let], span);
             if l.is_mutable {
@@ -911,6 +923,32 @@ impl<'a> Generator<'a, '_> {
         } else {
             quote_spanned! { span => = #expr_buf; }
         });
+        Ok(())
+    }
+
+    fn write_decl(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        c: &'a WithSpan<Declare<'_>>,
+    ) -> Result<(), CompileError> {
+        let span = ctx.span_for_node(c.span());
+        if *c.var_name == "_" {
+            return Err(ctx.generate_error(
+                "`_` cannot be used when there is no value assigned, use `let` instead",
+                c.var_name.span(),
+            ));
+        }
+        self.handle_ws(c.ws);
+
+        self.write_buf_writable(ctx, buf)?;
+        buf.write_token(Token![let], span);
+        if c.is_mutable {
+            buf.write_token(Token![mut], span);
+        }
+        self.visit_target(ctx, buf, false, true, &Target::Name(c.var_name), span);
+        buf.write_token(Token![;], span);
+
         Ok(())
     }
 

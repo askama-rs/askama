@@ -9,6 +9,7 @@
 | `{% filter ... %} ... {% endfilter %}` | [Filter block](#filter-blocks) |
 | `{# ... #}` | [Comment](#comments) |
 | `{% let ... = ... %}` or `{% set ... = ... %}` | [Variable assignment](#assignments) |
+| `{% decl ... %}` or `{% declare ... = ... %}` | [Set variable values later](#set-variable-values-later) |
 | `{% if ... %} ... {% else if ... %} ... {% else %} ... {% endif %}` | [If-Else conditional block](#if) |
 | `{% match ... %} {% when ... %} ... {% else %} ... {% endmatch %}` | [Match block](#match) |
 | `{% for ... in ... %} ... {% else %} ... {% endfor %}` | [For loop block](#for) |
@@ -67,14 +68,6 @@ Assignments use the `let` tag:
 ```jinja
 {% let name = user.name %}
 {% let len = name.len() %}
-
-{% let val -%}
-{% if len == 0 -%}
-  {% let val = "foo" -%}
-{% else -%}
-  {% let val = name -%}
-{% endif -%}
-{{ val }}
 ```
 
 Like Rust, Askama also supports shadowing variables.
@@ -97,6 +90,21 @@ you need it to be mutable #}
 ```
 
 For compatibility with Jinja, `set` can be used in place of `let`.
+
+### Set variable values later
+
+If you want to create a variable but set its value based on a condition, you can
+declare it without a value by using the `decl` (or `declare`) keyword:
+
+```jinja
+{% decl val -%}
+{% if len == 0 -%}
+  {% let val = "foo" -%}
+{% else -%}
+  {% let val = name -%}
+{% endif -%}
+{{ val }}
+```
 
 ### Borrow rules
 

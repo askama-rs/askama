@@ -77,7 +77,7 @@ def update_theme(target: PathLike) -> None:
     state = "before-sidebar"
     for line in input_f:
         match state:
-            case "before-sidebar" if '<nav id="mdbook-sidebar"' in line:
+            case "before-sidebar" if '<nav ' in line and 'class="sidebar"' in line:
                 line = SIDEBAR
                 state = "in-sidebar"
             case "in-sidebar":

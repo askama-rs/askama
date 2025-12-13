@@ -18,8 +18,8 @@ fn let_macro() {
         y: bool,
     }
 
-    let template = A { y: false };
-    assert_eq!(template.render().unwrap(), "blob")
+    assert_eq!(A { y: false }.render().unwrap(), "blob");
+    assert_eq!(A { y: true }.render().unwrap(), "");
 }
 
 // Ensures that variables name can start with `_`.

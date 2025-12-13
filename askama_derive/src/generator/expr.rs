@@ -982,7 +982,6 @@ impl<'a> Generator<'a, '_> {
         DisplayWrap::Unwrapped
     }
 
-    // FIXME: This function should have a `Span`, but `cond.target` isn't `WithSpan`.
     pub(super) fn visit_target(
         &mut self,
         ctx: &Context<'_>,
