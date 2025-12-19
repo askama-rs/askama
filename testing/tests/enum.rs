@@ -102,7 +102,7 @@ fn test_simple_enum() {
     #[derive(Template, Debug)]
     #[template(
         ext = "txt",
-        source = "{{ self::type_name_of_val(self) }} | {{ self|fmt(\"{:?}\") }}"
+        source = "{{ self::type_name_of_val(self) }} | {{ self.bar() }}"
     )]
     enum SimpleEnum<'a, B: Display + Debug> {
         #[template(source = "A")]
@@ -123,6 +123,16 @@ fn test_simple_enum() {
         // uses default source with a synthetic type `__Askama__SimpleEnum__G` as `Self`
         #[template()]
         G,
+    }
+
+    impl<'a, B: Display + Debug> SimpleEnum<'a, B> {
+        fn bar(&self) -> &str {
+            match self {
+                Self::F => "F",
+                Self::G => "G",
+                _ => "",
+            }
+        }
     }
 
     let tmpl: SimpleEnum<'_, X> = SimpleEnum::A;
@@ -154,15 +164,9 @@ fn test_simple_enum() {
     let tmpl: SimpleEnum<'_, X> = SimpleEnum::G;
     assert_matches!(
         tmpl.render().unwrap().as_str(),
-        "&enum::test_simple_enum::_::__Askama__SimpleEnum__G<enum::X> | \
-        __Askama__SimpleEnum__G(\
-            PhantomData<&enum::test_simple_enum::SimpleEnum<enum::X>>\
-        )"
+        "&enum::test_simple_enum::_::__Askama__SimpleEnum__G<enum::X> | G"
         // output since rustc 1.91.0-nightly 2025-08-17
-        | "&enum::test_simple_enum::_::__Askama__SimpleEnum__G<'_, '_, enum::X> | \
-        __Askama__SimpleEnum__G(\
-            PhantomData<&enum::test_simple_enum::SimpleEnum<'_, enum::X>>\
-        )"
+        | "&enum::test_simple_enum::_::__Askama__SimpleEnum__G<'_, '_, enum::X> | G"
     );
 }
 
