@@ -7,7 +7,7 @@ use std::process::Command;
 
 #[test]
 fn test_custom_ui() {
-    if !cfg!(unix) {
+    if !cfg!(target_os = "linux") {
         return;
     }
     let Ok(cargo_home) = std::env::var("CARGO_MANIFEST_DIR") else {
@@ -58,16 +58,10 @@ path = "main.rs"
     )
     .unwrap();
 
-    let mut nb_run_tests = 0;
-    for entry in read_dir(custom_ui_folder).unwrap() {
+    for entry in read_dir(&custom_ui_folder).unwrap() {
         let entry = entry.unwrap();
         let test_path = entry.path();
         if !test_path.is_dir() && test_path.extension() == Some(OsStr::new("rs")) {
-            if nb_run_tests == 0 {
-                // To prevent having build logs in tests output, we run the build a first time.
-                run_cargo(&test_dir);
-            }
-            nb_run_tests += 1;
             print!("> {}...", test_path.file_name().unwrap().display());
             if !run_test(bless, &test_path, &test_dir) {
                 *errors += 1;
@@ -142,7 +136,10 @@ fn run_cargo(test_dir: &Path) -> String {
     match (start, end) {
         (Some(start), None) => stderr[start..].to_string(),
         (Some(start), Some(end)) => stderr[start..end].to_string(),
-        _ => panic!("didn't find `askama_test` start line, full output:\n{stderr}"),
+        _ => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            panic!("didn't find `askama_test` start line, stderr:\n{stderr}\n\nstdout:\n{stdout}")
+        }
     }
 }
 

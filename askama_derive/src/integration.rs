@@ -1,5 +1,6 @@
 use std::fmt::Display;
 use std::mem::take;
+use std::str::FromStr;
 
 use parser::PathComponent;
 use proc_macro2::{Literal, TokenStream, TokenTree};
@@ -331,8 +332,8 @@ pub(crate) fn build_template_enum(
             continue;
         };
 
-        let var_ast = type_for_enum_variant(enum_ast, &generics, var);
-        quote_into!(buf, span, { #var_ast });
+        let (var_ast, deref_impl) = type_for_enum_variant(enum_ast, &generics, var);
+        quote_into!(buf, span, { #var_ast #deref_impl });
 
         // not inherited: template, meta_docs, block, print
         if let Some(enum_args) = &mut enum_args {
@@ -467,28 +468,42 @@ fn type_for_enum_variant(
     enum_ast: &DeriveInput,
     enum_generics: &Generics,
     var: &Variant,
-) -> DeriveInput {
+) -> (DeriveInput, TokenStream) {
     let enum_id = &enum_ast.ident;
-    let (_, ty_generics, _) = enum_ast.generics.split_for_impl();
     let lt = enum_generics.params.first().unwrap();
+    let (_, ty_generics, _) = enum_ast.generics.split_for_impl();
+    let mut generics = enum_ast.generics.clone();
+    generics.params.insert(0, lt.clone());
 
     let id = &var.ident;
     let span = id.span();
     let id = Ident::new(&format!("__Askama__{enum_id}__{id}"), span);
 
-    let phantom: Type = parse_quote! {
-        askama::helpers::core::marker::PhantomData < &#lt #enum_id #ty_generics >
+    let field: Type = parse_quote! {
+        &#lt #enum_id #ty_generics
     };
-    let fields = match &var.fields {
+    let (impl_generics, ty_generics, _) = generics.split_for_impl();
+
+    let (fields, deref_impl) = match &var.fields {
         Fields::Named(fields) => {
             let mut fields = fields.clone();
             for f in fields.named.iter_mut() {
                 let ty = &f.ty;
                 f.ty = parse_quote!(&#lt #ty);
             }
-            let id = Ident::new(&format!("__Askama__{enum_id}__phantom"), span);
-            fields.named.push(parse_quote!(#id: #phantom));
-            Fields::Named(fields)
+            let field_name = Ident::new(&format!("__Askama__{enum_id}__phantom"), span);
+            fields.named.push(parse_quote!(#field_name: #field));
+            let deref_impl = quote_spanned! {
+                span=>
+                impl #impl_generics askama::helpers::core::ops::Deref for #id #ty_generics {
+                    type Target = #field;
+
+                    fn deref(&self) -> &Self::Target {
+                        &self.#field_name
+                    }
+                }
+            };
+            (Fields::Named(fields), deref_impl)
         }
         Fields::Unnamed(fields) => {
             let mut fields = fields.clone();
@@ -496,10 +511,34 @@ fn type_for_enum_variant(
                 let ty = &f.ty;
                 f.ty = parse_quote!(&#lt #ty);
             }
-            fields.unnamed.push(parse_quote!(#phantom));
-            Fields::Unnamed(fields)
+            fields.unnamed.push(parse_quote!(#field));
+            let idx = TokenStream::from_str(&format!("self.{}", fields.unnamed.len() - 1)).unwrap();
+            let deref_impl = quote_spanned! {
+                span=>
+                impl #impl_generics askama::helpers::core::ops::Deref for #id #ty_generics {
+                    type Target = #field;
+
+                    fn deref(&self) -> &Self::Target {
+                        &#idx
+                    }
+                }
+            };
+            (Fields::Unnamed(fields), deref_impl)
         }
-        Fields::Unit => Fields::Unnamed(parse_quote!((#phantom))),
+        Fields::Unit => {
+            let fields = Fields::Unnamed(parse_quote!((#field)));
+            let deref_impl = quote_spanned! {
+                span=>
+                impl #impl_generics askama::helpers::core::ops::Deref for #id #ty_generics {
+                    type Target = #field;
+
+                    fn deref(&self) -> &Self::Target {
+                        &self.0
+                    }
+                }
+            };
+            (fields, deref_impl)
+        }
     };
     let semicolon = match &var.fields {
         Fields::Named(_) => None,
@@ -507,15 +546,17 @@ fn type_for_enum_variant(
     };
 
     let span = enum_ast.span().resolved_at(proc_macro2::Span::call_site());
-    syn::parse_quote_spanned! {
-        span=>
-        #[askama::helpers::core::prelude::rust_2021::derive(
-            askama::helpers::core::prelude::rust_2021::Clone,
-            askama::helpers::core::prelude::rust_2021::Copy,
-            askama::helpers::core::prelude::rust_2021::Debug
-        )]
-        struct #id #enum_generics #fields #semicolon
-    }
+    (
+        syn::parse_quote_spanned! {
+            span=>
+            #[askama::helpers::core::prelude::rust_2021::derive(
+                askama::helpers::core::prelude::rust_2021::Clone,
+                askama::helpers::core::prelude::rust_2021::Copy,
+            )]
+            struct #id #enum_generics #fields #semicolon
+        },
+        deref_impl,
+    )
 }
 
 /// Generates a `match` arm for an `enum` variant, that calls `<_ as EnumVariantTemplate>::render_into()`
@@ -571,7 +612,7 @@ fn variant_as_arm(
                 Fields::Unnamed(_) | Fields::Unit => unreachable!(),
             };
             this.extend(quote_spanned!(
-                span => #phantom: askama::helpers::core::marker::PhantomData {},
+                span => #phantom: &self,
             ));
         }
 
@@ -584,13 +625,11 @@ fn variant_as_arm(
                 this.extend(quote_spanned!(span => #idx: #arg,));
             }
             let idx = syn::LitInt::new(&format!("{}", fields.unnamed.len()), span);
-            this.extend(
-                quote_spanned!(span => #idx: askama::helpers::core::marker::PhantomData {},),
-            );
+            this.extend(quote_spanned!(span => #idx: &self,));
         }
 
         Fields::Unit => {
-            this.extend(quote_spanned!(span => 0: askama::helpers::core::marker::PhantomData {},));
+            this.extend(quote_spanned!(span => 0: &self,));
         }
     };
     let var_writer = crate::var_writer();
