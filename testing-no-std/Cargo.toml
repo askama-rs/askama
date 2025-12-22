@@ -1,13 +1,13 @@
 [package]
 name = "askama_testing-no-std"
-version = "0.14.0"
+version = "0.15.0"
 authors = ["askama-rs developers"]
 edition = "2024"
 rust-version = "1.88"
 publish = false
 
 [dev-dependencies]
-askama = { path = "../askama", version = "0.14.0", default-features = false, features = ["derive"] }
+askama = { path = "../askama", version = "0.15.0", default-features = false, features = ["derive"] }
 
 assert_matches = "1.5.0"
 
