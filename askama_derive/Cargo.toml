@@ -8,7 +8,6 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 edition = "2024"
 rust-version = "1.88"
-publish = false
 
 [package.metadata.docs.rs]
 all-features = true
