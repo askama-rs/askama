@@ -10,6 +10,4 @@ edition = "2021"
 [output.html]
 git-repository-url = "https://github.com/askama-rs/askama/tree/master/book"
 edit-url-template = "https://github.com/askama-rs/askama/tree/master/book/{path}"
-additional-css = ["theme/pagetoc.css"]
-additional-js = ["theme/pagetoc.js"]
 playground.runnable = false

@@ -71,9 +71,6 @@ jobs:
           persist-credentials: false
       - name: Install mdbook
         run: cargo install mdbook
-      - name: Generate "book/theme/index.hbs" as "skeleton" of the generated pages.
-        run: PATH="$HOME/.cargo/bin:$PATH" ./update-theme.py
-        working-directory: book
       - name: Convert the book to HTML
         run: $HOME/.cargo/bin/mdbook build
         working-directory: book

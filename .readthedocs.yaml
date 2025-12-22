@@ -13,8 +13,6 @@ build:
 
     # Install mdbook.
     - cargo install mdbook
-    # Generate "book/theme/index.hbs" as "skeleton" of the generated pages.
-    - book/update-theme.py
     # Convert the book to HTML.
     - mdbook build book --dest-dir $READTHEDOCS_OUTPUT/html
     # Make the ads readable.
