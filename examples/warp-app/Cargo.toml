@@ -8,7 +8,7 @@ publish = false
 # This is an example application that uses both askama as template engine,
 # and actix-web as your web-framework.
 [dependencies]
-askama = { version = "0.14.0", path = "../../askama" }
+askama = { version = "0.15.0", path = "../../askama" }
 http = "0.2.12"
 tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread"] }
 warp = "0.3.7"
