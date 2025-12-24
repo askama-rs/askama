@@ -310,6 +310,8 @@ pub fn derive_template(input: TokenStream, import_askama: fn() -> TokenStream) -
             dead_code,
             // We intentionally add extraneous underscores in type and variable names.
             non_camel_case_types, non_snake_case,
+            // The generated code contains elidable lifetime.
+            clippy::elidable_lifetime_names,
             // We have too little context information to generate better code.
             // The generated source does not have to be perfect, anyway.
             clippy::double_parens, clippy::identity_op, clippy::into_iter_on_ref,
