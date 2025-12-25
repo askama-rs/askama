@@ -148,8 +148,12 @@ impl<W: fmt::Write> fmt::Write for IndentWriter<'_, W> {
     }
 }
 
-/// A prefix usable for indenting [prettified JSON data](super::json::json_pretty) and
-/// [`|indent`](indent)
+/// A prefix usable for indenting
+#[cfg_attr(
+    feature = "serde_json",
+    doc = "[prettified JSON data](super::json_pretty) and"
+)]
+/// [`|indent`](indent).
 ///
 /// ```
 /// # use askama::filters::AsIndent;
