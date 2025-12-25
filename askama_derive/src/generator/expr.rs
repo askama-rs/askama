@@ -399,7 +399,7 @@ impl<'a> Generator<'a, '_> {
         need_borrow: bool,
     ) -> Result<TokenStream, CompileError> {
         if let Expr::Unary(expr @ ("*" | "&"), ref arg) = ***arg {
-            let inner = self.visit_arg_inner(ctx, arg, ctx.span_for_node(arg.span()), true)?;
+            let inner = self.visit_arg_inner(ctx, arg, ctx.span_for_node(arg.span()), false)?;
             let operator = TokenStream::from_str(expr).unwrap();
             return Ok(quote_spanned!(span=> #operator #inner));
         }
