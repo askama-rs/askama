@@ -36,7 +36,7 @@ pub(crate) fn write_header(ast: &DeriveInput, buf: &mut Buffer, target: TokenStr
 /// Implement `Display` for the given item.
 fn impl_display(ast: &DeriveInput, buf: &mut Buffer) {
     let ident = &ast.ident;
-    let span = ident.span();
+    let span = Span::call_site();
     let msg =
         // format!(" Implement the [`Display`][core::fmt::Display] trait for [`{ident}`]");
         format!(" Implement the [`format!()`][askama::helpers::std::format] trait for [`{ident}`]");
@@ -66,7 +66,7 @@ fn impl_display(ast: &DeriveInput, buf: &mut Buffer) {
 
 /// Implement `FastWritable` for the given item.
 fn impl_fast_writable(ast: &DeriveInput, buf: &mut Buffer) {
-    let span = ast.span();
+    let span = Span::call_site();
     write_header(ast, buf, quote_spanned!(span => askama::FastWritable));
     quote_into!(buf, span, {
         {
