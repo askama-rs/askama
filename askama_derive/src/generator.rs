@@ -228,7 +228,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             );
         }
 
-        write_header(self.input.ast, buf, target, span);
+        write_header(self.input.ast, buf, target);
         let var_writer = crate::var_writer();
         let var_values = crate::var_values();
         quote_into!(buf, span, { {

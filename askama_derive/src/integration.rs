@@ -3,7 +3,7 @@ use std::mem::take;
 use std::str::FromStr;
 
 use parser::PathComponent;
-use proc_macro2::{Literal, TokenStream, TokenTree};
+use proc_macro2::{Literal, Span, TokenStream, TokenTree};
 use quote::{ToTokens, quote_spanned};
 use syn::spanned::Spanned;
 use syn::{
@@ -22,15 +22,11 @@ pub(crate) fn impl_everything(ast: &DeriveInput, buf: &mut Buffer) {
 }
 
 /// Writes header for the `impl` for `TraitFromPathName` or `Template` for the given item
-pub(crate) fn write_header(
-    ast: &DeriveInput,
-    buf: &mut Buffer,
-    target: TokenStream,
-    span: proc_macro2::Span,
-) {
+pub(crate) fn write_header(ast: &DeriveInput, buf: &mut Buffer, target: TokenStream) {
     let (impl_generics, orig_ty_generics, where_clause) = ast.generics.split_for_impl();
 
     let ident = &ast.ident;
+    let span = Span::call_site();
     quote_into!(buf, span, {
         #[automatically_derived]
         impl #impl_generics #target for #ident #orig_ty_generics #where_clause
@@ -53,7 +49,6 @@ fn impl_display(ast: &DeriveInput, buf: &mut Buffer) {
         ast,
         buf,
         quote_spanned!(span => askama::helpers::core::fmt::Display),
-        span,
     );
     quote_into!(buf, span, {
         {
@@ -72,7 +67,7 @@ fn impl_display(ast: &DeriveInput, buf: &mut Buffer) {
 /// Implement `FastWritable` for the given item.
 fn impl_fast_writable(ast: &DeriveInput, buf: &mut Buffer) {
     let span = ast.span();
-    write_header(ast, buf, quote_spanned!(span => askama::FastWritable), span);
+    write_header(ast, buf, quote_spanned!(span => askama::FastWritable));
     quote_into!(buf, span, {
         {
             #[inline]
@@ -433,12 +428,7 @@ pub(crate) fn build_template_enum(
         }
     ));
 
-    write_header(
-        enum_ast,
-        buf,
-        quote_spanned!(span => askama::Template),
-        span,
-    );
+    write_header(enum_ast, buf, quote_spanned!(span => askama::Template));
     quote_into!(buf, span, {
         {
             #methods
