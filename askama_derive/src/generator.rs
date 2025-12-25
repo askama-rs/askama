@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use parser::node::{Call, Macro, Whitespace};
 use parser::{CharLit, Expr, FloatKind, IntKind, Num, StrLit, WithSpan};
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote_spanned};
 use syn::Token;
 
@@ -166,7 +166,7 @@ impl<'a, 'h> Generator<'a, 'h> {
     ) -> Result<usize, CompileError> {
         let ctx = &self.contexts[&self.input.path];
 
-        let span = self.input.ast.ident.span();
+        let span = Span::call_site();
         let target = match tmpl_kind {
             TmplKind::Struct => quote_spanned!(span=> askama::Template),
             TmplKind::Variant => quote_spanned!(span=> askama::helpers::EnumVariantTemplate),
@@ -228,7 +228,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             );
         }
 
-        write_header(self.input.ast, buf, target, span);
+        write_header(self.input.ast, buf, target);
         let var_writer = crate::var_writer();
         let var_values = crate::var_values();
         quote_into!(buf, span, { {
@@ -273,7 +273,7 @@ impl<'a, 'h> Generator<'a, 'h> {
 
         use syn::{GenericParam, Ident, Lifetime, LifetimeParam, Token};
 
-        let span = block.span;
+        let span = Span::call_site();
         let ident = &self.input.ast.ident;
 
         let doc = format!(

@@ -411,7 +411,6 @@ impl AnyTemplateArgs {
 
 pub(crate) struct Block {
     pub(crate) name: String,
-    pub(crate) span: Span,
 }
 
 pub(crate) struct TemplateArgs {
@@ -478,7 +477,6 @@ impl TemplateArgs {
                 .into_iter()
                 .map(|value| Block {
                     name: value.value(),
-                    span: value.span(),
                 })
                 .collect(),
             print: args.print.unwrap_or_default(),
