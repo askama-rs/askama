@@ -9,6 +9,7 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::{ToTokens, format_ident, quote, quote_spanned};
 use syn::punctuated::Punctuated;
 use syn::spanned::Spanned;
+use syn::token::Mut;
 use syn::{
     Block, Expr, FnArg, GenericParam, ItemFn, Lifetime, Pat, PatType, ReturnType, Signature, Token,
     Type, TypeParamBound, Visibility,
@@ -63,6 +64,7 @@ macro_rules! p_err {
 struct FilterArgumentRequired {
     idx: usize,
     ident: Ident,
+    mutability: Option<Mut>,
     ty: Type,
     generics: HashSet<Ident>,
 }
@@ -72,6 +74,7 @@ struct FilterArgumentRequired {
 struct FilterArgumentOptional {
     idx: usize,
     ident: Ident,
+    mutability: Option<Mut>,
     ty: Type,
     default: Expr,
 }
@@ -162,7 +165,7 @@ impl FilterSignature {
             let FnArg::Typed(arg) = arg else {
                 continue;
             };
-            let Pat::Ident(arg_name) = &*arg.pat else {
+            let Pat::Ident(arg_pat) = &*arg.pat else {
                 p_err!(arg.pat.span() => "Only conventional function arguments are supported")?
             };
             p_assert!(
@@ -190,7 +193,8 @@ impl FilterSignature {
                     });
                     args_required.push(FilterArgumentRequired {
                         idx: arg_idx,
-                        ident: arg_name.ident.clone(),
+                        ident: arg_pat.ident.clone(),
+                        mutability: arg_pat.mutability,
                         ty: arg_type,
                         generics: used_generics,
                     });
@@ -208,7 +212,8 @@ impl FilterSignature {
 
                     args_optional.push(FilterArgumentOptional {
                         idx: arg_idx,
-                        ident: arg_name.ident.clone(),
+                        ident: arg_pat.ident.clone(),
+                        mutability: arg_pat.mutability,
                         ty: arg_type,
                         default,
                     });
@@ -238,9 +243,9 @@ impl FilterSignature {
         let FnArg::Typed(arg) = arg else {
             p_err!(arg.span() => "Illegal or unsupported type of argument for filter function")?
         };
-        let arg_ident = match &*arg.pat {
-            Pat::Ident(pat_ident) => pat_ident.ident.clone(),
-            Pat::Wild(pat) => Ident::new("_", pat.span()), // little hack
+        let (arg_ident, mutability) = match &*arg.pat {
+            Pat::Ident(pat_ident) => (pat_ident.ident.clone(), pat_ident.mutability),
+            Pat::Wild(pat) => (Ident::new("_", pat.span()), None), // little hack
             _ => p_err!(arg.pat.span() => "Only conventional function arguments are supported")?,
         };
 
@@ -248,6 +253,7 @@ impl FilterSignature {
             idx: 0,
             ident: arg_ident,
             ty: *arg.ty.clone(),
+            mutability,
             generics: generics
                 .keys()
                 .filter(|i| type_contains_ident(&arg.ty, i).is_some())
@@ -548,6 +554,7 @@ impl FilterSignature {
         // input variable
         // method generics (only the parameters not already present on struct)
         let input_ident = &self.arg_input.ident;
+        let input_mutability = &self.arg_input.mutability;
         let input_ty = &self.arg_input.ty;
         let input_bounds = self
             .arg_input_generics
@@ -573,8 +580,20 @@ impl FilterSignature {
         // filter result
         let result_ty = &self.result_ty;
         // variables
-        let required_args = self.args_required.iter().map(|a| &a.ident);
-        let optional_args = self.args_optional.iter().map(|a| &a.ident);
+        let required_args = self.args_required.iter().map(|a| {
+            let mutability = a.mutability;
+            let ident = &a.ident;
+            quote! {
+                let #mutability #ident = unsafe { self.#ident.unwrap_unchecked() };
+            }
+        });
+        let optional_args = self.args_optional.iter().map(|a| {
+            let mutability = a.mutability;
+            let ident = &a.ident;
+            quote! {
+                let #mutability #ident = unsafe { self.#ident };
+            }
+        });
 
         let impl_generics = quote! { #(#required_generics: #required_generic_bounds,)* };
         let impl_struct_generics = quote! { '_, #(#required_generics,)* #(#required_flags,)* };
@@ -583,10 +602,10 @@ impl FilterSignature {
             // ... the execute() method is "unlocked":
             impl<#impl_generics> #ident<#impl_struct_generics> {
                 #[inline(always)]
-                pub fn execute<#(#input_bounds,)*>(self, #input_ident: #input_ty, #env_ident: #env_ty) #result_ty {
+                pub fn execute<#(#input_bounds,)*>(self, #input_mutability #input_ident: #input_ty, #env_ident: #env_ty) #result_ty {
                     // map filter variables with original name into scope
-                    #( let #required_args = unsafe { self.#required_args.unwrap_unchecked() }; )*
-                    #( let #optional_args = self.#optional_args; )*
+                    #( #required_args )*
+                    #( #optional_args )*
                     // insert actual filter function implementation
                     #filter_impl
                 }

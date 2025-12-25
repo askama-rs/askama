@@ -654,3 +654,40 @@ fn test_custom_filter_constructs() {
     let actual = CustomFilterConstructs {}.render().unwrap();
     assert_eq!(actual, should);
 }
+
+// This test ensures that the mutability of filters arguments is kept.
+// This is a regression test for <https://github.com/askama-rs/askama/issues/641>.
+#[test]
+fn filter_arguments_mutability() {
+    mod filters {
+
+        // Check mutability is kept for mandatory arguments.
+        #[askama::filter_fn]
+        pub fn a(mut value: u32, _: &dyn askama::Values) -> askama::Result<String> {
+            value += 2;
+            Ok(value.to_string())
+        }
+        // Check mutability is kept for extra arguments.
+        #[askama::filter_fn]
+        pub fn b(value: u32, _: &dyn askama::Values, mut other: u32) -> askama::Result<String> {
+            other += value;
+            Ok(other.to_string())
+        }
+        // Check mutability is kept for optional arguments.
+        #[askama::filter_fn]
+        pub fn c(
+            value: u32,
+            _: &dyn askama::Values,
+            #[optional(0)] mut other: u32,
+        ) -> askama::Result<String> {
+            other += value;
+            Ok(other.to_string())
+        }
+    }
+
+    #[derive(Template, Debug)]
+    #[template(ext = "txt", source = "{{ 0|a }} {{ 7|b(2) }} {{ 1|c(other=3) }}")]
+    struct X;
+
+    assert_eq!(X.render().unwrap(), "2 9 4");
+}
