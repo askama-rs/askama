@@ -38,7 +38,6 @@ fn impl_display(ast: &DeriveInput, buf: &mut Buffer) {
     let ident = &ast.ident;
     let span = Span::call_site();
     let msg =
-        // format!(" Implement the [`Display`][core::fmt::Display] trait for [`{ident}`]");
         format!(" Implement the [`format!()`][askama::helpers::std::format] trait for [`{ident}`]");
     quote_into!(buf, span, {
         #[doc = #msg]
