@@ -9,11 +9,6 @@ mod missing_required_args {
     pub fn filter2(_: &dyn askama::Values) -> askama::Result<String> {}
 }
 
-mod lifetime_args {
-    #[askama::filter_fn]
-    pub fn filter0<'a>(input: usize, _: &dyn askama::Values, arg: &'a ()) -> askama::Result<String> {}
-}
-
 mod const_generic_args {
     #[askama::filter_fn]
     pub fn filter0<const T: bool>(input: usize, _: &dyn askama::Values) -> askama::Result<String> {}

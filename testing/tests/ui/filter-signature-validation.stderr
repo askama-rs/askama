@@ -16,62 +16,56 @@ error: Filter function missing required environment argument. Example: `fn filte
 9 |     pub fn filter2(_: &dyn askama::Values) -> askama::Result<String> {}
   |                   ^
 
-error: Lifetime generics are currently not supported for filters
+error: Const generics are currently not supported for filters
   --> tests/ui/filter-signature-validation.rs:14:20
    |
-14 |     pub fn filter0<'a>(input: usize, _: &dyn askama::Values, arg: &'a ()) -> askama::Result<String> {}
-   |                    ^^
-
-error: Const generics are currently not supported for filters
-  --> tests/ui/filter-signature-validation.rs:19:20
-   |
-19 |     pub fn filter0<const T: bool>(input: usize, _: &dyn askama::Values) -> askama::Result<String> {}
+14 |     pub fn filter0<const T: bool>(input: usize, _: &dyn askama::Values) -> askama::Result<String> {}
    |                    ^^^^^
 
 error: Filter functions don't support generic parameter defaults
-  --> tests/ui/filter-signature-validation.rs:24:24
+  --> tests/ui/filter-signature-validation.rs:19:24
    |
-24 |     pub fn filter0<T = f64>(input: usize, _: &dyn askama::Values, arg: T) -> askama::Result<String> {}
+19 |     pub fn filter0<T = f64>(input: usize, _: &dyn askama::Values, arg: T) -> askama::Result<String> {}
    |                        ^^^
 
 error: Filter function is missing return type
-  --> tests/ui/filter-signature-validation.rs:29:56
+  --> tests/ui/filter-signature-validation.rs:24:56
    |
-29 |     pub fn filter0(input: usize, _: &dyn askama::Values) {}
+24 |     pub fn filter0(input: usize, _: &dyn askama::Values) {}
    |                                                        ^
 
 error: Only conventional function arguments are supported
-  --> tests/ui/filter-signature-validation.rs:35:58
+  --> tests/ui/filter-signature-validation.rs:30:58
    |
-35 |     pub fn filter0(input: usize, _: &dyn askama::Values, Wrapper(arg): Wrapper) -> askama::Result<String> {}
+30 |     pub fn filter0(input: usize, _: &dyn askama::Values, Wrapper(arg): Wrapper) -> askama::Result<String> {}
    |                                                          ^^^^^^^
 
 error: Impl generics are currently not supported for filters
-  --> tests/ui/filter-signature-validation.rs:40:63
+  --> tests/ui/filter-signature-validation.rs:35:63
    |
-40 |     pub fn filter0(input: usize, _: &dyn askama::Values, arg: impl std::fmt::Display) -> askama::Result<String> {}
+35 |     pub fn filter0(input: usize, _: &dyn askama::Values, arg: impl std::fmt::Display) -> askama::Result<String> {}
    |                                                               ^^^^
 
 error: All required arguments must appear before any optional ones
-  --> tests/ui/filter-signature-validation.rs:45:92
+  --> tests/ui/filter-signature-validation.rs:40:92
    |
-45 |     pub fn filter0(input: usize, _: &dyn askama::Values, #[optional(1337)] opt_arg: usize, req_arg: usize) -> askama::Result<String> {}
+40 |     pub fn filter0(input: usize, _: &dyn askama::Values, #[optional(1337)] opt_arg: usize, req_arg: usize) -> askama::Result<String> {}
    |                                                                                            ^^^^^^^
 
 error: Impl generics are currently not supported for filters
-  --> tests/ui/filter-signature-validation.rs:50:85
+  --> tests/ui/filter-signature-validation.rs:45:85
    |
-50 |     pub fn filter0(input: usize, _: &dyn askama::Values, #[optional(1337)] opt_arg: impl std::fmt::Display) -> askama::Result<String> {}
+45 |     pub fn filter0(input: usize, _: &dyn askama::Values, #[optional(1337)] opt_arg: impl std::fmt::Display) -> askama::Result<String> {}
    |                                                                                     ^^^^
 
 error: Optional arguments must not use generic parameters
-  --> tests/ui/filter-signature-validation.rs:53:99
+  --> tests/ui/filter-signature-validation.rs:48:99
    |
-53 |     pub fn filter1<T: Copy>(input: usize, _: &dyn askama::Values, #[optional(1337usize)] opt_arg: T) -> askama::Result<String> {}
+48 |     pub fn filter1<T: Copy>(input: usize, _: &dyn askama::Values, #[optional(1337usize)] opt_arg: T) -> askama::Result<String> {}
    |                                                                                                   ^
 
 error: Optional arguments must not use generic parameters
-  --> tests/ui/filter-signature-validation.rs:56:106
+  --> tests/ui/filter-signature-validation.rs:51:106
    |
-56 |     pub fn filter2<T: Copy>(input: usize, _: &dyn askama::Values, #[optional(1337usize)] opt_arg: Option<T>) -> askama::Result<String> {}
+51 |     pub fn filter2<T: Copy>(input: usize, _: &dyn askama::Values, #[optional(1337usize)] opt_arg: Option<T>) -> askama::Result<String> {}
    |                                                                                                          ^
