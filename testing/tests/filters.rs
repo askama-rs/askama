@@ -660,7 +660,6 @@ fn test_custom_filter_constructs() {
 #[test]
 fn filter_arguments_mutability() {
     mod filters {
-
         // Check mutability is kept for mandatory arguments.
         #[askama::filter_fn]
         pub fn a(mut value: u32, _: &dyn askama::Values) -> askama::Result<String> {
@@ -690,4 +689,31 @@ fn filter_arguments_mutability() {
     struct X;
 
     assert_eq!(X.render().unwrap(), "2 9 4");
+}
+
+// Checks support for lifetimes.
+#[test]
+fn filter_lifetimes() {
+    mod filters {
+        use std::borrow::Cow;
+
+        #[askama::filter_fn]
+        pub fn a<'a: 'b, 'b>(
+            value: &'a str,
+            _: &dyn askama::Values,
+            extra: &'b str,
+        ) -> askama::Result<Cow<'a, str>> {
+            if extra.is_empty() {
+                Ok(Cow::Borrowed(value))
+            } else {
+                Ok(Cow::Owned(format!("{value}-{extra}")))
+            }
+        }
+    }
+
+    #[derive(Template)]
+    #[template(ext = "txt", source = r#"{{ "a"|a("b") }}"#)]
+    struct X;
+
+    assert_eq!(X.render().unwrap(), "a-b");
 }
