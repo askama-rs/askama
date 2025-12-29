@@ -1,13 +1,13 @@
 [package]
 name = "askama_testing-renamed"
-version = "0.15.0"
+version = "0.0.0"
 authors = ["askama-rs developers"]
 edition = "2024"
 rust-version = "1.88"
 publish = false
 
 [dev-dependencies]
-some_name = { package = "askama", path = "../askama", version = "0.15.0", default-features = false, features = ["derive"] }
+some_name = { package = "askama", path = "../askama", default-features = false, features = ["derive"] }
 
 assert_matches = "1.5.0"
 
