@@ -16,10 +16,16 @@ fn clippy_lints() {
         .output()
         .expect("failed to run `cargo`");
     if !clippy.status.success() {
-        panic!(
-            "`clippy` failed.\n\n=== STDOUT ===\n\n{}\n=== STDERR ===\n\n{}\n",
-            String::from_utf8_lossy(&clippy.stdout),
-            String::from_utf8_lossy(&clippy.stderr),
-        );
+        let stderr = String::from_utf8_lossy(&clippy.stderr);
+
+        if stderr.contains("'cargo-clippy' is not installed") {
+            eprintln!("ignoring `clippy_lints` test since `clippy` is not installed");
+        } else {
+            panic!(
+                "`clippy` failed.\n\n=== STDOUT ===\n\n{}\n=== STDERR ===\n\n{}\n",
+                String::from_utf8_lossy(&clippy.stdout),
+                stderr,
+            );
+        }
     }
 }
