@@ -1,6 +1,6 @@
 [package]
 name = "actix-web-app"
-version = "0.14.0"
+version = "0.0.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 publish = false
@@ -9,7 +9,7 @@ publish = false
 # and actix-web as your web-framework.
 [dependencies]
 actix-web = { version = "4.9.0", default-features = false, features = ["macros"] }
-askama = { version = "0.15.0", path = "../../askama" }
+askama = { path = "../../askama" }
 tokio = { version = "1.43.0", features = ["macros", "rt-multi-thread"] }
 
 # serde and strum are used to parse (deserialize) and generate (serialize) information
