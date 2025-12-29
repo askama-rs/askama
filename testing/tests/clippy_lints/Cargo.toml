@@ -1,0 +1,13 @@
+[package]
+name = "clippy_test"
+version = "0.0.0"
+authors = ["askama-rs developers"]
+edition = "2024"
+rust-version = "1.88"
+publish = false
+
+[lib]
+path = "lib.rs"
+
+[dependencies]
+askama = { path = "../../../askama" }

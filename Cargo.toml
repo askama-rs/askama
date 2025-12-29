@@ -9,5 +9,6 @@ members = [
     "testing-alloc",
     "testing-no-std",
     "testing-renamed",
+    "testing/tests/clippy_lints",
 ]
 resolver = "2"
