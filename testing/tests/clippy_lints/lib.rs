@@ -1,33 +1,50 @@
 #![deny(clippy::elidable_lifetime_names)]
 #![deny(clippy::all)]
+#![deny(clippy::unnecessary_wraps)]
 
-// FIXME: This is expected, however the span is wrong.
-// #![deny(clippy::unnecessary_wraps)]
+/// Checks that `clippy::unnecessary_wraps` is not triggered.
+#[cfg(any())] // FIXME: <https://github.com/askama-rs/askama/issues/651>
+pub mod unnecessary_wraps {
+    use askama::Template;
 
-// https://github.com/askama-rs/askama/issues/651
-// // Checks that `clippy:unnecessary_wraps` is not triggered.
-// pub mod unnecessary_wraps {
-//     mod filters {
-//         use std::fmt::Display;
+    mod filters {
+        use std::fmt::Display;
 
-//         #[askama::filter_fn]
-//         pub fn simple(value: impl Display, _env: &dyn askama::Values) -> askama::Result<String> {
-//             Ok(value.to_string())
-//         }
-//     }
+        #[askama::filter_fn]
+        pub(super) fn simple(
+            value: impl Display,
+            _env: &dyn askama::Values,
+        ) -> askama::Result<String> {
+            Ok(value.to_string())
+        }
+    }
 
-//     #[derive(askama::Template)]
-//     #[template(source = r#"{{ "foo" | simple }}"#, ext = "txt")]
-//     struct Foo<'a> {
-//         _bar: &'a (),
-//     }
-// }
-
-// Checks that `clippy::elidable_lifetime_names` is not triggered.
-pub mod elidable_lifetime_names {
-    #[derive(Debug, askama::Template)]
-    #[template(source = "", ext = "txt")]
+    #[derive(Template)]
+    #[template(source = r#"{{ "Hello" | simple }}"#, ext = "txt")]
     struct Test<'a> {
         _data: &'a (),
+    }
+
+    #[test]
+    fn test_output() {
+        let test = Test { _data: &() };
+        assert_eq!(test.render().unwrap(), "Hello");
+    }
+}
+
+/// Checks that `clippy::elidable_lifetime_names` is not triggered.
+pub mod elidable_lifetime_names {
+    use askama::Template;
+
+    #[derive(Debug, Template)]
+    #[template(source = "Hello", ext = "txt")]
+    struct Test<'a> {
+        _data: &'a (),
+    }
+
+    #[test]
+    fn test_output() {
+        let test = Test { _data: &() };
+        assert_eq!(test.render().unwrap(), "Hello");
     }
 }
