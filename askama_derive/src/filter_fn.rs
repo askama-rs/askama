@@ -625,7 +625,7 @@ impl FilterSignature {
     /// fields into the local context by consuming them. Required arguments are unwrapped from
     /// their `Option<>` container, and optional arguments are moved as is.
     /// Then, the actual filter code is inserted after.
-    fn gen_exec_impl(&self, filter_impl: &Block) -> TokenStream {
+    fn gen_exec_impl(&self, sig: &Signature, filter_impl: &Block) -> TokenStream {
         let ident = &self.ident;
         // input variable
         // method generics (only the parameters not already present on struct)
@@ -643,9 +643,11 @@ impl FilterSignature {
             });
         let (all_lifetimes, _) = self.lifetimes_bounds(|_| true);
         let (_, type_lifetimes) = self.lifetimes_bounds(|l| l.used_by_extra_args);
+
         // env variable
         let env_ident = &self.arg_env.ident;
         let env_ty = &self.arg_env.ty;
+
         // struct generics
         let required_generics: Vec<_> = self
             .args_required_generics
@@ -657,6 +659,7 @@ impl FilterSignature {
 
         // filter result
         let result_ty = &self.result_ty;
+
         // variables
         let required_args = self.args_required.iter().map(|a| {
             let mutability = a.mutability;
@@ -673,15 +676,21 @@ impl FilterSignature {
             }
         });
 
+        let fn_token = &sig.fn_token;
         let impl_generics = quote! { #(#required_generics: #required_generic_bounds,)* };
         let impl_struct_generics = quote! { #(#required_generics,)* #(#required_flags,)* };
         let lifetimes_fillers = self.lifetimes_fillers(|l| l.used_by_extra_args);
-        quote! {
+        quote_spanned! {
+            sig.paren_token.span =>
             // if all required arguments have been supplied (P0 == true, P1 == true)
             // ... the execute() method is "unlocked":
             impl<#(#all_lifetimes,)* #impl_generics> #ident<'_, #(#type_lifetimes,)* #impl_struct_generics> {
                 #[inline(always)]
-                pub fn execute< #(#input_bounds,)*>(self, #input_mutability #input_ident: #input_ty, #env_ident: #env_ty) #result_ty {
+                pub #fn_token execute< #(#input_bounds,)* >(
+                    self,
+                    #input_mutability #input_ident: #input_ty,
+                    #env_ident: #env_ty
+                ) #result_ty {
                     // map filter variables with original name into scope
                     #( #required_args )*
                     #( #optional_args )*
@@ -717,7 +726,7 @@ fn filter_fn_impl(attr: TokenStream, ffn: &ItemFn) -> Result<TokenStream, Compil
     let struct_def = fsig.gen_struct_definition(&ffn.vis);
     let default_impl = fsig.gen_default_impl();
     let setter_impl = fsig.gen_setters();
-    let exec_impl = fsig.gen_exec_impl(&ffn.block);
+    let exec_impl = fsig.gen_exec_impl(&ffn.sig, &ffn.block);
 
     Ok(quote!(
         #struct_def
