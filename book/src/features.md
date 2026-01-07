@@ -4,7 +4,7 @@ Some features in askama are opt-in to reduce the amount of dependencies,
 and to keep the compilation time low.
 
 To opt-in to a feature, you can use `features = […]`.
-E.g. if you want to use the filter [`|json`](filters.html#json--tojson),
+E.g. if you want to use the filter [`|json`](filters.html#json),
 you have to opt-in to the feature [`"serde_json"`](#serde_json):
 
 ```toml
@@ -112,7 +112,7 @@ even if it raises the <abbr title="Minimum Supported Rust Version">MSRV</abbr>.
 
 </div>
 
-Enables the filter [`|json`](filters.html#json--tojson).
+Enables the filter [`|json`](filters.html#json).
 
 ### `"code-in-doc"`
 

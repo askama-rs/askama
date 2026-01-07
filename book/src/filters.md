@@ -15,8 +15,7 @@ Askama has a collection of built-in filters, documented below, but can also incl
 Additionally, the `json` filter is included in the built-in filters, but is disabled by default.
 Enable it with Cargo features (see below for more information).
 
-## Built-In Filters
-[#built-in-filters]: #built-in-filters
+## Built-In Filters { #built-in-filters }
 
 Built-in filters that take (optional) arguments can be called with named arguments, too.
 The order of the named arguments does not matter, but named arguments must come after
@@ -28,7 +27,6 @@ If you are fine with the default empty string for the singular, and you only wan
 specific plural, then you can call the filter like `dog{{ count | pluralize(plural = "gies") }}`.
 
 ### assigned_or
-[#assigned_or]: #assigned_or
 
 ```jinja
 {{ variable_or_expression | assigned_or(fallback) }}
@@ -51,7 +49,6 @@ If the value is an identifier, then it is first tested of the variable name is d
 See also [`|defined_or`][#defined_or].
 
 ### capitalize
-[#capitalize]: #capitalize
 
 <blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
 enabled by <code>"alloc"</code><br/>
@@ -77,7 +74,6 @@ Hello
 ```
 
 ### center
-[#center]: #center
 
 <blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
 enabled by <code>"alloc"</code><br/>
@@ -102,7 +98,6 @@ Output:
 ```
 
 ### default
-[#default]: #default
 
 ```jinja,ignore
 {{ variable_or_expression | default(default_value) }}
@@ -118,7 +113,6 @@ Askama provides [`|defined_or`][#defined_or] and [`|assigned_or`][#assigned_or] 
 better express the intention and should generally be used instead of this filter.
 
 ### defined_or
-[#defined_or]: #defined_or
 
 ```jinja
 {{ variable | defined_or(fallback) }}
@@ -142,8 +136,7 @@ If you remove the variable, then the output is the default value: `Hi`:
 
 See also [`|assigned_or`][#assigned_or].
 
-### deref
-[#deref]: #deref
+### deref { #deref }
 
 ```jinja
 {{ expression | deref }}
@@ -166,8 +159,7 @@ let s = &String::from("a");
 if *s == String::from("b") {}
 ```
 
-### escape | e
-[#escape]: #escape--e
+### escape | e { #escape }
 
 ```jinja
 {{ text_to_escape | e }}
@@ -215,7 +207,6 @@ Escape &lt;&gt;&amp;
 [`escape = "none"`]: creating_templates.html#the-template-attribute
 
 ### filesizeformat
-[#filesizeformat]: #filesizeformat
 
 ```jinja
 {{ number_of_bytes | filesizeformat }}
@@ -246,7 +237,6 @@ Output:
 ```
 
 ### fmt
-[#fmt]: #fmt
 
 <blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
 enabled by <code>"alloc"</code><br/>
@@ -278,7 +268,6 @@ Which is not possible using the `format` filter.
 ```
 
 ### format
-[#format]: #format
 
 <blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
 enabled by <code>"alloc"</code><br/>
@@ -304,7 +293,6 @@ All arguments are passed through to [`format!()`] by the Askama code generator.
 [`format!()`]: https://doc.rust-lang.org/stable/std/macro.format.html
 
 ### indent
-[#indent]: #indent
 
 ```jinja
 {{ text_to_indent | indent(width, [first], [blank]) }}
@@ -345,7 +333,6 @@ $ bar
 ```
 
 ### join
-[#join]: #join
 
 ```jinja
 {{ iterable | join(separator) }}
@@ -370,7 +357,6 @@ foo, bar, bazz
 ```
 
 ### linebreaks
-[#linebreaks]: #linebreaks
 
 ```jinja
 {{ text_to_break | linebreaks }}
@@ -393,7 +379,6 @@ Output:
 ```
 
 ### linebreaksbr
-[#linebreaksbr]: #linebreaksbr
 
 ```jinja
 {{ text_to_break | linebreaksbr }}
@@ -414,7 +399,6 @@ hello<br />world<br /><br />from<br />askama
 ```
 
 ### paragraphbreaks
-[#paragraphbreaks]: #paragraphbreaks
 
 ```jinja
 {{ text_to_break | paragraphbreaks }}
@@ -438,8 +422,7 @@ Output:
 <p>hello\nworld</p><p>from</p><p>askama</p>
 ```
 
-### lower | lowercase
-[#lower]: #lower--lowercase
+### lower | lowercase { #lower }
 
 <blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
 enabled by <code>"alloc"</code><br/>
@@ -465,8 +448,7 @@ Output:
 hello
 ```
 
-### `pluralize`
-[#pluralize]: #pluralize
+### pluralize
 
 ```jinja,ignore
 {{ integer | pluralize }}
@@ -500,7 +482,6 @@ More complex languages that know multiple plurals might be impossible to impleme
 though.
 
 ### ref
-[#ref]: #ref
 
 ```jinja
 {{ expression | ref }}
@@ -523,7 +504,6 @@ will become:
 ```
 
 ### reject
-[#reject]: #reject
 
 This filter filters out values matching the given value/filter.
 
@@ -566,7 +546,6 @@ Output will be:
 ```
 
 ### safe
-[#safe]: #safe
 
 ```jinja
 {{ expression | safe }}
@@ -586,8 +565,7 @@ Output:
 <p>I'm Safe</p>
 ```
 
-### title | titlecase
-[#title]: #title--titlecase
+### title | titlecase { #title }
 
 <blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
 enabled by <code>"alloc"</code><br/>
@@ -615,7 +593,6 @@ Hello World
 ```
 
 ### trim
-[#trim]: #trim
 
 <blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
 enabled by <code>"alloc"</code><br/>
@@ -641,7 +618,6 @@ hello
 ```
 
 ### truncate
-[#truncate]: #truncate
 
 ```jinja
 {{ text_to_truncate | truncate(length) }}
@@ -660,7 +636,6 @@ he...
 ```
 
 ### unique
-[#unique]: #unique
 
 Returns an iterator with all duplicates removed.
 
@@ -684,8 +659,7 @@ Output will be:
 a,b,c,
 ```
 
-### upper | uppercase
-[#upper]: #upper--uppercase
+### upper | uppercase { #upper }
 
 <blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
 enabled by <code>"alloc"</code><br/>
@@ -711,8 +685,7 @@ Output:
 HELLO
 ```
 
-### urlencode | urlencode_strict
-[#urlencode]: #urlencode--urlencode_strict
+### urlencode | urlencode_strict { #urlencode }
 
 <blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
 enabled by <code>"urlencode"</code><br/>
@@ -742,7 +715,6 @@ With `|urlencode` all characters except ASCII letters, digits, and `_.-~/` are e
 With `|urlencode_strict` a forward slash `/` is escaped, too.
 
 ### wordcount
-[#wordcount]: #wordcount
 
 ```jinja
 {{ text_with_words | wordcount }}
@@ -762,8 +734,7 @@ Output:
 5
 ```
 
-## Optional / feature gated filters
-[#optional-filters]: #optional--feature-gated-filters
+## Optional / feature gated filters { #optional-filters }
 
 The following filters can be enabled by requesting the respective feature in the Cargo.toml
 [dependencies section](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html), e.g.
@@ -773,8 +744,7 @@ The following filters can be enabled by requesting the respective feature in the
 askama = { version = "0.12", features = ["serde_json"] }
 ```
 
-### `json` | `tojson`
-[#json]: #json--tojson
+### `json` | `tojson` { #json }
 
 <blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
 enabled by <code>"serde_json"</code>
@@ -824,7 +794,6 @@ Prefix with two &nbsp; characters:
 ```
 
 ## Custom Filters
-[#custom-filters]: #custom-filters
 
 To define your own filters, either have a module named `filters` in scope of the context of your
 `#[derive(Template]) struct`, and define the filters as functions within this module;
@@ -834,6 +803,7 @@ unless "my_filter" happens to be a built-in filter.
 Note that built-in filters take precedence, so your custom filters will always be shadowed by built-in filters (if they have the same name). To avoid this, call your custom filters with a full path.
 
 ### Anatomy of a custom filter function
+
 ```rust
 #[askama::filter_fn]
 pub fn example_filter1(
@@ -857,6 +827,7 @@ The basic anatomy of a filter function **must always** look like this:
 Additionally to this basic structure, your custom filter function can also have:
 
 **An arbitrary amount of required arguments:**
+
 ```rust
 #[askama::filter_fn]
 pub fn example_filter2<T: ToString>(
@@ -884,6 +855,7 @@ pub fn example_filter3(
 ```
 
 ### Calling custom filters
+
 Thanks to the `askama::filter_fn` macro, invocations to your custom filter functions can also use named arguments - though currently providing diagnostic compile error messages that are a lot less readable compared to builtin filters, when you're using them wrong in your templates. All of these are valid invocations of the filter functions above:
 
 ```jinja
@@ -899,6 +871,7 @@ Thanks to the `askama::filter_fn` macro, invocations to your custom filter funct
 ```
 
 ### Reference Value Passing Issues
+
 Due to the nature of askama's generated code, you will often encounter a mix of by-value and various degrees of references to your variables in the jinja template. If you declare your custom filter input value as one concrete type, like `&str`, you will often be confronted with the problem of having to (de)-reference your input variables: `{{ value | filter }}`, `{{ *value | filter }}`, `{{ **value | filter }}`, ...
 
 To avoid this, try to declare your filter's input argument using trait bounds, which are also implemented for references. For example, instead of:
@@ -914,7 +887,7 @@ pub fn example_filter4(value: impl Display, env: &dyn askama::Values) -> askama:
 as `Display` is implemented for `&str` as well as for `&&str`, `&&&str`, ....
 This cleans up your invocation sites, as no dereferencing (and no additional compile roundtripping) is required.
 
-### Examples
+### Examples { #custom-filter-examples }
 
 Implementing a filter that replaces all instances of `"oo"` for `"aa"`.
 ```rust
@@ -978,7 +951,6 @@ fn main() {
 ```
 
 ### Runtime values
-[#runtime-values]: #runtime-values
 
 It is possible to access [runtime values](./runtime.html) in custom filters:
 
@@ -987,7 +959,6 @@ It is possible to access [runtime values](./runtime.html) in custom filters:
 ```
 
 ## HTML-safe types
-[#html-safe-types]: #html-safe-types
 
 Askama will try to avoid escaping types that generate string representations that do not contain
 "HTML-unsafe characters".
@@ -1008,7 +979,6 @@ impl askama::filters::HtmlSafe for MyStruct {}
 This automatically marks references `&MyStruct` as HTML-safe, too.
 
 ### Safe output of custom filters
-[#safe-output-of-custom-filters]: #safe-output-of-custom-filters
 
 Say, you have a custom filter `| strip` that removes all HTML-unsafe characters:
 

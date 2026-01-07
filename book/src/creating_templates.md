@@ -30,7 +30,8 @@ code generation process takes some options that can be specified through
 the `template()` attribute. The following sub-attributes are currently
 recognized:
 
-* `path` (e.g. `path = "foo.html"`): sets the path to the template file. The
+* #### `path`
+  (e.g. `path = "foo.html"`): sets the path to the template file. The
   path is interpreted as relative to the configured template directories
   (by default, this is a `templates` directory next to your `Cargo.toml`).
   The file name extension is used to infer an escape mode (see below). In
@@ -43,7 +44,8 @@ recognized:
   struct HelloTemplate<'a> { ... }
   ```
 
-* `source` (e.g. `source = "{{ foo }}"`): directly sets the template source.
+* #### `source`
+  (e.g. `source = "{{ foo }}"`): directly sets the template source.
   This can be useful for test cases or short templates. The generated path
   is undefined, which generally makes it impossible to refer to this
   template from other templates. If `source` is specified, `ext` must also
@@ -56,10 +58,12 @@ recognized:
   }
   ```
 
-* `in_doc` (e.g. `in_doc = true`):
+* #### `in_doc`
+  (e.g. `in_doc = true`):
   please see the section ["documentation as template code"](#documentation-as-template-code).
 
-* `ext` (e.g. `ext = "txt"`): lets you specify the content type as a file
+* #### `ext`
+  (e.g. `ext = "txt"`): lets you specify the content type as a file
   extension. This is used to infer an escape mode (see below), and some
   web framework integrations use it to determine the content type.
   Cannot be used together with `path`.
@@ -71,7 +75,8 @@ recognized:
   }
   ```
 
-* `print` (e.g. `print = "code"`): enable debugging by printing nothing
+* #### `print`
+  (e.g. `print = "code"`): enable debugging by printing nothing
   (`none`), the parsed syntax tree (`ast`), the generated code (`code`)
   or `all` for both. The requested data will be printed to stdout at
   compile time.
@@ -81,7 +86,8 @@ recognized:
   struct HelloTemplate<'a> { ... }
   ```
 
-* `block` (e.g. `block = "block_name"`): renders the block by itself.
+* #### `block`
+  (e.g. `block = "block_name"`): renders the block by itself.
   Expressions outside of the block are not required by the struct, and
   inheritance is also supported. This can be useful when you need to
   decompose your template for partial rendering, without needing to
@@ -92,7 +98,8 @@ recognized:
   struct HelloTemplate<'a> { ... }
   ```
 
-* `blocks` (e.g. `blocks = ["title", "content"]`):
+* #### `blocks`
+  (e.g. `blocks = ["title", "content"]`):
   automatically generates (a number of) sub-templates that act as if they had a
   `block = "..."` attribute. You can access the sub-templates with the method
   <code>my_template.as_<em>block_name</em>()</code>, where *`block_name`* is the
@@ -122,7 +129,8 @@ recognized:
   );
   ```
 
-* `escape` (e.g. `escape = "none"`): override the template's extension used for
+* #### `escape`
+  (e.g. `escape = "none"`): override the template's extension used for
   the purpose of determining the escaper for this template. See the section
   on configuring custom escapers for more information.
   ```rust
@@ -131,7 +139,8 @@ recognized:
   struct HelloTemplate<'a> { ... }
   ```
 
-* `syntax` (e.g. `syntax = "foo"`): set the syntax name for a parser defined
+* #### `syntax`
+  (e.g. `syntax = "foo"`): set the syntax name for a parser defined
   in the configuration file. The default syntax , "default", is the one
   provided by Askama.
   ```rust
@@ -140,7 +149,8 @@ recognized:
   struct HelloTemplate<'a> { ... }
   ```
 
-* `config` (e.g. `config = "config_file_path"`): set the path for the config file
+* #### `config`
+  (e.g. `config = "config_file_path"`): set the path for the config file
   to be used. The path is interpreted as relative to your crate root.
   ```rust
   #[derive(Template)]
@@ -148,8 +158,8 @@ recognized:
   struct HelloTemplate<'a> { ... }
   ```
 
-* `askama` (e.g. `askama = askama`):
-  If you are using askama in a subproject, a library or a [macro][book-macro], it might be
+* #### `askama`
+  (e.g. `askama = askama`): if you are using askama in a subproject, a library or a [macro][book-macro], it might be
   necessary to specify the [path][book-tree] where to find the module `askama`:
 
   [book-macro]: https://doc.rust-lang.org/book/ch19-06-macros.html
@@ -255,7 +265,6 @@ enum AreaWithBlocks {
 ```
 
 ## Documentation as template code
-[#documentation-as-template-code]: #documentation-as-template-code
 
 As an alternative to supplying the code template code in an external file (e.g. `path` argument),
 or as a string (e.g. `source` argument), you can also enable the `"code-in-doc"` feature.
