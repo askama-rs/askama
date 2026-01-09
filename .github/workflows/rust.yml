@@ -30,7 +30,7 @@ jobs:
       - run: |
           set -eu
           for PKG in \
-            bench-build examples/actix-web-app examples/axum-app examples/poem-app examples/rocket-app examples/salvo-app examples/warp-app fuzzing \
+            bench-build examples/actix-web-app examples/axum-app examples/poem-app examples/rocket-app examples/warp-app fuzzing \
             askama askama_derive askama_escape askama_macros askama_parser \
             testing testing-alloc testing-no-std testing-renamed
           do
@@ -129,7 +129,7 @@ jobs:
           cargo sort --check --check-format --grouped
           set -eu
           for PKG in \
-            bench-build examples/actix-web-app examples/axum-app examples/poem-app examples/rocket-app examples/salvo-app examples/warp-app fuzzing \
+            bench-build examples/actix-web-app examples/axum-app examples/poem-app examples/rocket-app examples/warp-app fuzzing \
             askama askama_derive askama_escape askama_macros askama_parser \
             testing testing-alloc testing-no-std testing-renamed
           do
@@ -171,7 +171,7 @@ jobs:
     strategy:
       matrix:
         package: [
-          bench-build, examples/actix-web-app, examples/axum-app, examples/poem-app, examples/rocket-app, examples/salvo-app, examples/warp-app, fuzzing,
+          bench-build, examples/actix-web-app, examples/axum-app, examples/poem-app, examples/rocket-app, examples/warp-app, fuzzing,
           askama, askama_derive, askama_escape, askama_macros, askama_parser,
           testing, testing-alloc, testing-no-std, testing-renamed,
         ]
