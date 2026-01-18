@@ -8,6 +8,25 @@ list of all changes and improvements that might be useful to you.
 
 * The <abbr title="minimum supported rust version">MSRV</abbr> of this release is 1.88.
 
+* Filter functions now need to have the `filter_fn` proc-macro used on them. So if you had:
+
+  ```rust
+  pub fn to_string(s: impl ToString, _: &dyn Values) -> Result<String> {
+      Ok(s.to_string())
+  }
+  ```
+
+  It now becomes:
+
+  ```rust
+  #[askama::filter_fn]
+  pub fn to_string(s: impl ToString, _: &dyn Values) -> Result<String> {
+      Ok(s.to_string())
+  }
+  ```
+
+* Variables declared in the templates cannot be named `caller` anymore.
+
 ## From askama v0.13 to askama v0.14
 
 * The <abbr title="minimum supported rust version">MSRV</abbr> of this release is 1.83.
