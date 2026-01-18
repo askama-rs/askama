@@ -1,2 +1,1 @@
 ⚠️ X.txt:4:3: block `content` was already called at `X.txt:3:3` so the previous one will be ignored
-⚠️ X2.txt:3:3: block `content` was already called at `testing/templates/child.html:2:3` so the previous one will be ignored
