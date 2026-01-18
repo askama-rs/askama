@@ -36,6 +36,13 @@ impl<'a, 'h> Heritage<'a, 'h> {
     }
 }
 
+pub(crate) fn duplicated_block_call(current: FileInfo<'_>, block_name: &str, prev: &FileInfo<'_>) {
+    eprintln!(
+        "⚠️ {:#}: block `{}` was already called at `{:#}` so the previous one will be ignored",
+        current, block_name, prev,
+    );
+}
+
 type BlockAncestry<'a, 'h> = HashMap<&'a str, Vec<(&'h Context<'a>, &'a BlockDef<'a>)>>;
 
 #[derive(Clone)]

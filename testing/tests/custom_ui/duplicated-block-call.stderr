@@ -1,0 +1,2 @@
+⚠️ Foo.txt:3:3: block `foo` was already called at `Foo.txt:2:3` so the previous one will be ignored
+⚠️ testing/templates/extend-duplicated.html:4:3: block `content` was already called at `testing/templates/extend-duplicated.html:3:3` so the previous one will be ignored
