@@ -404,10 +404,7 @@ impl CalledBlocks<'_> {
             // The first one is always the definition so we skip it.
             && let Some(prev) = calls.iter().skip(1).last()
         {
-            eprintln!(
-                "⚠️ {:#}: block `{}` was already called at `{:#}` so the previous one will be ignored",
-                current, block_name, prev,
-            );
+            crate::heritage::duplicated_block_call(current, block_name, prev);
         }
     }
 }
@@ -450,11 +447,11 @@ fn build_template_item(
         );
     }
 
-    // Now that all `extends` have been processed, we can finish to check for duplicated block
-    // calls.
+    // Now that all `extends` have been processed, we can finish to handle block calls.
     let mut unprocessed_items = std::mem::take(&mut called_blocks.unprocessed);
     while let Some((name, file_info)) = unprocessed_items.pop() {
-        called_blocks.check_if_already_called(name, file_info);
+        // We don't need to check if the calls are duplicated since the newest will always overwrite
+        // the one from the template they extend.
         called_blocks
             .called_blocks
             .entry(name)
