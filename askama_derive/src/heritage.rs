@@ -119,6 +119,11 @@ impl<'a> Context<'a> {
                                 "⚠️ {:#}: block `{}` was already called at `{:#}` so the previous one will be ignored",
                                 current, &*b.name, prev,
                             );
+                            eprintln!(
+                                "  You can repeat blocks by using the `template` proc-macro blocks: \
+                                 https://askama.readthedocs.io/en/latest/creating_templates.html#blocks"
+                            );
+                            eprintln!("⚠️⚠️⚠️ This will stop compiling starting next version!");
                         } else if extends.is_none() {
                             called_blocks.check_if_already_called(*b.name, current);
                             called_blocks
