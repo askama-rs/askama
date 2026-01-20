@@ -8,7 +8,7 @@ use parser::{Expr, Span, WithSpan};
 use quote::quote_spanned;
 
 use crate::generator::node::AstLevel;
-use crate::generator::{Generator, LocalMeta, is_copyable};
+use crate::generator::{Generator, LocalMeta, RenderFor, is_copyable};
 use crate::heritage::Context;
 use crate::integration::Buffer;
 use crate::{CompileError, HashMap, field_new, quote_into};
@@ -30,6 +30,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         &self,
         buf: &'b mut Buffer,
         generator: &mut Generator<'a, 'h>,
+        render_for: RenderFor,
     ) -> Result<usize, CompileError> {
         if generator
             .seen_callers
@@ -77,6 +78,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                 &self.macro_def.nodes,
                 &mut content,
                 AstLevel::Nested,
+                render_for,
             )?;
 
             this.flush_ws(self.macro_def.ws2);
