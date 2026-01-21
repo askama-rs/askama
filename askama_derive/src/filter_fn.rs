@@ -12,7 +12,7 @@ use syn::spanned::Spanned;
 use syn::token::Mut;
 use syn::{
     Block, Expr, FnArg, GenericParam, ItemFn, Lifetime, Pat, PatType, ReturnType, Signature, Token,
-    Type, TypeParamBound, Visibility,
+    Type, TypeParamBound, Visibility, WhereClause,
 };
 
 use crate::{CompileError, HashMap, HashSet, parse_ts_or_compile_error};
@@ -130,6 +130,8 @@ struct FilterSignature {
     args_optional: Vec<FilterArgumentOptional>,
     /// Generic parameters in use by the required filter arguments
     args_required_generics: HashMap<Ident, FilterArgumentGeneric>,
+    /// The `where` clause of the source function
+    where_clause: Option<WhereClause>,
     /// Filter function result type
     result_ty: ReturnType,
 }
@@ -272,6 +274,7 @@ impl FilterSignature {
             args_required,
             args_optional,
             args_required_generics,
+            where_clause: sig.generics.where_clause.clone(),
             result_ty: sig.output.clone(),
         })
     }
@@ -677,6 +680,7 @@ impl FilterSignature {
         });
 
         let fn_token = &sig.fn_token;
+        let where_clause = self.where_clause.as_ref();
         let impl_generics = quote! { #(#required_generics: #required_generic_bounds,)* };
         let impl_struct_generics = quote! { #(#required_generics,)* #(#required_flags,)* };
         let lifetimes_fillers = self.lifetimes_fillers(|l| l.used_by_extra_args);
@@ -690,7 +694,7 @@ impl FilterSignature {
                     self,
                     #input_mutability #input_ident: #input_ty,
                     #env_ident: #env_ty
-                ) #result_ty {
+                ) #result_ty #where_clause {
                     // map filter variables with original name into scope
                     #( #required_args )*
                     #( #optional_args )*
