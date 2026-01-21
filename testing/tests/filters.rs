@@ -717,3 +717,39 @@ fn filter_lifetimes() {
 
     assert_eq!(X.render().unwrap(), "a-b");
 }
+
+// Checks support for `where` clauses.
+#[test]
+fn issue_671() {
+    mod filters {
+        use std::convert::Infallible;
+
+        #[askama::filter_fn]
+        pub fn or_dash<'a, T>(
+            value: &'a Option<T>,
+            _: &'a dyn askama::Values,
+        ) -> askama::Result<&'a str, Infallible>
+        where
+            T: AsRef<str>,
+        {
+            Ok(match value {
+                Some(value) => value.as_ref(),
+                None => "--",
+            })
+        }
+    }
+
+    #[derive(Template)]
+    #[template(source = r#"{{ foo | or_dash }}"#, ext = "txt")]
+    struct Template {
+        foo: Option<String>,
+    }
+
+    let a = Template { foo: None };
+    assert_eq!(a.render().unwrap(), "--");
+
+    let a = Template {
+        foo: Some("ok".to_string()),
+    };
+    assert_eq!(a.render().unwrap(), "ok");
+}
