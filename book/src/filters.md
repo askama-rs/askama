@@ -38,7 +38,7 @@ Otherwise the value.
 
 ```jinja
 {% let greeting = Some("Hello") %}
-{{ greeting.as_ref() | assigned_or("Hi", true) }}
+{{ greeting.as_ref() | assigned_or("Hi") }}
 ```
 
 ```html
