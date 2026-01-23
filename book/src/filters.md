@@ -123,7 +123,7 @@ Return a `fallback` value if the identifier is undefined:
 
 ```jinja
 {% let greeting = "Hello" %}
-{{ greeting | default("Hi") }}
+{{ greeting | defined_or("Hi") }}
 ```
 
 Since the variable `greeting` is defined, the output is its value: `Hello`.
@@ -131,7 +131,7 @@ Since the variable `greeting` is defined, the output is its value: `Hello`.
 If you remove the variable, then the output is the default value: `Hi`:
 
 ```jinja
-{{ greeting | default("Hi") }}
+{{ greeting | defined_or("Hi") }}
 ```
 
 See also [`|assigned_or`][#assigned_or].
