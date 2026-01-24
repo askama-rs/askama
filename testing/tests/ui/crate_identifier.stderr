@@ -171,8 +171,8 @@ error: `crate` cannot be used as an identifier
        "crate<338}}6unsafe/63a3ae\u{c}\u{c}\u{c}%et"
   --> tests/ui/crate_identifier.rs:99:14
    |
-99 |     source = "{{\u{c}KK3e331<c7}}61/63m3333u7<c0.}}\u{6}\0\u{c}\u{c}{{c/crate<338}}6unsafe/63a3ae\u{c}\u{c}\u{c}%et"
-   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+99 | ... = "{{\u{c}KK3e331<c7}}61/63m3333u7<c0.}}\u{6}\0\u{c}\u{c}{{c/crate<338}}6unsafe/63a3ae\u{c}\u{c}\u{c}%et"
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: `super` cannot be used as an identifier
  --> <source attribute>:1:27

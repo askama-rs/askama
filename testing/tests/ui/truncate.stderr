@@ -17,14 +17,25 @@ error: `truncate` filter accepts at most 1 argument; its arguments are: (length)
 error[E0277]: the trait bound `usize: TryFrom<f32>` is not satisfied
  --> tests/ui/truncate.rs:9:10
   |
-9 | #[derive(Template)]
-  |          ^^^^^^^^ the trait `From<f32>` is not implemented for `usize`
-  |
-  = help: the following other types implement trait `From<T>`:
-            `usize` implements `From<bool>`
-            `usize` implements `From<std::ptr::Alignment>`
-            `usize` implements `From<u16>`
-            `usize` implements `From<u8>`
-  = note: required for `f32` to implement `Into<usize>`
-  = note: required for `usize` to implement `TryFrom<f32>`
-  = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
+  9 | #[derive(Template)]
+    |          ^^^^^^^^ the trait `From<f32>` is not implemented for `usize`
+    |
+help: the following other types implement trait `From<T>`
+   --> $RUST/core/src/convert/num.rs
+    |
+ 91 | impl_from!(bool => usize);
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^ `usize` implements `From<bool>`
+...
+    | impl_from!(u8 => usize, #[stable(feature = "lossless_int_conv", since = "1.5.0")]);
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `usize` implements `From<u8>`
+...
+    | impl_from!(u16 => usize, #[stable(feature = "lossless_iusize_conv", since = "1.26.0")]);
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `usize` implements `From<u16>`
+    |
+   ::: $RUST/core/src/ptr/alignment.rs
+    |
+    | impl const From<Alignment> for usize {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `usize` implements `From<std::ptr::Alignment>`
+    = note: required for `f32` to implement `Into<usize>`
+    = note: required for `usize` to implement `TryFrom<f32>`
+    = note: this error originates in the derive macro `Template` which comes from the expansion of the macro `impl_from` (in Nightly builds, run with -Z macro-backtrace for more info)

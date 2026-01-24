@@ -11,8 +11,8 @@ error: named argument `plural` was passed more than once
        "plural = \"ies\") }}."
   --> tests/ui/named_filter_arguments.rs:14:14
    |
-14 |     source = r#"I have {{ count }} butterfl{{ count | pluralize(plural = "y", plural = "ies") }}."#,
-   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+14 | ... = r#"I have {{ count }} butterfl{{ count | pluralize(plural = "y", plural = "ies") }}."#,
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: `pluralize` filter does not have an argument `pl`; its arguments are: ([singular], [plural])
  --> NamedButAlreadyPositional.txt:1:53
