@@ -1,6 +1,6 @@
 error[E0599]: no method named `with_0` found for struct `noargs<'filter>` in the current scope
- --> tests/ui/filter-invocation-invalid-arguments.rs:22:10
-  |
+  --> tests/ui/filter-invocation-invalid-arguments.rs:22:10
+   |
  4 |     #[askama::filter_fn]
    |     -------------------- method `with_0` not found for this struct
 ...
@@ -23,8 +23,8 @@ help: the trait `ValidArgIdx<0>` is not implemented for `noargs<'_>`
    = note: this error originates in the derive macro `Template` which comes from the expansion of the attribute macro `askama::filter_fn` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0599]: no method named `with_req1` found for struct `noargs<'filter>` in the current scope
- --> tests/ui/filter-invocation-invalid-arguments.rs:26:10
-  |
+  --> tests/ui/filter-invocation-invalid-arguments.rs:26:10
+   |
  4 |     #[askama::filter_fn]
    |     -------------------- method `with_req1` not found for this struct
 ...
