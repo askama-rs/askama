@@ -1146,10 +1146,19 @@ fn starts_with_self_dot(expr_code: &TokenStream) -> bool {
 }
 
 fn write_resolved(buf: &mut Buffer, resolved: &str, span: proc_macro2::Span) {
-    for (idx, name) in resolved.split('.').enumerate() {
-        if idx > 0 {
-            buf.write_token(Token![.], span);
+    if resolved.contains('(') {
+        // FIXME: This is possible when we have `__askama_item.index` for example. However,
+        // can it happen in other cases?
+        //
+        // Also, it's super annoying in case there is a keyword...
+        let expr = TokenStream::from_str(resolved).unwrap();
+        quote_into!(buf, span, { #expr });
+    } else {
+        for (idx, name) in resolved.split('.').enumerate() {
+            if idx > 0 {
+                buf.write_token(Token![.], span);
+            }
+            buf.write_field(name, span);
         }
-        buf.write_field(name, span);
     }
 }
