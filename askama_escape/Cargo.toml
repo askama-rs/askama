@@ -1,6 +1,6 @@
 [package]
 name = "askama_escape"
-version = "0.15.1"
+version = "0.15.2"
 description = "HTML escaping, extracted from Askama"
 keywords = ["html", "escaping"]
 categories = ["no-std", "no-std::no-alloc"]
