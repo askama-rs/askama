@@ -8,7 +8,7 @@ publish = false
 
 [dependencies]
 askama = { path = "../askama", default-features = false, features = ["std"] }
-askama_macros = { path = "../askama_macros", version = "0.15.1", features = ["std"] }
+askama_macros = { path = "../askama_macros", features = ["std"] }
 
 [features]
 default = []
