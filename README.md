@@ -2,7 +2,7 @@
 
 [![Crates.io](https://img.shields.io/crates/v/askama?logo=rust&style=flat-square&logoColor=white "Crates.io")](https://crates.io/crates/askama)
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/askama-rs/askama/rust.yml?branch=master&logo=github&style=flat-square&logoColor=white "GitHub Workflow Status")](https://github.com/askama-rs/askama/actions/workflows/rust.yml)
-[![Book](https://img.shields.io/readthedocs/askama?label=book&logo=readthedocs&style=flat-square&logoColor=white "Book")](https://askama.readthedocs.io/)
+[![Book](https://img.shields.io/readthedocs/askama?label=book&logo=readthedocs&style=flat-square&logoColor=white "Book")](https://askama.rs/)
 [![docs.rs](https://img.shields.io/docsrs/askama?logo=docsdotrs&style=flat-square&logoColor=white "docs.rs")](https://docs.rs/askama/)
 
 **Askama** implements a template rendering engine based on [Jinja](https://jinja.palletsprojects.com/),
@@ -16,9 +16,9 @@ All feedback welcome! Feel free to file bugs, requests for documentation and
 any other feedback to the [issue tracker][issues].
 
 You can find the documentation about our syntax, features, configuration in our book:
-[askama.readthedocs.io](https://askama.readthedocs.io/).
+[askama.rs](https://askama.rs/).
 
-Have a look at our [*Askama Playground*](https://askama-rs.github.io/askama_playground/),
+Have a look at our [*Askama Playground*](https://play.askama.rs/),
 if you want to try out askama's code generation online.
 
 ### Feature highlights

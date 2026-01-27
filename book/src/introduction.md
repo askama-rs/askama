@@ -8,7 +8,7 @@ See below for an example.
 All feedback welcome! Feel free to file bugs, requests for documentation and
 any other feedback to the [issue tracker][issues].
 
-Have a look at our [*Askama Playground*](https://askama-rs.github.io/askama_playground/),
+Have a look at our [*Askama Playground*](https://play.askama.rs/),
 if you want to try out askama's code generation online.
 
 ## Feature highlights

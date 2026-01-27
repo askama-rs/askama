@@ -1,4 +1,4 @@
-# askama_escape: HTML escaping, extracted from [Askama](https://askama.readthedocs.io/)
+# askama_escape: HTML escaping, extracted from [Askama](https://askama.rs/)
 
 [![Crates.io](https://img.shields.io/crates/v/askama_escape?logo=rust&style=flat-square&logoColor=white "Crates.io")](https://crates.io/crates/askama_escape)
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/askama-rs/askama/rust.yml?branch=master&logo=github&style=flat-square&logoColor=white "GitHub Workflow Status")](https://github.com/askama-rs/askama/actions/workflows/rust.yml)

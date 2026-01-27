@@ -121,7 +121,7 @@ impl<'a> Context<'a> {
                             );
                             eprintln!(
                                 "  You can repeat blocks by using the `template` proc-macro blocks: \
-                                 https://askama.readthedocs.io/en/latest/creating_templates.html#blocks"
+                                 https://askama.rs/en/latest/creating_templates.html#blocks"
                             );
                             eprintln!("⚠️⚠️⚠️ This will stop compiling starting next version!");
                         } else if extends.is_none() {
