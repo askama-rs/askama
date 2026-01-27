@@ -646,3 +646,26 @@ fn test_macro_raw_lifetime() {
 
     assert_eq!(Foo.render().unwrap(), "ok");
 }
+
+// Because of how we generated "resolved variables", we had it in two parts:
+// first the `(__askama_item` and then `index0)` (with the `.` generated in the
+// middle). Of course, doing that in two passes went horribly wrong as you cannot
+// generate `Ident` from that.
+#[test]
+fn test_loop_variable_in_macro_call() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro w(lol) -%}
+y: {{ lol -}}
+{% endmacro -%}
+
+{%- for x in &[0] -%}
+{%- call w(loop.index) %}{% endcall -%}
+{% endfor %}"#,
+        ext = "txt"
+    )]
+    struct Foo;
+
+    assert_eq!(Foo.render().unwrap(), "y: 1");
+}
