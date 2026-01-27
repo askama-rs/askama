@@ -62,6 +62,16 @@ pub(crate) enum TmplKind<'a> {
     Block(&'a str),
 }
 
+/// This enum allows to know if we render the "first phase" of an `extends`, (the `Extends` variant)
+/// meaning generating all variables and method/function calls and nothing else. The second one
+/// (`Template`) is the "default", we generate everything.
+#[derive(Default, Clone, Copy, PartialEq)]
+enum RenderFor {
+    #[default]
+    Template,
+    Extends,
+}
+
 struct Generator<'a, 'h> {
     /// The template input state: original struct AST and attributes
     input: &'a TemplateInput<'a>,
@@ -573,7 +583,7 @@ fn compile_time_escape<'a>(expr: &WithSpan<Box<Expr<'a>>>, escaper: &str) -> Opt
     }))
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 struct LocalVariableMeta {
     refs: Option<String>,
     initialized: bool,
@@ -585,7 +595,15 @@ struct LocalCallerMeta<'a> {
     call_ctx: Context<'a>,
 }
 
-#[derive(Clone)]
+impl core::fmt::Debug for LocalCallerMeta<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("LocalCallerMeta")
+            .field("def", &self.def)
+            .finish()
+    }
+}
+
+#[derive(Clone, Debug)]
 enum LocalMeta<'a> {
     /// Normal variable
     Variable(LocalVariableMeta),
@@ -630,6 +648,7 @@ impl<'a> LocalMeta<'a> {
     }
 }
 
+#[derive(Debug)]
 struct MapChain<'a> {
     scopes: Vec<HashMap<Cow<'a, str>, LocalMeta<'a>>>,
 }

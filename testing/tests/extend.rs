@@ -23,7 +23,7 @@ fn test_macro_in_block_inheritance() {
     )]
     struct A;
 
-    assert_eq!(A.render().unwrap(), "\n\n1 1\n2 2\n--> 3");
+    assert_eq!(A.render().unwrap(), "1 1\n2 2\n--> 3");
 }
 
 // This test ensures that comments are allowed before `extends` block.
@@ -34,4 +34,29 @@ fn test_comment_before_extend() {
     pub struct X {
         title: &'static str,
     }
+}
+
+// This test ensures that template variables are correctly generated before the `extends`
+// is processed. It also checks that expressions/literals are not rendered.
+#[test]
+fn test_variables_in_extends_blocks() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{% extends "extend_and_import.html" %}
+
+{{ 45 }}
+yup
+
+{% let x = 12 %}
+{%- block header -%}
+    {{ x }} + {{ y }}
+{%- endblock -%}
+{% let y = "hello" %}
+"#,
+        ext = "html"
+    )]
+    struct A;
+
+    assert_eq!(A.render().unwrap(), "12 + hello");
 }
