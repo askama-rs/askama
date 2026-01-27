@@ -1,6 +1,6 @@
 ⚠️ Foo.txt:3:3: block `foo` was already called at `Foo.txt:2:3` so the previous one will be ignored
-  You can repeat blocks by using the `template` proc-macro blocks: https://askama.readthedocs.io/en/latest/creating_templates.html#blocks
+  You can repeat blocks by using the `template` proc-macro blocks: https://askama.rs/en/latest/creating_templates.html#blocks
 ⚠️⚠️⚠️ This will stop compiling starting next version!
 ⚠️ testing/templates/extend-duplicated.html:4:3: block `content` was already called at `testing/templates/extend-duplicated.html:3:3` so the previous one will be ignored
-  You can repeat blocks by using the `template` proc-macro blocks: https://askama.readthedocs.io/en/latest/creating_templates.html#blocks
+  You can repeat blocks by using the `template` proc-macro blocks: https://askama.rs/en/latest/creating_templates.html#blocks
 ⚠️⚠️⚠️ This will stop compiling starting next version!

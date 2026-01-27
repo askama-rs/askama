@@ -13,5 +13,5 @@ To gracefully shut does the server, type ctrl+C in your terminal.
 
 The files of the project contain comments for you to read.
 The recommended reading order is "templates/_layout.html", "templates/index.html",
-"Cargo.toml", "src/main.rs". Also please have a look at our [book](https://askama.readthedocs.io/),
+"Cargo.toml", "src/main.rs". Also please have a look at our [book](https://askama.rs/),
 which explains askama's features in greater detail.
