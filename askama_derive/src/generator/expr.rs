@@ -409,7 +409,7 @@ impl<'a> Generator<'a, '_> {
             Expr::Call(ref v) if !matches!(**v.path, Expr::Path(_)) => {
                 self.visit_expr(ctx, &mut buf, arg)?;
                 let buf = buf.into_token_stream();
-                quote_spanned!(span=> { #buf })
+                quote_spanned!(span=> #buf)
             }
             _ => {
                 self.visit_expr(ctx, &mut buf, arg)?;

@@ -407,3 +407,33 @@ mod test_deref_method_arg {
         assert_eq!(x.render().unwrap(), "3322 6677");
     }
 }
+
+mod sub_test {
+    use std::borrow::Borrow;
+
+    use askama::Template;
+
+    pub fn bar(x: &String) -> String {
+        format!("bar: {x}")
+    }
+
+    // This test ensures that temporary variables behind references (like one generated
+    // from `.borrow()`) still work.
+    //
+    // Regression test for <https://github.com/askama-rs/askama/issues/683>.
+    #[test]
+    fn test_borrow() {
+        #[derive(Template)]
+        #[template(
+            source = r#"
+{{- crate::sub_test::bar(b.to_string().borrow()) -}}
+"#,
+            ext = "txt"
+        )]
+        struct Foo {
+            b: u32,
+        }
+
+        assert_eq!(Foo { b: 0 }.render().unwrap(), "bar: 0");
+    }
+}
