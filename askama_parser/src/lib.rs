@@ -1358,7 +1358,7 @@ impl LevelGuard<'_> {
 }
 
 fn filter<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Filter<'a>> {
-    preceded(('|', not('|')), cut_err(Filter::parse)).parse_next(i)
+    preceded(('|', not(one_of(['|', '=']))), cut_err(Filter::parse)).parse_next(i)
 }
 
 /// Returns the common parts of two paths.
