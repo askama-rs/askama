@@ -1,0 +1,95 @@
+error: matching closing `)` is missing
+ --> <source attribute>:1:7
+       "( }}"
+ --> tests/ui/calls.rs:4:34
+  |
+4 | #[template(ext = "txt", source = r#"{{ call( }}"#)]
+  |                                  ^^^^^^^^^^^^^^^^
+
+error: matching closing `)` is missing
+ --> <source attribute>:1:7
+       "(a }}"
+ --> tests/ui/calls.rs:8:34
+  |
+8 | #[template(ext = "txt", source = r#"{{ call(a }}"#)]
+  |                                  ^^^^^^^^^^^^^^^^^
+
+error: matching closing `)` is missing
+ --> <source attribute>:1:7
+       "(a, }}"
+  --> tests/ui/calls.rs:12:34
+   |
+12 | #[template(ext = "txt", source = r#"{{ call(a, }}"#)]
+   |                                  ^^^^^^^^^^^^^^^^^^
+
+error: matching closing `)` is missing
+ --> <source attribute>:1:7
+       "(a, b }}"
+  --> tests/ui/calls.rs:16:34
+   |
+16 | #[template(ext = "txt", source = r#"{{ call(a, b }}"#)]
+   |                                  ^^^^^^^^^^^^^^^^^^^^
+
+error: matching closing `)` is missing
+ --> <source attribute>:1:7
+       "(a, b, }}"
+  --> tests/ui/calls.rs:20:34
+   |
+20 | #[template(ext = "txt", source = r#"{{ call(a, b, }}"#)]
+   |                                  ^^^^^^^^^^^^^^^^^^^^^
+
+error: expected an expression, found a comma in argument list
+ --> <source attribute>:1:8
+       ",) }}"
+  --> tests/ui/calls.rs:24:34
+   |
+24 | #[template(ext = "txt", source = r#"{{ call(,) }}"#)]
+   |                                  ^^^^^^^^^^^^^^^^^^
+
+error: expected an expression, found a comma in argument list
+ --> <source attribute>:1:8
+       ", a) }}"
+  --> tests/ui/calls.rs:28:34
+   |
+28 | #[template(ext = "txt", source = r#"{{ call(, a) }}"#)]
+   |                                  ^^^^^^^^^^^^^^^^^^^^
+
+error: expected an expression, found a comma in argument list
+ --> <source attribute>:1:8
+       ", a,) }}"
+  --> tests/ui/calls.rs:32:34
+   |
+32 | #[template(ext = "txt", source = r#"{{ call(, a,) }}"#)]
+   |                                  ^^^^^^^^^^^^^^^^^^^^^
+
+error: expected an expression, found a comma in argument list
+ --> <source attribute>:1:8
+       ", a, }}"
+  --> tests/ui/calls.rs:36:34
+   |
+36 | #[template(ext = "txt", source = r#"{{ call(, a, }}"#)]
+   |                                  ^^^^^^^^^^^^^^^^^^^^
+
+error: expected an expression, found a comma in argument list
+ --> <source attribute>:1:10
+       ",) }}"
+  --> tests/ui/calls.rs:40:34
+   |
+40 | #[template(ext = "txt", source = r#"{{ call(a,,) }}"#)]
+   |                                  ^^^^^^^^^^^^^^^^^^^^
+
+error: expected an expression, found a comma in argument list
+ --> <source attribute>:1:10
+       ", b,) }}"
+  --> tests/ui/calls.rs:44:34
+   |
+44 | #[template(ext = "txt", source = r#"{{ call(a,, b,) }}"#)]
+   |                                  ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected an expression, found a comma in argument list
+ --> <source attribute>:1:13
+       ",) }}"
+  --> tests/ui/calls.rs:48:34
+   |
+48 | #[template(ext = "txt", source = r#"{{ call(a, b,,) }}"#)]
+   |                                  ^^^^^^^^^^^^^^^^^^^^^^^

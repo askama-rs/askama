@@ -1724,3 +1724,12 @@ fn test_unclosed_prefixed_string() {
         );
     }
 }
+
+#[test]
+fn test_excessive_call_depth() {
+    let mut call = "a()".to_string();
+    for _ in 0..1000 {
+        call = format!("a({call})");
+    }
+    assert!(Ast::from_str(&format!("{{{{ {call} }}}}"), None, &Syntax::default()).is_err());
+}
