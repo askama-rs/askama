@@ -9,6 +9,7 @@ use winnow::stream::{Location, Stream};
 use winnow::token::{any, literal, rest, take, take_until};
 use winnow::{ModalParser, Parser};
 
+use crate::expr::BinOp;
 use crate::{
     ErrorContext, Expr, Filter, HashSet, InputStream, ParseErr, ParseResult, Span, Target,
     WithSpan, block_end, block_start, cut_error, expr_end, expr_start, filter, identifier,
@@ -93,21 +94,22 @@ impl<'a: 'l, 'l> Node<'a> {
             .parse_next(i)?;
 
         let func = match tag {
-            "call" => Call::parse,
-            "decl" | "declare" => Declare::parse,
-            "let" | "set" => Let::parse,
-            "if" => If::parse,
-            "for" => Loop::parse,
-            "match" => Match::parse,
-            "extends" => Extends::parse,
-            "include" => Include::parse,
-            "import" => Import::parse,
             "block" => BlockDef::parse,
-            "macro" => Macro::parse,
-            "raw" => Raw::parse,
             "break" => Self::r#break,
+            "call" => Call::parse,
             "continue" => Self::r#continue,
+            "decl" | "declare" => Declare::parse,
+            "extends" => Extends::parse,
             "filter" => FilterBlock::parse,
+            "for" => Loop::parse,
+            "if" => If::parse,
+            "import" => Import::parse,
+            "include" => Include::parse,
+            "let" | "set" => Let::parse,
+            "macro" => Macro::parse,
+            "match" => Match::parse,
+            "mut" => Let::compound,
+            "raw" => Raw::parse,
             _ => {
                 i.reset(&start);
                 return fail.parse_next(i);
@@ -1295,6 +1297,43 @@ impl<'a: 'l, 'l> Let<'a> {
                 var,
                 val,
                 is_mutable: is_mut.is_some(),
+            },
+            span,
+        ))))
+    }
+
+    fn compound(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
+        let (pws, span, (lhs, op, rhs, nws)) = (
+            opt(Whitespace::parse),
+            ws(keyword("mut").span()),
+            cut_node(
+                Some("mut"),
+                (
+                    |i: &mut _| Expr::parse(i, false),
+                    ws(alt((
+                        // <https://doc.rust-lang.org/reference/expressions/operator-expr.html#compound-assignment-expressions>
+                        "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=",
+                    ))),
+                    ws(|i: &mut _| Expr::parse(i, false)),
+                    opt(Whitespace::parse),
+                ),
+            ),
+        )
+            .parse_next(i)?;
+
+        // For `a += b` this AST generates the code `let _ = a += b;`. This may look odd, but
+        // is valid rust code, because the value of any assignment (compound or not) is `()`.
+        // This way the generator does not need to know about compound assignments for them
+        // to work.
+        Ok(Box::new(Node::Let(WithSpan::new(
+            Let {
+                ws: Ws(pws, nws),
+                var: Target::Placeholder(WithSpan::new((), span.clone())),
+                val: Some(WithSpan::new(
+                    Box::new(Expr::BinOp(BinOp { op, lhs, rhs })),
+                    span.clone(),
+                )),
+                is_mutable: false,
             },
             span,
         ))))

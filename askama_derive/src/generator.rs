@@ -849,5 +849,9 @@ fn range_op(op: &str, span: proc_macro2::Span) -> TokenStream {
 #[inline]
 #[track_caller]
 fn binary_op(op: &str, span: proc_macro2::Span) -> TokenStream {
-    make_token_match!(op @ span => * / % + - << >> & ^ | == != < > <= >= && || .. ..=)
+    make_token_match!(
+        op @ span =>
+        * / % + - << >> & ^ | == != < > <= >= && || .. ..=
+        = += -= *= /= %= &= |= ^= <<= >>=
+    )
 }

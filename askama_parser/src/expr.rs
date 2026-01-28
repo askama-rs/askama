@@ -790,24 +790,22 @@ impl<'a: 'l, 'l> Expr<'a> {
 }
 
 fn token_xor<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a> {
-    let (good, span) = alt((keyword("xor").value(true), '^'.value(false)))
-        .with_span()
-        .parse_next(i)?;
-    if good {
-        Ok("^")
-    } else {
+    let good = keyword("xor").value(None);
+    let bad = ('^', not('=')).span().map(Some);
+    if let Some(span) = alt((good, bad)).parse_next(i)? {
         cut_error!("the binary XOR operator is called `xor` in askama", span)
+    } else {
+        Ok("^")
     }
 }
 
 fn token_bitand<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a> {
-    let (good, span) = alt((keyword("bitand").value(true), ('&', not('&')).value(false)))
-        .with_span()
-        .parse_next(i)?;
-    if good {
-        Ok("&")
-    } else {
+    let good = keyword("bitand").value(None);
+    let bad = ('&', not(one_of(['&', '=']))).span().map(Some);
+    if let Some(span) = alt((good, bad)).parse_next(i)? {
         cut_error!("the binary AND operator is called `bitand` in askama", span)
+    } else {
+        Ok("&")
     }
 }
 

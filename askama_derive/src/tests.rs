@@ -1539,3 +1539,40 @@ fn regression_tests_span_change() {
         struct Foo;
     });
 }
+
+#[test]
+fn test_compound_assignment() {
+    for op in [
+        "=", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>=",
+    ] {
+        let jinja = r#"
+            {%- let mut prefixsum = 0 -%}
+            {%- for i in 0..limit -%}
+                {%- mut prefixsum @= i -%}
+                {{ prefixsum }}.
+            {%- endfor -%}
+        "#
+        .replace("@=", op);
+
+        let expected = r#"
+            let mut prefixsum = 0;
+            let __askama_iter = 0..self.limit;
+            for (i, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
+                let _ = prefixsum @= i;
+                match (
+                    &((&&askama::filters::AutoEscaper::new(&(prefixsum), askama::filters::Text))
+                        .askama_auto_escape()?),
+                ) {
+                    (__askama_expr0,) => {
+                        (&&&askama::filters::Writable(__askama_expr0))
+                            .askama_write(__askama_writer, __askama_values)?;
+                    }
+                }
+                __askama_writer.write_str(".")?;
+            }
+        "#
+        .replace("@=", op);
+
+        compare(&jinja, &expected, &[("limit", "u32")], 6);
+    }
+}
