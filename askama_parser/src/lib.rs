@@ -1303,12 +1303,19 @@ impl Level {
     /// Decrement the remaining level counter, and return a [`LevelGuard`] that increments it again
     /// when it's dropped.
     fn nest<'a: 'l, 'l>(&self, i: &InputStream<'a, 'l>) -> ParseResult<'a, LevelGuard<'_>> {
-        if let Some(new_level) = self.0.get().checked_sub(1) {
+        self.nest_multiple(i, 1)
+    }
+
+    /// Decrement the remaining level counter by `count`, and return a [`LevelGuard`] that
+    /// increments it again when it's dropped.
+    fn nest_multiple<'a: 'l, 'l>(
+        &self,
+        i: &InputStream<'a, 'l>,
+        count: usize,
+    ) -> ParseResult<'a, LevelGuard<'_>> {
+        if let Some(new_level) = self.0.get().checked_sub(count) {
             self.0.set(new_level);
-            Ok(LevelGuard {
-                level: self,
-                count: 1,
-            })
+            Ok(LevelGuard { level: self, count })
         } else {
             Self::_fail(i)
         }
@@ -1325,6 +1332,7 @@ impl Level {
 /// Used to keep track how often [`LevelGuard::nest()`] was called and to re-increment the
 /// remaining level counter when it is dropped / falls out of scope.
 #[must_use]
+#[derive(Debug)]
 struct LevelGuard<'l> {
     level: &'l Level,
     count: usize,

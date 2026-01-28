@@ -28,12 +28,16 @@ fn expr_prec_layer<'a: 'l, 'l>(
 ) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
     let mut expr = inner(i)?;
 
-    let mut i_before = *i;
     let mut level_guard = i.state.level.guard();
-    while let Some(((op, span), rhs)) = opt((ws(op.with_span()), inner)).parse_next(i)? {
+    let mut next = opt(|i: &mut _| {
+        // We need to make sure that we decrement the level before we enter the right-hand side.
+        let i_before = *i;
+        let op = ws(op.with_span()).parse_next(i)?;
         level_guard.nest(&i_before)?;
+        Ok((op, inner(i)?))
+    });
+    while let Some(((op, span), rhs)) = next.parse_next(i)? {
         expr = WithSpan::new(Box::new(Expr::BinOp(BinOp { op, lhs: expr, rhs })), span);
-        i_before = *i;
     }
 
     Ok(expr)
@@ -275,43 +279,56 @@ impl<'a: 'l, 'l> Expr<'a> {
     pub(super) fn arguments(
         i: &mut InputStream<'a, 'l>,
     ) -> ParseResult<'a, WithSpan<Vec<WithSpan<Box<Self>>>>> {
-        let _level_guard = i.state.level.nest(i)?;
-        let mut named_arguments = HashSet::default();
-        let mut p = (
-            ws('('.span()),
-            cut_err((
-                separated(
-                    0..,
-                    ws(move |i: &mut _| {
-                        // Needed to prevent borrowing it twice between this closure and the one
-                        // calling `Self::named_arguments`.
-                        let named_arguments = &mut named_arguments;
-                        let has_named_arguments = !named_arguments.is_empty();
-
-                        let mut p = alt((
-                            move |i: &mut _| Self::named_argument(i, named_arguments),
-                            move |i: &mut _| Self::parse(i, false),
-                        ));
-                        let expr = p.parse_next(i)?;
-                        if has_named_arguments && !matches!(**expr, Self::NamedArgument(..)) {
-                            return cut_error!(
-                                "named arguments must always be passed last",
-                                expr.span,
-                            );
-                        }
-                        Ok(expr)
-                    }),
-                    ',',
-                ),
-                opt(ws(',')),
-                opt(')'),
-            )),
-        );
-        let (span, (args, _, closed)) = p.parse_next(i)?;
-        if closed.is_none() {
-            return cut_error!("matching closing `)` is missing", span);
+        fn comma<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
+            (ws(','), no_comma).void().parse_next(i)
         }
-        Ok(WithSpan::new(args, span))
+
+        fn no_comma<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
+            if let Some(span) = opt(','.span()).parse_next(i)? {
+                cut_error!(
+                    "expected an expression, found a comma in argument list",
+                    span
+                )
+            } else {
+                Ok(())
+            }
+        }
+
+        let span = terminated(ws('('.span()), no_comma).parse_next(i)?;
+
+        // The stack footprint of this function is huge. Effectively, we half the maximum nesting
+        // level of function calls `a(b(c(d(..))))` to make sure not to exceed the stack limit.
+        let mut _level_guard = i.state.level.nest_multiple(i, 2)?;
+
+        let mut named_arguments = HashSet::default();
+        let arguments = separated(
+            1..,
+            move |i: &mut _| {
+                // Needed to prevent borrowing it twice between this closure and the one
+                // calling `Self::named_arguments`.
+                let named_arguments = &mut named_arguments;
+                let has_named_arguments = !named_arguments.is_empty();
+
+                let mut p = alt((
+                    move |i: &mut _| Self::named_argument(i, named_arguments),
+                    move |i: &mut _| Self::parse(i, false),
+                ));
+                let expr = p.parse_next(i)?;
+                if has_named_arguments && !matches!(**expr, Self::NamedArgument(..)) {
+                    return cut_error!("named arguments must always be passed last", expr.span);
+                }
+                Ok(expr)
+            },
+            comma,
+        );
+
+        let (args, closed) =
+            cut_err((opt(terminated(arguments, opt(comma))), opt(ws(')')))).parse_next(i)?;
+        if closed.is_none() {
+            cut_error!("matching closing `)` is missing", span)
+        } else {
+            Ok(WithSpan::new(args.unwrap_or_default(), span))
+        }
     }
 
     fn named_argument(
