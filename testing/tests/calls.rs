@@ -437,3 +437,19 @@ mod sub_test {
         assert_eq!(Foo { b: 0 }.render().unwrap(), "bar: 0");
     }
 }
+
+// This test ensures that temporary variables behind references (like one generated
+// from `.borrow()`) still work.
+//
+// Regression test for <https://github.com/askama-rs/askama/issues/661>.
+#[test]
+fn test_temporary_refs() {
+    #[derive(Template)]
+    #[template(
+        ext = "html",
+        source = r#"{{ Some("x".to_string().as_str()).unwrap() }}"#
+    )]
+    struct Tpl;
+
+    assert_eq!(Tpl.render().unwrap(), "x");
+}
