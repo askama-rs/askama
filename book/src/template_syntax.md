@@ -123,11 +123,11 @@ Using the keyword `mut`, [compound assignments][rust101-assignment-op] (also cal
 "augmented assignments"), such as `x += 1` to increment `x` by 1, are possible, too:
 
 ```jinja
-{% let mut counter = 0 %}
-{% for i in 1..=10 %}
-    {% mut counter += 1 %}
+{%- let mut counter = 0 -%}
+{%- for i in 1..=10 -%}
+    {%- mut counter += i -%}
     {{ counter }}
-{% endfor %}
+{% endfor -%}
 ```
 
 This example will output [`1 3 6 10 15`…][wikipedia-prefix-sum].

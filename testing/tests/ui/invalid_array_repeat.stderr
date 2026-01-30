@@ -46,7 +46,7 @@ error: expected element expression for array repeat syntax
 24 | #[template(source = r#"{% let my_arr = [,;,] %}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: failed to parse template source
+error: the token `;` was not expected at this point in the expression
  --> <source attribute>:1:22
        ";10] %}"
   --> tests/ui/invalid_array_repeat.rs:28:21

@@ -3,14 +3,16 @@ use winnow::ascii::digit1;
 use winnow::combinator::{
     alt, cut_err, empty, fail, not, opt, peek, preceded, repeat, separated, terminated,
 };
+use winnow::error::ErrMode;
 use winnow::stream::Stream;
 use winnow::token::{any, one_of, take, take_until};
 
 use crate::node::CondTest;
 use crate::{
     CharLit, ErrorContext, HashSet, InputStream, Num, ParseResult, PathOrIdentifier, StrLit,
-    StrPrefix, WithSpan, char_lit, cut_error, filter, identifier, is_rust_keyword, keyword,
-    not_suffix_with_hash, num_lit, path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
+    StrPrefix, WithSpan, char_lit, cut_error, deny_any_rust_token, filter, identifier,
+    is_rust_keyword, keyword, not_suffix_with_hash, num_lit, path_or_identifier, skip_ws0,
+    skip_ws1, str_lit, ws,
 };
 
 macro_rules! expr_prec_layer {
@@ -365,7 +367,11 @@ impl<'a: 'l, 'l> Expr<'a> {
         allow_underscore: bool,
     ) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let _level_guard = i.state.level.nest(i)?;
-        Self::range(i, allow_underscore)
+        let mut result = Self::range(i, allow_underscore);
+        if let Err(err) = &mut result {
+            try_assign_fallback_error(i, err);
+        }
+        result
     }
 
     fn range(
@@ -1556,4 +1562,26 @@ pub(crate) fn call_generics<'a: 'l, 'l>(
     i: &mut InputStream<'a, 'l>,
 ) -> ParseResult<'a, WithSpan<Vec<WithSpan<TyGenerics<'a>>>>> {
     preceded(ws("::"), cut_err(TyGenerics::args)).parse_next(i)
+}
+
+#[cold]
+#[inline(never)]
+fn try_assign_fallback_error<'a: 'l, 'l>(
+    i: &mut InputStream<'a, 'l>,
+    err: &mut ErrMode<ErrorContext>,
+) {
+    if let ErrMode::Backtrack(err_ctx) | ErrMode::Cut(err_ctx) = err
+        && err_ctx.message.is_none()
+    {
+        let checkpoint = i.checkpoint();
+        i.input.reset_to_start();
+        if take::<_, _, ()>(err_ctx.span.start).parse_next(i).is_ok()
+            && let Err(better_err) = opt(deny_any_rust_token).parse_next(i)
+            && let ErrMode::Backtrack(better_ctx) | ErrMode::Cut(better_ctx) = better_err
+            && better_ctx.message.is_some()
+        {
+            *err_ctx = better_ctx;
+        }
+        i.reset(&checkpoint);
+    }
 }

@@ -1,0 +1,79 @@
+error: `{% mut %}` expects a (compound) assignment, did you mean to forward declare a mutable variable with `{% let mut %}`?
+ --> <source attribute>:1:3
+       "mut a %}"
+ --> tests/ui/compound-assignment.rs:6:34
+  |
+6 | #[template(ext = "txt", source = "{% mut a %}")]
+  |                                  ^^^^^^^^^^^^^
+
+error: `{% mut %}` expects a (compound) assignment, did you mean to forward declare a mutable variable with `{% let mut %}`?
+ --> <source attribute>:1:3
+       "mut a b %}"
+  --> tests/ui/compound-assignment.rs:10:34
+   |
+10 | #[template(ext = "txt", source = "{% mut a b %}")]
+   |                                  ^^^^^^^^^^^^^^^
+
+error: the token `+=` was not expected at this point in the expression
+ --> <source attribute>:1:7
+       "+= b %}"
+  --> tests/ui/compound-assignment.rs:14:34
+   |
+14 | #[template(ext = "txt", source = "{% mut += b %}")]
+   |                                  ^^^^^^^^^^^^^^^^
+
+error: `{% mut %}` expects a (compound) assignment, did you mean to forward declare a mutable variable with `{% let mut %}`?
+ --> <source attribute>:1:3
+       "mut a @= b %}"
+  --> tests/ui/compound-assignment.rs:18:34
+   |
+18 | #[template(ext = "txt", source = "{% mut a @= b %}")]
+   |                                  ^^^^^^^^^^^^^^^^^^
+
+error: the compound assignment `+=` cannot be used with {% let %}`, try `{% mut %}` instead
+ --> <source attribute>:1:9
+       "+= b %}"
+  --> tests/ui/compound-assignment.rs:22:34
+   |
+22 | #[template(ext = "txt", source = "{% let a += b %}")]
+   |                                  ^^^^^^^^^^^^^^^^^^
+
+error: the compound assignment `+=` cannot be used with {% let %}`, try `{% mut %}` instead
+ --> <source attribute>:1:13
+       "+= b %}"
+  --> tests/ui/compound-assignment.rs:26:34
+   |
+26 | #[template(ext = "txt", source = "{% let mut a += b %}")]
+   |                                  ^^^^^^^^^^^^^^^^^^^^^^
+
+error: the token `=` was not expected at this point in the expression
+ --> <source attribute>:1:6
+       "= b }}"
+  --> tests/ui/compound-assignment.rs:30:34
+   |
+30 | #[template(ext = "txt", source = "{{ a += b }}")]
+   |                                  ^^^^^^^^^^^^^^
+
+error: the token `|=` was not expected at this point in the expression
+ --> <source attribute>:1:5
+       "|= b }}"
+  --> tests/ui/compound-assignment.rs:34:34
+   |
+34 | #[template(ext = "txt", source = "{{ a |= b }}")]
+   |                                  ^^^^^^^^^^^^^^
+
+error: the token `^=` was not expected at this point in the expression
+ --> <source attribute>:1:5
+       "^= b }}"
+  --> tests/ui/compound-assignment.rs:38:34
+   |
+38 | #[template(ext = "txt", source = "{{ a ^= b }}")]
+   |                                  ^^^^^^^^^^^^^^
+
+error: the token `&=` was not expected at this point in the expression
+ --> <source attribute>:1:5
+       "&= b }}"
+  --> tests/ui/compound-assignment.rs:42:34
+   |
+42 | #[template(ext = "txt", source = "{{ a &= b }}")]
+   |                                  ^^^^^^^^^^^^^^

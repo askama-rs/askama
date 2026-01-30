@@ -430,7 +430,8 @@ fn test_rust_macro() {
         &*Ast::from_str("{{a.b.c!( hello )}}", None, &syntax)
             .unwrap_err()
             .to_string(),
-        "failed to parse template source near offset 7",
+        "the token `!` was not expected at this point in the expression\n\
+        failed to parse template source near offset 7",
     );
 }
 
@@ -1288,13 +1289,15 @@ fn test_filter_with_path() {
         Ast::from_str("{{ strvar|e()::f }}", None, &syntax)
             .unwrap_err()
             .to_string(),
-        "failed to parse template source near offset 13",
+        "the token `::` was not expected at this point in the expression\n\
+        failed to parse template source near offset 13",
     );
     assert_eq!(
         Ast::from_str("{{ strvar|e::f()::g }}", None, &syntax)
             .unwrap_err()
             .to_string(),
-        "failed to parse template source near offset 16",
+        "the token `::` was not expected at this point in the expression\n\
+        failed to parse template source near offset 16",
     );
 }
 
