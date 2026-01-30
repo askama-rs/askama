@@ -26,7 +26,7 @@ use winnow::combinator::{
 };
 use winnow::error::ErrMode;
 use winnow::stream::{AsChar, Location, Stream};
-use winnow::token::{any, none_of, one_of, take_while};
+use winnow::token::{any, none_of, one_of, take, take_while};
 use winnow::{LocatingSlice, ModalParser, ModalResult, Parser, Stateful};
 
 use crate::ascii_str::{AsciiChar, AsciiStr};
@@ -1358,7 +1358,7 @@ impl LevelGuard<'_> {
 }
 
 fn filter<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Filter<'a>> {
-    preceded(('|', not('|')), cut_err(Filter::parse)).parse_next(i)
+    preceded(('|', not(one_of(['|', '=']))), cut_err(Filter::parse)).parse_next(i)
 }
 
 /// Returns the common parts of two paths.
@@ -1614,6 +1614,145 @@ fn cut_context_err<'a, T>(gen_err: impl FnOnce() -> ErrorContext) -> ParseResult
 }
 
 type HashSet<T> = std::collections::hash_set::HashSet<T, FxBuildHasher>;
+
+#[cold]
+#[inline(never)]
+fn deny_any_rust_token<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
+    // https://docs.rs/syn/2.0.114/src/syn/token.rs.html#748-795
+    const PUNCTUATIONS: &[&str] = &[
+        "&", "&&", "&=", "@", "^", "^=", ":", ",", "$", ".", "..", "...", "..=", "=", "==", "=>",
+        ">=", ">", "<-", "<=", "<", "-", "-=", "!=", "!", "|", "|=", "||", "::", "%", "%=", "+",
+        "+=", "#", "?", "->", ";", "<<", "<<=", ">>", ">>=", "/", "/=", "*", "*=", "~",
+        // not a punctuation per se, but a likely typo
+        "\"", "'",
+    ];
+
+    const ONE: &[u8] = &{
+        const LEN: usize = {
+            let mut i = 0;
+            let mut o = 0;
+            while i < PUNCTUATIONS.len() {
+                if PUNCTUATIONS[i].len() == 1 {
+                    o += 1;
+                }
+                i += 1;
+            }
+            o
+        };
+
+        let mut result = [0; LEN];
+        let mut i = 0;
+        let mut o = 0;
+        while i < PUNCTUATIONS.len() {
+            if let &[c] = PUNCTUATIONS[i].as_bytes() {
+                result[o] = c;
+                o += 1;
+            }
+            i += 1;
+        }
+        result
+    };
+
+    const TWO: &[[u8; 2]] = &{
+        const LEN: usize = {
+            let mut i = 0;
+            let mut o = 0;
+            while i < PUNCTUATIONS.len() {
+                if PUNCTUATIONS[i].len() == 2 {
+                    o += 1;
+                }
+                i += 1;
+            }
+            o
+        };
+
+        let mut result = [*b"12"; LEN];
+        let mut i = 0;
+        let mut o = 0;
+        while i < PUNCTUATIONS.len() {
+            if let &[a, b] = PUNCTUATIONS[i].as_bytes() {
+                result[o] = [a, b];
+                o += 1;
+            }
+            i += 1;
+        }
+        result
+    };
+
+    const THREE: &[[u8; 3]] = &{
+        const LEN: usize = {
+            let mut i = 0;
+            let mut o = 0;
+            while i < PUNCTUATIONS.len() {
+                if PUNCTUATIONS[i].len() == 3 {
+                    o += 1;
+                }
+                i += 1;
+            }
+            o
+        };
+
+        let mut result = [*b"123"; LEN];
+        let mut i = 0;
+        let mut o = 0;
+        while i < PUNCTUATIONS.len() {
+            if let &[a, b, c] = PUNCTUATIONS[i].as_bytes() {
+                result[o] = [a, b, c];
+                o += 1;
+            }
+            i += 1;
+        }
+        result
+    };
+
+    // https://docs.rs/syn/2.0.114/src/syn/token.rs.html#692-746
+    const KEYWORDS: &[&str] = &[
+        "abstract", "as", "async", "auto", "await", "become", "box", "break", "const", "continue",
+        "crate", "default", "do", "dyn", "else", "enum", "extern", "final", "fn", "for", "if",
+        "impl", "in", "let", "loop", "macro", "match", "mod", "move", "mut", "override", "priv",
+        "pub", "raw", "ref", "return", "Self", "self", "static", "struct", "super", "trait", "try",
+        "type", "typeof", "union", "unsafe", "unsized", "use", "virtual", "where", "while",
+        "yield", // not a keyword in rust, but in askama
+        "is",
+    ];
+
+    fn any_rust_token<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a> {
+        alt((
+            take(3usize).verify(|s: &str| {
+                if let Ok(s) = s.as_bytes().try_into() {
+                    THREE.contains(&s)
+                } else {
+                    false
+                }
+            }),
+            take(2usize).verify(|s: &str| {
+                if let Ok(s) = s.as_bytes().try_into() {
+                    TWO.contains(&s)
+                } else {
+                    false
+                }
+            }),
+            take(1usize).verify(|s: &str| {
+                if let [c] = s.as_bytes() {
+                    ONE.contains(c)
+                } else {
+                    false
+                }
+            }),
+            identifier.verify(|s: &str| KEYWORDS.contains(&s)),
+        ))
+        .parse_next(i)
+    }
+
+    let (token, span) = any_rust_token.with_span().parse_next(i)?;
+    cut_error!(
+        format!(
+            "the token `{}` was not expected at this point in the expression",
+            token.escape_debug(),
+        ),
+        span
+    )
+}
 
 #[cfg(test)]
 mod test {

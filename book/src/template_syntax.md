@@ -117,6 +117,30 @@ to prevent changing ownership. The rules are as follows:
  * If the value is a field (`x.y`), it WILL BE put behind a reference.
  * If the expression ends with a question mark (like `x?`), it WILL NOT BE put behind a reference.
 
+### Compound assignments
+
+Using the keyword `mut`, [compound assignments][rust101-assignment-op] (also called
+"augmented assignments"), such as `x += 1` to increment `x` by 1, are possible, too:
+
+```jinja
+{%- let mut counter = 0 -%}
+{%- for i in 1..=10 -%}
+    {%- mut counter += i -%}
+    {{ counter }}
+{% endfor -%}
+```
+
+This example will output [`1 3 6 10 15`…][wikipedia-prefix-sum].
+
+The target can be a variable or a more complex expression. The rules are the same as in rust,
+e.g. the left-hand side of the expression, i.e. the assignment target, must be mutable.
+All [compound assignment operators][reference-compound-assignment] that are valid in rust are
+valid in askama, too.
+
+[rust101-assignment-op]: <https://rustlabs.github.io/docs/rust101/assignment_compound_assignment_operators/#compound-assignment-operator> "Rust - Quick start: Assignment and Compound Assignment Operators"
+[wikipedia-prefix-sum]: <https://en.wikipedia.org/wiki/Prefix_sum?curid=6109308> "Wikipedia: Prefix sum"
+[reference-compound-assignment]: <https://doc.rust-lang.org/reference/expressions/operator-expr.html#compound-assignment-expressions> "The Rust Reference: Compound assignment expressions"
+
 ## Filters
 
 Values such as those obtained from variables can be post-processed

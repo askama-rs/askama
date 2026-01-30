@@ -9,10 +9,11 @@ use winnow::stream::{Location, Stream};
 use winnow::token::{any, literal, rest, take, take_until};
 use winnow::{ModalParser, Parser};
 
+use crate::expr::BinOp;
 use crate::{
     ErrorContext, Expr, Filter, HashSet, InputStream, ParseErr, ParseResult, Span, Target,
-    WithSpan, block_end, block_start, cut_error, expr_end, expr_start, filter, identifier,
-    is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
+    WithSpan, block_end, block_start, cut_error, deny_any_rust_token, expr_end, expr_start, filter,
+    identifier, is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
 };
 
 #[derive(Debug, PartialEq)]
@@ -93,21 +94,22 @@ impl<'a: 'l, 'l> Node<'a> {
             .parse_next(i)?;
 
         let func = match tag {
-            "call" => Call::parse,
-            "decl" | "declare" => Declare::parse,
-            "let" | "set" => Let::parse,
-            "if" => If::parse,
-            "for" => Loop::parse,
-            "match" => Match::parse,
-            "extends" => Extends::parse,
-            "include" => Include::parse,
-            "import" => Import::parse,
             "block" => BlockDef::parse,
-            "macro" => Macro::parse,
-            "raw" => Raw::parse,
             "break" => Self::r#break,
+            "call" => Call::parse,
             "continue" => Self::r#continue,
+            "decl" | "declare" => Declare::parse,
+            "extends" => Extends::parse,
             "filter" => FilterBlock::parse,
+            "for" => Loop::parse,
+            "if" => If::parse,
+            "import" => Import::parse,
+            "include" => Include::parse,
+            "let" | "set" => Let::parse,
+            "macro" => Macro::parse,
+            "match" => Match::parse,
+            "mut" => Let::compound,
+            "raw" => Raw::parse,
             _ => {
                 i.reset(&start);
                 return fail.parse_next(i);
@@ -171,7 +173,11 @@ impl<'a: 'l, 'l> Node<'a> {
                 None,
                 (
                     opt(Whitespace::parse),
-                    alt((expr_end.value(true), ws(eof).value(false))),
+                    alt((
+                        expr_end.value(true),
+                        ws(eof).value(false),
+                        deny_any_rust_token.value(false),
+                    )),
                 ),
             ),
         );
@@ -1240,20 +1246,44 @@ pub struct Let<'a> {
 
 impl<'a: 'l, 'l> Let<'a> {
     fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
-        let mut p = (
+        let (pws, (tag, span), is_mut) = (
             opt(Whitespace::parse),
-            ws(alt((keyword("let"), keyword("set"))).span()),
+            ws(alt((keyword("let"), keyword("set"))).with_span()),
             ws(opt(keyword("mut").span())),
-            cut_node(
-                Some("let"),
-                (
-                    ws(Target::parse.with_span()),
-                    opt(preceded(ws('='), ws(|i: &mut _| Expr::parse(i, false)))),
-                    opt(Whitespace::parse),
-                ),
+        )
+            .parse_next(i)?;
+
+        let no_compound = |i: &mut _| {
+            if let Some((op, span)) = opt(compound_assignment_op.with_span()).parse_next(i)? {
+                cut_error!(
+                    format!(
+                        "the compound assignment `{op}` cannot be used with {s} {tag} {e}`, \
+                        try `{s} mut {e}` instead",
+                        s = i.state.syntax.block_start.escape_debug(),
+                        e = i.state.syntax.block_end.escape_debug(),
+                    ),
+                    span,
+                )
+            } else {
+                Ok(None)
+            }
+        };
+
+        let ((var, var_span), val, nws) = cut_node(
+            Some("let"),
+            (
+                ws(Target::parse.with_span()),
+                alt((
+                    preceded(
+                        ws('='),
+                        cut_node(Some("let"), ws(|i: &mut _| Expr::parse(i, false).map(Some))),
+                    ),
+                    no_compound,
+                )),
+                opt(Whitespace::parse),
             ),
-        );
-        let (pws, span, is_mut, ((var, var_span), val, nws)) = p.parse_next(i)?;
+        )
+        .parse_next(i)?;
 
         if val.is_none()
             && let Some(kind) = match &var {
@@ -1299,6 +1329,73 @@ impl<'a: 'l, 'l> Let<'a> {
             span,
         ))))
     }
+
+    fn compound(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
+        let (pws, span, (lhs, rhs, nws)) = (
+            opt(Whitespace::parse),
+            ws(keyword("mut").span()),
+            cut_node(
+                Some("mut"),
+                (
+                    |i: &mut _| Expr::parse(i, false),
+                    opt((
+                        ws(alt(("=", compound_assignment_op))),
+                        cut_node(Some("mut"), ws(|i: &mut _| Expr::parse(i, false))),
+                    )),
+                    opt(Whitespace::parse),
+                ),
+            ),
+        )
+            .parse_next(i)?;
+
+        let Some((op, rhs)) = rhs else {
+            return cut_error!(
+                format!(
+                    "`{s} mut {e}` expects a (compound) assignment, did you mean to \
+                    forward declare a mutable variable with `{s} let mut {e}`?",
+                    s = i.state.syntax.block_start.escape_debug(),
+                    e = i.state.syntax.block_end.escape_debug(),
+                ),
+                span,
+            );
+        };
+
+        // For `a += b` this AST generates the code `let _ = a += b;`. This may look odd, but
+        // is valid rust code, because the value of any assignment (compound or not) is `()`.
+        // This way the generator does not need to know about compound assignments for them
+        // to work.
+        Ok(Box::new(Node::Let(WithSpan::new(
+            Let {
+                ws: Ws(pws, nws),
+                var: Target::Placeholder(WithSpan::new((), span.clone())),
+                val: Some(WithSpan::new(
+                    Box::new(Expr::BinOp(BinOp { op, lhs, rhs })),
+                    span.clone(),
+                )),
+                is_mutable: false,
+            },
+            span,
+        ))))
+    }
+}
+
+/// <https://doc.rust-lang.org/reference/expressions/operator-expr.html#compound-assignment-expressions>
+fn compound_assignment_op<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a> {
+    const TWO: &[[u8; 2]] = &[
+        *b"+=", *b"-=", *b"*=", *b"/=", *b"%=", *b"&=", *b"|=", *b"^=",
+    ];
+
+    alt((
+        take(2usize).verify(|s: &str| {
+            if let Ok(s) = s.as_bytes().try_into() {
+                TWO.contains(&s)
+            } else {
+                false
+            }
+        }),
+        take(3usize).verify(|s| matches!(s, "<<=" | ">>=")),
+    ))
+    .parse_next(i)
 }
 
 #[derive(Debug, PartialEq)]
