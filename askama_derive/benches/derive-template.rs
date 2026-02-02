@@ -1,3 +1,5 @@
+use std::hint::black_box;
+
 use criterion::{BatchSize, Criterion, Throughput, criterion_group, criterion_main};
 use quote::quote;
 
@@ -28,7 +30,7 @@ fn hello_world(c: &mut Criterion) {
     g.bench_function("hello_world", |b| {
         b.iter_batched(
             || ts.clone(),
-            |input| askama_derive::derive_template(input, extern_crate_askama),
+            |ts| askama_derive::derive_template(black_box(ts), extern_crate_askama),
             BatchSize::LargeInput,
         );
     });
