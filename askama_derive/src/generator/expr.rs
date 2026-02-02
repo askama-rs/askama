@@ -10,10 +10,7 @@ use proc_macro2::{Delimiter, Spacing, TokenStream, TokenTree};
 use quote::quote_spanned;
 use syn::Token;
 
-use super::{
-    DisplayWrap, Generator, LocalMeta, Writable, binary_op, compile_time_escape, is_copyable,
-    logic_op, range_op, unary_op,
-};
+use super::{DisplayWrap, Generator, LocalMeta, Writable, compile_time_escape, is_copyable};
 use crate::heritage::Context;
 use crate::integration::Buffer;
 use crate::{CompileError, field_new, quote_into};
@@ -126,11 +123,11 @@ impl<'a> Generator<'a, '_> {
         match ***expr {
             Expr::BinOp(ref v) if matches!(v.op, "&&" | "||") => {
                 let ret = self.visit_expr(ctx, buf, &v.lhs)?;
-                buf.write_tokens(logic_op(v.op, ctx.span_for_node(expr.span())));
+                buf.write_token_str(v.op, ctx.span_for_node(expr.span()));
                 return Ok(ret);
             }
             Expr::Unary(op, ref inner) => {
-                buf.write_tokens(unary_op(op, ctx.span_for_node(expr.span())));
+                buf.write_token_str(op, ctx.span_for_node(expr.span()));
                 return self.visit_expr_first(ctx, buf, inner);
             }
             _ => {}
@@ -173,7 +170,7 @@ impl<'a> Generator<'a, '_> {
             }
             Expr::BinOp(v) if matches!(v.op, "&&" | "||") => {
                 self.visit_condition(ctx, buf, &v.lhs)?;
-                buf.write_tokens(logic_op(v.op, ctx.span_for_node(expr.span())));
+                buf.write_token_str(v.op, ctx.span_for_node(expr.span()));
                 self.visit_condition(ctx, buf, &v.rhs)?;
             }
             Expr::Group(expr) => {
@@ -722,7 +719,7 @@ impl<'a> Generator<'a, '_> {
         inner: &WithSpan<Box<Expr<'a>>>,
         span: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        buf.write_tokens(unary_op(op, ctx.span_for_node(span)));
+        buf.write_token_str(op, ctx.span_for_node(span));
         self.visit_expr(ctx, buf, inner)?;
         Ok(DisplayWrap::Unwrapped)
     }
@@ -739,7 +736,7 @@ impl<'a> Generator<'a, '_> {
         if let Some(left) = left {
             self.visit_expr(ctx, buf, left)?;
         }
-        buf.write_tokens(range_op(op, ctx.span_for_node(span)));
+        buf.write_token_str(op, ctx.span_for_node(span));
         if let Some(right) = right {
             self.visit_expr(ctx, buf, right)?;
         }
@@ -756,7 +753,7 @@ impl<'a> Generator<'a, '_> {
         span: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_expr(ctx, buf, left)?;
-        buf.write_tokens(binary_op(op, ctx.span_for_node(span)));
+        buf.write_token_str(op, ctx.span_for_node(span));
         self.visit_expr(ctx, buf, right)?;
         Ok(DisplayWrap::Unwrapped)
     }

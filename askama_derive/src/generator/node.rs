@@ -19,7 +19,7 @@ use syn::Token;
 use super::{
     DisplayWrap, Generator, LocalMeta, MapChain, RenderFor, compile_time_escape, is_copyable,
 };
-use crate::generator::{LocalCallerMeta, Writable, helpers, logic_op};
+use crate::generator::{LocalCallerMeta, Writable, helpers};
 use crate::heritage::{Context, Heritage};
 use crate::integration::{Buffer, string_escape};
 use crate::{CompileError, FileInfo, HashMap, field_new, fmt_left, fmt_right, quote_into};
@@ -411,8 +411,8 @@ impl<'a> Generator<'a, '_> {
                                     &v.lhs,
                                     display_wrap,
                                 )?;
-                                let op = logic_op(v.op, expr_span);
-                                quote_into!(buf, expr_span, { = &#expr_buf #op });
+                                quote_into!(buf, expr_span, { = &#expr_buf });
+                                buf.write_token_str(v.op, expr_span);
                                 this.visit_condition(ctx, buf, &v.rhs)?;
                             }
                             _ => {

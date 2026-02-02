@@ -1744,7 +1744,7 @@ fn deny_any_rust_token<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'
         .parse_next(i)
     }
 
-    let (token, span) = any_rust_token.with_span().parse_next(i)?;
+    let (token, span) = ws(any_rust_token.with_span()).parse_next(i)?;
     cut_error!(
         format!(
             "the token `{}` was not expected at this point in the expression",

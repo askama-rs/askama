@@ -185,6 +185,233 @@ impl Buffer {
         self.buf.extend(src);
     }
 
+    // Generated using `scripts/make-buffer-write_token_str`.
+    pub(crate) fn write_token_str(&mut self, op: &str, span: proc_macro2::Span) {
+        type TokenFn = Option<fn(&mut TokenStream, proc_macro2::Span)>;
+
+        #[allow(clippy::type_complexity)]
+        const OPERATORS: &[Option<(fn(&[u8]) -> u8, &[TokenFn])>] = &[
+            None,
+            Some((calc_op1, TABLE1)),
+            Some((calc_op2, TABLE2)),
+            Some((calc_op3, TABLE3)),
+            Some((calc_op4, TABLE4)),
+            Some((calc_op5, TABLE5)),
+            Some((calc_op6, TABLE6)),
+            Some((calc_op7, TABLE7)),
+            Some((calc_op8, TABLE8)),
+        ];
+
+        fn calc_op1(op: &[u8]) -> u8 {
+            let &[op] = op else {
+                return u8::MAX;
+            };
+            (op.wrapping_mul(79) ^ 112) % 23
+        }
+
+        const TABLE1: &[TokenFn] = &[
+            Some(|ts, span| Token![;](span).to_tokens(ts)),
+            Some(|ts, span| Token![?](span).to_tokens(ts)),
+            Some(|ts, span| Token![=](span).to_tokens(ts)),
+            Some(|ts, span| Token![!](span).to_tokens(ts)),
+            Some(|ts, span| Token![%](span).to_tokens(ts)),
+            Some(|ts, span| Token![#](span).to_tokens(ts)),
+            Some(|ts, span| Token![|](span).to_tokens(ts)),
+            Some(|ts, span| Token![+](span).to_tokens(ts)),
+            Some(|ts, span| Token![~](span).to_tokens(ts)),
+            Some(|ts, span| Token![-](span).to_tokens(ts)),
+            Some(|ts, span| Token![_](span).to_tokens(ts)),
+            Some(|ts, span| Token![/](span).to_tokens(ts)),
+            Some(|ts, span| Token![:](span).to_tokens(ts)),
+            Some(|ts, span| Token![>](span).to_tokens(ts)),
+            Some(|ts, span| Token![<](span).to_tokens(ts)),
+            Some(|ts, span| Token![@](span).to_tokens(ts)),
+            Some(|ts, span| Token![$](span).to_tokens(ts)),
+            None,
+            Some(|ts, span| Token![&](span).to_tokens(ts)),
+            Some(|ts, span| Token![*](span).to_tokens(ts)),
+            Some(|ts, span| Token![.](span).to_tokens(ts)),
+            Some(|ts, span| Token![,](span).to_tokens(ts)),
+            Some(|ts, span| Token![^](span).to_tokens(ts)),
+        ];
+
+        fn calc_op2(op: &[u8]) -> u8 {
+            let &[ea, ez] = op else {
+                return u8::MAX;
+            };
+            ea.wrapping_mul(118).wrapping_add(ez.wrapping_mul(71)) % 37
+        }
+
+        const TABLE2: &[TokenFn] = &[
+            Some(|ts, span| Token![&=](span).to_tokens(ts)),
+            Some(|ts, span| Token![/=](span).to_tokens(ts)),
+            Some(|ts, span| Token![<<](span).to_tokens(ts)),
+            Some(|ts, span| Token![do](span).to_tokens(ts)),
+            Some(|ts, span| Token![+=](span).to_tokens(ts)),
+            None,
+            Some(|ts, span| Token![=>](span).to_tokens(ts)),
+            Some(|ts, span| Token![as](span).to_tokens(ts)),
+            None,
+            Some(|ts, span| Token![==](span).to_tokens(ts)),
+            Some(|ts, span| Token![in](span).to_tokens(ts)),
+            None,
+            None,
+            Some(|ts, span| Token![>>](span).to_tokens(ts)),
+            Some(|ts, span| Token![&&](span).to_tokens(ts)),
+            None,
+            Some(|ts, span| Token![>=](span).to_tokens(ts)),
+            None,
+            Some(|ts, span| Token![->](span).to_tokens(ts)),
+            Some(|ts, span| Token![|=](span).to_tokens(ts)),
+            None,
+            Some(|ts, span| Token![-=](span).to_tokens(ts)),
+            None,
+            Some(|ts, span| Token![fn](span).to_tokens(ts)),
+            Some(|ts, span| Token![..](span).to_tokens(ts)),
+            Some(|ts, span| Token![::](span).to_tokens(ts)),
+            Some(|ts, span| Token![^=](span).to_tokens(ts)),
+            Some(|ts, span| Token![%=](span).to_tokens(ts)),
+            Some(|ts, span| Token![if](span).to_tokens(ts)),
+            Some(|ts, span| Token![||](span).to_tokens(ts)),
+            None,
+            None,
+            None,
+            Some(|ts, span| Token![!=](span).to_tokens(ts)),
+            Some(|ts, span| Token![*=](span).to_tokens(ts)),
+            Some(|ts, span| Token![<-](span).to_tokens(ts)),
+            Some(|ts, span| Token![<=](span).to_tokens(ts)),
+        ];
+
+        fn calc_op3(op: &[u8]) -> u8 {
+            let Ok(&[ea, _, ez, ..]): Result<&[u8; 3], _> = op.try_into() else {
+                return u8::MAX;
+            };
+            ea.wrapping_mul(199).wrapping_add(ez.wrapping_mul(52)) % 17
+        }
+
+        const TABLE3: &[TokenFn] = &[
+            Some(|ts, span| Token![use](span).to_tokens(ts)),
+            Some(|ts, span| Token![ref](span).to_tokens(ts)),
+            None,
+            Some(|ts, span| Token![dyn](span).to_tokens(ts)),
+            Some(|ts, span| Token![..=](span).to_tokens(ts)),
+            Some(|ts, span| Token![try](span).to_tokens(ts)),
+            Some(|ts, span| Token![box](span).to_tokens(ts)),
+            Some(|ts, span| Token![mut](span).to_tokens(ts)),
+            Some(|ts, span| Token![<<=](span).to_tokens(ts)),
+            Some(|ts, span| Token![...](span).to_tokens(ts)),
+            Some(|ts, span| Token![pub](span).to_tokens(ts)),
+            Some(|ts, span| Token![mod](span).to_tokens(ts)),
+            Some(|ts, span| Token![for](span).to_tokens(ts)),
+            Some(|ts, span| Token![let](span).to_tokens(ts)),
+            Some(|ts, span| Token![>>=](span).to_tokens(ts)),
+            Some(|ts, span| Token![raw](span).to_tokens(ts)),
+        ];
+
+        fn calc_op4(op: &[u8]) -> u8 {
+            let Ok(&[ea, ez, ..]): Result<&[u8; 4], _> = op.try_into() else {
+                return u8::MAX;
+            };
+            ea.wrapping_mul(229).wrapping_add(ez.wrapping_mul(42)) % 11
+        }
+
+        const TABLE4: &[TokenFn] = &[
+            Some(|ts, span| Token![Self](span).to_tokens(ts)),
+            Some(|ts, span| Token![loop](span).to_tokens(ts)),
+            Some(|ts, span| Token![enum](span).to_tokens(ts)),
+            Some(|ts, span| Token![self](span).to_tokens(ts)),
+            Some(|ts, span| Token![type](span).to_tokens(ts)),
+            Some(|ts, span| Token![auto](span).to_tokens(ts)),
+            Some(|ts, span| Token![else](span).to_tokens(ts)),
+            Some(|ts, span| Token![move](span).to_tokens(ts)),
+            Some(|ts, span| Token![priv](span).to_tokens(ts)),
+            Some(|ts, span| Token![impl](span).to_tokens(ts)),
+        ];
+
+        fn calc_op5(op: &[u8]) -> u8 {
+            let Ok(&[ea, _, ez, ..]): Result<&[u8; 5], _> = op.try_into() else {
+                return u8::MAX;
+            };
+            ea.wrapping_mul(123).wrapping_add(ez.wrapping_mul(41)) % 15
+        }
+
+        const TABLE5: &[TokenFn] = &[
+            Some(|ts, span| Token![where](span).to_tokens(ts)),
+            None,
+            Some(|ts, span| Token![const](span).to_tokens(ts)),
+            Some(|ts, span| Token![match](span).to_tokens(ts)),
+            Some(|ts, span| Token![super](span).to_tokens(ts)),
+            Some(|ts, span| Token![yield](span).to_tokens(ts)),
+            Some(|ts, span| Token![await](span).to_tokens(ts)),
+            Some(|ts, span| Token![break](span).to_tokens(ts)),
+            Some(|ts, span| Token![union](span).to_tokens(ts)),
+            Some(|ts, span| Token![trait](span).to_tokens(ts)),
+            Some(|ts, span| Token![final](span).to_tokens(ts)),
+            Some(|ts, span| Token![crate](span).to_tokens(ts)),
+            Some(|ts, span| Token![async](span).to_tokens(ts)),
+            Some(|ts, span| Token![macro](span).to_tokens(ts)),
+            Some(|ts, span| Token![while](span).to_tokens(ts)),
+        ];
+
+        fn calc_op6(op: &[u8]) -> u8 {
+            let Ok(&[ea, _, ez, ..]): Result<&[u8; 6], _> = op.try_into() else {
+                return u8::MAX;
+            };
+            ea.wrapping_mul(14).wrapping_add(ez) % 7
+        }
+
+        const TABLE6: &[TokenFn] = &[
+            Some(|ts, span| Token![unsafe](span).to_tokens(ts)),
+            Some(|ts, span| Token![return](span).to_tokens(ts)),
+            Some(|ts, span| Token![become](span).to_tokens(ts)),
+            Some(|ts, span| Token![static](span).to_tokens(ts)),
+            Some(|ts, span| Token![typeof](span).to_tokens(ts)),
+            Some(|ts, span| Token![extern](span).to_tokens(ts)),
+            Some(|ts, span| Token![struct](span).to_tokens(ts)),
+        ];
+
+        fn calc_op7(op: &[u8]) -> u8 {
+            let Ok(&[.., ea, ez]): Result<&[u8; 7], _> = op.try_into() else {
+                return u8::MAX;
+            };
+            ea.wrapping_add(ez) % 3
+        }
+
+        const TABLE7: &[TokenFn] = &[
+            Some(|ts, span| Token![unsized](span).to_tokens(ts)),
+            Some(|ts, span| Token![virtual](span).to_tokens(ts)),
+            Some(|ts, span| Token![default](span).to_tokens(ts)),
+        ];
+
+        fn calc_op8(op: &[u8]) -> u8 {
+            let Ok(&[.., ea, ez]): Result<&[u8; 8], _> = op.try_into() else {
+                return u8::MAX;
+            };
+            ea.wrapping_mul(13).wrapping_add(ez) % 3
+        }
+
+        const TABLE8: &[TokenFn] = &[
+            Some(|ts, span| Token![abstract](span).to_tokens(ts)),
+            Some(|ts, span| Token![override](span).to_tokens(ts)),
+            Some(|ts, span| Token![continue](span).to_tokens(ts)),
+        ];
+
+        if self.discard {
+            return;
+        }
+        self.handle_str_lit();
+
+        if let Some(Some((calc, table))) = OPERATORS.get(op.len())
+            && let idx = calc(op.as_bytes())
+            && idx != u8::MAX
+            && let Some(Some(func)) = table.get(idx as usize)
+        {
+            func(&mut self.buf, span);
+        } else {
+            unreachable!("Unimplemented operator: `{}`", op.escape_debug());
+        }
+    }
+
     pub(crate) fn write_token<F, T>(&mut self, token: F, span: proc_macro2::Span)
     where
         F: Fn(proc_macro2::Span) -> T,
@@ -640,4 +867,28 @@ fn variant_as_arm(
             #size_hint
         }
     });
+}
+
+#[test]
+fn test_write_token_str() {
+    let mut actual = Buffer::new();
+    let mut expected = TokenStream::new();
+    let span = Span::call_site();
+
+    macro_rules! fill_ts {
+        ($($tt:tt)*) => { $(
+            actual.write_token_str(stringify!($tt), span);
+            Token![$tt](span).to_tokens(&mut expected);
+        )* };
+    }
+
+    fill_ts! {
+        abstract as async auto await become box break const continue crate default do dyn else enum
+        extern final fn for if impl in let loop macro match mod move mut override priv pub raw ref
+        return Self self static struct super trait try type typeof union unsafe unsized use virtual
+        where while yield & && &= @ ^ ^= : , $ . .. ... ..= = == => >= > <- <= < - -= != ! | |= ||
+        :: % %= + += # ? -> ; << <<= >> >>= / /= * *= ~ _
+    }
+
+    assert_eq!(actual.to_string(), expected.to_string())
 }

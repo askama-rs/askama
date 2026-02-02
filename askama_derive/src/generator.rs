@@ -13,8 +13,7 @@ use std::sync::Arc;
 use parser::node::{Call, Macro, Whitespace};
 use parser::{CharLit, Expr, FloatKind, IntKind, Num, StrLit, WithSpan};
 use proc_macro2::{Span, TokenStream};
-use quote::{ToTokens, quote_spanned};
-use syn::Token;
+use quote::quote_spanned;
 
 use crate::generator::helpers::{clean_path, diff_paths};
 use crate::heritage::{Context, Heritage};
@@ -817,41 +816,4 @@ impl<'a> Deref for WritableBuffer<'a> {
 enum Writable<'a> {
     Lit(WithSpan<Cow<'a, str>>),
     Expr(&'a WithSpan<Box<Expr<'a>>>),
-}
-
-macro_rules! make_token_match {
-    ($op:ident @ $span:ident => $($tt:tt)+) => {
-        match $op {
-            $(stringify!($tt) => Token![$tt]($span).into_token_stream(),)+
-            _ => unreachable!(),
-        }
-    };
-}
-
-#[inline]
-#[track_caller]
-fn logic_op(op: &str, span: proc_macro2::Span) -> TokenStream {
-    make_token_match!(op @ span => && || ^)
-}
-
-#[inline]
-#[track_caller]
-fn unary_op(op: &str, span: proc_macro2::Span) -> TokenStream {
-    make_token_match!(op @ span => - ! * &)
-}
-
-#[inline]
-#[track_caller]
-fn range_op(op: &str, span: proc_macro2::Span) -> TokenStream {
-    make_token_match!(op @ span => .. ..=)
-}
-
-#[inline]
-#[track_caller]
-fn binary_op(op: &str, span: proc_macro2::Span) -> TokenStream {
-    make_token_match!(
-        op @ span =>
-        * / % + - << >> & ^ | == != < > <= >= && || .. ..=
-        = += -= *= /= %= &= |= ^= <<= >>=
-    )
 }
