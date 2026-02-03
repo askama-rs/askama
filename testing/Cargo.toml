@@ -25,7 +25,7 @@ askama_parser = { path = "../askama_parser" }
 assert_matches = "1.5.0"
 criterion = "0.8"
 pulldown-cmark = "0.13"
-trybuild = "1.0.100"
+trybuild = "1.0.115"
 
 [features]
 default = ["code-in-doc", "serde_json"]

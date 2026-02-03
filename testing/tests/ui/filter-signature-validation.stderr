@@ -1,71 +1,71 @@
 error: Filter function missing required input and environment arguments. Example: `fn filter0(_: &dyn std::fmt::Display, _: &dyn askama::Values) -> askama::Result<String>`
  --> tests/ui/filter-signature-validation.rs:3:19
   |
-3 |     pub fn filter0() -> askama::Result<String> {}
+3 |     pub fn filter0() -> askama::Result<String> {
   |                   ^
 
 error: Filter function missing required environment argument. Example: `fn filter0(_: &dyn std::fmt::Display, _: &dyn askama::Values) -> askama::Result<String>`
- --> tests/ui/filter-signature-validation.rs:6:19
+ --> tests/ui/filter-signature-validation.rs:8:19
   |
-6 |     pub fn filter1(input: usize) -> askama::Result<String> {}
+8 |     pub fn filter1(input: usize) -> askama::Result<String> {
   |                   ^
 
 error: Filter function missing required environment argument. Example: `fn filter0(_: &dyn std::fmt::Display, _: &dyn askama::Values) -> askama::Result<String>`
- --> tests/ui/filter-signature-validation.rs:9:19
-  |
-9 |     pub fn filter2(_: &dyn askama::Values) -> askama::Result<String> {}
-  |                   ^
+  --> tests/ui/filter-signature-validation.rs:13:19
+   |
+13 |     pub fn filter2(_: &dyn askama::Values) -> askama::Result<String> {
+   |                   ^
 
 error: Const generics are currently not supported for filters
-  --> tests/ui/filter-signature-validation.rs:14:20
+  --> tests/ui/filter-signature-validation.rs:20:20
    |
-14 |     pub fn filter0<const T: bool>(input: usize, _: &dyn askama::Values) -> askama::Result<String> {}
+20 |     pub fn filter0<const T: bool>(input: usize, _: &dyn askama::Values) -> askama::Result<String> {
    |                    ^^^^^
 
 error: Filter functions don't support generic parameter defaults
-  --> tests/ui/filter-signature-validation.rs:19:24
+  --> tests/ui/filter-signature-validation.rs:27:24
    |
-19 |     pub fn filter0<T = f64>(input: usize, _: &dyn askama::Values, arg: T) -> askama::Result<String> {}
+27 |     pub fn filter0<T = f64>(
    |                        ^^^
 
 error: Filter function is missing return type
-  --> tests/ui/filter-signature-validation.rs:24:56
+  --> tests/ui/filter-signature-validation.rs:38:56
    |
-24 |     pub fn filter0(input: usize, _: &dyn askama::Values) {}
+38 |     pub fn filter0(input: usize, _: &dyn askama::Values) {}
    |                                                        ^
 
 error: Only conventional function arguments are supported
-  --> tests/ui/filter-signature-validation.rs:30:58
+  --> tests/ui/filter-signature-validation.rs:47:9
    |
-30 |     pub fn filter0(input: usize, _: &dyn askama::Values, Wrapper(arg): Wrapper) -> askama::Result<String> {}
-   |                                                          ^^^^^^^
+47 |         Wrapper(arg): Wrapper,
+   |         ^^^^^^^
 
 error: Impl generics are currently not supported for filters
-  --> tests/ui/filter-signature-validation.rs:35:63
+  --> tests/ui/filter-signature-validation.rs:58:14
    |
-35 |     pub fn filter0(input: usize, _: &dyn askama::Values, arg: impl std::fmt::Display) -> askama::Result<String> {}
-   |                                                               ^^^^
+58 |         arg: impl std::fmt::Display,
+   |              ^^^^
 
 error: All required arguments must appear before any optional ones
-  --> tests/ui/filter-signature-validation.rs:40:92
+  --> tests/ui/filter-signature-validation.rs:70:9
    |
-40 |     pub fn filter0(input: usize, _: &dyn askama::Values, #[optional(1337)] opt_arg: usize, req_arg: usize) -> askama::Result<String> {}
-   |                                                                                            ^^^^^^^
+70 |         req_arg: usize,
+   |         ^^^^^^^
 
 error: Impl generics are currently not supported for filters
-  --> tests/ui/filter-signature-validation.rs:45:85
+  --> tests/ui/filter-signature-validation.rs:81:36
    |
-45 |     pub fn filter0(input: usize, _: &dyn askama::Values, #[optional(1337)] opt_arg: impl std::fmt::Display) -> askama::Result<String> {}
-   |                                                                                     ^^^^
+81 |         #[optional(1337)] opt_arg: impl std::fmt::Display,
+   |                                    ^^^^
 
 error: Optional arguments must not use generic parameters
-  --> tests/ui/filter-signature-validation.rs:48:99
+  --> tests/ui/filter-signature-validation.rs:90:41
    |
-48 |     pub fn filter1<T: Copy>(input: usize, _: &dyn askama::Values, #[optional(1337usize)] opt_arg: T) -> askama::Result<String> {}
-   |                                                                                                   ^
+90 |         #[optional(1337usize)] opt_arg: T,
+   |                                         ^
 
 error: Optional arguments must not use generic parameters
-  --> tests/ui/filter-signature-validation.rs:51:106
+  --> tests/ui/filter-signature-validation.rs:99:48
    |
-51 |     pub fn filter2<T: Copy>(input: usize, _: &dyn askama::Values, #[optional(1337usize)] opt_arg: Option<T>) -> askama::Result<String> {}
-   |                                                                                                          ^
+99 |         #[optional(1337usize)] opt_arg: Option<T>,
+   |                                                ^
