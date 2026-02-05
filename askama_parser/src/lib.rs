@@ -930,9 +930,12 @@ fn char_lit<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, CharLit<
     }
 
     let (nb, max_value, err1, err2) = match c {
-        Char::Literal | Char::Escaped => {
-            return Ok(CharLit { prefix, content });
-        }
+        Char::Literal(c) | Char::Escaped(c) => match prefix {
+            Some(CharPrefix::Binary) if !c.is_ascii() => {
+                return cut_error!("non-ASCII character in byte literal", span);
+            }
+            _ => return Ok(CharLit { prefix, content }),
+        },
         Char::AsciiEscape(nb) => (
             nb,
             // `0x7F` is the maximum value for a `\x` escaped character.
@@ -973,9 +976,9 @@ fn char_lit<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, CharLit<
 #[derive(Copy, Clone)]
 enum Char<'a> {
     /// Any character that is not escaped.
-    Literal,
+    Literal(char),
     /// An escaped character (like `\n`) which doesn't require any extra check.
-    Escaped,
+    Escaped(char),
     /// Ascii escape (like `\x12`).
     AsciiEscape(&'a str),
     /// Unicode escape (like `\u{12}`).
@@ -984,18 +987,18 @@ enum Char<'a> {
 
 impl<'a> Char<'a> {
     fn parse(i: &mut &'a str) -> ModalResult<Self, ()> {
-        let unescaped = none_of(('\\', '\'')).value(Self::Literal);
+        let unescaped = none_of(('\\', '\'')).map(Self::Literal);
         let escaped = preceded(
             '\\',
             alt((
-                'n'.value(Self::Escaped),
-                'r'.value(Self::Escaped),
-                't'.value(Self::Escaped),
-                '\\'.value(Self::Escaped),
-                '0'.value(Self::Escaped),
-                '\''.value(Self::Escaped),
+                'n'.value(Self::Escaped('\n')),
+                'r'.value(Self::Escaped('\r')),
+                't'.value(Self::Escaped('\t')),
+                '\\'.value(Self::Escaped('\\')),
+                '0'.value(Self::Escaped('\0')),
+                '\''.value(Self::Escaped('\'')),
                 // Not useful but supported by rust.
-                '"'.value(Self::Escaped),
+                '"'.value(Self::Escaped('"')),
                 ('x', take_while(2, |c: char| c.is_ascii_hexdigit()))
                     .map(|(_, s)| Self::AsciiEscape(s)),
                 (

@@ -1736,3 +1736,17 @@ fn test_excessive_call_depth() {
     }
     assert!(Ast::from_str(&format!("{{{{ {call} }}}}"), None, &Syntax::default()).is_err());
 }
+
+// regression test for <https://issues.oss-fuzz.com/issues/481742850>
+#[test]
+fn test_byte_literal_multi_byte() {
+    // high ascii
+    assert!(Ast::from_str("{{b'ä'}}", None, &Syntax::default()).is_err());
+    assert!(Ast::from_str("{{x!(b'ä')}}", None, &Syntax::default()).is_err());
+    // basic multilingual plane
+    assert!(Ast::from_str("{{b'€'}}", None, &Syntax::default()).is_err());
+    assert!(Ast::from_str("{{x!(b'€')}}", None, &Syntax::default()).is_err());
+    // non-BMP
+    assert!(Ast::from_str("{{b'𝄞'}}", None, &Syntax::default()).is_err());
+    assert!(Ast::from_str("{{x!(b'𝄞')}}", None, &Syntax::default()).is_err());
+}
