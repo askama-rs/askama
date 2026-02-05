@@ -165,3 +165,19 @@ error: a bare CR (Mac linebreak) is not allowed in string literals, use NL (Unix
     |
 117 | #[template(ext = "txt", source = "{{ c\"hello \r world\" }}")]
     |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: non-ASCII character in byte literal
+ --> <source attribute>:1:3
+       "b'ä' }}"
+   --> tests/ui/illegal-string-literals.rs:121:34
+    |
+121 | #[template(ext = "txt", source = "{{ b'ä' }}")]
+    |                                  ^^^^^^^^^^^^
+
+error: non-ASCII character in byte literal
+ --> <source attribute>:1:6
+       "b'ä') }}"
+   --> tests/ui/illegal-string-literals.rs:125:34
+    |
+125 | #[template(ext = "txt", source = "{{ x!(b'ä') }}")]
+    |                                  ^^^^^^^^^^^^^^^^

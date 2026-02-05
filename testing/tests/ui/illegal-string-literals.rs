@@ -117,4 +117,12 @@ struct UnpairedCrInBytes;
 #[template(ext = "txt", source = "{{ c\"hello \r world\" }}")]
 struct UnpairedCrInCstring;
 
+#[derive(Template)]
+#[template(ext = "txt", source = "{{ b'ä' }}")]
+struct MbByteLiteral;
+
+#[derive(Template)]
+#[template(ext = "txt", source = "{{ x!(b'ä') }}")]
+struct MbByteLiteralInMacro;
+
 fn main() {}
