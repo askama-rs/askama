@@ -1219,12 +1219,12 @@ impl<'a> SyntaxBuilder<'a> {
             if s.len() < 2 {
                 return Err(format!(
                     "delimiters must be at least two characters long. \
-                        The {k} delimiter ({s:?}) is too short",
+                    The {k} delimiter ({s:?}) is too short",
                 ));
             } else if s.len() > 32 {
                 return Err(format!(
                     "delimiters must be at most 32 characters long. \
-                        The {k} delimiter ({:?}...) is too long",
+                    The {k} delimiter ({:?}...) is too long",
                     &s[..(16..=s.len())
                         .find(|&i| s.is_char_boundary(i))
                         .unwrap_or(s.len())],
@@ -1232,7 +1232,7 @@ impl<'a> SyntaxBuilder<'a> {
             } else if s.chars().any(char::is_whitespace) {
                 return Err(format!(
                     "delimiters may not contain white spaces. \
-                        The {k} delimiter ({s:?}) contains white spaces",
+                    The {k} delimiter ({s:?}) contains white spaces",
                 ));
             } else if is_closing
                 && ['(', '-', '+', '~', '.', '>', '<', '&', '|', '!']
@@ -1240,9 +1240,35 @@ impl<'a> SyntaxBuilder<'a> {
             {
                 return Err(format!(
                     "closing delimiters may not start with operators. \
-                        The {k} delimiter ({s:?}) starts with operator `{}`",
+                    The {k} delimiter ({s:?}) starts with operator `{}`",
                     s.chars().next().unwrap(),
                 ));
+            }
+        }
+
+        // likely to cause catastrophic backtracking in the parser
+        for infix in [
+            "&", "&&", "&=", "^", "^=", ",", ".", "..", "...", "..=", "=", "==", ">=", ">", "<=",
+            "<", "-", "-=", "!=", "!", "|", "|=", "||", "%", "%=", "+", "+=", "<<", "<<=", ">>",
+            ">>=", "/", "/=", "*", "*=",
+        ] {
+            match syntax.expr_end.strip_prefix(infix) {
+                Some("") => {
+                    return Err(format!(
+                        "the closing expression delimiter `{}` must not be a string that could be \
+                        mistaken for a binary operator",
+                        syntax.expr_end.escape_debug(),
+                    ));
+                }
+                Some(tail) if tail.as_bytes().iter().all(|c| b"&-!*".contains(c)) => {
+                    return Err(format!(
+                        "the closing expression delimiter `{}` must not be a string that could be \
+                        mistaken for a binary operator `{infix}` followed by a (sequence of) \
+                        prefix operator(s)",
+                        syntax.expr_end.escape_debug(),
+                    ));
+                }
+                _ => continue,
             }
         }
 
@@ -1267,7 +1293,7 @@ impl<'a> SyntaxBuilder<'a> {
                 };
                 return Err(format!(
                     "an opening delimiter may not be the prefix of another delimiter. \
-                        The {k1} delimiter ({s1:?}) clashes with the {k2} delimiter ({s2:?})",
+                    The {k1} delimiter ({s1:?}) clashes with the {k2} delimiter ({s2:?})",
                 ));
             }
         }

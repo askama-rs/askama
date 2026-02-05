@@ -1750,3 +1750,24 @@ fn test_byte_literal_multi_byte() {
     assert!(Ast::from_str("{{b'𝄞'}}", None, &Syntax::default()).is_err());
     assert!(Ast::from_str("{{x!(b'𝄞')}}", None, &Syntax::default()).is_err());
 }
+
+// regression test for <https://issues.oss-fuzz.com/issues/471899485>
+#[test]
+fn test_expr_end_catastrophic_backtracking() {
+    assert!(
+        SyntaxBuilder {
+            expr_end: Some("**"),
+            ..SyntaxBuilder::default()
+        }
+        .to_syntax()
+        .is_err()
+    );
+    assert!(
+        SyntaxBuilder {
+            expr_end: Some("***"),
+            ..SyntaxBuilder::default()
+        }
+        .to_syntax()
+        .is_err()
+    );
+}
