@@ -12,3 +12,11 @@ members = [
     "testing/tests/clippy_lints",
 ]
 resolver = "2"
+
+[workspace.package]
+version = "0.15.4"
+homepage = "https://askama.rs/"
+repository = "https://github.com/askama-rs/askama"
+license = "MIT OR Apache-2.0"
+edition = "2024"
+rust-version = "1.88"

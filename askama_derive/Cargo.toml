@@ -1,13 +1,13 @@
 [package]
 name = "askama_derive"
-version = "0.15.4"
+version.workspace = true
 description = "Code generator of Askama templating engine"
 homepage = "https://github.com/askama-rs/askama"
-repository = "https://github.com/askama-rs/askama"
-license = "MIT OR Apache-2.0"
-readme = "README.md"
-edition = "2024"
-rust-version = "1.88"
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
