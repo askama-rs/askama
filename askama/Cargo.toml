@@ -1,14 +1,14 @@
 [package]
 name = "askama"
-version = "0.15.4"
+version.workspace = true
 description = "Type-safe, compiled Jinja-like templates for Rust"
 keywords = ["markup", "template", "jinja2", "html"]
 categories = ["template-engine"]
-homepage = "https://askama.rs/"
-repository = "https://github.com/askama-rs/askama"
-license = "MIT OR Apache-2.0"
-edition = "2024"
-rust-version = "1.88"
+homepage.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
 
 [package.metadata.docs.rs]
 features = ["full"]
