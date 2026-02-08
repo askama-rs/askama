@@ -12,3 +12,18 @@ error: cannot have a block inside a filter block
 14 | | {%- endblock body %}
 15 | | "#,
    | |__^
+
+error: cannot have a block inside a let/set block
+ --> BlockInLetBlock.html:7:11
+       "block title %}New title{% endblock %}\n        a b\n    {% endlet %}\n{%- endblock "...
+  --> tests/ui/block_in_filter_block.rs:22:14
+   |
+22 |       source = r#"{% extends "html-base.html" %}
+   |  ______________^
+23 | |
+24 | | {%- block body -%}
+25 | |     <h1>Metadata</h1>
+...  |
+31 | | {%- endblock body %}
+32 | | "#,
+   | |__^
