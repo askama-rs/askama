@@ -5,8 +5,8 @@ use winnow::{LocatingSlice, Parser};
 use crate::expr::BinOp;
 use crate::node::{Let, Lit, Raw, Whitespace, Ws};
 use crate::{
-    Ast, Expr, Filter, InnerSyntax, InputStream, Level, Node, Num, PathComponent, PathOrIdentifier,
-    State, StrLit, Syntax, SyntaxBuilder, Target, WithSpan,
+    Ast, Expr, Filter, InnerSyntax, InputStream, LetValueOrBlock, Level, Node, Num, PathComponent,
+    PathOrIdentifier, State, StrLit, Syntax, SyntaxBuilder, Target, WithSpan,
 };
 
 fn as_path<'a>(path: &'a [&'a str]) -> Vec<PathComponent<'a>> {
@@ -1085,8 +1085,12 @@ fn fuzzed_comment_depth() {
 fn let_set() {
     let syntax = Syntax::default();
     assert_eq!(
-        Ast::from_str("{% let a %}", None, &syntax).unwrap().nodes(),
-        Ast::from_str("{% set a %}", None, &syntax).unwrap().nodes(),
+        Ast::from_str("{% let a = 1 %}", None, &syntax)
+            .unwrap()
+            .nodes(),
+        Ast::from_str("{% set a = 1 %}", None, &syntax)
+            .unwrap()
+            .nodes(),
     );
 }
 
@@ -1655,7 +1659,9 @@ fn regression_tests_span_change() {
             var: Target::Array(WithSpan::no_span(vec![Target::Placeholder(
                 WithSpan::no_span(())
             )])),
-            val: Some(WithSpan::no_span(Box::new(Expr::Array(vec![int_lit("2")])))),
+            val: LetValueOrBlock::Value(WithSpan::no_span(Box::new(Expr::Array(vec![int_lit(
+                "2"
+            )])))),
             is_mutable: false,
         })))],
     );
@@ -1667,7 +1673,9 @@ fn regression_tests_span_change() {
         [Box::new(Node::Let(WithSpan::no_span(Let {
             ws: Ws(Some(Whitespace::Suppress), Some(Whitespace::Suppress)),
             var: Target::Placeholder(WithSpan::no_span(())),
-            val: Some(WithSpan::no_span(Box::new(Expr::Array(vec![int_lit("2")])))),
+            val: LetValueOrBlock::Value(WithSpan::no_span(Box::new(Expr::Array(vec![int_lit(
+                "2"
+            )])))),
             is_mutable: false,
         })))],
     );

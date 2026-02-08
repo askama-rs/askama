@@ -753,6 +753,10 @@ fn var_filter_source() -> Ident {
     syn::Ident::new("__askama_filter_block", proc_macro2::Span::call_site())
 }
 
+fn var_let_source() -> Ident {
+    syn::Ident::new("__askama_let_block", proc_macro2::Span::call_site())
+}
+
 fn var_values() -> Ident {
     syn::Ident::new("__askama_values", proc_macro2::Span::call_site())
 }
