@@ -7,8 +7,8 @@ use std::str::FromStr;
 
 use parser::expr::BinOp;
 use parser::node::{
-    Call, Comment, Cond, CondTest, Declare, FilterBlock, If, Include, Let, Lit, Loop, Match,
-    Whitespace, Ws,
+    Call, Comment, Compound, Cond, CondTest, Declare, FilterBlock, If, Include, Let, Lit, Loop,
+    Match, Whitespace, Ws,
 };
 use parser::{Expr, Node, Span, Target, WithSpan};
 use proc_macro2::TokenStream;
@@ -119,6 +119,9 @@ impl<'a> Generator<'a, '_> {
                 }
                 Node::Let(ref l) => {
                     self.write_let(ctx, buf, l)?;
+                }
+                Node::Compound(ref c) => {
+                    self.write_compound(ctx, buf, c)?;
                 }
                 Node::Declare(ref c) => {
                     self.write_decl(ctx, buf, c)?;
@@ -899,6 +902,20 @@ impl<'a> Generator<'a, '_> {
                 l,
             )),
         }
+    }
+
+    fn write_compound(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        c: &'a WithSpan<Compound<'_>>,
+    ) -> Result<(), CompileError> {
+        self.handle_ws(c.ws);
+
+        let op = &c.op;
+        self.visit_binop(ctx, buf, op.op, &op.lhs, &op.rhs, c.span())?;
+        buf.write_token(Token![;], ctx.span_for_node(c.span()));
+        Ok(())
     }
 
     fn write_let(
