@@ -746,7 +746,7 @@ impl<'a> Generator<'a, '_> {
         Ok(DisplayWrap::Unwrapped)
     }
 
-    fn visit_binop(
+    pub(super) fn visit_binop(
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,

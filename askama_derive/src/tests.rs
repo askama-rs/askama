@@ -1558,7 +1558,7 @@ fn test_compound_assignment() {
             let mut prefixsum = 0;
             let __askama_iter = 0..self.limit;
             for (i, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
-                let _ = prefixsum @= i;
+                prefixsum @= i;
                 match (
                     &((&&askama::filters::AutoEscaper::new(&(prefixsum), askama::filters::Text))
                         .askama_auto_escape()?),

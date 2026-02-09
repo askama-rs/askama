@@ -310,6 +310,7 @@ impl TemplateInput<'_> {
                         | Node::Expr(_, _)
                         | Node::Extends(_)
                         | Node::Let(_)
+                        | Node::Compound(_)
                         | Node::Declare(_)
                         | Node::Import(_)
                         | Node::Macro(_)

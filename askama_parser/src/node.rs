@@ -23,6 +23,8 @@ pub enum Node<'a> {
     Expr(Ws, WithSpan<Box<Expr<'a>>>),
     Call(WithSpan<Call<'a>>),
     Let(WithSpan<Let<'a>>),
+    /// Mutable operations like `+=`.
+    Compound(WithSpan<Compound<'a>>),
     Declare(WithSpan<Declare<'a>>),
     If(WithSpan<If<'a>>),
     Match(WithSpan<Match<'a>>),
@@ -108,7 +110,7 @@ impl<'a: 'l, 'l> Node<'a> {
             "let" | "set" => Let::parse,
             "macro" => Macro::parse,
             "match" => Match::parse,
-            "mut" => Let::compound,
+            "mut" => Compound::parse,
             "raw" => Raw::parse,
             _ => {
                 i.reset(&start);
@@ -198,6 +200,7 @@ impl<'a: 'l, 'l> Node<'a> {
             Self::Expr(_, span) => span.span,
             Self::Call(span) => span.span,
             Self::Let(span) => span.span,
+            Self::Compound(span) => span.span,
             Self::Declare(span) => span.span,
             Self::If(span) => span.span,
             Self::Match(span) => span.span,
@@ -1329,8 +1332,16 @@ impl<'a: 'l, 'l> Let<'a> {
             span,
         ))))
     }
+}
 
-    fn compound(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
+#[derive(Debug, PartialEq)]
+pub struct Compound<'a> {
+    pub op: WithSpan<BinOp<'a>>,
+    pub ws: Ws,
+}
+
+impl<'a: 'l, 'l> Compound<'a> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
         let (pws, span, (lhs, rhs, nws)) = (
             opt(Whitespace::parse),
             ws(keyword("mut").span()),
@@ -1360,19 +1371,10 @@ impl<'a: 'l, 'l> Let<'a> {
             );
         };
 
-        // For `a += b` this AST generates the code `let _ = a += b;`. This may look odd, but
-        // is valid rust code, because the value of any assignment (compound or not) is `()`.
-        // This way the generator does not need to know about compound assignments for them
-        // to work.
-        Ok(Box::new(Node::Let(WithSpan::new(
-            Let {
+        Ok(Box::new(Node::Compound(WithSpan::new(
+            Compound {
                 ws: Ws(pws, nws),
-                var: Target::Placeholder(WithSpan::new((), span.clone())),
-                val: Some(WithSpan::new(
-                    Box::new(Expr::BinOp(BinOp { op, lhs, rhs })),
-                    span.clone(),
-                )),
-                is_mutable: false,
+                op: WithSpan::new(BinOp { op, lhs, rhs }, span.clone()),
             },
             span,
         ))))
