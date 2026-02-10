@@ -36,7 +36,7 @@ pub(crate) fn template_to_string(
         heritage,
         MapChain::default(),
         input.block.is_some(),
-        0,
+        BlockInfo::new(),
     );
     let size_hint = match generator.impl_template(buf, tmpl_kind) {
         Err(mut err) if err.span.is_none() => {
@@ -72,6 +72,34 @@ enum RenderFor {
     Extends,
 }
 
+#[derive(Clone, Copy)]
+struct BlockInfo {
+    block_name: &'static str,
+    level: usize,
+}
+
+impl BlockInfo {
+    fn new() -> Self {
+        Self {
+            block_name: "",
+            level: 0,
+        }
+    }
+
+    // FIXME: Instead of this error-prone API, we should use something relying on `Drop` to
+    // decrement, or use a callback which would decrement on exit.
+    fn increase(&mut self, block_name: &'static str) {
+        if self.level == 0 {
+            self.block_name = block_name;
+        }
+        self.level += 1;
+    }
+
+    fn decrease(&mut self) {
+        self.level -= 1;
+    }
+}
+
 struct Generator<'a, 'h> {
     /// The template input state: original struct AST and attributes
     input: &'a TemplateInput<'a>,
@@ -92,8 +120,8 @@ struct Generator<'a, 'h> {
     super_block: Option<(&'a str, usize)>,
     /// Buffer for writable
     buf_writable: WritableBuffer<'a>,
-    /// Used in blocks to check if we are inside a filter block.
-    is_in_filter_block: usize,
+    /// Used in blocks to check if we are inside a filter/let block.
+    is_in_block: BlockInfo,
     /// Set of called macros we are currently in. Used to prevent (indirect) recursions.
     seen_callers: Vec<(&'a Macro<'a>, Option<FileInfo<'a>>)>,
     /// The directory path of the calling file.
@@ -113,7 +141,7 @@ impl<'a, 'h> Generator<'a, 'h> {
         heritage: Option<&'h Heritage<'a, 'h>>,
         locals: MapChain<'a>,
         buf_writable_discard: bool,
-        is_in_filter_block: usize,
+        is_in_block: BlockInfo,
     ) -> Self {
         Self {
             input,
@@ -127,7 +155,7 @@ impl<'a, 'h> Generator<'a, 'h> {
                 discard: buf_writable_discard,
                 ..Default::default()
             },
-            is_in_filter_block,
+            is_in_block,
             seen_callers: Vec::new(),
             caller_dir: CallerDir::Unresolved,
         }

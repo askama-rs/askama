@@ -17,5 +17,22 @@ use askama::Template;
 )]
 struct BlockInFilter;
 
+#[derive(Template)]
+#[template(
+    source = r#"{% extends "html-base.html" %}
+
+{%- block body -%}
+    <h1>Metadata</h1>
+
+    {% let x %}
+        {% block title %}New title{% endblock %}
+        a b
+    {% endlet %}
+{%- endblock body %}
+"#,
+    ext = "html"
+)]
+struct BlockInLetBlock;
+
 fn main() {
 }

@@ -30,14 +30,6 @@ error: node `when` was not expected in the current context
 34 | /// ```askama
    | ^^^^^^^^^^^^^
 
-error: unexpected closing tag `endlet`
- --> <source attribute>:1:21
-       "endlet %}"
-  --> tests/ui/unexpected-tag.rs:43:1
-   |
-43 | /// ```askama
-   | ^^^^^^^^^^^^^
-
 error: unknown node `syntax`
  --> <source attribute>:1:3
        "syntax error %}"
