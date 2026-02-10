@@ -1576,3 +1576,33 @@ fn test_compound_assignment() {
         compare(&jinja, &expected, &[("limit", "u32")], 6);
     }
 }
+
+#[test]
+fn check_size_hint() {
+    compare(
+        r#"{% for _ in .. %} Hello {% break %} {% endfor %}"#,
+        r#"
+            let __askama_iter = ..;
+            for (_, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
+                __askama_writer.write_str(" Hello ")?;
+                break;
+                __askama_writer.write_str(" ")?;
+            }
+        "#,
+        &[],
+        1,
+    );
+    compare(
+        r#"{% for _ in .. %} Hello {% continue %} {% endfor %}"#,
+        r#"
+            let __askama_iter = ..;
+            for (_, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
+                __askama_writer.write_str(" Hello ")?;
+                continue;
+                __askama_writer.write_str(" ")?;
+            }
+        "#,
+        &[],
+        1,
+    );
+}
