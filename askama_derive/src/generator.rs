@@ -21,7 +21,7 @@ use crate::heritage::{Context, Heritage};
 use crate::html::write_escaped_str;
 use crate::input::{Source, TemplateInput};
 use crate::integration::{Buffer, impl_everything, write_header};
-use crate::{CompileError, FileInfo, HashMap, field_new, quote_into};
+use crate::{CompileError, FileInfo, HashMap, SizeHint, field_new, quote_into};
 
 pub(crate) fn template_to_string(
     buf: &mut Buffer,
@@ -29,7 +29,7 @@ pub(crate) fn template_to_string(
     contexts: &HashMap<&Arc<Path>, Context<'_>>,
     heritage: Option<&Heritage<'_, '_>>,
     tmpl_kind: TmplKind<'_>,
-) -> Result<usize, CompileError> {
+) -> Result<SizeHint, CompileError> {
     let generator = Generator::new(
         input,
         contexts,
@@ -173,7 +173,7 @@ impl<'a, 'h> Generator<'a, 'h> {
         mut self,
         buf: &mut Buffer,
         tmpl_kind: TmplKind<'a>,
-    ) -> Result<usize, CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         let ctx = &self.contexts[&self.input.path];
 
         let span = Span::call_site();

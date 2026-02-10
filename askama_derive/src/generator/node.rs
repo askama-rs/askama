@@ -22,18 +22,21 @@ use super::{
 use crate::generator::{LocalCallerMeta, Writable, helpers, logic_op};
 use crate::heritage::{Context, Heritage};
 use crate::integration::{Buffer, string_escape};
-use crate::{CompileError, FileInfo, HashMap, field_new, fmt_left, fmt_right, quote_into};
+use crate::{
+    CompileError, FileInfo, HashMap, SizeHint, field_new, fmt_left, fmt_right, quote_into,
+};
 
 impl<'a> Generator<'a, '_> {
     pub(super) fn impl_template_inner(
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-    ) -> Result<usize, CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         buf.set_discard(self.buf_writable.discard);
         let size_hint = if let Some(heritage) = self.heritage {
             // The generated output is discarded, we only need variables to be rendered.
-            self.handle(ctx, ctx.nodes, buf, AstLevel::Top, RenderFor::Extends)?;
+            let _: SizeHint =
+                self.handle(ctx, ctx.nodes, buf, AstLevel::Top, RenderFor::Extends)?;
             self.next_ws = None;
             self.handle(
                 heritage.root,
@@ -100,8 +103,8 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         level: AstLevel,
         render_for: RenderFor,
-    ) -> Result<usize, CompileError> {
-        let mut size_hint = 0;
+    ) -> Result<SizeHint, CompileError> {
+        let mut size_hint = SizeHint::EMPTY;
         for n in nodes {
             match **n {
                 Node::Lit(ref lit) => {
@@ -118,13 +121,13 @@ impl<'a> Generator<'a, '_> {
                     size_hint += self.write_expr(ctx, buf, ws, val, render_for)?;
                 }
                 Node::Let(ref l) => {
-                    self.write_let(ctx, buf, l)?;
+                    size_hint += self.write_let(ctx, buf, l)?;
                 }
                 Node::Compound(ref c) => {
                     self.write_compound(ctx, buf, c)?;
                 }
                 Node::Declare(ref c) => {
-                    self.write_decl(ctx, buf, c)?;
+                    size_hint += self.write_decl(ctx, buf, c)?;
                 }
                 Node::If(ref i) => {
                     size_hint += self.write_if(ctx, buf, i, render_for)?;
@@ -193,14 +196,14 @@ impl<'a> Generator<'a, '_> {
                 }
                 Node::Break(ref ws) => {
                     self.handle_ws(**ws);
-                    self.write_buf_writable(ctx, buf)?;
+                    size_hint += self.write_buf_writable(ctx, buf)?;
                     quote_into!(buf, ctx.span_for_node(ws.span()), {
                         break;
                     });
                 }
                 Node::Continue(ref ws) => {
                     self.handle_ws(**ws);
-                    self.write_buf_writable(ctx, buf)?;
+                    size_hint += self.write_buf_writable(ctx, buf)?;
                     quote_into!(buf, ctx.span_for_node(ws.span()), {
                         continue;
                     });
@@ -354,8 +357,8 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         if_: &'a If<'_>,
         render_for: RenderFor,
-    ) -> Result<usize, CompileError> {
-        let mut flushed = 0;
+    ) -> Result<SizeHint, CompileError> {
+        let mut flushed = SizeHint::EMPTY;
         let mut arm_sizes = Vec::new();
         let mut has_else = false;
 
@@ -470,7 +473,7 @@ impl<'a> Generator<'a, '_> {
         }
 
         if !has_else && !conds.conds.is_empty() {
-            arm_sizes.push(0);
+            arm_sizes.push(SizeHint::EMPTY);
         }
         Ok(flushed + median(&mut arm_sizes))
     }
@@ -482,7 +485,7 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         m: &'a Match<'a>,
         render_for: RenderFor,
-    ) -> Result<usize, CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         let Match {
             ws1,
             ref expr,
@@ -497,7 +500,7 @@ impl<'a> Generator<'a, '_> {
         let expr_code = self.visit_expr_root(ctx, expr)?;
         let span = ctx.span_for_node(expr.span());
 
-        let mut arm_size = 0;
+        let mut arm_size = SizeHint::EMPTY;
         let mut iter = arms.iter().enumerate().peekable();
         let mut arms = Buffer::new();
         while let Some((i, arm)) = iter.next() {
@@ -545,7 +548,7 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         loop_block: &'a WithSpan<Loop<'_>>,
         render_for: RenderFor,
-    ) -> Result<usize, CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         self.handle_ws(loop_block.ws1);
         let span = ctx.span_for_node(loop_block.span());
         self.push_locals(|this| {
@@ -652,7 +655,7 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         call: &'a WithSpan<Call<'_>>,
         render_for: RenderFor,
-    ) -> Result<usize, CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         let Call {
             ws1,
             scope,
@@ -716,20 +719,20 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'a>,
         buf: &mut Buffer,
         filter: &'a WithSpan<FilterBlock<'_>>,
-    ) -> Result<usize, CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         let var_filter_source = crate::var_filter_source();
 
-        self.write_buf_writable(ctx, buf)?;
+        let mut size_hint = self.write_buf_writable(ctx, buf)?;
         self.flush_ws(filter.ws1);
         self.is_in_filter_block += 1;
-        self.write_buf_writable(ctx, buf)?;
+        size_hint += self.write_buf_writable(ctx, buf)?;
         let span = ctx.span_for_node(filter.span());
 
         // build `FmtCell` that contains the inner block
         let mut filter_def_buf = Buffer::new();
-        let size_hint = self.push_locals(|this| {
+        size_hint += self.push_locals(|this| {
             this.prepare_ws(filter.ws1);
-            let size_hint = this.handle(
+            let mut size_hint = this.handle(
                 ctx,
                 &filter.nodes,
                 &mut filter_def_buf,
@@ -737,7 +740,7 @@ impl<'a> Generator<'a, '_> {
                 RenderFor::Template,
             )?;
             this.flush_ws(filter.ws2);
-            this.write_buf_writable(ctx, &mut filter_def_buf)?;
+            size_hint += this.write_buf_writable(ctx, &mut filter_def_buf)?;
             Ok(size_hint)
         })?;
         let filter_def_buf = filter_def_buf.into_token_stream();
@@ -790,9 +793,9 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         i: &'a WithSpan<Include<'_>>,
         render_for: RenderFor,
-    ) -> Result<usize, CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         self.flush_ws(i.ws);
-        self.write_buf_writable(ctx, buf)?;
+        let mut size_hint = self.write_buf_writable(ctx, buf)?;
         let file_info = ctx
             .path
             .map(|path| FileInfo::of(i.span(), path, ctx.parsed));
@@ -830,8 +833,8 @@ impl<'a> Generator<'a, '_> {
             None => child_ctx,
         };
 
-        let size_hint = self.with_child(heritage.as_ref(), |child| {
-            let mut size_hint = 0;
+        size_hint += self.with_child(heritage.as_ref(), |child| {
+            let mut size_hint = SizeHint::EMPTY;
             size_hint +=
                 child.handle(handle_ctx, handle_ctx.nodes, buf, AstLevel::Top, render_for)?;
             size_hint += child.write_buf_writable(handle_ctx, buf)?;
@@ -923,7 +926,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         l: &'a WithSpan<Let<'_>>,
-    ) -> Result<(), CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         self.handle_ws(l.ws);
         let span = ctx.span_for_node(l.span());
 
@@ -936,14 +939,14 @@ impl<'a> Generator<'a, '_> {
                 "⚠️{file_info} `let` tag will stop supporting declaring variables without value. \
                  Use `create` instead for this case",
             );
-            self.write_buf_writable(ctx, buf)?;
+            let size_hint = self.write_buf_writable(ctx, buf)?;
             buf.write_token(Token![let], span);
             if l.is_mutable {
                 buf.write_token(Token![mut], span);
             }
             self.visit_target(ctx, buf, false, true, &l.var, span);
             buf.write_token(Token![;], span);
-            return Ok(());
+            return Ok(size_hint);
         };
 
         // Handle when this statement creates a new alias of a caller variable (or of another alias),
@@ -955,18 +958,20 @@ impl<'a> Generator<'a, '_> {
                 Cow::Borrowed(*dstvar),
                 LocalMeta::CallerAlias(caller_alias.clone()),
             );
-            return Ok(());
+            return Ok(SizeHint::EMPTY);
         }
 
         let mut expr_buf = Buffer::new();
         self.visit_expr(ctx, &mut expr_buf, val)?;
 
         let shadowed = self.is_shadowing_variable(ctx, &l.var, l.span())?;
-        if shadowed {
+        let size_hint = if shadowed {
             // Need to flush the buffer if the variable is being shadowed,
             // to ensure the old variable is used.
-            self.write_buf_writable(ctx, buf)?;
-        }
+            self.write_buf_writable(ctx, buf)?
+        } else {
+            SizeHint::EMPTY
+        };
         if shadowed
             || !matches!(l.var, Target::Name(_))
             || matches!(&l.var, Target::Name(name) if self.locals.get(name).is_none())
@@ -988,7 +993,7 @@ impl<'a> Generator<'a, '_> {
         } else {
             quote_spanned! { span => = #expr_buf; }
         });
-        Ok(())
+        Ok(size_hint)
     }
 
     fn write_decl(
@@ -996,7 +1001,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         c: &'a WithSpan<Declare<'_>>,
-    ) -> Result<(), CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         let span = ctx.span_for_node(c.span());
         if *c.var_name == "_" {
             return Err(ctx.generate_error(
@@ -1006,7 +1011,7 @@ impl<'a> Generator<'a, '_> {
         }
         self.handle_ws(c.ws);
 
-        self.write_buf_writable(ctx, buf)?;
+        let size_hint = self.write_buf_writable(ctx, buf)?;
         buf.write_token(Token![let], span);
         if c.is_mutable {
             buf.write_token(Token![mut], span);
@@ -1014,7 +1019,7 @@ impl<'a> Generator<'a, '_> {
         self.visit_target(ctx, buf, false, true, &Target::Name(c.var_name), span);
         buf.write_token(Token![;], span);
 
-        Ok(())
+        Ok(size_hint)
     }
 
     // If `name` is `Some`, this is a call to a block definition, and we have to find
@@ -1027,7 +1032,7 @@ impl<'a> Generator<'a, '_> {
         name: Option<WithSpan<&'a str>>,
         outer: Ws,
         node: Span,
-    ) -> Result<usize, CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         if self.is_in_filter_block > 0 {
             return Err(ctx.generate_error("cannot have a block inside a filter block", node));
         }
@@ -1057,7 +1062,7 @@ impl<'a> Generator<'a, '_> {
             }
         };
 
-        self.write_buf_writable(ctx, buf)?;
+        let mut size_hint = self.write_buf_writable(ctx, buf)?;
 
         let block_fragment_write = self.input.block.map(|(block, _)| block)
             == name.as_deref().copied()
@@ -1105,12 +1110,12 @@ impl<'a> Generator<'a, '_> {
             child_ctx.blocks.entry(name).or_insert(block);
         }
 
-        let size_hint = self.with_child(Some(heritage), |child| {
+        size_hint += self.with_child(Some(heritage), |child| {
             // Handle inner whitespace suppression spec and process block nodes
             child.prepare_ws(def.ws1);
 
             child.super_block = Some(cur);
-            let size_hint = child.handle(
+            let mut size_hint = child.handle(
                 &child_ctx,
                 &def.nodes,
                 buf,
@@ -1120,7 +1125,7 @@ impl<'a> Generator<'a, '_> {
 
             if !child.locals.is_current_empty() {
                 // Need to flush the buffer before popping the variable stack
-                child.write_buf_writable(ctx, buf)?;
+                size_hint += child.write_buf_writable(ctx, buf)?;
             }
 
             child.flush_ws(def.ws2);
@@ -1136,7 +1141,7 @@ impl<'a> Generator<'a, '_> {
         //
         // To get this block content rendered as well, we need to write to the buffer before then.
         if buf.is_discard() != prev_buf_discard {
-            self.write_buf_writable(ctx, buf)?;
+            size_hint += self.write_buf_writable(ctx, buf)?;
         }
         // Restore the original buffer discarding state
         if block_fragment_write {
@@ -1154,7 +1159,7 @@ impl<'a> Generator<'a, '_> {
         ws: Ws,
         mut expr: &'a WithSpan<Box<Expr<'a>>>,
         render_for: RenderFor,
-    ) -> Result<usize, CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         while let Expr::Group(inner) = &***expr {
             expr = inner;
         }
@@ -1170,7 +1175,7 @@ impl<'a> Generator<'a, '_> {
             self.handle_ws(ws);
             self.write_expr_item(expr);
         }
-        Ok(0)
+        Ok(SizeHint::EMPTY)
     }
 
     fn write_expr_item(&mut self, expr: &'a WithSpan<Box<Expr<'a>>>) {
@@ -1197,7 +1202,7 @@ impl<'a> Generator<'a, '_> {
         span: Span,
         call: &'a parser::expr::Call<'a>,
         render_for: RenderFor,
-    ) -> Result<ControlFlow<usize>, CompileError> {
+    ) -> Result<ControlFlow<SizeHint>, CompileError> {
         fn check_num_args<'a>(
             span: Span,
             ctx: &Context<'a>,
@@ -1261,7 +1266,7 @@ impl<'a> Generator<'a, '_> {
                     // itself.
                     this.locals.insert("caller".into(), LocalMeta::Negative);
 
-                    this.write_buf_writable(&call_ctx, buf)?;
+                    let mut size_hint = this.write_buf_writable(&call_ctx, buf)?;
                     this.prepare_ws(def.ws1);
                     let mut value = Buffer::new();
                     let mut variable_buf = Buffer::new();
@@ -1336,7 +1341,7 @@ impl<'a> Generator<'a, '_> {
                         }
                     }
                     value.clear();
-                    let mut size_hint = this.handle(
+                    size_hint += this.handle(
                         &call_ctx,
                         &def.nodes,
                         &mut value,
@@ -1406,13 +1411,13 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-    ) -> Result<usize, CompileError> {
-        let mut size_hint = 0;
+    ) -> Result<SizeHint, CompileError> {
+        let mut size_hint = SizeHint::EMPTY;
         let items = mem::take(&mut self.buf_writable.buf);
         let mut it = items.iter().enumerate().peekable();
 
         let Some((_, start)) = it.peek() else {
-            return Ok(0);
+            return Ok(SizeHint::EMPTY);
         };
         let start_span = match start {
             Writable::Lit(v) => v.span(),
@@ -1761,9 +1766,9 @@ impl<'a> Conds<'a> {
     }
 }
 
-fn median(sizes: &mut [usize]) -> usize {
+fn median(sizes: &mut [SizeHint]) -> SizeHint {
     if sizes.is_empty() {
-        return 0;
+        return SizeHint::EMPTY;
     }
     sizes.sort_unstable();
     if sizes.len() % 2 == 1 {
