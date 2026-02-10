@@ -668,6 +668,11 @@ struct SizeHint(usize);
 
 impl SizeHint {
     const EMPTY: Self = Self(0);
+
+    #[inline]
+    fn midpoint(self, rhs: Self) -> Self {
+        Self(self.0.midpoint(rhs.0))
+    }
 }
 
 impl std::ops::Add for SizeHint {

@@ -590,7 +590,7 @@ impl<'a> Generator<'a, '_> {
                 })?;
             }
 
-            let size_hint1 = this.push_locals(|this| {
+            let mut then_size_hint = this.push_locals(|this| {
                 let mut target_buf = Buffer::new();
                 this.visit_target(ctx, &mut target_buf, true, true, &loop_block.var, span);
                 let target_buf = target_buf.into_token_stream();
@@ -617,10 +617,9 @@ impl<'a> Generator<'a, '_> {
                 Ok(size_hint1)
             })?;
 
-            let size_hint2;
-            if has_else_nodes {
+            let else_size_hint = if has_else_nodes {
                 let mut cond_buf = Buffer::new();
-                size_hint2 = this.push_locals(|this| {
+                let else_size_hint = this.push_locals(|this| {
                     let mut size_hint = this.handle(
                         ctx,
                         &loop_block.else_nodes,
@@ -638,14 +637,18 @@ impl<'a> Generator<'a, '_> {
                         #cond_buf
                     }
                 });
+                else_size_hint
             } else {
                 this.handle_ws(loop_block.ws3);
-                size_hint2 = this.write_buf_writable(ctx, &mut loop_buf)?;
-            }
+                then_size_hint += this.write_buf_writable(ctx, &mut loop_buf)?;
+                SizeHint::EMPTY
+            };
 
             buf.write_tokens(loop_buf.into_token_stream());
 
-            Ok(flushed + ((size_hint1 * 3) + size_hint2) / 2)
+            // We arbitrarily assume equal likeness that the loop is entered or not.
+            // And if the loop is entered, we arbitrarily assume that it has 3 entries.
+            Ok(flushed + (then_size_hint * 3).midpoint(else_size_hint))
         })
     }
 
