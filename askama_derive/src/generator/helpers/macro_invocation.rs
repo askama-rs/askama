@@ -11,7 +11,7 @@ use crate::generator::node::AstLevel;
 use crate::generator::{Generator, LocalMeta, RenderFor, is_copyable};
 use crate::heritage::Context;
 use crate::integration::Buffer;
-use crate::{CompileError, HashMap, field_new, quote_into};
+use crate::{CompileError, HashMap, SizeHint, field_new, quote_into};
 
 /// Helper to generate the code for macro invocations
 pub(crate) struct MacroInvocation<'a, 'b> {
@@ -31,7 +31,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         buf: &'b mut Buffer,
         generator: &mut Generator<'a, 'h>,
         render_for: RenderFor,
-    ) -> Result<usize, CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         if generator
             .seen_callers
             .iter()
@@ -67,13 +67,13 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
 
             this.flush_ws(self.callsite_ws); // Cannot handle_ws() here: whitespace from macro definition comes first
             let mut content = Buffer::new();
-            this.write_buf_writable(self.callsite_ctx, &mut content)?;
+            let mut size_hint = this.write_buf_writable(self.callsite_ctx, &mut content)?;
 
             this.prepare_ws(self.macro_def.ws1);
 
             self.write_preamble(&mut content, this)?;
 
-            let mut size_hint = this.handle(
+            size_hint += this.handle(
                 self.macro_ctx,
                 &self.macro_def.nodes,
                 &mut content,

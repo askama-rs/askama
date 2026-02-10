@@ -17,7 +17,7 @@ use crate::{AnyTemplateArgs, derive_template};
 fn build_template(ast: &syn::DeriveInput) -> Result<TokenStream, crate::CompileError> {
     let mut buf = Buffer::new();
     let args = AnyTemplateArgs::new(ast)?;
-    crate::build_template(&mut buf, ast, args)?;
+    let _: crate::SizeHint = crate::build_template(&mut buf, ast, args)?;
     Ok(buf.into_token_stream())
 }
 
@@ -1590,7 +1590,7 @@ fn check_size_hint() {
             }
         "#,
         &[],
-        1,
+        12,
     );
     compare(
         r#"{% for _ in .. %} Hello {% continue %} {% endfor %}"#,
@@ -1603,6 +1603,6 @@ fn check_size_hint() {
             }
         "#,
         &[],
-        1,
+        12,
     );
 }

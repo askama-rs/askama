@@ -343,7 +343,7 @@ fn parse_ts_or_compile_error<T: Parse>(
     }
 }
 
-fn build_skeleton(buf: &mut Buffer, ast: &syn::DeriveInput) -> Result<usize, CompileError> {
+fn build_skeleton(buf: &mut Buffer, ast: &syn::DeriveInput) -> Result<SizeHint, CompileError> {
     let template_args = TemplateArgs::fallback();
     let config = Config::new("", None, None, None, None)?;
     let input = TemplateInput::new(ast, None, config, &template_args)?;
@@ -364,7 +364,7 @@ pub(crate) fn build_template(
     buf: &mut Buffer,
     ast: &syn::DeriveInput,
     args: AnyTemplateArgs,
-) -> Result<usize, CompileError> {
+) -> Result<SizeHint, CompileError> {
     let err_span;
     let mut result = match args {
         AnyTemplateArgs::Struct(item) => {
@@ -415,7 +415,7 @@ fn build_template_item(
     enum_ast: Option<&syn::DeriveInput>,
     template_args: &TemplateArgs,
     tmpl_kind: TmplKind<'_>,
-) -> Result<usize, CompileError> {
+) -> Result<SizeHint, CompileError> {
     let config_path = template_args.config_path();
     let (s, full_config_path) = read_config_file(config_path, template_args.config_span)?;
     let config = Config::new(
@@ -659,6 +659,72 @@ impl fmt::Display for MsgValidEscapers<'_> {
             .collect::<Vec<_>>();
         exts.sort();
         write!(f, "The available extensions are: {}", exts.join(", "))
+    }
+}
+
+#[must_use = "Don't ignore the size_hint!"]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+struct SizeHint(usize);
+
+impl SizeHint {
+    const EMPTY: Self = Self(0);
+}
+
+impl std::ops::Add for SizeHint {
+    type Output = Self;
+
+    #[inline]
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.0 + rhs.0)
+    }
+}
+
+impl<R> std::ops::AddAssign<R> for SizeHint
+where
+    Self: std::ops::Add<R, Output = Self>,
+{
+    #[inline]
+    fn add_assign(&mut self, rhs: R) {
+        *self = *self + rhs;
+    }
+}
+
+impl std::ops::Add<usize> for SizeHint {
+    type Output = Self;
+
+    #[inline]
+    fn add(self, rhs: usize) -> Self::Output {
+        Self(self.0 + rhs)
+    }
+}
+
+impl std::ops::Mul<usize> for SizeHint {
+    type Output = Self;
+
+    #[inline]
+    fn mul(self, rhs: usize) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+
+impl std::ops::Div<usize> for SizeHint {
+    type Output = Self;
+
+    #[inline]
+    fn div(self, rhs: usize) -> Self::Output {
+        Self(self.0 / rhs)
+    }
+}
+
+impl ToTokens for SizeHint {
+    #[inline]
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.0.to_tokens(tokens);
+    }
+
+    #[inline]
+    fn to_token_stream(&self) -> TokenStream {
+        self.0.to_token_stream()
     }
 }
 
