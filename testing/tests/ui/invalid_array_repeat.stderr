@@ -22,9 +22,9 @@ error: expected count expression for array repeat syntax after `;`
 12 | #[template(source = r#"{% let my_arr = ["";] %}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: expected element expression for array repeat syntax
- --> <source attribute>:1:17
-       ",;] %}"
+error: failed to parse template source
+ --> <source attribute>:1:16
+       "[,;] %}"
   --> tests/ui/invalid_array_repeat.rs:16:21
    |
 16 | #[template(source = r#"{% let my_arr = [,;] %}"#, ext = "txt")]
@@ -38,17 +38,17 @@ error: expected element expression for array repeat syntax
 20 | #[template(source = r#"{% let my_arr = [; 10, 10] %}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: expected element expression for array repeat syntax
- --> <source attribute>:1:17
-       ",;,] %}"
+error: failed to parse template source
+ --> <source attribute>:1:16
+       "[,;,] %}"
   --> tests/ui/invalid_array_repeat.rs:24:21
    |
 24 | #[template(source = r#"{% let my_arr = [,;,] %}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: the token `;` was not expected at this point in the expression
- --> <source attribute>:1:22
-       ";10] %}"
+error: failed to parse template source
+ --> <source attribute>:1:16
+       "[\"\";10;10] %}"
   --> tests/ui/invalid_array_repeat.rs:28:21
    |
 28 | #[template(source = r#"{% let my_arr = ["";10;10] %}"#, ext = "txt")]

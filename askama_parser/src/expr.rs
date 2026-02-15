@@ -668,59 +668,41 @@ impl<'a: 'l, 'l> Expr<'a> {
 
     fn array(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let _level_guard = i.state.level.nest(i)?;
-        let (array, span) = preceded(
-            '[',
-            cut_err(alt((
-                // normal array [<expr>,...?]
-                Self::array_elements,
-                // array repeat [<el_expr>; <cnt_expr>]
-                Self::array_repeat,
-            ))), // cut_err
-        ) // preceded
-        .with_span()
-        .parse_next(i)?;
-        Ok(WithSpan::new(array, span))
-    }
-
-    fn array_elements(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
-        let array = terminated(
-            opt(terminated(
-                separated(1.., ws(move |i: &mut _| Self::parse(i, true)), ','),
-                ws(opt(',')),
-            )),
-            ']',
-        )
-        .parse_next(i)?;
-        Ok(Box::new(Self::Array(array.unwrap_or_default())))
-    }
-
-    fn array_repeat(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
-        let (element, _, count) = terminated(
-            (
-                // element expression
-                Self::array_repeat_element,
-                ';',
-                // count expression
-                cut_err(Self::array_repeat_count),
-            ),
-            ']',
-        )
-        .parse_next(i)?;
-
-        Ok(Box::new(Self::ArrayRepeat(element, count)))
-    }
-
-    fn array_repeat_element(
-        i: &mut InputStream<'a, 'l>,
-    ) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
-        let (expr, span) = opt(ws(move |i: &mut _| Expr::parse(i, true)))
-            .with_span()
-            .parse_next(i)?;
-        match expr {
-            Some(expr) => Ok(expr),
-            None => cut_error!("expected element expression for array repeat syntax", span),
+        let (_, span) = '['.with_span().parse_next(i)?;
+        if ws(']').parse_next(i).is_ok() {
+            return Ok(WithSpan::new(Box::new(Self::Array(Vec::new())), span));
         }
+        let (mut elements, sub_span): (Vec<WithSpan<Box<Self>>>, _) =
+            separated(0.., ws(move |i: &mut _| Self::parse(i, true)), ',')
+                .with_span()
+                .parse_next(i)?;
+
+        // array repeat [<el_expr>; <cnt_expr>]
+        if ws(';').parse_next(i).is_ok() {
+            if elements.is_empty() {
+                return cut_error!(
+                    "expected element expression for array repeat syntax",
+                    sub_span
+                );
+            } else if elements.len() != 1 {
+                return cut_error!(
+                    "unexpected `;` after expression",
+                    elements.last().unwrap().span()
+                );
+            }
+            let count = terminated(Self::array_repeat_count, ']').parse_next(i)?;
+            return Ok(WithSpan::new(
+                Box::new(Self::ArrayRepeat(elements.pop().unwrap(), count)),
+                span,
+            ));
+        }
+
+        // normal array [<expr>,...?]
+        terminated(ws(opt(',')), ']').parse_next(i)?;
+
+        Ok(WithSpan::new(Box::new(Self::Array(elements)), span))
     }
+
     fn array_repeat_count(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
         let (expr, span) = opt(ws(move |i: &mut _| Expr::parse(i, true)))
             .with_span()
