@@ -1644,16 +1644,27 @@ fn cut_context_err<'a, T>(gen_err: impl FnOnce() -> ErrorContext) -> ParseResult
 
 type HashSet<T> = std::collections::hash_set::HashSet<T, FxBuildHasher>;
 
+fn deny_any_rust_token<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
+    let (token, span) = any_rust_token.with_span().parse_next(i)?;
+    cut_error!(
+        format!(
+            "the token `{}` was not expected at this point in the expression",
+            token.escape_debug(),
+        ),
+        span
+    )
+}
+
 #[cold]
 #[inline(never)]
-fn deny_any_rust_token<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
+fn any_rust_token<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a> {
     // https://docs.rs/syn/2.0.114/src/syn/token.rs.html#748-795
     const PUNCTUATIONS: &[&str] = &[
         "&", "&&", "&=", "@", "^", "^=", ":", ",", "$", ".", "..", "...", "..=", "=", "==", "=>",
         ">=", ">", "<-", "<=", "<", "-", "-=", "!=", "!", "|", "|=", "||", "::", "%", "%=", "+",
         "+=", "#", "?", "->", ";", "<<", "<<=", ">>", ">>=", "/", "/=", "*", "*=", "~",
         // not a punctuation per se, but a likely typo
-        "\"", "'",
+        "\"", "'", "(", ")", "[", "]", "{", "}",
     ];
 
     const ONE: &[u8] = &{
@@ -1745,42 +1756,31 @@ fn deny_any_rust_token<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'
         "is",
     ];
 
-    fn any_rust_token<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a> {
-        alt((
-            take(3usize).verify(|s: &str| {
-                if let Ok(s) = s.as_bytes().try_into() {
-                    THREE.contains(&s)
-                } else {
-                    false
-                }
-            }),
-            take(2usize).verify(|s: &str| {
-                if let Ok(s) = s.as_bytes().try_into() {
-                    TWO.contains(&s)
-                } else {
-                    false
-                }
-            }),
-            take(1usize).verify(|s: &str| {
-                if let [c] = s.as_bytes() {
-                    ONE.contains(c)
-                } else {
-                    false
-                }
-            }),
-            identifier.verify(|s: &str| KEYWORDS.contains(&s)),
-        ))
-        .parse_next(i)
-    }
-
-    let (token, span) = any_rust_token.with_span().parse_next(i)?;
-    cut_error!(
-        format!(
-            "the token `{}` was not expected at this point in the expression",
-            token.escape_debug(),
-        ),
-        span
-    )
+    alt((
+        take(3usize).verify(|s: &str| {
+            if let Ok(s) = s.as_bytes().try_into() {
+                THREE.contains(&s)
+            } else {
+                false
+            }
+        }),
+        take(2usize).verify(|s: &str| {
+            if let Ok(s) = s.as_bytes().try_into() {
+                TWO.contains(&s)
+            } else {
+                false
+            }
+        }),
+        take(1usize).verify(|s: &str| {
+            if let [c] = s.as_bytes() {
+                ONE.contains(c)
+            } else {
+                false
+            }
+        }),
+        identifier.verify(|s: &str| KEYWORDS.contains(&s)),
+    ))
+    .parse_next(i)
 }
 
 #[cfg(test)]

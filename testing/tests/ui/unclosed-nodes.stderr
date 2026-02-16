@@ -22,7 +22,7 @@ error: unclosed expression, missing "}}"
 12 | #[template(source = "{{ expr -", ext = "txt")]
    |                     ^^^^^^^^^^^
 
-error: failed to parse template source
+error: the token `}` was not expected at this point in the expression
  --> <source attribute>:1:9
        "}"
   --> tests/ui/unclosed-nodes.rs:16:21

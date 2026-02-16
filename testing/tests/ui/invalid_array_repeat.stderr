@@ -15,16 +15,16 @@ error: expected element expression for array repeat syntax
   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 error: expected count expression for array repeat syntax after `;`
- --> <source attribute>:1:20
-       "] %}"
+ --> <source attribute>:1:19
+       ";] %}"
   --> tests/ui/invalid_array_repeat.rs:12:21
    |
 12 | #[template(source = r#"{% let my_arr = ["";] %}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: failed to parse template source
- --> <source attribute>:1:16
-       "[,;] %}"
+error: unexpected token `,`, expected `]`
+ --> <source attribute>:1:17
+       ",;] %}"
   --> tests/ui/invalid_array_repeat.rs:16:21
    |
 16 | #[template(source = r#"{% let my_arr = [,;] %}"#, ext = "txt")]
@@ -38,17 +38,18 @@ error: expected element expression for array repeat syntax
 20 | #[template(source = r#"{% let my_arr = [; 10, 10] %}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: failed to parse template source
- --> <source attribute>:1:16
-       "[,;,] %}"
+error: unexpected token `,`, expected `]`
+ --> <source attribute>:1:17
+       ",;,] %}"
   --> tests/ui/invalid_array_repeat.rs:24:21
    |
 24 | #[template(source = r#"{% let my_arr = [,;,] %}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: failed to parse template source
- --> <source attribute>:1:16
-       "[\"\";10;10] %}"
+error: unexpected delimiter `;`.
+       Use nested syntax to write a multi-dimensional array: [[expr; N]; M]
+         --> <source attribute>:1:22
+       ";10] %}"
   --> tests/ui/invalid_array_repeat.rs:28:21
    |
 28 | #[template(source = r#"{% let my_arr = ["";10;10] %}"#, ext = "txt")]
@@ -62,7 +63,7 @@ error: your template code is too deeply nested, or the last expression is too co
 33 |     source = r#"{{ [[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[ }}"#,
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: failed to parse template source
+error: missing closing delimiter `]`
  --> <source attribute>:1:2
        "[[[[[[[[[[[[[[[[[[[[[(D,_);2];2];2];2];2];2];2];2];2];2];2];2];2];2];2];2];2];2]"...
   --> tests/ui/invalid_array_repeat.rs:41:14

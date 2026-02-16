@@ -6,7 +6,7 @@ error: expected end of struct expression after `..` was used
 7 |     source = r#"{{ InnerCell { ..Default::default(), other: 24 } }}"#,
   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: failed to parse template source
+error: the token `}` was not expected at this point in the expression
  --> <source attribute>:1:20
        "}"
   --> tests/ui/struct-expressions.rs:13:21
