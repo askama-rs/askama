@@ -678,21 +678,19 @@ impl<'a: 'l, 'l> Expr<'a> {
                 .parse_next(i)?;
 
         // array repeat [<el_expr>; <cnt_expr>]
-        if ws(';').parse_next(i).is_ok() {
-            if elements.is_empty() {
+        if let (Some(_), colon_span) = opt(ws(';')).with_span().parse_next(i)? {
+            let Some(elem) = elements.pop() else {
                 return cut_error!(
                     "expected element expression for array repeat syntax",
-                    sub_span
+                    sub_span,
                 );
-            } else if elements.len() != 1 {
-                return cut_error!(
-                    "unexpected `;` after expression",
-                    elements.last().unwrap().span()
-                );
+            };
+            if !elements.is_empty() {
+                return cut_error!("unexpected `;` after expression", colon_span,);
             }
             let count = terminated(Self::array_repeat_count, ']').parse_next(i)?;
             return Ok(WithSpan::new(
-                Box::new(Self::ArrayRepeat(elements.pop().unwrap(), count)),
+                Box::new(Self::ArrayRepeat(elem, count)),
                 span,
             ));
         }
