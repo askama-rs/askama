@@ -5,7 +5,7 @@ use askama::Template;
 fn let_macro() {
     #[derive(Template)]
     #[template(
-        source = r#"{%- let x -%}
+        source = r#"{%- decl x -%}
 {%- if y -%}
     {%- let x = String::new() %}
 {%- else -%}
@@ -52,4 +52,21 @@ fn underscore_ident2() {
     struct X;
 
     assert_eq!(X.render().unwrap(), "hey\nhoy\nmatched");
+}
+
+#[test]
+fn let_block() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- set navigation %}{{b}}: c{% endset -%}
+{{ navigation -}}
+"#,
+        ext = "txt"
+    )]
+    struct Foo {
+        b: u32,
+    }
+
+    assert_eq!(Foo { b: 0 }.render().unwrap(), "0: c");
 }

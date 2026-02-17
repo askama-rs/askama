@@ -535,7 +535,7 @@ fn test_default_with_forward_declaration() {
     #[derive(Template)]
     #[template(
         source = "\
-        {% let var %}\
+        {% decl var %}\
         {{ var | default(\"unknown\") }}\
         {% if true %}{% let var = 42 %}{% endif %}",
         ext = "html"
@@ -547,7 +547,7 @@ fn test_default_with_forward_declaration() {
     #[derive(Template)]
     #[template(
         source = "\
-        {% let var %}{# shadowing happens here #}\
+        {% decl var %}{# shadowing happens here #}\
         {{ var | default(\"unknown\") }}\
         {% if true %}{% let var = 42 %}{% endif %}",
         ext = "html"
@@ -568,7 +568,7 @@ fn test_defined_or_with_forward_declaration() {
     #[derive(Template)]
     #[template(
         source = "\
-        {% let var %}\
+        {% decl var %}\
         {{ var | defined_or(\"unknown\") }}\
         {% if true %}{% let var = 42 %}{% endif %}",
         ext = "html"
@@ -580,7 +580,7 @@ fn test_defined_or_with_forward_declaration() {
     #[derive(Template)]
     #[template(
         source = "\
-        {% let var %}{# shadowing happens here #}\
+        {% decl var %}{# shadowing happens here #}\
         {{ var | defined_or(\"unknown\") }}\
         {% if true %}{% let var = 42 %}{% endif %}",
         ext = "html"

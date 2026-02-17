@@ -33,6 +33,18 @@ struct Node3;
 struct Node4;
 
 #[derive(Template)]
+#[template(source = "{% let x %}{% endlet", ext = "txt")]
+struct Node5;
+
+#[derive(Template)]
+#[template(source = "{% let x %}{% endset %}", ext = "txt")]
+struct Node6;
+
+#[derive(Template)]
+#[template(source = "{% set x %}{% endlet %}", ext = "txt")]
+struct Node7;
+
+#[derive(Template)]
 #[template(source = "{# comment", ext = "txt")]
 struct Comment1;
 

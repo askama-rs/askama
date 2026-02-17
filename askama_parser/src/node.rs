@@ -1240,10 +1240,16 @@ impl<'a: 'l, 'l> Declare<'a> {
 }
 
 #[derive(Debug, PartialEq)]
+pub enum LetValueOrBlock<'a> {
+    Value(WithSpan<Box<Expr<'a>>>),
+    Block { nodes: Vec<Box<Node<'a>>>, ws: Ws },
+}
+
+#[derive(Debug, PartialEq)]
 pub struct Let<'a> {
     pub ws: Ws,
     pub var: Target<'a>,
-    pub val: Option<WithSpan<Box<Expr<'a>>>>,
+    pub val: LetValueOrBlock<'a>,
     pub is_mutable: bool,
 }
 
@@ -1322,11 +1328,57 @@ impl<'a: 'l, 'l> Let<'a> {
             );
         }
 
+        if let Some(val) = val {
+            return Ok(Box::new(Node::Let(WithSpan::new(
+                Let {
+                    ws: Ws(pws, nws),
+                    var,
+                    val: LetValueOrBlock::Value(val),
+                    is_mutable: is_mut.is_some(),
+                },
+                span,
+            ))));
+        }
+
+        // We do this operation
+        if block_end.parse_next(i).is_err() {
+            return Err(
+                ErrorContext::unclosed("block", i.state.syntax.block_end, Span::new(span)).cut(),
+            );
+        }
+
+        let (keyword, end_keyword) = if tag == "let" {
+            ("let", "endlet")
+        } else {
+            ("set", "endset")
+        };
+
+        let keyword_span = Span::new(span.clone());
+        let mut end = cut_node(
+            Some(keyword),
+            (
+                Node::many,
+                cut_node(
+                    Some(keyword),
+                    (
+                        |i: &mut _| check_block_start(i, keyword_span, keyword, end_keyword),
+                        opt(Whitespace::parse),
+                        end_node(keyword, end_keyword),
+                        opt(Whitespace::parse),
+                    ),
+                ),
+            ),
+        );
+        let (nodes, (_, pws2, _, nws2)) = end.parse_next(i)?;
+
         Ok(Box::new(Node::Let(WithSpan::new(
             Let {
                 ws: Ws(pws, nws),
                 var,
-                val,
+                val: LetValueOrBlock::Block {
+                    nodes,
+                    ws: Ws(pws2, nws2),
+                },
                 is_mutable: is_mut.is_some(),
             },
             span,

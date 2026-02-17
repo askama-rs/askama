@@ -123,7 +123,7 @@ fn test_decl_range() {
 fn test_decl_assign_range() {
     #[derive(Template)]
     #[template(
-        source = "{% let x %}{% let x = 1 %}{% for x in x..=x %}{{ x }}{% endfor %}",
+        source = "{% decl x %}{% let x = 1 %}{% for x in x..=x %}{{ x }}{% endfor %}",
         ext = "txt"
     )]
     struct DeclAssignRange;

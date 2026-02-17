@@ -31,7 +31,7 @@ use winnow::{LocatingSlice, ModalParser, ModalResult, Parser, Stateful};
 
 use crate::ascii_str::{AsciiChar, AsciiStr};
 pub use crate::expr::{AssociatedItem, Expr, Filter, PathComponent, TyGenerics};
-pub use crate::node::Node;
+pub use crate::node::{LetValueOrBlock, Node};
 pub use crate::target::{NamedTarget, Target};
 
 mod _parsed {
