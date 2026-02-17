@@ -10,9 +10,9 @@ use winnow::token::{any, one_of, take, take_until};
 use crate::node::CondTest;
 use crate::{
     CharLit, ErrorContext, HashSet, InputStream, Num, ParseResult, PathOrIdentifier, StrLit,
-    StrPrefix, WithSpan, char_lit, cut_error, deny_any_rust_token, filter, identifier,
-    is_rust_keyword, keyword, not_suffix_with_hash, num_lit, path_or_identifier, skip_ws0,
-    skip_ws1, str_lit, ws,
+    StrPrefix, WithSpan, any_rust_token, char_lit, cut_error, deny_any_rust_token, filter,
+    identifier, is_rust_keyword, keyword, not_suffix_with_hash, num_lit, path_or_identifier,
+    skip_ws0, skip_ws1, str_lit, ws,
 };
 
 macro_rules! expr_prec_layer {
@@ -668,70 +668,68 @@ impl<'a: 'l, 'l> Expr<'a> {
 
     fn array(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let _level_guard = i.state.level.nest(i)?;
-        let (array, span) = preceded(
-            '[',
-            cut_err(alt((
-                // normal array [<expr>,...?]
-                Self::array_elements,
-                // array repeat [<el_expr>; <cnt_expr>]
-                Self::array_repeat,
-            ))), // cut_err
-        ) // preceded
-        .with_span()
-        .parse_next(i)?;
-        Ok(WithSpan::new(array, span))
-    }
-
-    fn array_elements(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
-        let array = terminated(
-            opt(terminated(
-                separated(1.., ws(move |i: &mut _| Self::parse(i, true)), ','),
-                ws(opt(',')),
-            )),
-            ']',
+        let (span, mut elements): (_, Vec<_>) = (
+            '['.span(),
+            separated(0.., ws(move |i: &mut _| Self::parse(i, true)), ','),
         )
-        .parse_next(i)?;
-        Ok(Box::new(Self::Array(array.unwrap_or_default())))
-    }
-
-    fn array_repeat(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
-        let (element, _, count) = terminated(
-            (
-                // element expression
-                Self::array_repeat_element,
-                ';',
-                // count expression
-                cut_err(Self::array_repeat_count),
-            ),
-            ']',
-        )
-        .parse_next(i)?;
-
-        Ok(Box::new(Self::ArrayRepeat(element, count)))
-    }
-
-    fn array_repeat_element(
-        i: &mut InputStream<'a, 'l>,
-    ) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
-        let (expr, span) = opt(ws(move |i: &mut _| Expr::parse(i, true)))
-            .with_span()
             .parse_next(i)?;
-        match expr {
-            Some(expr) => Ok(expr),
-            None => cut_error!("expected element expression for array repeat syntax", span),
-        }
-    }
-    fn array_repeat_count(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
-        let (expr, span) = opt(ws(move |i: &mut _| Expr::parse(i, true)))
-            .with_span()
-            .parse_next(i)?;
-        match expr {
-            Some(expr) => Ok(expr),
-            None => cut_error!(
-                "expected count expression for array repeat syntax after `;`",
+
+        let expr = if let Some(semicolon) = opt(ws(';'.span())).parse_next(i)? {
+            // array repeat [<el_expr>; <cnt_expr>]
+            let Some(elem) = elements.pop() else {
+                return cut_error!(
+                    "expected element expression for array repeat syntax",
+                    semicolon
+                );
+            };
+            if !elements.is_empty() {
+                return cut_error!("unexpected `;` after expression", semicolon);
+            }
+            let Some(count) = opt(ws(move |i: &mut _| Expr::parse(i, true))).parse_next(i)? else {
+                return cut_error!(
+                    "expected count expression for array repeat syntax after `;`",
+                    semicolon
+                );
+            };
+            if let Some((delim, span)) = ws(opt(one_of((',', ';')).with_span())).parse_next(i)? {
+                return cut_error!(
+                    format!(
+                        "unexpected delimiter `{}`.\n\
+                        Use nested syntax to write a multi-dimensional array: [[expr; N]; M]",
+                        delim.escape_debug()
+                    ),
+                    span
+                );
+            }
+            Self::ArrayRepeat(elem, count)
+        } else {
+            // normal array [<expr>,...?]
+            if !elements.is_empty() {
+                // strip optional trailing comma
+                ws(opt(',')).parse_next(i)?;
+            }
+            Self::Array(elements)
+        };
+
+        if ws(opt(']')).parse_next(i)?.is_none() {
+            let (next, span) = match opt(any_rust_token.with_span()).parse_next(i)? {
+                Some((next, span)) => (Some(next), span),
+                None => (None, span),
+            };
+            return cut_error!(
+                match next {
+                    Some(delim @ (")" | "}")) => format!(
+                        "mismatched closing delimiter `{}`, expected `]`",
+                        delim.escape_debug()
+                    ),
+                    Some(token) =>
+                        format!("unexpected token `{}`, expected `]`", token.escape_debug()),
+                    _ => "missing closing delimiter `]`".to_owned(),
+                },
                 span
-            ),
+            );
         }
+        Ok(WithSpan::new(Box::new(expr), span))
     }
 
     fn path_var_bool(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {

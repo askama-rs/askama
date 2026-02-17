@@ -35,4 +35,12 @@ struct MultipleSemicolons;
 )]
 struct RecursionLimit;
 
+// This one ensures that the parser isn't taking forever to fail.
+#[derive(Template)]
+#[template(
+    source = r#"{{[[[[[[[[[[[[[[[[[[[[[(D,_);2];2];2];2];2];2];2];2];2];2];2];2];2];2];2];2];2];2];X];N]"#,
+    ext = "txt"
+)]
+struct FromFuzz;
+
 fn main() {}

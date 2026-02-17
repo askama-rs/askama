@@ -1,4 +1,4 @@
-error: failed to parse template source
+error: the token `{` was not expected at this point in the expression
  --> <source attribute>:1:4
        "{Ւ{"
  --> tests/ui/fuzzing.rs:7:14

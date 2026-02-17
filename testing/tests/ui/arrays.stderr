@@ -1,0 +1,154 @@
+error: unexpected token `%`, expected `]`
+ --> <source attribute>:1:17
+       "%}"
+ --> tests/ui/arrays.rs:4:21
+  |
+4 | #[template(source = r#"{% let x = [a, b %}"#, ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected token `%`, expected `]`
+ --> <source attribute>:1:18
+       "%}"
+ --> tests/ui/arrays.rs:8:21
+  |
+8 | #[template(source = r#"{% let x = [a, b, %}"#, ext = "html")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected token `@`, expected `]`
+ --> <source attribute>:1:17
+       "@ %}"
+  --> tests/ui/arrays.rs:12:21
+   |
+12 | #[template(source = r#"{% let x = [a, b @ %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected token `@`, expected `]`
+ --> <source attribute>:1:18
+       "@ %}"
+  --> tests/ui/arrays.rs:16:21
+   |
+16 | #[template(source = r#"{% let x = [a, b, @ %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected `;` after expression
+ --> <source attribute>:1:16
+       "; c] %}"
+  --> tests/ui/arrays.rs:20:21
+   |
+20 | #[template(source = r#"{% let x = [a, b; c] %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected token `;`, expected `]`
+ --> <source attribute>:1:18
+       "; c] %}"
+  --> tests/ui/arrays.rs:24:21
+   |
+24 | #[template(source = r#"{% let x = [a, b, ; c] %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected `;` after expression
+ --> <source attribute>:1:19
+       "; d] %}"
+  --> tests/ui/arrays.rs:28:21
+   |
+28 | #[template(source = r#"{% let x = [a, b, c; d] %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected token `,`, expected `]`
+ --> <source attribute>:1:12
+       ",] %}"
+  --> tests/ui/arrays.rs:32:21
+   |
+32 | #[template(source = r#"{% let x = [,] %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected token `,`, expected `]`
+ --> <source attribute>:1:17
+       ",] %}"
+  --> tests/ui/arrays.rs:36:21
+   |
+36 | #[template(source = r#"{% let x = [a, b,,] %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected token `;`, expected `]`
+ --> <source attribute>:1:15
+       "; b] %}"
+  --> tests/ui/arrays.rs:40:21
+   |
+40 | #[template(source = r#"{% let x = [a, ; b] %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected delimiter `,`.
+       Use nested syntax to write a multi-dimensional array: [[expr; N]; M]
+         --> <source attribute>:1:16
+       ",] %}"
+  --> tests/ui/arrays.rs:44:21
+   |
+44 | #[template(source = r#"{% let x = [a; b,] %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected delimiter `,`.
+       Use nested syntax to write a multi-dimensional array: [[expr; N]; M]
+         --> <source attribute>:1:16
+       ", c] %}"
+  --> tests/ui/arrays.rs:48:21
+   |
+48 | #[template(source = r#"{% let x = [a; b, c] %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected delimiter `;`.
+       Use nested syntax to write a multi-dimensional array: [[expr; N]; M]
+         --> <source attribute>:1:16
+       "; c] %}"
+  --> tests/ui/arrays.rs:52:21
+   |
+52 | #[template(source = r#"{% let x = [a; b; c] %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: mismatched closing delimiter `)`, expected `]`
+ --> <source attribute>:1:16
+       ") %}"
+  --> tests/ui/arrays.rs:56:21
+   |
+56 | #[template(source = r#"{% let x = [a, b) %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: mismatched closing delimiter `}`, expected `]`
+ --> <source attribute>:1:16
+       "} %}"
+  --> tests/ui/arrays.rs:60:21
+   |
+60 | #[template(source = r#"{% let x = [a, b} %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected token `>`, expected `]`
+ --> <source attribute>:1:16
+       "> %}"
+  --> tests/ui/arrays.rs:64:21
+   |
+64 | #[template(source = r#"{% let x = [a, b> %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: mismatched closing delimiter `)`, expected `]`
+ --> <source attribute>:1:16
+       ") %}"
+  --> tests/ui/arrays.rs:68:21
+   |
+68 | #[template(source = r#"{% let x = [a; b) %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: mismatched closing delimiter `}`, expected `]`
+ --> <source attribute>:1:16
+       "} %}"
+  --> tests/ui/arrays.rs:72:21
+   |
+72 | #[template(source = r#"{% let x = [a; b} %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: unexpected token `>`, expected `]`
+ --> <source attribute>:1:16
+       "> %}"
+  --> tests/ui/arrays.rs:76:21
+   |
+76 | #[template(source = r#"{% let x = [a; b> %}"#, ext = "html")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
