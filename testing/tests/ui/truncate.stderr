@@ -24,12 +24,19 @@ help: the following other types implement trait `From<T>`
  --> $RUST/core/src/convert/num.rs
   |
   = note: `usize` implements `From<bool>`
- ::: $RUST/core/src/convert/num.rs
+  |
+  = note: `usize` implements `From<u16>`
   |
   = note: `usize` implements `From<u8>`
  ::: $RUST/core/src/convert/num.rs
   |
-  = note: `usize` implements `From<u16>`
+  = note: in this macro invocation
+ ::: $RUST/core/src/convert/num.rs
+  |
+  = note: in this macro invocation
+ ::: $RUST/core/src/convert/num.rs
+  |
+  = note: in this macro invocation
  --> $RUST/core/src/ptr/alignment.rs
   |
   = note: `usize` implements `From<std::ptr::Alignment>`
