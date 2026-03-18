@@ -669,3 +669,39 @@ y: {{ lol -}}
 
     assert_eq!(Foo.render().unwrap(), "y: 1");
 }
+
+#[test]
+fn test_weird_call_args_order() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro bug(val1, val2="blob", val3="") -%}
+val1: {{val1}}
+val2: {{val2}}
+val3: {{val3}}
+{%- endmacro -%}
+
+{{ bug(val3="c", val1="a") }}"#,
+        ext = "txt"
+    )]
+    struct Foo;
+    assert_eq!(Foo.render().unwrap(), "val1: a\nval2: blob\nval3: c");
+
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro bug(val1, val2, val3="default", val4="") -%}
+val1: {{val1}}
+val2: {{val2}}
+val3: {{val3}}
+val4: {{val4}}
+{%- endmacro -%}
+{{ bug("aa", val4="c", val2="x") }}"#,
+        ext = "txt"
+    )]
+    struct Bar;
+    assert_eq!(
+        Bar.render().unwrap(),
+        "val1: aa\nval2: x\nval3: default\nval4: c"
+    );
+}

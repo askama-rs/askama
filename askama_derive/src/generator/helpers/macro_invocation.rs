@@ -92,6 +92,67 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         })
     }
 
+    fn handle_macro_arg<'h>(
+        &self,
+        expr: &WithSpan<Box<Expr<'a>>>,
+        arg_name: &WithSpan<&'a str>,
+        buf: &mut Buffer,
+        generator: &mut Generator<'a, 'h>,
+    ) -> Result<(), CompileError> {
+        match &***expr {
+            // If `expr` is already a form of variable then
+            // don't reintroduce a new variable. This is
+            // to avoid moving non-copyable values.
+            &Expr::Var(name) if name != "self" => {
+                let var = generator.locals.resolve_or_self(name);
+                generator
+                    .locals
+                    .insert(Cow::Borrowed(**arg_name), LocalMeta::var_with_ref(var));
+            }
+            Expr::AssociatedItem(obj, associated_item) => {
+                let mut associated_item_buf = Buffer::new();
+                generator.visit_associated_item(
+                    self.callsite_ctx,
+                    &mut associated_item_buf,
+                    obj,
+                    associated_item,
+                )?;
+
+                // FIXME: Too many steps to get a string. Also, `visit_associated_item` returns
+                // stuff like `x.y`, how is this supposed to match a variable? O.o
+                let associated_item = associated_item_buf.into_token_stream().to_string();
+                let var = generator
+                    .locals
+                    .resolve(&associated_item)
+                    .unwrap_or(associated_item);
+                generator
+                    .locals
+                    .insert(Cow::Borrowed(**arg_name), LocalMeta::var_with_ref(var));
+            }
+            // Everything else still needs to become variables,
+            // to avoid having the same logic be executed
+            // multiple times, e.g. in the case of macro
+            // parameters being used multiple times.
+            _ => {
+                let mut value = Buffer::new();
+                value.write_tokens(generator.visit_expr_root(self.callsite_ctx, expr)?);
+                let span = self.callsite_ctx.span_for_node(arg_name.span());
+                let id = field_new(arg_name, span);
+                buf.write_tokens(if !is_copyable(expr) {
+                    quote_spanned! { span => let #id = &(#value); }
+                } else {
+                    quote_spanned! { span => let #id = #value; }
+                });
+
+                generator
+                    .locals
+                    .insert_with_default(Cow::Borrowed(**arg_name));
+            }
+        }
+
+        Ok(())
+    }
+
     fn write_preamble<'h>(
         &self,
         buf: &'b mut Buffer,
@@ -100,11 +161,16 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         let mut named_arguments = HashMap::default();
         if let Some(Expr::NamedArgument(_, _)) = self.call_args.last().map(|expr| &***expr) {
             // First we check that all named arguments actually exist in the called item.
-            for (index, arg) in self.call_args.iter().enumerate().rev() {
+            for arg in self.call_args.iter().rev() {
                 let &Expr::NamedArgument(arg_name, _) = &***arg else {
                     break;
                 };
-                if !self.macro_def.args.iter().any(|arg| arg.name == arg_name) {
+                let Some(index) = self
+                    .macro_def
+                    .args
+                    .iter()
+                    .position(|arg| arg.name == arg_name)
+                else {
                     return Err(self.callsite_ctx.generate_error(
                         format_args!(
                             "no argument named `{}` in macro `{}`",
@@ -113,108 +179,44 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                         ),
                         self.callsite_span,
                     ));
-                }
+                };
                 named_arguments.insert(&**arg_name, (index, arg));
             }
         }
-        let mut value = Buffer::new();
-        let mut allow_positional = true;
-        let mut used_named_args = vec![false; self.call_args.len()];
+        let mut used_args = vec![None; self.macro_def.args.len()];
 
-        for (index, arg) in self.macro_def.args.iter().enumerate() {
-            let expr = if let Some((index, expr)) = named_arguments.get(*arg.name) {
-                used_named_args[*index] = true;
-                allow_positional = false;
-                expr
-            } else {
-                match self.call_args.get(index) {
-                    Some(arg_expr) if !matches!(***arg_expr, Expr::NamedArgument(_, _)) => {
-                        // If there is already at least one named argument, then it's not allowed
-                        // to use unnamed ones at this point anymore.
-                        if !allow_positional {
-                            return Err(self.callsite_ctx.generate_error(
-                                format_args!(
-                                    "cannot have unnamed argument (`{}`) after named argument \
-                                    in call to macro {}",
-                                    arg.name.escape_debug(),
-                                    self.macro_def.name.escape_debug(),
-                                ),
-                                self.callsite_span,
-                            ));
-                        }
-                        arg_expr
-                    }
-                    Some(arg_expr) if used_named_args[index] => {
-                        let Expr::NamedArgument(name, _) = ***arg_expr else {
-                            unreachable!()
-                        };
+        for (index, call_arg) in self.call_args.iter().enumerate() {
+            // No need to check if named arguments are before unnamed arguments since it's
+            // already checked in `askama_parser`.
+            let (index, expr) = match &***call_arg {
+                Expr::NamedArgument(arg_name, _) => {
+                    // We already looked for invalid named args when generating `named_arguments`.
+                    let Some((index, expr)) = named_arguments.get(&**arg_name) else {
+                        unreachable!()
+                    };
+                    (*index, *expr)
+                }
+                _ => (index, call_arg),
+            };
+            used_args[index] = Some(expr);
+        }
+
+        for (index, used_arg) in used_args.into_iter().enumerate() {
+            let arg = &self.macro_def.args[index];
+            let expr = match &used_arg {
+                Some(expr) => expr,
+                None => {
+                    if let Some(default_value) = &arg.default {
+                        default_value
+                    } else {
                         return Err(self.callsite_ctx.generate_error(
-                            format_args!("`{}` is passed more than once", name.escape_debug()),
+                            format_args!("missing `{}` argument", arg.name.escape_debug()),
                             self.callsite_span,
                         ));
                     }
-                    _ => {
-                        if let Some(default_value) = &arg.default {
-                            default_value
-                        } else {
-                            return Err(self.callsite_ctx.generate_error(
-                                format_args!("missing `{}` argument", arg.name.escape_debug()),
-                                self.callsite_span,
-                            ));
-                        }
-                    }
                 }
             };
-            match &***expr {
-                // If `expr` is already a form of variable then
-                // don't reintroduce a new variable. This is
-                // to avoid moving non-copyable values.
-                &Expr::Var(name) if name != "self" => {
-                    let var = generator.locals.resolve_or_self(name);
-                    generator
-                        .locals
-                        .insert(Cow::Borrowed(&arg.name), LocalMeta::var_with_ref(var));
-                }
-                Expr::AssociatedItem(obj, associated_item) => {
-                    let mut associated_item_buf = Buffer::new();
-                    generator.visit_associated_item(
-                        self.callsite_ctx,
-                        &mut associated_item_buf,
-                        obj,
-                        associated_item,
-                    )?;
-
-                    // FIXME: Too many steps to get a string. Also, `visit_associated_item` returns
-                    // stuff like `x.y`, how is this supposed to match a variable? O.o
-                    let associated_item = associated_item_buf.into_token_stream().to_string();
-                    let var = generator
-                        .locals
-                        .resolve(&associated_item)
-                        .unwrap_or(associated_item);
-                    generator
-                        .locals
-                        .insert(Cow::Borrowed(&arg.name), LocalMeta::var_with_ref(var));
-                }
-                // Everything else still needs to become variables,
-                // to avoid having the same logic be executed
-                // multiple times, e.g. in the case of macro
-                // parameters being used multiple times.
-                _ => {
-                    value.clear();
-                    value.write_tokens(generator.visit_expr_root(self.callsite_ctx, expr)?);
-                    let span = self.callsite_ctx.span_for_node(arg.name.span());
-                    let id = field_new(&arg.name, span);
-                    buf.write_tokens(if !is_copyable(expr) {
-                        quote_spanned! { span => let #id = &(#value); }
-                    } else {
-                        quote_spanned! { span => let #id = #value; }
-                    });
-
-                    generator
-                        .locals
-                        .insert_with_default(Cow::Borrowed(&arg.name));
-                }
-            }
+            self.handle_macro_arg(expr, &arg.name, buf, generator)?;
         }
 
         Ok(())

@@ -53,5 +53,15 @@ struct MissingArgs;
 {%- call thrice() -%}{%- endcall -%}", ext = "html")]
 struct MissingArgs2;
 
+#[derive(Template)]
+#[template(source = "{% macro duplicate(param1, param2=1) %}{% endmacro %}
+{% call duplicate(0, param1=1) %}{% endcall %}", ext = "txt")]
+struct DuplicateArgs1;
+
+#[derive(Template)]
+#[template(source = "{% macro duplicate(param1, param2=1) %}{% endmacro %}
+{% call duplicate(param1=0, param1=1) %}{% endcall %}", ext = "txt")]
+struct DuplicateArgs2;
+
 fn main() {
 }
