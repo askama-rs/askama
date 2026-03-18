@@ -809,7 +809,9 @@ macro_rules! quote_into {
     }};
 }
 
-pub(crate) use {fmt_left, fmt_right, quote_into};
+pub(crate) use fmt_left;
+pub(crate) use fmt_right;
+pub(crate) use quote_into;
 
 type HashMap<K, V> = std::collections::hash_map::HashMap<K, V, FxBuildHasher>;
 type HashSet<T> = std::collections::hash_set::HashSet<T, FxBuildHasher>;

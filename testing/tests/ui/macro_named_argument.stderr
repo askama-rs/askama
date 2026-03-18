@@ -82,3 +82,23 @@ error: missing argument when calling macro `thrice`: `param1`
 52 | | {%- endmacro -%}
 53 | | {%- call thrice() -%}{%- endcall -%}", ext = "html")]
    | |_____________________________________^
+
+error: argument `param1` was passed more than once when calling macro `duplicate`
+ --> DuplicateArgs1.txt:2:21
+       "param1=1) %}{% endcall %}"
+  --> tests/ui/macro_named_argument.rs:57:21
+   |
+57 |   #[template(source = "{% macro duplicate(param1, param2=1) %}{% endmacro %}
+   |  _____________________^
+58 | | {% call duplicate(0, param1=1) %}{% endcall %}", ext = "txt")]
+   | |_______________________________________________^
+
+error: named argument `param1` was passed more than once
+ --> <source attribute>:2:28
+       "param1=1) %}{% endcall %}"
+  --> tests/ui/macro_named_argument.rs:62:21
+   |
+62 |   #[template(source = "{% macro duplicate(param1, param2=1) %}{% endmacro %}
+   |  _____________________^
+63 | | {% call duplicate(param1=0, param1=1) %}{% endcall %}", ext = "txt")]
+   | |______________________________________________________^
