@@ -1,3 +1,15 @@
-⚠️ X.txt:4:3: block `content` was already called at `X.txt:3:3` so the previous one will be ignored
-  You can repeat blocks by using the `template` proc-macro blocks: https://askama.rs/en/latest/creating_templates.html#blocks
-⚠️⚠️⚠️ This will stop compiling starting next version!
+error: ⚠️ X.txt:4:3: block `content` was already called at `X.txt:3:3` so the previous one will be ignored
+       You can repeat blocks by using the `template` proc-macro blocks: https://askama.rs/en/latest/creating_templates.html#blocks
+         --> X.txt:4:3
+       "block content %}{% endblock %}\n"
+  --> main.rs:6:14
+   |
+ 6 |       source = r##"{% extends "base.html" %}
+   |  ______________^
+ 7 | |
+ 8 | | {% block content %}{% endblock %}
+ 9 | | {% block content %}{% endblock %}
+10 | | "##,
+   | |___^
+
+error: could not compile `askama_test` (bin "main") due to 1 previous error

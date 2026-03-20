@@ -115,15 +115,16 @@ impl<'a> Context<'a> {
                         // This checks if the same block is called in a file.
                         if let Some(prev) = blocks.get(&*b.name) {
                             let prev = Self::file_info_of_inner(prev.span(), path, parsed);
-                            eprintln!(
-                                "⚠️ {:#}: block `{}` was already called at `{:#}` so the previous one will be ignored",
-                                current, &*b.name, prev,
+                            let error_msg = format!(
+                                "⚠️ {current:#}: block `{}` was already called at `{prev:#}` so the previous one will be ignored\n\
+                                 You can repeat blocks by using the `template` proc-macro blocks: \
+                                 https://askama.rs/en/latest/creating_templates.html#blocks",
+                                &*b.name,
                             );
-                            eprintln!(
-                                "  You can repeat blocks by using the `template` proc-macro blocks: \
-                                 https://askama.rs/en/latest/creating_templates.html#blocks"
-                            );
-                            eprintln!("⚠️⚠️⚠️ This will stop compiling starting next version!");
+                            return Err(CompileError::new(
+                                error_msg,
+                                Some(FileInfo::of(b.span(), path, parsed)),
+                            ));
                         } else if extends.is_none() {
                             called_blocks.check_if_already_called(*b.name, current);
                             called_blocks
