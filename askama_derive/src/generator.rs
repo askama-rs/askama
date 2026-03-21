@@ -4,7 +4,6 @@ mod helpers;
 mod node;
 
 use std::borrow::Cow;
-use std::env::current_dir;
 use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::str;
@@ -179,10 +178,7 @@ impl<'a, 'h> Generator<'a, 'h> {
         {
             local_file.pop();
             if !local_file.is_absolute() {
-                local_file = current_dir()
-                    .as_deref()
-                    .unwrap_or(Path::new("."))
-                    .join(local_file);
+                local_file = Path::new(".").join(local_file);
             }
 
             self.caller_dir = CallerDir::Valid(clean_path(&local_file));
