@@ -1,6 +1,6 @@
-error: failed to parse template source
- --> <source attribute>:1:27
-       " %}\nHELLO\n{{v}}\n{%- endfilter %}"
+error: unexpected character `%`
+ --> <source attribute>:1:28
+       "%}\nHELLO\n{{v}}\n{%- endfilter %}"
  --> tests/ui/filter_block_ws.rs:4:21
   |
 4 |   #[template(source = "{% filter lower|indent(2) - %}

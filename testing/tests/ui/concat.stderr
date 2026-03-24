@@ -46,9 +46,9 @@ error: the concat operator `~` must be surrounded by spaces
 39 | #[template(source = r#"{{~a~ b~}}"#, ext = "txt")]
    |                     ^^^^^^^^^^^^^^^
 
-error: failed to parse template source
- --> <source attribute>:1:6
-       " }}"
+error: unexpected character `}`
+ --> <source attribute>:1:7
+       "}}"
   --> tests/ui/concat.rs:46:21
    |
 46 | #[template(source = r#"{{ a ~ }}"#, ext = "txt")]
