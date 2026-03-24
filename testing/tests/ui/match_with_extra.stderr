@@ -1,4 +1,4 @@
-error: failed to parse template source
+error: unexpected character `/`
  --> <source attribute>:3:4
        "// Help, I forgot how to write comments!\n    {%- when true %}\n        good\n    {"...
   --> tests/ui/match_with_extra.rs:6:14
