@@ -278,7 +278,10 @@ fn unexpected_raw_tag<'a: 'l, 'l>(
     kind: Option<&'static str>,
     i: &mut InputStream<'a, 'l>,
 ) -> ParseResult<'a, ()> {
-    let (tag, span) = peek(ws(identifier.with_span())).parse_next(i)?;
+    let Ok((tag, span)) = peek(ws(identifier.with_span())).parse_next(i) else {
+        let (c, span) = peek(ws(any.with_span())).parse_next(i)?;
+        return cut_error!(format!("unexpected character `{c}`"), span);
+    };
     cut_error!(
         match tag {
             "end" | "elif" | "else" | "when" => match kind {

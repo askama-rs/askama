@@ -1,4 +1,4 @@
-error: failed to parse template source
+error: unexpected character `*`
  --> <source attribute>:1:7
        "*x = 2 %}"
  --> tests/ui/ref_deref.rs:4:21
