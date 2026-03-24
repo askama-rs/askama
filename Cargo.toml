@@ -14,7 +14,7 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.15.5"
+version = "0.15.6"
 homepage = "https://askama.rs/"
 repository = "https://github.com/askama-rs/askama"
 license = "MIT OR Apache-2.0"
