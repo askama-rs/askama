@@ -203,7 +203,7 @@ const _: () = {
     impl Clone for SpannedPath {
         fn clone(&self) -> Self {
             Self {
-                config: self.config.clone(),
+                config: self.config,
                 literal: Cell::new(self.literal()),
             }
         }
