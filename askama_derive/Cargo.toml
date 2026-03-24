@@ -22,7 +22,7 @@ name = "derive-template"
 harness = false
 
 [dependencies]
-parser = { package = "askama_parser", version = "=0.15.5", path = "../askama_parser" }
+parser = { package = "askama_parser", version = "=0.15.6", path = "../askama_parser" }
 
 basic-toml = { version = "0.1.1", optional = true }
 pulldown-cmark = { version = "0.13.0", optional = true, default-features = false }
