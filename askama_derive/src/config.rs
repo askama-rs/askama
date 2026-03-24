@@ -17,7 +17,7 @@ use crate::{CompileError, FileInfo, HashMap, OnceMap};
 #[derive(Debug)]
 pub(crate) struct Config {
     pub(crate) dirs: Vec<PathBuf>,
-    pub(crate) syntaxes: HashMap<String, SyntaxAndCache<'static>>,
+    pub(crate) syntaxes: HashMap<String, SyntaxAndCache>,
     pub(crate) default_syntax: &'static str,
     pub(crate) escapers: Vec<(Vec<Cow<'static, str>>, Cow<'static, str>)>,
     pub(crate) whitespace: Whitespace,
@@ -224,13 +224,13 @@ impl Config {
 }
 
 #[derive(Debug, Default)]
-pub(crate) struct SyntaxAndCache<'a> {
-    syntax: Syntax<'a>,
+pub(crate) struct SyntaxAndCache {
+    syntax: Syntax<'static>,
     cache: OnceMap<OwnedSyntaxAndCacheKey, Arc<Parsed>>,
 }
 
-impl<'a> Deref for SyntaxAndCache<'a> {
-    type Target = Syntax<'a>;
+impl Deref for SyntaxAndCache {
+    type Target = Syntax<'static>;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -262,8 +262,8 @@ impl<'a> Borrow<SyntaxAndCacheKey<'a>> for OwnedSyntaxAndCacheKey {
     }
 }
 
-impl<'a> SyntaxAndCache<'a> {
-    fn new(syntax: Syntax<'a>) -> Self {
+impl SyntaxAndCache {
+    fn new(syntax: Syntax<'static>) -> Self {
         Self {
             syntax,
             cache: OnceMap::default(),

@@ -20,7 +20,7 @@ pub(crate) struct TemplateInput<'a> {
     pub(crate) ast: &'a syn::DeriveInput,
     pub(crate) enum_ast: Option<&'a syn::DeriveInput>,
     pub(crate) config: &'a Config,
-    pub(crate) syntax: &'a SyntaxAndCache<'a>,
+    pub(crate) syntax: &'a SyntaxAndCache,
     pub(crate) source: &'a Source,
     pub(crate) source_span: SourceSpan,
     pub(crate) block: Option<(&'a str, Span)>,
