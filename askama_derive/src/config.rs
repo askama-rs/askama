@@ -2,7 +2,7 @@ use std::borrow::{Borrow, Cow};
 use std::collections::hash_map::Entry;
 use std::mem::ManuallyDrop;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf, absolute};
 use std::sync::{Arc, OnceLock};
 use std::{env, fs};
 
@@ -190,7 +190,7 @@ impl Config {
         file_info: Option<FileInfo<'_>>,
         span: Option<proc_macro2::Span>,
     ) -> Result<Arc<Path>, CompileError> {
-        let path = 'find_path: {
+        let resolved = 'find_path: {
             if let Some(root) = start_at {
                 let relative = root.with_file_name(path);
                 if relative.exists() {
@@ -212,10 +212,10 @@ impl Config {
                 span,
             ));
         };
-        match path.canonicalize() {
-            Ok(path) => Ok(path.into()),
+        match absolute(&resolved) {
+            Ok(resolved) => Ok(resolved.into()),
             Err(err) => Err(CompileError::new_with_span(
-                format_args!("could not canonicalize path {path:?}: {err}"),
+                format_args!("could not get absolute path for {path:?}: {err}"),
                 file_info,
                 span,
             )),
