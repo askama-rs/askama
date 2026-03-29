@@ -190,7 +190,7 @@ impl Config {
         file_info: Option<FileInfo<'_>>,
         span: Option<proc_macro2::Span>,
     ) -> Result<Arc<Path>, CompileError> {
-        let resolved = 'find_path: {
+        let path = 'find_path: {
             if let Some(root) = start_at {
                 let relative = root.with_file_name(path);
                 if relative.exists() {
@@ -212,8 +212,8 @@ impl Config {
                 span,
             ));
         };
-        match absolute(&resolved) {
-            Ok(resolved) => Ok(resolved.into()),
+        match absolute(&path) {
+            Ok(path) => Ok(path.into()),
             Err(err) => Err(CompileError::new_with_span(
                 format_args!("could not get absolute path for {path:?}: {err}"),
                 file_info,
