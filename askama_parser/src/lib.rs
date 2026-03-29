@@ -30,7 +30,7 @@ use winnow::token::{any, none_of, one_of, take, take_while};
 use winnow::{LocatingSlice, ModalParser, ModalResult, Parser, Stateful};
 
 use crate::ascii_str::{AsciiChar, AsciiStr};
-pub use crate::expr::{AssociatedItem, Expr, Filter, PathComponent, TyGenerics};
+pub use crate::expr::{AssociatedItem, Expr, Filter, PathComponent, TyGenerics, TyGenericsKind};
 pub use crate::node::{LetValueOrBlock, Node};
 pub use crate::target::{NamedTarget, Target};
 
@@ -1447,6 +1447,25 @@ pub enum IntKind {
     U64,
     U128,
     Usize,
+}
+
+impl fmt::Display for IntKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::I8 => "i8",
+            Self::I16 => "i16",
+            Self::I32 => "i32",
+            Self::I64 => "i64",
+            Self::I128 => "i128",
+            Self::Isize => "isize",
+            Self::U8 => "u8",
+            Self::U16 => "u16",
+            Self::U32 => "u32",
+            Self::U64 => "u64",
+            Self::U128 => "u128",
+            Self::Usize => "usize",
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
