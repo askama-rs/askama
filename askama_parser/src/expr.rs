@@ -1535,11 +1535,15 @@ pub enum TyGenericsKind<'a> {
         args: Option<WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
     },
     Tuple(Vec<WithSpan<TyGenerics<'a>>>),
+    Array {
+        ty: Box<WithSpan<TyGenerics<'a>>>,
+        nb_elems: Option<&'a str>,
+    },
 }
 
 impl<'a: 'l, 'l> TyGenericsKind<'a> {
     fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
-        alt((Self::ty_path, Self::tuple)).parse_next(i)
+        alt((Self::tuple, Self::array, Self::ty_path)).parse_next(i)
     }
 
     fn ty_path(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, TyGenericsKind<'a>> {
@@ -1585,6 +1589,44 @@ impl<'a: 'l, 'l> TyGenericsKind<'a> {
             return cut_error!("expected a list of type separated by a comma", start);
         }
         Ok(TyGenericsKind::Tuple(tuple_elems))
+    }
+
+    fn array(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, TyGenericsKind<'a>> {
+        let start = *i;
+        // We ensure we're in the right function to get better errors later on.
+        ws('[').parse_next(i)?;
+
+        let Ok(ty) = TyGenerics::parse.parse_next(i) else {
+            return cut_error!("expected a type", *i);
+        };
+        let mut nb_elems = None;
+        if let Ok((_, colon_span)) = ws(';').with_span().parse_next(i) {
+            let Ok((parsed_nb, nb_span)) = num_lit.with_span().parse_next(i) else {
+                return cut_error!("expected a number after `;`", colon_span);
+            };
+            match parsed_nb {
+                Num::Int(nb, Some(crate::IntKind::Usize) | None) => nb_elems = Some(nb),
+                Num::Int(_, Some(kind)) => {
+                    return cut_error!(
+                        format!("array size should be `usize`, found `{kind}`"),
+                        nb_span,
+                    );
+                }
+                Num::Float(nb, _) => {
+                    return cut_error!(
+                        format!("expected a number after `;`, found a float (`{nb}`)"),
+                        nb_span,
+                    );
+                }
+            }
+        }
+        if ws(']').parse_next(i).is_err() {
+            return cut_error!("missing `]` to close the array", start);
+        }
+        Ok(TyGenericsKind::Array {
+            ty: Box::new(ty),
+            nb_elems,
+        })
     }
 }
 

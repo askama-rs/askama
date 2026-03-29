@@ -3,7 +3,7 @@
 use askama::Template;
 
 #[test]
-fn simple_tuple() {
+fn simple_tuple_generic() {
     fn f<F>(_f: &F) -> String {
         "a".into()
     }
@@ -16,7 +16,7 @@ fn simple_tuple() {
 }
 
 #[test]
-fn tuple_tuple() {
+fn tuple_tuple_generic() {
     fn f<F>(_f: &F) -> String {
         "a".into()
     }
@@ -29,7 +29,7 @@ fn tuple_tuple() {
 }
 
 #[test]
-fn tuple_generics_simple() {
+fn tuple_in_type_generic() {
     fn f<F>(_f: &F) -> String {
         "a".into()
     }
@@ -78,6 +78,32 @@ fn tuple_end_comma_generic2() {
 
     #[derive(Template)]
     #[template(source = r#"{{ f::<(u32,)>((0)) }}"#, ext = "txt")]
+    struct Foo;
+
+    assert_eq!(Foo.render().unwrap(), "a");
+}
+
+#[test]
+fn simple_array_generic() {
+    fn f<F>(_f: &F) -> String {
+        "a".into()
+    }
+
+    #[derive(Template)]
+    #[template(source = r#"{{ f::<[u32; 3]>(&[0, 0, 0]) }}"#, ext = "txt")]
+    struct Foo;
+
+    assert_eq!(Foo.render().unwrap(), "a");
+}
+
+#[test]
+fn simple_slice_generic() {
+    fn f<F>(_f: F) -> String {
+        "a".into()
+    }
+
+    #[derive(Template)]
+    #[template(source = r#"{{ f::<&[u32]>([0]) }}"#, ext = "txt")]
     struct Foo;
 
     assert_eq!(Foo.render().unwrap(), "a");

@@ -548,6 +548,16 @@ impl<'a> Generator<'a, '_> {
                 }
                 quote_into!(buf, span, { (#tuple_buf) });
             }
+            TyGenericsKind::Array { ty, nb_elems } => {
+                let mut array_buf = Buffer::new();
+                self.visit_ty_generic(ctx, &mut array_buf, ty, span);
+                if let Some(nb_elems) = nb_elems {
+                    let nb_elems: proc_macro2::Literal = nb_elems.parse().unwrap();
+                    quote_into!(buf, span, { [#array_buf; #nb_elems] });
+                } else {
+                    quote_into!(buf, span, { [#array_buf] });
+                }
+            }
         }
     }
 
