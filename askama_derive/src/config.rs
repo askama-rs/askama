@@ -2,7 +2,7 @@ use std::borrow::{Borrow, Cow};
 use std::collections::hash_map::Entry;
 use std::mem::ManuallyDrop;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::{Path, PathBuf, absolute};
 use std::sync::{Arc, OnceLock};
 use std::{env, fs};
 
@@ -212,10 +212,10 @@ impl Config {
                 span,
             ));
         };
-        match path.canonicalize() {
+        match absolute(&path) {
             Ok(path) => Ok(path.into()),
             Err(err) => Err(CompileError::new_with_span(
-                format_args!("could not canonicalize path {path:?}: {err}"),
+                format_args!("could not get absolute path for {path:?}: {err}"),
                 file_info,
                 span,
             )),
