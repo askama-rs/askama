@@ -30,7 +30,7 @@ use winnow::token::{any, none_of, one_of, take, take_while};
 use winnow::{LocatingSlice, ModalParser, ModalResult, Parser, Stateful};
 
 use crate::ascii_str::{AsciiChar, AsciiStr};
-pub use crate::expr::{AssociatedItem, Expr, Filter, PathComponent, TyGenerics};
+pub use crate::expr::{AssociatedItem, Expr, Filter, PathComponent, TyGenerics, TyGenericsKind};
 pub use crate::node::{LetValueOrBlock, Node};
 pub use crate::target::{NamedTarget, Target};
 

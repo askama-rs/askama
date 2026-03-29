@@ -4,7 +4,7 @@ use std::str::FromStr;
 use parser::node::CondTest;
 use parser::{
     AssociatedItem, CharLit, CharPrefix, Expr, PathComponent, Span, StrLit, StrPrefix, Target,
-    TyGenerics, WithSpan,
+    TyGenerics, TyGenericsKind, WithSpan,
 };
 use proc_macro2::{Delimiter, Spacing, TokenStream, TokenTree};
 use quote::quote_spanned;
@@ -526,17 +526,28 @@ impl<'a> Generator<'a, '_> {
         generic: &WithSpan<TyGenerics<'a>>,
         span: proc_macro2::Span,
     ) {
-        let TyGenerics {
-            refs,
-            ref path,
-            ref args,
-        } = **generic;
+        let TyGenerics { refs, ref kind } = **generic;
         for _ in 0..refs {
             buf.write_token(Token![&], span);
         }
-        self.visit_macro_path(buf, path, span);
-        if let Some(generics) = args.as_ref() {
-            self.visit_ty_generics(ctx, buf, generics);
+        match kind {
+            TyGenericsKind::Path { path, args } => {
+                self.visit_macro_path(buf, path, span);
+                if let Some(generics) = args.as_ref() {
+                    self.visit_ty_generics(ctx, buf, generics);
+                }
+            }
+            TyGenericsKind::Tuple(kinds) => {
+                let mut tuple_buf = Buffer::new();
+                for (pos, kind) in kinds.iter().enumerate() {
+                    let kind_span = ctx.span_for_node(kind.span());
+                    if pos > 0 {
+                        tuple_buf.write_token(Token![,], kind_span);
+                    }
+                    self.visit_ty_generic(ctx, &mut tuple_buf, kind, kind_span);
+                }
+                quote_into!(buf, span, { (#tuple_buf) });
+            }
         }
     }
 
