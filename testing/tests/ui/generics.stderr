@@ -1,0 +1,87 @@
+error: missing `]` to close the array
+ --> <source attribute>:1:8
+       "[u32 }}"
+ --> tests/ui/generics.rs:4:21
+  |
+4 | #[template(source = "{{ f::<&[u32 }}", ext = "txt")]
+  |                     ^^^^^^^^^^^^^^^^^
+
+error: missing `]` to close the array
+ --> <source attribute>:1:8
+       "[u32> }}"
+ --> tests/ui/generics.rs:8:21
+  |
+8 | #[template(source = "{{ f::<&[u32> }}", ext = "txt")]
+  |                     ^^^^^^^^^^^^^^^^^^
+
+error: missing `]` to close the array
+ --> <source attribute>:1:8
+       "[u32,]> }}"
+  --> tests/ui/generics.rs:12:21
+   |
+12 | #[template(source = "{{ f::<&[u32,]> }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^
+
+error: expected a number after `;`
+ --> <source attribute>:1:12
+       ";]> }}"
+  --> tests/ui/generics.rs:16:21
+   |
+16 | #[template(source = "{{ f::<&[u32;]> }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^
+
+error: expected a number after `;`
+ --> <source attribute>:1:12
+       "; 'c']> }}"
+  --> tests/ui/generics.rs:20:21
+   |
+20 | #[template(source = "{{ f::<&[u32; 'c']> }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected a number after `;`, found a float (`1.2`)
+ --> <source attribute>:1:14
+       "1.2]> }}"
+  --> tests/ui/generics.rs:24:21
+   |
+24 | #[template(source = "{{ f::<&[u32; 1.2]> }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: array size should be `usize`, found `u8`
+ --> <source attribute>:1:14
+       "1u8]> }}"
+  --> tests/ui/generics.rs:28:21
+   |
+28 | #[template(source = "{{ f::<&[u32; 1u8]> }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: expected a list of type separated by a comma
+ --> <source attribute>:1:7
+       "( }}"
+  --> tests/ui/generics.rs:32:21
+   |
+32 | #[template(source = "{{ f::<( }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^
+
+error: expected a list of type separated by a comma
+ --> <source attribute>:1:7
+       "(> }}"
+  --> tests/ui/generics.rs:36:21
+   |
+36 | #[template(source = "{{ f::<(> }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^
+
+error: expected a list of type separated by a comma
+ --> <source attribute>:1:7
+       "(,> }}"
+  --> tests/ui/generics.rs:40:21
+   |
+40 | #[template(source = "{{ f::<(,> }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^
+
+error: expected a list of type separated by a comma
+ --> <source attribute>:1:7
+       "({},)> }}"
+  --> tests/ui/generics.rs:44:21
+   |
+44 | #[template(source = "{{ f::<({},)> }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^
