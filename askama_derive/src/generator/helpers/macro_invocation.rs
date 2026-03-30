@@ -2,9 +2,11 @@ use core::fmt;
 use std::borrow::Cow;
 use std::fmt::Write;
 use std::mem;
+use std::str::FromStr;
 
-use parser::node::{Call, Macro, Ws};
+use parser::node::{Call, Macro, MacroArg, Ws};
 use parser::{Expr, Span, WithSpan};
+use proc_macro2::TokenStream;
 use quote::quote_spanned;
 
 use crate::generator::node::AstLevel;
@@ -95,19 +97,37 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
     fn handle_macro_arg<'h>(
         &self,
         expr: &WithSpan<Box<Expr<'a>>>,
-        arg_name: &WithSpan<&'a str>,
+        arg: &MacroArg<'a>,
         buf: &mut Buffer,
         generator: &mut Generator<'a, 'h>,
     ) -> Result<(), CompileError> {
+        let mut ty_buf = Buffer::new();
+        let span = self.callsite_ctx.span_for_node(arg.name.span());
+        if let Some(ref ty) = arg.ty {
+            ty_buf.write_token(syn::Token![:], span);
+            // To prevent moving the value/variable, we take a reference of it.
+            ty_buf.write_token(syn::Token![&], span);
+            generator.visit_ty_generic(self.callsite_ctx, &mut ty_buf, ty, span);
+        }
+
         match &***expr {
             // If `expr` is already a form of variable then
             // don't reintroduce a new variable. This is
             // to avoid moving non-copyable values.
             &Expr::Var(name) if name != "self" => {
                 let var = generator.locals.resolve_or_self(name);
-                generator
-                    .locals
-                    .insert(Cow::Borrowed(**arg_name), LocalMeta::var_with_ref(var));
+                if arg.ty.is_none() {
+                    generator
+                        .locals
+                        .insert(Cow::Borrowed(*arg.name), LocalMeta::var_with_ref(var));
+                } else {
+                    let id = field_new(&arg.name, span);
+                    let var = TokenStream::from_str(&var).expect("invalid variable name");
+                    buf.write_tokens(quote_spanned! { span => let #id #ty_buf = &#var; });
+                    generator
+                        .locals
+                        .insert_with_default(Cow::Borrowed(*arg.name));
+                }
             }
             Expr::AssociatedItem(obj, associated_item) => {
                 let mut associated_item_buf = Buffer::new();
@@ -125,9 +145,18 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     .locals
                     .resolve(&associated_item)
                     .unwrap_or(associated_item);
-                generator
-                    .locals
-                    .insert(Cow::Borrowed(**arg_name), LocalMeta::var_with_ref(var));
+                if arg.ty.is_none() {
+                    generator
+                        .locals
+                        .insert(Cow::Borrowed(*arg.name), LocalMeta::var_with_ref(var));
+                } else {
+                    let id = field_new(&arg.name, span);
+                    let var = TokenStream::from_str(&var).expect("invalid variable name");
+                    buf.write_tokens(quote_spanned! { span => let #id #ty_buf = &#var; });
+                    generator
+                        .locals
+                        .insert_with_default(Cow::Borrowed(*arg.name));
+                }
             }
             // Everything else still needs to become variables,
             // to avoid having the same logic be executed
@@ -136,17 +165,16 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             _ => {
                 let mut value = Buffer::new();
                 value.write_tokens(generator.visit_expr_root(self.callsite_ctx, expr)?);
-                let span = self.callsite_ctx.span_for_node(arg_name.span());
-                let id = field_new(arg_name, span);
-                buf.write_tokens(if !is_copyable(expr) {
-                    quote_spanned! { span => let #id = &(#value); }
+                let id = field_new(&arg.name, span);
+                buf.write_tokens(if !is_copyable(expr) || arg.ty.is_some() {
+                    quote_spanned! { span => let #id #ty_buf = &(#value); }
                 } else {
-                    quote_spanned! { span => let #id = #value; }
+                    quote_spanned! { span => let #id #ty_buf = #value; }
                 });
 
                 generator
                     .locals
-                    .insert_with_default(Cow::Borrowed(**arg_name));
+                    .insert_with_default(Cow::Borrowed(*arg.name));
             }
         }
 
@@ -216,7 +244,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     }
                 }
             };
-            self.handle_macro_arg(expr, &arg.name, buf, generator)?;
+            self.handle_macro_arg(expr, arg, buf, generator)?;
         }
 
         Ok(())
