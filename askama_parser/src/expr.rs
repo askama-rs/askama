@@ -1543,6 +1543,7 @@ pub enum TyGenericsKind<'a> {
 
 impl<'a: 'l, 'l> TyGenericsKind<'a> {
     fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
+        let _level_guard = i.state.level.nest(i)?;
         alt((Self::tuple, Self::array, Self::ty_path)).parse_next(i)
     }
 
@@ -1596,8 +1597,10 @@ impl<'a: 'l, 'l> TyGenericsKind<'a> {
         // We ensure we're in the right function to get better errors later on.
         ws('[').parse_next(i)?;
 
-        let Ok(ty) = TyGenerics::parse.parse_next(i) else {
-            return cut_error!("expected a type", *i);
+        let ty = match TyGenerics::parse.parse_next(i) {
+            Ok(ty) => ty,
+            Err(error @ ErrMode::Cut(_)) => return Err(error),
+            Err(_) => return cut_error!("expected a type", *i),
         };
         let mut nb_elems = None;
         if let Ok((_, colon_span)) = ws(';').with_span().parse_next(i) {
