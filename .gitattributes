@@ -1,3 +1,4 @@
 *.html text eol=lf
 *.txt text eol=lf
+testing/templates/symlink-target text eol=lf
 fuzzing/fuzz/corpus linguist-vendored

@@ -155,14 +155,21 @@ impl TemplateInput<'_> {
         let (source, source_path) = match &self.source {
             Source::Source(s) => (s.clone(), None),
             #[cfg(feature = "external-sources")]
-            Source::Path(_) => (
-                get_template_source(&self.path, None)?,
+            Source::Path(p) => (
+                get_template_source(&self.path, p.as_ref(), None)?,
                 Some(Arc::clone(&self.path)),
             ),
         };
 
         #[cfg(feature = "external-sources")]
         let mut dependency_graph = Vec::new();
+
+        #[cfg(feature = "external-sources")]
+        let mut original_paths: HashMap<Arc<Path>, String> = HashMap::default();
+        #[cfg(feature = "external-sources")]
+        if let Source::Path(p) = &self.source {
+            original_paths.insert(Arc::clone(&self.path), p.to_string());
+        }
 
         let mut check = vec![(Arc::clone(&self.path), source, source_path)];
         while let Some((path, source, source_path)) = check.pop() {
@@ -187,7 +194,9 @@ impl TemplateInput<'_> {
             while let Some(nodes) = nested.pop() {
                 for n in nodes {
                     #[cfg(feature = "external-sources")]
-                    let mut add_to_check = |new_path: Arc<Path>| -> Result<(), CompileError> {
+                    let mut add_to_check = |new_path: Arc<Path>,
+                                            original_path: &str|
+                     -> Result<(), CompileError> {
                         if let std::collections::hash_map::Entry::Vacant(e) = map.entry(new_path) {
                             // Add a dummy entry to `map` in order to prevent adding `path`
                             // multiple times to `check`.
@@ -195,6 +204,7 @@ impl TemplateInput<'_> {
                             let source = parsed.source();
                             let source = get_template_source(
                                 new_path,
+                                original_path,
                                 Some((
                                     &path,
                                     source,
@@ -219,22 +229,25 @@ impl TemplateInput<'_> {
                             }
                             #[cfg(feature = "external-sources")]
                             {
+                                let original_path = extends.path;
                                 let extends = self.config.find_template(
-                                    extends.path,
+                                    original_path,
                                     Some(&path),
                                     Some(FileInfo::of(extends.span(), &path, &parsed)),
                                     Some(self.source_span.config_span()),
                                 )?;
+                                original_paths
+                                    .insert(Arc::clone(&extends), original_path.to_owned());
                                 let dependency_path = (path.clone(), extends.clone());
                                 if path == extends {
                                     // We add the path into the graph to have a better looking error.
                                     dependency_graph.push(dependency_path);
-                                    return cyclic_graph_error(&dependency_graph);
+                                    return cyclic_graph_error(&dependency_graph, &original_paths);
                                 } else if dependency_graph.contains(&dependency_path) {
-                                    return cyclic_graph_error(&dependency_graph);
+                                    return cyclic_graph_error(&dependency_graph, &original_paths);
                                 }
                                 dependency_graph.push(dependency_path);
-                                add_to_check(extends)?;
+                                add_to_check(extends, original_path)?;
                             }
                         }
                         Node::Macro(m) if top => {
@@ -252,13 +265,16 @@ impl TemplateInput<'_> {
                             }
                             #[cfg(feature = "external-sources")]
                             {
+                                let original_path = import.path;
                                 let import = self.config.find_template(
-                                    import.path,
+                                    original_path,
                                     Some(&path),
                                     Some(FileInfo::of(import.span(), &path, &parsed)),
                                     Some(self.source_span.config_span()),
                                 )?;
-                                add_to_check(import)?;
+                                original_paths
+                                    .insert(Arc::clone(&import), original_path.to_owned());
+                                add_to_check(import, original_path)?;
                             }
                         }
                         Node::FilterBlock(f) => {
@@ -276,13 +292,16 @@ impl TemplateInput<'_> {
                             }
                             #[cfg(feature = "external-sources")]
                             {
+                                let original_path = include.path;
                                 let include = self.config.find_template(
-                                    include.path,
+                                    original_path,
                                     Some(&path),
                                     Some(FileInfo::of(include.span(), &path, &parsed)),
                                     Some(self.source_span.config_span()),
                                 )?;
-                                add_to_check(include)?;
+                                original_paths
+                                    .insert(Arc::clone(&include), original_path.to_owned());
+                                add_to_check(include, original_path)?;
                             }
                         }
                         Node::BlockDef(b) => {
@@ -696,13 +715,20 @@ impl FromStr for Print {
 }
 
 #[cfg(feature = "external-sources")]
-fn cyclic_graph_error(dependency_graph: &[(Arc<Path>, Arc<Path>)]) -> Result<(), CompileError> {
+fn cyclic_graph_error(
+    dependency_graph: &[(Arc<Path>, Arc<Path>)],
+    original_paths: &HashMap<Arc<Path>, String>,
+) -> Result<(), CompileError> {
+    let fmt_path = |p: &Arc<Path>| match original_paths.get(p) {
+        Some(orig) => format!("{orig:#?} (absolute path: {:#?})", p.display()),
+        None => format!("{:#?}", p.display()),
+    };
     Err(CompileError::no_file_info(
         format_args!(
             "cyclic dependency in graph {:#?}",
             dependency_graph
                 .iter()
-                .map(|e| format!("{:#?} --> {:#?}", e.0, e.1))
+                .map(|e| format!("{} --> {}", fmt_path(&e.0), fmt_path(&e.1)))
                 .collect::<Vec<String>>()
         ),
         None,
@@ -712,6 +738,7 @@ fn cyclic_graph_error(dependency_graph: &[(Arc<Path>, Arc<Path>)]) -> Result<(),
 #[cfg(feature = "external-sources")]
 pub(crate) fn get_template_source(
     tpl_path: &Arc<Path>,
+    original_path: &str,
     import_from: Option<(&Arc<Path>, &str, &str)>,
 ) -> Result<Arc<str>, CompileError> {
     static CACHE: std::sync::OnceLock<crate::OnceMap<Arc<Path>, Arc<str>>> =
@@ -730,7 +757,8 @@ pub(crate) fn get_template_source(
                 }
                 Err(err) => Err(CompileError::new(
                     format_args!(
-                        "unable to open template file '{}': {err}",
+                        "unable to open template file '{}' (absolute path: '{}'): {err}",
+                        original_path,
                         tpl_path.to_str().unwrap(),
                     ),
                     import_from.map(|(node_file, file_source, node_source)| {
@@ -1100,5 +1128,8 @@ fn get_source() {
     let path = Config::new("", None, None, None, None)
         .and_then(|config| config.find_template("b.html", None, None, None))
         .unwrap();
-    assert_eq!(get_template_source(&path, None).unwrap(), "bar".into());
+    assert_eq!(
+        get_template_source(&path, "test.html", None).unwrap(),
+        "bar".into()
+    );
 }
