@@ -391,7 +391,7 @@ static DEFAULT_ESCAPERS: &[(&[&str], &str)] = &[
 
 #[cfg(test)]
 mod tests {
-    use std::path::{Path, PathBuf};
+    use std::path::{Path, PathBuf, absolute};
 
     use super::*;
 
@@ -413,7 +413,7 @@ mod tests {
     }
 
     fn assert_eq_rooted(actual: &Path, expected: &str) {
-        let mut root = manifest_root().canonicalize().unwrap();
+        let mut root = absolute(manifest_root()).unwrap();
         root.push("templates");
         let mut inner = PathBuf::new();
         inner.push(expected);

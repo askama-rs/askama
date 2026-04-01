@@ -1,7 +1,7 @@
 //! Files containing tests for generated code.
 
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, absolute};
 
 use console::style;
 use prettyplease::unparse;
@@ -344,9 +344,9 @@ fn check_if_let_chain() {
 fn check_includes_only_once() {
     // In this test we make sure that every used template gets referenced exactly once.
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
-    let path1 = path.join("include1.html").canonicalize().unwrap();
-    let path2 = path.join("include2.html").canonicalize().unwrap();
-    let path3 = path.join("include3.html").canonicalize().unwrap();
+    let path1 = absolute(path.join("include1.html")).unwrap();
+    let path2 = absolute(path.join("include2.html")).unwrap();
+    let path3 = absolute(path.join("include3.html")).unwrap();
     compare(
         r#"{% include "include1.html" %}"#,
         &format!(
