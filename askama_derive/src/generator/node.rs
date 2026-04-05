@@ -1331,6 +1331,7 @@ impl<'a> Generator<'a, '_> {
             && let ControlFlow::Break(size_hint) =
                 self.write_expr_call(ctx, buf, ws, expr.span(), call, render_for)?
         {
+            self.handle_ws(ws);
             return Ok(size_hint);
         }
 

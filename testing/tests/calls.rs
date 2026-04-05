@@ -506,3 +506,63 @@ fn test_call_let_caller2() {
         "user: blob (position: 0)\nuser: paddle (position: 1)\n",
     );
 }
+
+// This test ensures that both similar templates but using different features (`let caller` and
+// plain `caller`) render the same output.
+#[test]
+fn test_call_let_caller_vs_inline() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro outer() -%}
+    {%- set caller_ = caller -%}
+    <outer>
+        {%- call inner() -%}
+            {{- caller_() -}}
+        {%- endcall -%}
+    </outer>
+{%- endmacro -%}
+
+{%- macro inner() -%}
+    <inner>
+        {{- caller() -}}
+    </inner>
+{%- endmacro -%}
+
+{%- call outer() -%}
+    my content
+{%- endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    struct PlainCaller;
+
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro outer() -%}
+    {%- set content = caller() -%}
+    <outer>
+        {%- call inner() -%}
+            {{- content -}}
+        {%- endcall -%}
+    </outer>
+{%- endmacro -%}
+
+{%- macro inner() -%}
+    <inner>
+        {{- caller() -}}
+    </inner>
+{%- endmacro -%}
+
+
+{%- call outer() -%}
+    my content
+{%- endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    struct LetCaller;
+
+    assert_eq!(PlainCaller.render().unwrap(), LetCaller.render().unwrap());
+}
