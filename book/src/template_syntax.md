@@ -1106,6 +1106,22 @@ However, you can declare macros in a way that allows invoking them with and with
 {% endcall %}
 ```
 
+You can also use `caller` in variable declarations:
+
+```jinja
+{%- macro test() -%}
+    {%- set content = caller() -%}
+    -> `{{content}}` <-
+{%~ endmacro -%}
+{% call test() %}bla{% endcall -%}
+```
+
+In this case it will display:
+
+```console
+-> `bla` <-
+```
+
 ### Macro Call Block Arguments
 
 There is a reason why `caller` is a function instead of a variable.

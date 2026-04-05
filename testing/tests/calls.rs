@@ -453,3 +453,116 @@ fn test_temporary_refs() {
 
     assert_eq!(Tpl.render().unwrap(), "x");
 }
+
+// These tests ensure that we can use `{% let x = caller() %}`.
+#[test]
+fn test_call_let_caller() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test() -%}
+    {%- set content = caller() -%}
+    -> `{{content}}` <-
+{%~ endmacro -%}
+{% call test() %}bla{% endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    //#[template(path = "foo.html")]
+    struct Foo;
+
+    assert_eq!(Foo.render().unwrap(), "-> `bla` <-\n");
+}
+
+#[test]
+fn test_call_let_caller2() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro dump_users(users) -%}
+    {%- for (pos, user) in users.iter().enumerate() -%}
+        {%- let user_display = caller(user, pos) -%}
+        user: {{ user_display }}
+    {%~ endfor %}
+{%- endmacro %}
+
+{%- call(user, pos) dump_users(users) -%}
+    {{user}} (position: {{pos}})
+{%- endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    //#[template(path = "foo.html")]
+    struct Foo {
+        users: Vec<&'static str>,
+    }
+
+    assert_eq!(
+        Foo {
+            users: vec!["blob", "paddle"]
+        }
+        .render()
+        .unwrap(),
+        "user: blob (position: 0)\nuser: paddle (position: 1)\n",
+    );
+}
+
+// This test ensures that both similar templates but using different features (`let caller` and
+// plain `caller`) render the same output.
+#[test]
+fn test_call_let_caller_vs_inline() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro outer() -%}
+    {%- set caller_ = caller -%}
+    <outer>
+        {%- call inner() -%}
+            {{- caller_() -}}
+        {%- endcall -%}
+    </outer>
+{%- endmacro -%}
+
+{%- macro inner() -%}
+    <inner>
+        {{- caller() -}}
+    </inner>
+{%- endmacro -%}
+
+{%- call outer() -%}
+    my content
+{%- endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    struct PlainCaller;
+
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro outer() -%}
+    {%- set content = caller() -%}
+    <outer>
+        {%- call inner() -%}
+            {{- content -}}
+        {%- endcall -%}
+    </outer>
+{%- endmacro -%}
+
+{%- macro inner() -%}
+    <inner>
+        {{- caller() -}}
+    </inner>
+{%- endmacro -%}
+
+
+{%- call outer() -%}
+    my content
+{%- endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    struct LetCaller;
+
+    assert_eq!(PlainCaller.render().unwrap(), LetCaller.render().unwrap());
+}
