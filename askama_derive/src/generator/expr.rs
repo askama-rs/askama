@@ -509,14 +509,17 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         generics: &WithSpan<Vec<WithSpan<TyGenerics<'a>>>>,
     ) {
-        let mut tmp = Buffer::new();
+        if generics.is_empty() {
+            return;
+        }
+        let generics_span = ctx.span_for_node(generics.span());
+        buf.write_token(Token![<], generics_span);
         for generic in &**generics {
             let span = ctx.span_for_node(generic.span());
-            self.visit_ty_generic(ctx, &mut tmp, generic, span);
-            tmp.write_token(Token![,], span);
+            self.visit_ty_generic(ctx, buf, generic, span);
+            buf.write_token(Token![,], span);
         }
-        let tmp = tmp.into_token_stream();
-        quote_into!(buf, ctx.span_for_node(generics.span()), { <#tmp> });
+        buf.write_token(Token![>], generics_span);
     }
 
     pub(super) fn visit_ty_generic(
@@ -530,7 +533,7 @@ impl<'a> Generator<'a, '_> {
         for _ in 0..refs {
             buf.write_token(Token![&], span);
         }
-        match kind {
+        match &**kind {
             TyGenericsKind::Path { path, args } => {
                 self.visit_macro_path(buf, path, span);
                 if let Some(generics) = args.as_ref() {

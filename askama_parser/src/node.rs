@@ -12,8 +12,8 @@ use winnow::{ModalParser, Parser};
 use crate::expr::BinOp;
 use crate::{
     ErrorContext, Expr, Filter, HashSet, InputStream, ParseErr, ParseResult, Span, Target,
-    WithSpan, block_end, block_start, cut_error, deny_any_rust_token, expr_end, expr_start, filter,
-    identifier, is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
+    TyGenerics, WithSpan, block_end, block_start, cut_error, deny_any_rust_token, expr_end,
+    expr_start, filter, identifier, is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
 };
 
 #[derive(Debug, PartialEq)]
@@ -655,6 +655,7 @@ pub struct Macro<'a> {
 #[derive(Debug, PartialEq)]
 pub struct MacroArg<'a> {
     pub name: WithSpan<&'a str>,
+    pub ty: Option<WithSpan<TyGenerics<'a>>>,
     pub default: Option<WithSpan<Box<Expr<'a>>>>,
 }
 
@@ -690,11 +691,13 @@ impl<'a: 'l, 'l> Macro<'a> {
         let macro_arg = |i: &mut _| {
             let mut p = (
                 ws(identifier.with_span()),
+                opt(preceded(':', ws(|i: &mut _| TyGenerics::parse(i)))),
                 opt(preceded('=', ws(|i: &mut _| Expr::parse(i, false)))),
             );
-            let ((name, name_span), default) = p.parse_next(i)?;
+            let ((name, name_span), ty, default) = p.parse_next(i)?;
             Ok(MacroArg {
                 name: WithSpan::new(name, name_span),
+                ty,
                 default,
             })
         };

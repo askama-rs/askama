@@ -705,3 +705,103 @@ val4: {{val4}}
         "val1: aa\nval2: x\nval3: default\nval4: c"
     );
 }
+
+// Goal of these tests is to ensure that the argument info is working as expected.
+#[test]
+fn test_macro_with_args_type_info() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test(title: Option<u32> = None) -%}
+-> {{title|fmt("{:?}")}}
+{% endmacro -%}
+
+{% let y = Some(12) -%}
+{% call test(y) %}{% endcall -%}
+{% call test(x) %}{% endcall -%}
+{% call test() %}{% endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    struct F {
+        x: Option<u32>,
+    }
+
+    assert_eq!(
+        F { x: Some(4) }.render().unwrap(),
+        "-> Some(12)\n-> Some(4)\n-> None\n"
+    );
+}
+
+#[test]
+fn test_macro_with_args_type_info2() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test(entries: &[u32]) -%}
+{%- for entry in entries -%}
+-> {{entry}}
+{% endfor -%}
+{% endmacro -%}
+{{- test(x.as_slice()) -}}
+        "#,
+        ext = "txt"
+    )]
+    struct F {
+        x: Vec<u32>,
+    }
+
+    assert_eq!(F { x: vec![4, 2] }.render().unwrap(), "-> 4\n-> 2\n");
+}
+
+#[test]
+fn test_macro_with_args_type_info3() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test(entries: std::vec::Vec<u32>) -%}
+{%- for entry in entries -%}
+-> {{entry}}
+{% endfor -%}
+{% endmacro -%}
+{{- test(x) -}}
+        "#,
+        ext = "txt"
+    )]
+    struct F {
+        x: Vec<u32>,
+    }
+    assert_eq!(F { x: vec![4, 2] }.render().unwrap(), "-> 4\n-> 2\n");
+}
+
+#[test]
+fn test_macro_with_args_type_info4() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test(entries: &[Vec<u32>]) -%}
+{%- for entry in entries -%}
++>
+{%- for sub_entry in entry -%}
+-> {{sub_entry}}
+{% endfor -%}
+{% endfor -%}
+{% endmacro -%}
+
+{{- test(x.as_slice()) -}}
+        "#,
+        ext = "txt"
+    )]
+    struct F {
+        x: Vec<Vec<u32>>,
+    }
+
+    assert_eq!(
+        F {
+            x: vec![vec![4, 2], vec![5, 1]]
+        }
+        .render()
+        .unwrap(),
+        "+>-> 4\n-> 2\n+>-> 5\n-> 1\n",
+    );
+}

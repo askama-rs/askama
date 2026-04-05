@@ -987,6 +987,15 @@ Macros are a jinja mechanism to declare reusable snippets. A macro can declare a
 {{ heading("test") }}
 ```
 
+You can add type annotation to macro arguments (works with default values as well):
+
+```jinja
+{%- macro test(value: Option<u32>, extra: Option<u32> = None) -%}
+  {% if let Some(value) = value -%}value is {{value}}{% endif -%}
+  {% if let Some(extra) = title -%}extra is {{extra}}{% endif -%}
+{% endmacro -%}
+```
+
 Optionally, `{% endmacro %}` statements can also contain the macro's name, which would look something like this for the above example:
 
 ```jinja

@@ -23,6 +23,8 @@ macro_rules! expr_prec_layer {
     };
 }
 
+const MAX_REFS: usize = 20;
+
 fn expr_prec_layer<'a: 'l, 'l>(
     i: &mut InputStream<'a, 'l>,
     inner: fn(&mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>>,
@@ -1495,19 +1497,24 @@ fn ensure_macro_name<'a>(name: &WithSpan<&'a str>) -> ParseResult<'a, ()> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TyGenerics<'a> {
     pub refs: usize,
-    pub kind: TyGenericsKind<'a>,
+    pub kind: WithSpan<TyGenericsKind<'a>>,
 }
 
 impl<'a: 'l, 'l> TyGenerics<'a> {
-    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
-        let p = ws((repeat(0.., ws('&')), TyGenericsKind::parse));
-        let ((refs, kind), span) = p.with_span().parse_next(i)?;
-        let max_refs = 20;
-        if refs > max_refs {
-            return cut_error!(format!("too many references (> {max_refs})"), span);
+    pub(crate) fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+        let p = ws((repeat(0.., ws('&')), TyGenericsKind::parse.with_span()));
+        let ((refs, (kind, kind_span)), span) = p.with_span().parse_next(i)?;
+        if refs > MAX_REFS {
+            return cut_error!(format!("too many references (> {MAX_REFS})"), span);
         }
 
-        Ok(WithSpan::new(TyGenerics { refs, kind }, span))
+        Ok(WithSpan::new(
+            TyGenerics {
+                refs,
+                kind: WithSpan::new(kind, kind_span),
+            },
+            span,
+        ))
     }
 
     fn args(
