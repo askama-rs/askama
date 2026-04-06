@@ -105,7 +105,7 @@ impl Config {
         let config_path = key.0.config_path.as_deref();
         let root = key.0.root.as_ref();
 
-        let default_dirs = vec![root.join("templates")];
+        let default_dirs = vec![root.join("templates"), root.to_path_buf()];
 
         let mut syntaxes = HashMap::default();
         syntaxes.insert(DEFAULT_SYNTAX_NAME.to_string(), SyntaxAndCache::default());
@@ -397,10 +397,12 @@ mod tests {
 
     #[test]
     fn test_default_config() {
-        let mut root = manifest_root();
-        root.push("templates");
+        let root = manifest_root();
         let config = Config::new("", None, None, None, None).unwrap();
-        assert_eq!(config.dirs, vec![root]);
+        assert_eq!(
+            config.dirs,
+            vec![root.join("templates", root.to_path_buf())]
+        );
     }
 
     #[cfg(feature = "config")]
