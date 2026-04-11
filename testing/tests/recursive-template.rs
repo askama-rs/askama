@@ -32,3 +32,23 @@ fn test_recursive_template_struct() {
         "c<b<a<>,>,>"
     );
 }
+
+// Same test but on enums.
+#[test]
+fn test_recursive_template_enum() {
+    #[derive(Template)]
+    enum HelloWorld<'a> {
+        #[template(source = r#"Hello, <strong>{{user}}</strong>!"#, ext = "txt")]
+        Primary { user: &'a str },
+        #[template(source = r#"{{subitem}}"#, ext = "txt")]
+        Secondary { subitem: &'a HelloWorld<'a> },
+    }
+
+    let primary = HelloWorld::Primary { user: "georgia" };
+    assert_eq!(
+        HelloWorld::Secondary { subitem: &primary }
+            .render()
+            .unwrap(),
+        "Hello, <strong>georgia</strong>!"
+    );
+}
