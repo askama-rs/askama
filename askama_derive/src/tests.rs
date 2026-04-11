@@ -50,14 +50,11 @@ fn compare_ex(
     let expected: syn::File = syn::parse_quote! {
         #[automatically_derived]
         impl askama::Template for Foo {
-            fn render_into_with_values<AskamaW>(
+            fn render_into_with_values(
                 &self,
-                __askama_writer: &mut AskamaW,
+                __askama_writer: &mut dyn askama::helpers::core::fmt::Write,
                 __askama_values: &dyn askama::Values,
-            ) -> askama::Result<()>
-            where
-                AskamaW: askama::helpers::core::fmt::Write + ?askama::helpers::core::marker::Sized,
-            {
+            ) -> askama::Result<()> {
                 #[allow(unused_imports)]
                 use askama::{
                     filters::{AutoEscape as _, WriteWritable as _},
@@ -83,14 +80,11 @@ fn compare_ex(
         #[automatically_derived]
         impl askama::FastWritable for Foo {
             #[inline]
-            fn write_into<AskamaW>(
+            fn write_into(
                 &self,
-                dest: &mut AskamaW,
+                dest: &mut dyn askama::helpers::core::fmt::Write,
                 values: &dyn askama::Values,
-            ) -> askama::Result<()>
-            where
-                AskamaW: askama::helpers::core::fmt::Write + ?askama::helpers::core::marker::Sized,
-            {
+            ) -> askama::Result<()> {
                 askama::Template::render_into_with_values(self, dest, values)
             }
         }

@@ -70,14 +70,11 @@ fn impl_fast_writable(ast: &DeriveInput, buf: &mut Buffer) {
     quote_into!(buf, span, {
         {
             #[inline]
-            fn write_into<AskamaW>(
+            fn write_into(
                 &self,
-                dest: &mut AskamaW,
+                dest: &mut dyn askama::helpers::core::fmt::Write,
                 values: &dyn askama::Values,
-            ) -> askama::Result<()>
-            where
-                AskamaW: askama::helpers::core::fmt::Write + ?askama::helpers::core::marker::Sized,
-            {
+            ) -> askama::Result<()> {
                 askama::Template::render_into_with_values(self, dest, values)
             }
         }
@@ -396,14 +393,11 @@ pub(crate) fn build_template_enum(
     let var_writer = crate::var_writer();
     let var_values = crate::var_values();
     methods.extend(quote_spanned!(span =>
-        fn render_into_with_values<AskamaW>(
+        fn render_into_with_values(
             &self,
-            #var_writer: &mut AskamaW,
+            #var_writer: &mut dyn askama::helpers::core::fmt::Write,
             #var_values: &dyn askama::Values,
-        ) -> askama::Result<()>
-        where
-            AskamaW: askama::helpers::core::fmt::Write + ?askama::helpers::core::marker::Sized
-        {
+        ) -> askama::Result<()> {
             match *self {
                 #render_into_arms
             }

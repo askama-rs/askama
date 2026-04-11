@@ -51,11 +51,7 @@ impl<S: fmt::Display> fmt::Display for TruncateFilter<S> {
 
 impl<S: FastWritable> FastWritable for TruncateFilter<S> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
-        &self,
-        dest: &mut W,
-        values: &dyn Values,
-    ) -> crate::Result<()> {
+    fn write_into(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()> {
         self.source
             .write_into(&mut TruncateWriter::new(dest, self.remaining), values)
     }
@@ -448,11 +444,7 @@ impl<L: fmt::Display, R: fmt::Display> fmt::Display for Either<L, R> {
 
 impl<L: FastWritable, R: FastWritable> FastWritable for Either<L, R> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
-        &self,
-        dest: &mut W,
-        values: &dyn Values,
-    ) -> crate::Result<()> {
+    fn write_into(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()> {
         match self {
             Either::Left(value) => value.write_into(dest, values),
             Either::Right(value) => value.write_into(dest, values),
@@ -573,11 +565,7 @@ impl<S: fmt::Display> fmt::Display for Wordcount<S> {
 
 impl<S: FastWritable> FastWritable for Wordcount<S> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
-        &self,
-        _: &mut W,
-        values: &dyn crate::Values,
-    ) -> crate::Result<()> {
+    fn write_into(&self, _: &mut dyn fmt::Write, values: &dyn crate::Values) -> crate::Result<()> {
         let mut inner = self.count.get();
         self.source
             .write_into(&mut WordCountWriter(&mut inner), values)?;
@@ -716,9 +704,9 @@ impl<S: fmt::Display> fmt::Display for NewlineCounting<S> {
 }
 
 impl<S: FastWritable> FastWritable for NewlineCounting<S> {
-    fn write_into<W: fmt::Write + ?Sized>(
+    fn write_into(
         &self,
-        dest: &mut W,
+        dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
         self.run(dest, |f| self.source.write_into(f, values))
@@ -792,9 +780,9 @@ struct LinebreaksbrFormatter<'a, W: ?Sized>(&'a mut W);
 
 impl<S: FastWritable> FastWritable for Linebreaksbr<S> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
+    fn write_into(
         &self,
-        dest: &mut W,
+        dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
         self.0.write_into(&mut LinebreaksbrFormatter(dest), values)

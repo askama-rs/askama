@@ -42,11 +42,7 @@ impl fmt::Display for FilesizeFormatFilter {
 }
 
 impl FastWritable for FilesizeFormatFilter {
-    fn write_into<W: fmt::Write + ?Sized>(
-        &self,
-        dest: &mut W,
-        values: &dyn Values,
-    ) -> crate::Result<()> {
+    fn write_into(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()> {
         if self.bytes < 1000 {
             (self.bytes as u32).write_into(dest, values)?;
             return Ok(dest.write_str(" B")?);
