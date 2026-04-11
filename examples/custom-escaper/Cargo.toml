@@ -1,0 +1,14 @@
+[package]
+name = "custom-escaper"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# In a real application you would not need this section. It is only used in here, so that this
+# example can have a more lenient MSRV (minimum supported rust version) than askama as a whole.
+[workspace]
+members = ["."]
+
+[dependencies]
+askama = { path = "../../askama" }

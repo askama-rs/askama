@@ -1,7 +1,7 @@
 # askama_escape: HTML escaping, extracted from [Askama](https://askama.rs/)
 
 [![Crates.io](https://img.shields.io/crates/v/askama_escape?logo=rust&style=flat-square&logoColor=white "Crates.io")](https://crates.io/crates/askama_escape)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/askama-rs/askama/rust.yml?branch=master&logo=github&style=flat-square&logoColor=white "GitHub Workflow Status")](https://github.com/askama-rs/askama/actions/workflows/rust.yml)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/askama-rs/askama/rust.yml?branch=main&logo=github&style=flat-square&logoColor=white "GitHub Workflow Status")](https://github.com/askama-rs/askama/actions/workflows/rust.yml)
 [![docs.rs](https://img.shields.io/docsrs/askama_escape?logo=docsdotrs&style=flat-square&logoColor=white "docs.rs")](https://docs.rs/askama_escape/)
 
 Useful if you don't need a template engine, but if you need to escape a text for HTML or XML.
