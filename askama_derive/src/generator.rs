@@ -162,7 +162,9 @@ impl<'a, 'h> Generator<'a, 'h> {
 
     fn rel_path<'p>(&mut self, path: &'p Path) -> Cow<'p, Path> {
         self.caller_dir()
-            .and_then(|caller_dir| diff_paths(path, caller_dir))
+            .and_then(|caller_dir| {
+                diff_paths(path, caller_dir, std::env::var("CARGO_MANIFEST_DIR").ok())
+            })
             .map_or(Cow::Borrowed(path), Cow::Owned)
     }
 
