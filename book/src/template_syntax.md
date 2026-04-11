@@ -923,7 +923,7 @@ impl askama::filters::HtmlSafe for SectionOne<'_> {}
 ```
 
 See the example
-[render in place](https://github.com/askama-rs/askama/blob/master/testing/tests/render_in_place.rs), which demonstrates using a vector of templates in a for block.
+[render in place](https://github.com/askama-rs/askama/blob/main/testing/tests/render_in_place.rs), which demonstrates using a vector of templates in a for block.
 
 ## Comments
 

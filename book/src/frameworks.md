@@ -39,7 +39,7 @@ e.g. because you know that your templates won't have rendering errors, then usin
 [![our actix-web example web-app](
     https://img.shields.io/badge/actix--web-example-informational?style=flat-square&logo=git&logoColor=white&color=%23228b22
 )](
-    https://github.com/askama-rs/askama/tree/master/examples/actix-web-app "our actix-web example web-app"
+    https://github.com/askama-rs/askama/tree/main/examples/actix-web-app "our actix-web example web-app"
 )
 [![crates.io: actix-web](
     https://img.shields.io/crates/v/actix-web?label=actix-web&style=flat-square&logo=rust&logoColor=white&color=informational
@@ -107,7 +107,7 @@ impl Responder for AppError {
 [![our axum example web-app](
     https://img.shields.io/badge/axum-example-informational?style=flat-square&logo=git&logoColor=white&color=%23228b22
 )](
-    https://github.com/askama-rs/askama/tree/master/examples/axum-app "our axum example web-app"
+    https://github.com/askama-rs/askama/tree/main/examples/axum-app "our axum example web-app"
 )
 [![crates.io: axum](
     https://img.shields.io/crates/v/axum?label=axum&style=flat-square&logo=rust&logoColor=white&color=informational
@@ -163,7 +163,7 @@ impl IntoResponse for AppError {
 [![our poem example web-app](
     https://img.shields.io/badge/poem-example-informational?style=flat-square&logo=git&logoColor=white&color=%23228b22
 )](
-    https://github.com/askama-rs/askama/tree/master/examples/poem-app "our poem example web-app"
+    https://github.com/askama-rs/askama/tree/main/examples/poem-app "our poem example web-app"
 )
 [![crates.io: poem](
     https://img.shields.io/crates/v/poem?label=poem&style=flat-square&logo=rust&logoColor=white&color=informational
@@ -229,7 +229,7 @@ impl IntoResponse for AppError {
 [![our rocket example web-app](
     https://img.shields.io/badge/rocket-example-informational?style=flat-square&logo=git&logoColor=white&color=%23228b22
 )](
-    https://github.com/askama-rs/askama/tree/master/examples/rocket-app "our rocket example web-app"
+    https://github.com/askama-rs/askama/tree/main/examples/rocket-app "our rocket example web-app"
 )
 [![crates.io: rocket](
     https://img.shields.io/crates/v/rocket?label=rocket&style=flat-square&logo=rust&logoColor=white&color=informational
@@ -294,7 +294,7 @@ impl<'r> Responder<'r, 'static> for AppError {
 [![our warp example web-app](
     https://img.shields.io/badge/warp-example-informational?style=flat-square&logo=git&logoColor=white&color=%23228b22
 )](
-    https://github.com/askama-rs/askama/tree/master/examples/warp-app "our warp example web-app"
+    https://github.com/askama-rs/askama/tree/main/examples/warp-app "our warp example web-app"
 )
 [![crates.io: warp](
     https://img.shields.io/crates/v/warp?label=warp&style=flat-square&logo=rust&logoColor=white&color=informational

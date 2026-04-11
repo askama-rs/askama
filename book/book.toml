@@ -8,6 +8,6 @@ title = "Askama"
 edition = "2021"
 
 [output.html]
-git-repository-url = "https://github.com/askama-rs/askama/tree/master/book"
-edit-url-template = "https://github.com/askama-rs/askama/tree/master/book/{path}"
+git-repository-url = "https://github.com/askama-rs/askama/tree/main/book"
+edit-url-template = "https://github.com/askama-rs/askama/tree/main/book/{path}"
 playground.runnable = false
