@@ -1,0 +1,1 @@
+::a::define_template! {}

@@ -1,0 +1,9 @@
+[package]
+name = "a"
+edition = "2024"
+
+[lib]
+## !!!!!!!! the depth of `lib.rs` in `a` is at a different depth than in crate `b`.
+path = "./lib.rs"
+
+[workspace]

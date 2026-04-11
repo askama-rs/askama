@@ -1,0 +1,12 @@
+[package]
+name = "b"
+edition = "2024"
+
+[lib]
+path = "./src/lib.rs"
+
+[dependencies]
+a = { path = "../a" }
+askama = { path = "../../../../askama" }
+
+[workspace]
