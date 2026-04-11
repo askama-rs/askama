@@ -21,9 +21,9 @@ impl fmt::Display for Name<'_> {
 }
 
 impl FastWritable for Name<'_> {
-    fn write_into<W: fmt::Write + ?Sized>(
+    fn write_into(
         &self,
-        dest: &mut W,
+        dest: &mut dyn fmt::Write,
         _values: &dyn askama::Values,
     ) -> askama::Result<()> {
         dest.write_str(self.surname)?;

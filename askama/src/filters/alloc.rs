@@ -136,9 +136,9 @@ impl<S: fmt::Display> fmt::Display for Lower<S> {
 
 impl<S: FastWritable> FastWritable for Lower<S> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
+    fn write_into(
         &self,
-        dest: &mut W,
+        dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
         let mut buffer = String::new();
@@ -223,9 +223,9 @@ impl<S: fmt::Display> fmt::Display for Upper<S> {
 
 impl<S: FastWritable> FastWritable for Upper<S> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
+    fn write_into(
         &self,
-        dest: &mut W,
+        dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
         let mut buffer = String::new();
@@ -306,9 +306,9 @@ impl<S: fmt::Display> fmt::Display for Trim<S> {
 
 impl<S: FastWritable> FastWritable for Trim<S> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
+    fn write_into(
         &self,
-        dest: &mut W,
+        dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
         let mut collector = TrimCollector(String::new());
@@ -374,9 +374,9 @@ impl<S: fmt::Display> fmt::Display for Capitalize<S> {
 
 impl<S: FastWritable> FastWritable for Capitalize<S> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
+    fn write_into(
         &self,
-        dest: &mut W,
+        dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
         let mut buffer = String::new();
@@ -437,9 +437,9 @@ impl<S: fmt::Display> fmt::Display for Title<S> {
 
 impl<S: FastWritable> FastWritable for Title<S> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
+    fn write_into(
         &self,
-        dest: &mut W,
+        dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
         let mut buffer = String::new();

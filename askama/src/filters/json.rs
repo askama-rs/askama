@@ -102,7 +102,7 @@ struct ToJsonPretty<S, I> {
 
 impl<S: Serialize> FastWritable for ToJson<S> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(&self, f: &mut W, _: &dyn Values) -> crate::Result<()> {
+    fn write_into(&self, f: &mut dyn fmt::Write, _: &dyn Values) -> crate::Result<()> {
         serialize(f, &self.value, CompactFormatter)
     }
 }
@@ -116,7 +116,7 @@ impl<S: Serialize> fmt::Display for ToJson<S> {
 
 impl<S: Serialize, I: AsIndent> FastWritable for ToJsonPretty<S, I> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(&self, f: &mut W, _: &dyn Values) -> crate::Result<()> {
+    fn write_into(&self, f: &mut dyn fmt::Write, _: &dyn Values) -> crate::Result<()> {
         serialize(
             f,
             &self.value,

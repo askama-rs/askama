@@ -88,9 +88,9 @@ impl<S: fmt::Display, I: AsIndent> fmt::Display for Indent<S, I> {
 }
 
 impl<S: FastWritable, I: AsIndent> FastWritable for Indent<S, I> {
-    fn write_into<W: fmt::Write + ?Sized>(
+    fn write_into(
         &self,
-        dest: &mut W,
+        dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
         let indent = self.indent.as_indent();

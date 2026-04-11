@@ -266,14 +266,11 @@ impl<'a, 'h> Generator<'a, 'h> {
         let var_writer = crate::var_writer();
         let var_values = crate::var_values();
         quote_into!(buf, span, { {
-            fn render_into_with_values<AskamaW>(
+            fn render_into_with_values(
                 &self,
-                #var_writer: &mut AskamaW,
+                #var_writer: &mut dyn askama::helpers::core::fmt::Write,
                 #var_values: &dyn askama::Values,
-            ) -> askama::Result<()>
-            where
-                AskamaW: askama::helpers::core::fmt::Write + ?askama::helpers::core::marker::Sized,
-            {
+            ) -> askama::Result<()> {
                 #[allow(unused_imports)]
                 use askama::{
                     filters::{AutoEscape as _, WriteWritable as _},
@@ -360,14 +357,11 @@ impl<'a, 'h> Generator<'a, 'h> {
                 #template_buf
 
                 pub trait #trait_id {
-                    fn render_into_with_values<AskamaW>(
+                    fn render_into_with_values(
                         &self,
-                        writer: &mut AskamaW,
+                        writer: &mut dyn askama::helpers::core::fmt::Write,
                         values: &dyn askama::Values,
-                    ) -> askama::Result<()>
-                    where
-                        AskamaW:
-                            askama::helpers::core::fmt::Write + ?askama::helpers::core::marker::Sized;
+                    ) -> askama::Result<()>;
                 }
 
                 impl #impl_generics #ident #ty_generics #where_clause {
@@ -391,14 +385,11 @@ impl<'a, 'h> Generator<'a, 'h> {
                 impl #wrapper_impl_generics askama::Template
                 for #wrapper_id #wrapper_ty_generics #wrapper_where_clause {
                     #[inline]
-                    fn render_into_with_values<AskamaW>(
+                    fn render_into_with_values(
                         &self,
-                        writer: &mut AskamaW,
+                        writer: &mut dyn askama::helpers::core::fmt::Write,
                         values: &dyn askama::Values
-                    ) -> askama::Result<()>
-                    where
-                        AskamaW: askama::helpers::core::fmt::Write + ?askama::helpers::core::marker::Sized
-                    {
+                    ) -> askama::Result<()> {
                         <_ as #trait_id>::render_into_with_values(self.this, writer, values)
                     }
 
@@ -409,14 +400,11 @@ impl<'a, 'h> Generator<'a, 'h> {
                 impl #wrapper_impl_generics askama::FastWritable
                 for #wrapper_id #wrapper_ty_generics #wrapper_where_clause {
                     #[inline]
-                    fn write_into<AskamaW>(
+                    fn write_into(
                         &self,
-                        dest: &mut AskamaW,
+                        dest: &mut dyn askama::helpers::core::fmt::Write,
                         values: &dyn askama::Values,
-                    ) -> askama::Result<()>
-                    where
-                        AskamaW: askama::helpers::core::fmt::Write + ?askama::helpers::core::marker::Sized
-                    {
+                    ) -> askama::Result<()> {
                         <_ as askama::Template>::render_into_with_values(self, dest, values)
                     }
                 }

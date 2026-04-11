@@ -243,7 +243,7 @@ impl fmt::Display for Empty {
 
 impl FastWritable for Empty {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(&self, _: &mut W, _: &dyn Values) -> crate::Result<()> {
+    fn write_into(&self, _: &mut dyn fmt::Write, _: &dyn Values) -> crate::Result<()> {
         Ok(())
     }
 }
@@ -277,20 +277,16 @@ impl<L: fmt::Display, R: fmt::Display> fmt::Display for Concat<L, R> {
 
 impl<L: FastWritable, R: FastWritable> FastWritable for Concat<L, R> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
-        &self,
-        dest: &mut W,
-        values: &dyn Values,
-    ) -> crate::Result<()> {
+    fn write_into(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()> {
         self.0.write_into(dest, values)?;
         self.1.write_into(dest, values)
     }
 }
 
 pub trait EnumVariantTemplate {
-    fn render_into_with_values<W: fmt::Write + ?Sized>(
+    fn render_into_with_values(
         &self,
-        writer: &mut W,
+        writer: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()>;
 }

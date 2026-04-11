@@ -111,11 +111,7 @@ impl<T: fmt::Display> fmt::Display for UrlencodeFilter<T> {
 
 impl<T: FastWritable> FastWritable for UrlencodeFilter<T> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
-        &self,
-        f: &mut W,
-        values: &dyn Values,
-    ) -> crate::Result<()> {
+    fn write_into(&self, f: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()> {
         self.0.write_into(&mut UrlencodeWriter(f, self.1), values)
     }
 }

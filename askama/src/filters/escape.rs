@@ -81,11 +81,7 @@ impl<T: fmt::Display, E: Escaper> fmt::Display for EscapeDisplay<T, E> {
 
 impl<T: FastWritable, E: Escaper> FastWritable for EscapeDisplay<T, E> {
     #[inline]
-    fn write_into<W: fmt::Write + ?Sized>(
-        &self,
-        dest: &mut W,
-        values: &dyn Values,
-    ) -> crate::Result<()> {
+    fn write_into(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()> {
         self.0.write_into(&mut EscapeWriter(dest, self.1), values)
     }
 }
@@ -311,11 +307,7 @@ const _: () = {
     // This is the fallback. The filter is not the last element of the filter chain.
     impl<T: FastWritable> FastWritable for MaybeSafe<T> {
         #[inline]
-        fn write_into<W: fmt::Write + ?Sized>(
-            &self,
-            dest: &mut W,
-            values: &dyn Values,
-        ) -> crate::Result<()> {
+        fn write_into(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()> {
             let inner = match self {
                 MaybeSafe::Safe(inner) => inner,
                 MaybeSafe::NeedsEscaping(inner) => inner,
@@ -350,11 +342,7 @@ const _: () = {
     }
 
     impl<T: FastWritable + ?Sized, E: Escaper> FastWritable for Wrapped<'_, T, E> {
-        fn write_into<W: fmt::Write + ?Sized>(
-            &self,
-            dest: &mut W,
-            values: &dyn Values,
-        ) -> crate::Result<()> {
+        fn write_into(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()> {
             match *self {
                 Wrapped::Safe(t) => t.write_into(dest, values),
                 Wrapped::NeedsEscaping(t, e) => EscapeDisplay(t, e).write_into(dest, values),
@@ -426,11 +414,7 @@ const _: () = {
     // This is the fallback. The filter is not the last element of the filter chain.
     impl<T: FastWritable> FastWritable for Safe<T> {
         #[inline]
-        fn write_into<W: fmt::Write + ?Sized>(
-            &self,
-            dest: &mut W,
-            values: &dyn Values,
-        ) -> crate::Result<()> {
+        fn write_into(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()> {
             self.0.write_into(dest, values)
         }
     }
@@ -512,11 +496,7 @@ pub struct Writable<'a, S: ?Sized>(pub &'a S);
 /// Used internally by askama to select the appropriate [`write!()`] mechanism
 pub trait WriteWritable {
     /// Used internally by askama to select the appropriate [`write!()`] mechanism
-    fn askama_write<W: fmt::Write + ?Sized>(
-        &self,
-        dest: &mut W,
-        values: &dyn Values,
-    ) -> crate::Result<()>;
+    fn askama_write(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()>;
 }
 
 #[test]
