@@ -116,23 +116,46 @@ fn test_diff_paths() {
     assert_eq!(t("/foo/bar", "/baz"), Some("../foo/bar".into()));
     assert_eq!(t("foo", "bar"), Some("../foo".into()));
 
-    // If the `path` doesn't belong in the same crate, we should keep an absolute path.
-    assert_eq!(
-        diff_paths(
-            Path::new("/askama-bugs/b/templates/empty.txt"),
-            Path::new("/askama-bugs/a"),
-            Some("/askama-bugs/b".into()),
-        ),
-        Some("/askama-bugs/b/templates/empty.txt".into()),
-    );
+    // Windows paths are a nightmare to test...
+    if !cfg!(windows) {
+        // If the `path` doesn't belong in the same crate, we should keep an absolute path.
+        assert_eq!(
+            diff_paths(
+                Path::new("/askama-bugs/b/templates/empty.txt"),
+                Path::new("/askama-bugs/a"),
+                Some("/askama-bugs/b".into()),
+            ),
+            Some("/askama-bugs/b/templates/empty.txt".into()),
+        );
 
-    // If it's in the same crate, relative path should be returned.
-    assert_eq!(
-        diff_paths(
-            Path::new("/askama-bugs/b/templates/empty.txt"),
-            Path::new("/askama-bugs/b"),
-            Some("/askama-bugs/b".into()),
-        ),
-        Some("templates/empty.txt".into()),
-    );
+        // If it's in the same crate, relative path should be returned.
+        assert_eq!(
+            diff_paths(
+                Path::new("/askama-bugs/b/templates/empty.txt"),
+                Path::new("/askama-bugs/b"),
+                Some("/askama-bugs/b".into()),
+            ),
+            Some("templates/empty.txt".into()),
+        );
+    } else {
+        // If the `path` doesn't belong in the same crate, we should keep an absolute path.
+        assert_eq!(
+            diff_paths(
+                Path::new("C:/askama-bugs/b/templates/empty.txt"),
+                Path::new("C:/askama-bugs/a"),
+                Some("C:/askama-bugs/b".into()),
+            ),
+            Some("C:/askama-bugs/b/templates/empty.txt".into()),
+        );
+
+        // If it's in the same crate, relative path should be returned.
+        assert_eq!(
+            diff_paths(
+                Path::new("C:/askama-bugs/b/templates/empty.txt"),
+                Path::new("C:/askama-bugs/b"),
+                Some("C:/askama-bugs/b".into()),
+            ),
+            Some("templates/empty.txt".into()),
+        );
+    }
 }
