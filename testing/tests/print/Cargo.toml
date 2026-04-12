@@ -1,0 +1,11 @@
+[package]
+name = "print"
+edition = "2024"
+
+[lib]
+path = "./lib.rs"
+
+[dependencies]
+askama = { path = "../../../askama" }
+
+[workspace]
