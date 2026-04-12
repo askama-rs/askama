@@ -480,13 +480,13 @@ fn build_template_item(
     }
 
     if input.print == Print::Ast || input.print == Print::All {
-        eprintln!("{:?}", templates[&input.path].nodes());
+        eprintln!("== Askama AST ==\n{:?}", templates[&input.path].nodes());
     }
 
     let size_hint = template_to_string(buf, &input, &contexts, heritage.as_ref(), tmpl_kind)?;
 
     if input.print == Print::Code || input.print == Print::All {
-        eprintln!("{}", buf.to_token_stream());
+        eprintln!("== Askama code ==\n{}", buf.to_token_stream());
     }
 
     Ok(size_hint)
