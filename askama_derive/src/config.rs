@@ -93,9 +93,7 @@ impl Config {
             |config| *config,
         )
     }
-}
 
-impl Config {
     fn new_uncached(
         key: OwnedConfigKey,
         config_span: Option<Span>,
@@ -123,7 +121,9 @@ impl Config {
                 whitespace,
             }) => (
                 dirs.map_or(default_dirs, |v| {
-                    v.into_iter().map(|dir| root.join(dir)).collect()
+                    v.into_iter()
+                        .flat_map(|dir| get_config_dirs(root, dir))
+                        .collect()
                 }),
                 default_syntax.unwrap_or(DEFAULT_SYNTAX_NAME),
                 whitespace,
@@ -219,6 +219,48 @@ impl Config {
                 file_info,
                 span,
             )),
+        }
+    }
+}
+
+#[cfg(not(feature = "config"))]
+fn get_config_dirs(_root: &Path, _dir: &str) -> impl Iterator<Item = PathBuf> {
+    std::iter::empty()
+}
+
+#[cfg(feature = "config")]
+fn get_config_dirs(root: &Path, dir: &str) -> impl Iterator<Item = PathBuf> {
+    let path = root.join(dir);
+    if dir.contains('*')
+        && let Some(path) = path.to_str()
+        && let Ok(matches) = glob::glob(path)
+    {
+        PathOrPaths::Paths(matches)
+    } else {
+        PathOrPaths::Path(Some(path))
+    }
+}
+
+#[cfg(feature = "config")]
+enum PathOrPaths {
+    Paths(glob::Paths),
+    Path(Option<PathBuf>),
+}
+
+#[cfg(feature = "config")]
+impl Iterator for PathOrPaths {
+    type Item = PathBuf;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Paths(paths) => loop {
+                if let Ok(path) = paths.next()?
+                    && path.is_dir()
+                {
+                    return Some(path);
+                }
+            },
+            Self::Path(path) => path.take(),
         }
     }
 }
@@ -410,6 +452,36 @@ mod tests {
         root.push("tpl");
         let config = Config::new("[general]\ndirs = [\"tpl\"]", None, None, None, None).unwrap();
         assert_eq!(config.dirs, vec![root]);
+    }
+
+    #[cfg(feature = "config")]
+    #[test]
+    fn test_config_dirs_glob() {
+        let root = manifest_root();
+        let config = Config::new(
+            "[general]\ndirs = [\"templates/*\"]",
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        // We ensure that it includes only top level folders.
+        assert_eq!(config.dirs, vec![root.join("templates/sub")]);
+
+        let config = Config::new(
+            "[general]\ndirs = [\"templates/**\"]",
+            None,
+            None,
+            None,
+            None,
+        )
+        .unwrap();
+        // We ensure that it includes top level and sub-folders.
+        assert_eq!(
+            config.dirs,
+            vec![root.join("templates/sub"), root.join("templates/sub/sub1")]
+        );
     }
 
     fn assert_eq_rooted(actual: &Path, expected: &str) {

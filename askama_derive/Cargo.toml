@@ -25,6 +25,7 @@ harness = false
 parser = { package = "askama_parser", version = "=0.15.6", path = "../askama_parser" }
 
 basic-toml = { version = "0.1.1", optional = true }
+glob = { version = "0.3.3", optional = true }
 pulldown-cmark = { version = "0.13.0", optional = true, default-features = false }
 serde = { version = "1.0", optional = true }
 serde_derive = { version = "1.0", optional = true }
@@ -61,6 +62,7 @@ code-in-doc = ["dep:pulldown-cmark"]
 config = [
     "external-sources",
     "dep:basic-toml",
+    "dep:glob",
     "dep:serde",
     "dep:serde_derive",
     "parser/config",
