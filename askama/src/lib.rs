@@ -112,6 +112,12 @@ pub use crate::values::{NO_VALUES, Value, Values, get_value};
 /// [dynamic methods calls]: <https://doc.rust-lang.org/stable/std/keyword.dyn.html>
 pub trait Template: fmt::Display + FastWritable {
     /// Helper method which allocates a new `String` and renders into it.
+    ///
+    /// # Errors
+    ///
+    /// It internally uses the [`core::fmt::Write`] trait so it can fail and return `Err` for the
+    /// same reasons. For other potential errors, please take a look at the [`Error`] enum variants
+    /// documentation.
     #[inline]
     #[cfg(feature = "alloc")]
     fn render(&self) -> Result<String> {
@@ -119,6 +125,12 @@ pub trait Template: fmt::Display + FastWritable {
     }
 
     /// Helper method which allocates a new `String` and renders into it with provided [`Values`].
+    ///
+    /// # Errors
+    ///
+    /// It internally uses the [`core::fmt::Write`] trait so it can fail and return `Err` for the
+    /// same reasons. For other potential errors, please take a look at the [`Error`] enum variants
+    /// documentation.
     #[inline]
     #[cfg(feature = "alloc")]
     fn render_with_values(&self, values: &dyn Values) -> Result<String> {
@@ -129,12 +141,24 @@ pub trait Template: fmt::Display + FastWritable {
     }
 
     /// Renders the template to the given `writer` fmt buffer.
+    ///
+    /// # Errors
+    ///
+    /// It internally uses the [`core::fmt::Write`] trait so it can fail and return `Err` for the
+    /// same reasons. For other potential errors, please take a look at the [`Error`] enum variants
+    /// documentation.
     #[inline]
     fn render_into(&self, writer: &mut dyn fmt::Write) -> Result<()> {
         self.render_into_with_values(writer, NO_VALUES)
     }
 
     /// Renders the template to the given `writer` fmt buffer with provided [`Values`].
+    ///
+    /// # Errors
+    ///
+    /// It internally uses the [`core::fmt::Write`] trait so it can fail and return `Err` for the
+    /// same reasons. For other potential errors, please take a look at the [`Error`] enum variants
+    /// documentation.
     fn render_into_with_values(
         &self,
         writer: &mut dyn fmt::Write,
@@ -142,6 +166,12 @@ pub trait Template: fmt::Display + FastWritable {
     ) -> Result<()>;
 
     /// Renders the template to the given `writer` io buffer.
+    ///
+    /// # Errors
+    ///
+    /// It internally uses the [`std::io::Write`] trait so it can fail and return `Err` for the
+    /// same reasons. For other potential errors, please take a look at the [`Error`] enum variants
+    /// documentation.
     #[inline]
     #[cfg(feature = "std")]
     fn write_into(&self, writer: &mut dyn io::Write) -> io::Result<()> {
@@ -149,6 +179,12 @@ pub trait Template: fmt::Display + FastWritable {
     }
 
     /// Renders the template to the given `writer` io buffer with provided [`Values`].
+    ///
+    /// # Errors
+    ///
+    /// It internally uses the [`std::io::Write`] trait so it can fail and return `Err` for the
+    /// same reasons. For other potential errors, please take a look at the [`Error`] enum variants
+    /// documentation.
     #[cfg(feature = "std")]
     fn write_into_with_values(
         &self,
