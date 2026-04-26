@@ -2,8 +2,9 @@
 
 At compile time, Askama will read optional configuration values from
 `askama.toml` in the crate root (the directory where `Cargo.toml` can
-be found). Currently, this covers the directories to search for templates,
-custom syntax configuration and escaper configuration.
+be found) if the `config` feature is enabled (it's enabled by default).
+Currently, this covers the directories to search for templates, custom
+syntax configuration and escaper configuration.
 
 This example file demonstrates the default configuration:
 
@@ -46,9 +47,15 @@ Hello
 ```
 
 In the template above, only the whitespace between `<div>` and `{%-` will be
-suppressed. If you set `whitespace` to `"suppress"`, whitespace characters before
-and after each block will be suppressed by default. To preserve the whitespace
-characters, you can use the `+` operator:
+suppressed. If you set `whitespace` to `"suppress"`:
+
+```toml
+[general]
+whitespace = "suppress"
+```
+
+Then whitespace characters before and after each block will be suppressed by default.
+To preserve the whitespace characters, you can use the `+` operator:
 
 ```jinja
 {% if something +%}
@@ -71,7 +78,12 @@ To be noted, if one of the trimmed characters is a newline, then the only
 character remaining will be a newline.
 
 If you want this to be the default behavior, you can set `whitespace` to
-`"minimize"`.
+`"minimize"`:
+
+```toml
+[general]
+whitespace = "minimize"
+```
 
 To be noted: you can also configure `whitespace` directly into the `template`
 derive proc macro:
