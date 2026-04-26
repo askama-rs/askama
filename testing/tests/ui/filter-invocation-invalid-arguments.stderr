@@ -15,7 +15,7 @@ error[E0277]: Argument at position 0 is invalid on filter noargs<'_>. Too many a
 22 | #[derive(Template)]
    |          ^^^^^^^^ Filter function
    |
-help: the trait `ValidArgIdx<0>` is not implemented for `noargs<'_>`
+help: the trait `_::askama::filters::ValidArgIdx<0>` is not implemented for `noargs<'_>`
   --> tests/ui/filter-invocation-invalid-arguments.rs:4:5
    |
  4 |     #[askama::filter_fn]
@@ -39,7 +39,7 @@ error[E0277]: Argument at position 0 is invalid on filter noargs<'_>. Too many a
 26 | #[derive(Template)]
    |          ^^^^^^^^ Filter function
    |
-help: the trait `ValidArgIdx<0>` is not implemented for `noargs<'_>`
+help: the trait `_::askama::filters::ValidArgIdx<0>` is not implemented for `noargs<'_>`
   --> tests/ui/filter-invocation-invalid-arguments.rs:4:5
    |
  4 |     #[askama::filter_fn]
@@ -52,12 +52,12 @@ error[E0277]: Invalid filter function invocation. Not all required arguments wer
 32 | #[derive(Template)]
    |          ^^^^^^^^ Filter function
    |
-help: the trait `ValidFilterInvocation` is not implemented for `req1<'_>`
+help: the trait `_::askama::filters::ValidFilterInvocation` is not implemented for `req1<'_>`
   --> tests/ui/filter-invocation-invalid-arguments.rs:12:5
    |
 12 |     #[askama::filter_fn]
    |     ^^^^^^^^^^^^^^^^^^^^
-help: the trait `ValidFilterInvocation` is implemented for `req1<'_, true>`
+help: the trait `_::askama::filters::ValidFilterInvocation` is implemented for `req1<'_, true>`
   --> tests/ui/filter-invocation-invalid-arguments.rs:13:16
    |
 13 |       pub fn req1(
