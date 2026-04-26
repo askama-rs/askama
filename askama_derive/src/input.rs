@@ -661,13 +661,12 @@ fn collect_askama_code_blocks(
     let mut had_askama_code = false;
     for e in Parser::new(&source) {
         match (in_askama_code, e) {
-            (false, Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(s)))) => {
+            (false, Event::Start(Tag::CodeBlock(CodeBlockKind::Fenced(s))))
                 if s.split(",")
-                    .any(|s| JINJA_EXTENSIONS.contains(&s.trim_ascii()))
-                {
-                    in_askama_code = true;
-                    had_askama_code = true;
-                }
+                    .any(|s| JINJA_EXTENSIONS.contains(&s.trim_ascii())) =>
+            {
+                in_askama_code = true;
+                had_askama_code = true;
             }
             (true, Event::End(TagEnd::CodeBlock)) => in_askama_code = false,
             (true, Event::Text(text)) => tmpl_source.push_str(&text),
