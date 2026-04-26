@@ -15,6 +15,22 @@ dirs = ["templates"]
 whitespace = "preserve"
 ```
 
+Please note that `dirs` support glob (`*`) syntax. So you can write:
+
+```toml
+[general]
+dirs = ["templates/*"]
+```
+
+Or even:
+
+```toml
+[general]
+dirs = ["templates/**"]
+```
+
+If you want to include sub-folders.
+
 ## Whitespace control
 
 In the default configuration, you can use the `-` operator to indicate that
