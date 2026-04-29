@@ -4,6 +4,16 @@ This file **only lists breaking changes** you need to be aware of when you upgra
 version. Please see [our release notes](<https://github.com/askama-rs/askama/releases>) to get a
 list of all changes and improvements that might be useful to you.
 
+## From askama v0.15 to askama v0.16
+
+* Variable creation without value cannot be done with `let`/`set` anymore. You need to use the new `decl`/`declare` instead:
+
+  ```jinja
+  {% decl variable_without_value %}
+  ```
+
+* Duplicated blocks will now error and prevent compilation instead of emitting a warning.
+
 ## From askama v0.14 to askama v0.15
 
 * The <abbr title="minimum supported rust version">MSRV</abbr> of this release is 1.88.
