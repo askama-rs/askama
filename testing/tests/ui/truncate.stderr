@@ -20,27 +20,27 @@ error[E0277]: the trait bound `usize: TryFrom<f32>` is not satisfied
 9 | #[derive(Template)]
   |          ^^^^^^^^ the trait `From<f32>` is not implemented for `usize`
   |
-help: the following other types implement trait `From<T>`
+help: `usize` implements trait `From<T>`
  --> $RUST/core/src/convert/num.rs
   |
-  = note: `usize` implements `From<bool>`
+  = note: `From<bool>`
  ::: $RUST/core/src/convert/num.rs
   |
   = note: in this macro invocation
  ::: $RUST/core/src/convert/num.rs
   |
-  = note: `usize` implements `From<u16>`
+  = note: `From<u16>`
   |
-  = note: `usize` implements `From<u8>`
+  = note: `From<u8>`
  ::: $RUST/core/src/convert/num.rs
   |
   = note: in this macro invocation
  ::: $RUST/core/src/convert/num.rs
   |
   = note: in this macro invocation
- --> $RUST/core/src/ptr/alignment.rs
+ --> $RUST/core/src/mem/alignment.rs
   |
-  = note: `usize` implements `From<std::ptr::Alignment>`
+  = note: `From<std::mem::Alignment>`
   = note: required for `f32` to implement `Into<usize>`
   = note: required for `usize` to implement `TryFrom<f32>`
   = note: this error originates in the derive macro `Template` which comes from the expansion of the macro `impl_from` (in Nightly builds, run with -Z macro-backtrace for more info)

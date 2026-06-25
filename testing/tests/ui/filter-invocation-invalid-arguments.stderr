@@ -78,8 +78,7 @@ error[E0599]: no method named `execute` found for struct `req1<'_>` in the curre
 32 | #[derive(Template)]
    |          ^^^^^^^^ method not found in `req1<'_>`
    |
-   = note: the method was found for
-           - `req1<'_, true>`
+   = note: the method was found for `req1<'_, true>`
    = note: this error originates in the derive macro `Template` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0599]: no method named `with_1` found for struct `req1<'filter, REQUIRED_ARG_FLAG_0>` in the current scope
