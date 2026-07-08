@@ -387,7 +387,14 @@ pub(crate) fn read_config_file(
     config_path: Option<&str>,
     span: Option<Span>,
 ) -> Result<(String, Option<PathBuf>), CompileError> {
-    let root = manifest_root();
+    read_config_file_from_root(&manifest_root(), config_path, span)
+}
+
+fn read_config_file_from_root(
+    root: &Path,
+    config_path: Option<&str>,
+    span: Option<Span>,
+) -> Result<(String, Option<PathBuf>), CompileError> {
     let filename = match config_path {
         Some(config_path) => root.join(config_path),
         None => root.join(CONFIG_FILE_NAME),
@@ -400,7 +407,10 @@ pub(crate) fn read_config_file(
                 span,
             )
         })?;
-        Ok((content, filename.canonicalize().ok()))
+        // Like in `Config::find_template()`, don't use `Path::canonicalize()`: the path is
+        // lexically diffed against the unresolved caller path in `Generator::rel_path()`,
+        // so resolving symlinks here would produce a broken path in `include_bytes!()`.
+        Ok((content, absolute(&filename).ok()))
     } else if config_path.is_some() {
         Err(CompileError::no_file_info(
             format_args!("`{}` does not exist", filename.display()),
@@ -443,6 +453,29 @@ mod tests {
         root.push("templates");
         let config = Config::new("", None, None, None, None).unwrap();
         assert_eq!(config.dirs, vec![root]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_read_config_file_keeps_symlinks_unresolved() {
+        // E.g. under a symlinked `CARGO_HOME` the caller path uses the symlinked spelling,
+        // so the tracked config path must keep that spelling, too.
+        let tmp =
+            env::temp_dir().join(format!("askama-config-symlink-test-{}", std::process::id()));
+        let real = tmp.join("real");
+        let link = tmp.join("link");
+        let _ = fs::remove_dir_all(&tmp);
+        fs::create_dir_all(&real).unwrap();
+        fs::write(real.join(CONFIG_FILE_NAME), "").unwrap();
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        let (_, config_path) = read_config_file_from_root(&link, None, None).unwrap();
+        assert_eq!(
+            config_path,
+            Some(absolute(link.join(CONFIG_FILE_NAME)).unwrap())
+        );
+
+        let _ = fs::remove_dir_all(&tmp);
     }
 
     #[cfg(feature = "config")]

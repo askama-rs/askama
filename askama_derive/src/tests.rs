@@ -1169,10 +1169,7 @@ fn test_with_config() {
         &format!(
             "const _: &[askama::helpers::core::primitive::u8] = \
             askama::helpers::core::include_bytes!({:#?});",
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("empty_test_config.toml")
-                .canonicalize()
-                .unwrap(),
+            absolute(Path::new(env!("CARGO_MANIFEST_DIR")).join("empty_test_config.toml")).unwrap(),
         ),
         &[],
         0,
