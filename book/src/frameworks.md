@@ -34,6 +34,14 @@ If you don't need custom / stylized error messages,
 e.g. because you know that your templates won't have rendering errors, then using
 [`askama_web`](https://crates.io/crates/askama_web/) might work for you, too.
 
+Install it by adding this to the `Cargo.toml` ; replace `"actix-web-4"` by the feature corresponding to your framework (check [the available feature](https://docs.rs/crate/askama_web/latest/features))
+
+```toml
+[dependencies]
+askama = "0.16"
+askama_web = { version = "0.16", features = ["actix-web-4"] }
+```
+
 ## Actix-Web
 
 [![our actix-web example web-app](
