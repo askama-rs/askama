@@ -23,7 +23,7 @@ The crates [`thiserror`] and [`displaydoc`] can be useful to implement this erro
 [`thiserror`]: <https://crates.io/crates/thiserror>
 [`displaydoc`]: <https://crates.io/crates/displaydoc>
 
-### Simplified alternative
+## Simplified alternative
 
 Alternatively, you can use [`#[derive(askama_web::WebTemplate)]`](https://crates.io/crates/askama_web/)
 to automatically implement e.g. actix-web's `Responder`, axum's `IntoResponse` or warp's `Reply`.
