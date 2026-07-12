@@ -36,16 +36,13 @@ e.g. because you know that your templates won't have rendering errors, then usin
 
 ## Actix-Web
 
-[![our actix-web example web-app](
-    https://img.shields.io/badge/actix--web-example-informational?style=flat-square&logo=git&logoColor=white&color=%23228b22
-)](
-    https://github.com/askama-rs/askama/tree/main/examples/actix-web-app "our actix-web example web-app"
-)
 [![crates.io: actix-web](
     https://img.shields.io/crates/v/actix-web?label=actix-web&style=flat-square&logo=rust&logoColor=white&color=informational
 )](
     https://crates.io/crates/actix-web "crates.io: actix-web"
 )
+
+See [the `actix-web` example web-app](https://github.com/askama-rs/askama/tree/main/examples/actix-web-app).
 
 To convert the `String` to an HTML response, you can use
 [`Html::new(_)`](https://docs.rs/actix-web/4.9.0/actix_web/web/struct.Html.html#method.new).
@@ -104,16 +101,13 @@ impl Responder for AppError {
 
 ## Axum
 
-[![our axum example web-app](
-    https://img.shields.io/badge/axum-example-informational?style=flat-square&logo=git&logoColor=white&color=%23228b22
-)](
-    https://github.com/askama-rs/askama/tree/main/examples/axum-app "our axum example web-app"
-)
 [![crates.io: axum](
     https://img.shields.io/crates/v/axum?label=axum&style=flat-square&logo=rust&logoColor=white&color=informational
 )](
     https://crates.io/crates/axum "crates.io: axum"
 )
+
+See [the `axum` example web-app](https://github.com/askama-rs/askama/tree/main/examples/axum-app).
 
 To convert the `String` to an HTML response, you can use
 [`Html(_)`](https://docs.rs/axum/0.8.1/axum/response/struct.Html.html).
@@ -160,16 +154,13 @@ impl IntoResponse for AppError {
 
 ## Poem
 
-[![our poem example web-app](
-    https://img.shields.io/badge/poem-example-informational?style=flat-square&logo=git&logoColor=white&color=%23228b22
-)](
-    https://github.com/askama-rs/askama/tree/main/examples/poem-app "our poem example web-app"
-)
 [![crates.io: poem](
     https://img.shields.io/crates/v/poem?label=poem&style=flat-square&logo=rust&logoColor=white&color=informational
 )](
     https://crates.io/crates/poem "crates.io: poem"
 )
+
+See [the `poem` example web-app](https://github.com/askama-rs/askama/tree/main/examples/poem-app).
 
 To convert the `String` to an HTML response, you can use
 [`Html(_)`](https://docs.rs/poem/3.1.6/poem/web/struct.Html.html).
@@ -226,16 +217,13 @@ impl IntoResponse for AppError {
 
 ## Rocket
 
-[![our rocket example web-app](
-    https://img.shields.io/badge/rocket-example-informational?style=flat-square&logo=git&logoColor=white&color=%23228b22
-)](
-    https://github.com/askama-rs/askama/tree/main/examples/rocket-app "our rocket example web-app"
-)
 [![crates.io: rocket](
     https://img.shields.io/crates/v/rocket?label=rocket&style=flat-square&logo=rust&logoColor=white&color=informational
 )](
     https://crates.io/crates/rocket "crates.io: rocket"
 )
+
+See [the `rocket` example web-app](https://github.com/askama-rs/askama/tree/main/examples/rocket-app).
 
 To convert the `String` to an HTML response, you can use
 [`RawHtml(_)`](https://docs.rs/rocket/0.5.1/rocket/response/content/struct.RawHtml.html).
@@ -291,16 +279,13 @@ impl<'r> Responder<'r, 'static> for AppError {
 
 ## Warp
 
-[![our warp example web-app](
-    https://img.shields.io/badge/warp-example-informational?style=flat-square&logo=git&logoColor=white&color=%23228b22
-)](
-    https://github.com/askama-rs/askama/tree/main/examples/warp-app "our warp example web-app"
-)
 [![crates.io: warp](
     https://img.shields.io/crates/v/warp?label=warp&style=flat-square&logo=rust&logoColor=white&color=informational
 )](
     https://crates.io/crates/warp "crates.io: warp"
 )
+
+See [the `warp` example web-app](https://github.com/askama-rs/askama/tree/main/examples/warp-app).
 
 To convert the `String` to an HTML response, you can use
 [`html(_)`](https://docs.rs/warp/0.3.7/warp/reply/fn.html.html).
