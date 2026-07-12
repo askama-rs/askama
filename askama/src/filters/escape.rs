@@ -75,7 +75,7 @@ pub struct EscapeDisplay<T, E>(T, E);
 impl<T: fmt::Display, E: Escaper> fmt::Display for EscapeDisplay<T, E> {
     #[inline]
     fn fmt(&self, fmt: &mut Formatter<'_>) -> fmt::Result {
-        write!(EscapeWriter(fmt, self.1), "{}", &self.0)
+        write!(EscapeWriter(fmt, self.1), "{}", self.0)
     }
 }
 

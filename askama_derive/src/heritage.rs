@@ -119,7 +119,7 @@ impl<'a> Context<'a> {
                                 "⚠️ {current:#}: block `{}` was already called at `{prev:#}` so the previous one will be ignored\n\
                                  You can repeat blocks by using the `template` proc-macro blocks: \
                                  https://askama.rs/en/latest/creating_templates.html#blocks",
-                                &*b.name,
+                                *b.name,
                             );
                             return Err(CompileError::new(
                                 error_msg,
