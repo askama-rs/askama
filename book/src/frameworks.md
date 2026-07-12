@@ -42,6 +42,13 @@ e.g. because you know that your templates won't have rendering errors, then usin
     https://crates.io/crates/actix-web "crates.io: actix-web"
 )
 
+Install using the following command to enable the `actix-web-4` feature for this framework
+(check [the available features](https://docs.rs/crate/askama_web/latest/features) for other versions):
+
+```sh
+cargo add askama_web --features "actix-web-4"
+```
+
 See [the `actix-web` example web-app](https://github.com/askama-rs/askama/tree/main/examples/actix-web-app).
 
 To convert the `String` to an HTML response, you can use
@@ -107,6 +114,13 @@ impl Responder for AppError {
     https://crates.io/crates/axum "crates.io: axum"
 )
 
+Install using the following command to enable the `axum-0.8` feature for this framework
+(check [the available features](https://docs.rs/crate/askama_web/latest/features) for other versions):
+
+```sh
+cargo add askama_web --features "axum-0.8"
+```
+
 See [the `axum` example web-app](https://github.com/askama-rs/askama/tree/main/examples/axum-app).
 
 To convert the `String` to an HTML response, you can use
@@ -159,6 +173,13 @@ impl IntoResponse for AppError {
 )](
     https://crates.io/crates/poem "crates.io: poem"
 )
+
+Install using the following command to enable the `poem-3` feature for this framework
+(check [the available features](https://docs.rs/crate/askama_web/latest/features) for other versions):
+
+```sh
+cargo add askama_web --features "poem-3"
+```
 
 See [the `poem` example web-app](https://github.com/askama-rs/askama/tree/main/examples/poem-app).
 
@@ -223,6 +244,13 @@ impl IntoResponse for AppError {
     https://crates.io/crates/rocket "crates.io: rocket"
 )
 
+Install using the following command to enable the `rocket-0.5` feature for this framework
+(check [the available features](https://docs.rs/crate/askama_web/latest/features) for other versions):
+
+```sh
+cargo add askama_web --features "rocket-0.5"
+```
+
 See [the `rocket` example web-app](https://github.com/askama-rs/askama/tree/main/examples/rocket-app).
 
 To convert the `String` to an HTML response, you can use
@@ -284,6 +312,13 @@ impl<'r> Responder<'r, 'static> for AppError {
 )](
     https://crates.io/crates/warp "crates.io: warp"
 )
+
+Install using the following command to enable the `wrap-0.4` feature for this framework
+(check [the available features](https://docs.rs/crate/askama_web/latest/features) for other versions):
+
+```sh
+cargo add askama_web --features "wrap-0.4"
+```
 
 See [the `warp` example web-app](https://github.com/askama-rs/askama/tree/main/examples/warp-app).
 
