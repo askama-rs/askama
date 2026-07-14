@@ -15,7 +15,8 @@ use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote_spanned};
 use syn::Token;
 
-use crate::generator::helpers::{clean_path, diff_paths};
+use crate::generator::helpers::clean_path;
+pub(crate) use crate::generator::helpers::diff_paths;
 use crate::heritage::{Context, Heritage};
 use crate::html::write_escaped_str;
 use crate::input::{Source, TemplateInput};

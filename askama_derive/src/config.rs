@@ -458,22 +458,47 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn test_read_config_file_keeps_symlinks_unresolved() {
-        // E.g. under a symlinked `CARGO_HOME` the caller path uses the symlinked spelling,
-        // so the tracked config path must keep that spelling, too.
-        let tmp =
-            env::temp_dir().join(format!("askama-config-symlink-test-{}", std::process::id()));
-        let real = tmp.join("real");
-        let link = tmp.join("link");
+        use crate::generator::diff_paths;
+
+        // Simulates building a crate through a symlinked path, e.g. a registry cache under
+        // a symlinked `CARGO_HOME`: the caller path (`Span::local_file()`) uses the symlink
+        // spelling, while the symlink's target lives at a different depth:
+        //
+        //   <tmp>/real/deep/proj/askama.toml   actual file
+        //   <tmp>/proj -> <tmp>/real/deep/proj crate root as the compiler sees it
+        //   <tmp>/proj/src                     caller dir
+        //
+        // `env::temp_dir()` is canonicalized so that the only symlink in play is ours.
+        let tmp = env::temp_dir()
+            .canonicalize()
+            .unwrap()
+            .join(format!("askama-config-symlink-test-{}", std::process::id()));
+        let real = tmp.join("real").join("deep").join("proj");
+        let link = tmp.join("proj");
         let _ = fs::remove_dir_all(&tmp);
-        fs::create_dir_all(&real).unwrap();
+        fs::create_dir_all(real.join("src")).unwrap();
         fs::write(real.join(CONFIG_FILE_NAME), "").unwrap();
         std::os::unix::fs::symlink(&real, &link).unwrap();
+        let caller_dir = link.join("src");
+        let manifest_dir = Some(link.display().to_string());
 
+        // The tracked config path must keep the symlink spelling of the manifest root...
         let (_, config_path) = read_config_file_from_root(&link, None, None).unwrap();
-        assert_eq!(
-            config_path,
-            Some(absolute(link.join(CONFIG_FILE_NAME)).unwrap())
-        );
+        let config_path = config_path.unwrap();
+        assert_eq!(config_path, absolute(link.join(CONFIG_FILE_NAME)).unwrap());
+
+        // ...so that the relative path `Generator::rel_path()` computes for `include_bytes!()`
+        // resolves from the caller dir: `diff_paths()` diffs lexically, but the compiler
+        // resolves the `..` components through the symlink.
+        let rel = diff_paths(&config_path, &caller_dir, manifest_dir.clone()).unwrap();
+        assert_eq!(rel, Path::new("..").join(CONFIG_FILE_NAME));
+        fs::metadata(caller_dir.join(rel)).unwrap();
+
+        // The canonicalized spelling that was tracked before diffs into a `..` chain that
+        // escapes through the symlink and points at a file that does not exist.
+        let old_config_path = link.join(CONFIG_FILE_NAME).canonicalize().unwrap();
+        let old_rel = diff_paths(&old_config_path, &caller_dir, manifest_dir).unwrap();
+        fs::metadata(caller_dir.join(old_rel)).unwrap_err();
 
         let _ = fs::remove_dir_all(&tmp);
     }
