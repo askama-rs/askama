@@ -164,7 +164,9 @@ impl FilterSignature {
         // generics
         let mut generics = HashMap::default();
         for gp in sig.generics.type_params() {
-            p_assert!(gp.default.is_none(), gp.default.span() => "Filter functions don't support generic parameter defaults")?;
+            if let Some((_, default)) = &gp.default {
+                p_err!(default.span() => "Filter functions don't support generic parameter defaults")?;
+            }
 
             let ident = gp.ident.clone();
             let bounds = gp.bounds.clone();
