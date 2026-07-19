@@ -34,12 +34,12 @@ memchr = "2"
 proc-macro2 = { version = "1", default-features = false }
 quote = { version = "1", default-features = false }
 rustc-hash = "2.0.0"
-syn = { version = "2.0.3", default-features = false, features = ["clone-impls", "derive", "full", "parsing", "printing"] }
+syn = { version = "3.0.0", default-features = false, features = ["clone-impls", "derive", "full", "parsing", "printing"] }
 
 [dev-dependencies]
 console = "0.16.0"
 criterion = "0.8"
-prettyplease = "0.2.20"
+prettyplease = "0.3.0"
 rand = "0.10.0"
 rand_xoshiro = "0.8.0"
 similar = "2.6.0"
