@@ -20,10 +20,10 @@ askama_derive = { path = "../../askama_derive", default-features = false, featur
 arbitrary = { version = "1.3.2", features = ["derive"] }
 html-escape = "0.2.13"
 libfuzzer-sys = "0.4.7"
-prettyplease = "0.2.32"
+prettyplease = "0.3.0"
 proc-macro2 = { version = "1.0.95", default-features = false }
 quote = { version = "1.0.40", default-features = false }
-syn = { version = "2.0.101", default-features = false, features = ["full"] }
+syn = { version = "3.0.0", default-features = false, features = ["full"] }
 thiserror = "2.0.3"
 unicode-ident = "=1.0.18"
 
