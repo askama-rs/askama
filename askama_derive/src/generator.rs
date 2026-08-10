@@ -178,6 +178,16 @@ impl<'a, 'h> Generator<'a, 'h> {
         if proc_macro::is_available()
             && let Some(mut local_file) = proc_macro::Span::call_site().local_file()
         {
+            // Resolve the calling source file, then take its directory. `rel_path()` diffs
+            // template paths against this, and `Config::find_template()` always canonicalizes
+            // those, so this side has to be canonicalized too or the two are rooted in
+            // different trees -- which makes `diff_paths()` fall back to the absolute path.
+            //
+            // This matters for build systems that stage sources as symlinks into a separate
+            // build tree (Bazel, Buck). There the file is a symlink to the real checkout while
+            // the directory holding it is real, so the symlink that has to be followed is the
+            // file; resolving the directory afterwards would be a no-op.
+            let mut local_file = local_file.canonicalize().unwrap_or(local_file);
             local_file.pop();
             if !local_file.is_absolute() {
                 local_file = Path::new(".").join(local_file);

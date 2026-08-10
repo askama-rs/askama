@@ -65,6 +65,14 @@ pub(crate) fn diff_paths(
     } else {
         if base_is_absolute &&
             let Some(manifest_dir) = manifest_dir &&
+            // Resolve before comparing: `base` is canonical, so a `CARGO_MANIFEST_DIR` that is
+            // relative, or that reaches the crate through a symlink, would never match it
+            // textually even when it names the very same directory. Build systems that stage
+            // sources into a separate tree (Bazel, Buck) set it to a relative path.
+            let manifest_dir = {
+                let dir = PathBuf::from(manifest_dir);
+                dir.canonicalize().unwrap_or(dir)
+            } &&
             // If the `base` doesn't start with the same path as `CARGO_MANIFEST_DIR`, it likely
             // means that we're in a macro, so better use the absolute path in this case.
             !base.starts_with(manifest_dir)
@@ -158,4 +166,37 @@ fn test_diff_paths() {
             Some("templates/empty.txt".into()),
         );
     }
+}
+
+/// `CARGO_MANIFEST_DIR` may name the crate root through a symlink, or by a relative path, while
+/// `base` has been canonicalized. Comparing the two textually then fails even though they are the
+/// same directory, and `diff_paths()` falls back to an absolute path. That absolute path is
+/// emitted as `include_bytes!`, so it reaches rustc's `SourceMap` and feeds the crate hash --
+/// making the crate's SVH depend on where the project is checked out. Build systems that stage
+/// sources into a separate build tree (Bazel, Buck) hit this.
+#[test]
+#[cfg(unix)]
+fn test_diff_paths_manifest_dir_via_symlink() {
+    use std::fs;
+
+    let root = std::env::temp_dir().join(format!("askama-diff-paths-{}", std::process::id()));
+    let real = root.join("real_crate");
+    let link = root.join("linked_crate");
+    let _ = fs::remove_dir_all(&root);
+    fs::create_dir_all(real.join("templates")).unwrap();
+    fs::write(real.join("templates").join("empty.txt"), "").unwrap();
+    std::os::unix::fs::symlink(&real, &link).unwrap();
+
+    // What `caller_dir()` produces: the canonicalized directory of the calling source file.
+    let base = real.canonicalize().unwrap();
+    let template = base.join("templates").join("empty.txt");
+
+    // `CARGO_MANIFEST_DIR` names the same directory, but by way of the symlink.
+    assert_eq!(
+        diff_paths(&template, &base, Some(link.to_str().unwrap().to_owned()),),
+        Some("templates/empty.txt".into()),
+        "a manifest dir reached through a symlink must still count as the same crate",
+    );
+
+    fs::remove_dir_all(&root).unwrap();
 }
