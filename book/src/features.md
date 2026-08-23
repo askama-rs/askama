@@ -76,7 +76,7 @@ Enables compile time [configurations](configuration.html).
 enabled by <code>"default"</code>
 </blockquote>
 
-Enables the filters [`|urlencode` and `|urlencode_strict`](filter.html#urlencode--urlencode_strict).
+Enables the filters [`|urlencode` and `|urlencode_strict`](filters.html#urlencode).
 
 ## Addition features
 
