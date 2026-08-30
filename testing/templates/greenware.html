@@ -3,3 +3,4 @@
 {% for item in items %}  <li>{{ loop.index }}: {{ item }}</li>
 {% endfor %}</ul>
 {% if let Some(note) = note %}<p>{{ note }}</p>{% else %}<p>no note</p>{% endif %}
+<p class="meta">{{ title|upper }} — {{ items|join(", ") }}{%- if true %} fired{%- endif %}</p>

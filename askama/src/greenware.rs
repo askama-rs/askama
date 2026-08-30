@@ -21,11 +21,37 @@
 //! fired mode), and rendering `null` is an error (fired mode would not have
 //! compiled an `Option` interpolation).
 //!
+//! # Activation requires ALL of the following
+//!
+//! 1. `greenware = true` on the template attribute (per-template opt-in;
+//!    the struct must be `serde::Serialize` — forgetting it is a normal
+//!    E0277 pointing at [`try_render`], with rustc suggesting the derive),
+//! 2. the `greenware` feature on the askama dependency (compiles support),
+//! 3. a debug build (`cfg(debug_assertions)` — release builds erase the
+//!    hook entirely), and
+//! 4. `ASKAMA_GREENWARE=1` in the environment at run time.
+//!
+//! Anything less and rendering is exactly the compiled, fired path. There
+//! is no accidental-activation surface: the feature alone changes nothing.
+//!
+//! # Path semantics
+//!
+//! The absolute template path is captured at compile time. That is correct
+//! for local development — the machine compiling is the machine editing —
+//! but a binary moved to another host, or built in a container without the
+//! template directory mounted, cannot activate greenware successfully: the
+//! re-read fails with an error naming the exact path. It never degrades
+//! rendering when `ASKAMA_GREENWARE` is unset.
+//!
 //! # Known dev/prod divergences (documented, not silent)
 //!
 //! - Custom filters and method calls are unsupported (loud error).
 //! - Config-level whitespace defaults (`askama.toml` `whitespace`) are not
 //!   applied; explicit `{%- -%}` / `{%~ ~%}` markers are honored exactly.
+//! - Editors that save via truncate-then-write can expose a torn read to a
+//!   request that renders mid-save: that surfaces as a loud per-request
+//!   parse/read error and heals on the next request. A last-known-good AST
+//!   cache is a possible future refinement; correctness does not need it.
 
 use std::borrow::ToOwned;
 use std::boxed::Box;
