@@ -1,0 +1,5 @@
+<h1>{{ title }}</h1>
+<ul>
+{% for item in items %}  <li>{{ loop.index }}: {{ item }}</li>
+{% endfor %}</ul>
+{% if let Some(note) = note %}<p>{{ note }}</p>{% else %}<p>no note</p>{% endif %}

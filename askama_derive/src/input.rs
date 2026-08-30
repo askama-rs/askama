@@ -29,6 +29,7 @@ pub(crate) struct TemplateInput<'a> {
     pub(crate) escaper: &'a str,
     pub(crate) path: Arc<Path>,
     pub(crate) fields: Arc<[String]>,
+    pub(crate) greenware: bool,
 }
 
 impl TemplateInput<'_> {
@@ -51,8 +52,23 @@ impl TemplateInput<'_> {
             ext,
             ext_span,
             syntax,
+            greenware,
             ..
         } = args;
+
+        if *greenware {
+            #[cfg(feature = "external-sources")]
+            let is_path = matches!(source, Source::Path(_));
+            #[cfg(not(feature = "external-sources"))]
+            let is_path = false;
+            if !is_path {
+                return Err(CompileError::no_file_info(
+                    "`greenware` requires a file-based `path` template — inline `source` \
+                     templates have no file to hot-reload",
+                    Some(*template_span),
+                ));
+            }
+        }
 
         // Validate the `source` and `ext` value together, since they are
         // related. In case `source` was used instead of `path`, the value
@@ -145,6 +161,7 @@ impl TemplateInput<'_> {
             escaper,
             path,
             fields: fields.into(),
+            greenware: *greenware,
         })
     }
 
@@ -447,6 +464,7 @@ pub(crate) struct TemplateArgs {
     crate_name: Option<ExprPath>,
     pub(crate) whitespace: Option<Whitespace>,
     pub(crate) config_span: Option<Span>,
+    pub(crate) greenware: bool,
 }
 
 impl TemplateArgs {
@@ -508,6 +526,7 @@ impl TemplateArgs {
             crate_name: args.crate_name,
             whitespace: args.whitespace,
             config_span: args.config.as_ref().map(|value| value.span()),
+            greenware: args.greenware.map(|b| b.value()).unwrap_or(false),
         })
     }
 
@@ -526,6 +545,7 @@ impl TemplateArgs {
             crate_name: None,
             whitespace: None,
             config_span: None,
+            greenware: false,
         }
     }
 
@@ -781,6 +801,7 @@ pub(crate) struct PartialTemplateArgs {
     pub(crate) whitespace: Option<Whitespace>,
     pub(crate) crate_name: Option<ExprPath>,
     pub(crate) blocks: Option<Vec<LitStr>>,
+    pub(crate) greenware: Option<LitBool>,
 }
 
 #[derive(Clone)]
@@ -846,6 +867,7 @@ const _: () = {
             whitespace: None,
             crate_name: None,
             blocks: None,
+            greenware: None,
         };
         let mut has_data = false;
 
@@ -971,6 +993,9 @@ const _: () = {
                     set_strlit_pair(ident, value, &mut this.syntax)?;
                 } else if ident == "config" {
                     set_strlit_pair(ident, value, &mut this.config)?;
+                } else if ident == "greenware" {
+                    ensure_only_once(ident, &mut this.greenware)?;
+                    this.greenware = Some(get_boollit(ident, value)?);
                 } else if ident == "whitespace" {
                     set_parseable_string(ident, value, &mut this.whitespace)?;
                 } else {

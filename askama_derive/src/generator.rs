@@ -257,6 +257,45 @@ impl<'a, 'h> Generator<'a, 'h> {
         let size_hint = self.impl_template_inner(ctx, &mut content)?;
         let content = content.into_token_stream();
 
+        // stoneware greenware hook: debug builds of opted-in path templates
+        // may re-read + interpret the template at render time (hot reload).
+        // Compiled out entirely in release builds.
+        let mut greenware_ts = TokenStream::new();
+        #[cfg(feature = "external-sources")]
+        if self.input.greenware
+            && tmpl_kind == TmplKind::Struct
+            && let crate::input::Source::Path(original) = self.input.source
+        {
+            let original: &str = original;
+            let abs = self.input.path.display().to_string();
+            let escape_html = self.input.escaper.contains("Html");
+            let var_writer = crate::var_writer();
+            greenware_ts = quote_spanned!(span=>
+                #[cfg(debug_assertions)]
+                {
+                    if let askama::helpers::core::option::Option::Some(__greenware_result) =
+                        askama::greenware::try_render(#original, #abs, #escape_html, self)
+                    {
+                        return match __greenware_result {
+                            askama::helpers::core::result::Result::Ok(__greenware_out) => {
+                                match #var_writer.write_str(&__greenware_out) {
+                                    askama::helpers::core::result::Result::Ok(()) => {
+                                        askama::Result::Ok(())
+                                    }
+                                    askama::helpers::core::result::Result::Err(_) => {
+                                        askama::Result::Err(askama::Error::Fmt)
+                                    }
+                                }
+                            }
+                            askama::helpers::core::result::Result::Err(__greenware_err) => {
+                                askama::Result::Err(__greenware_err)
+                            }
+                        };
+                    }
+                }
+            );
+        }
+
         let mut size_hint_s = TokenStream::new();
         if tmpl_kind == TmplKind::Struct {
             size_hint_s = quote_spanned!(span=>
@@ -280,6 +319,7 @@ impl<'a, 'h> Generator<'a, 'h> {
                 };
 
                 #paths_ts
+                #greenware_ts
                 #content
                 askama::Result::Ok(())
             }

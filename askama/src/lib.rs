@@ -68,10 +68,56 @@ extern crate std;
 mod ascii_str;
 mod error;
 pub mod filters;
+#[cfg(feature = "greenware")]
+pub mod greenware;
 #[doc(hidden)]
 pub mod helpers;
 mod html;
 mod values;
+
+/// Greenware stub: the `greenware` feature is not compiled in.
+///
+/// The derive still generates hooks for templates opting in with
+/// `greenware = true`; this stub answers them. If `STONEWARE_GREENWARE=1`
+/// is set it fails **loudly** instead of silently using the compiled render
+/// — a silent fallback would be indistinguishable from a broken reload.
+#[cfg(all(not(feature = "greenware"), feature = "std"))]
+pub mod greenware {
+    /// See the module docs: answers derive-generated greenware hooks when
+    /// the feature is not compiled in.
+    pub fn try_render<T>(
+        original_path: &str,
+        _abs_path: &str,
+        _escape_html: bool,
+        _tmpl: &T,
+    ) -> Option<Result<alloc::string::String, crate::Error>> {
+        match std::env::var("STONEWARE_GREENWARE") {
+            Ok(v) if v == "1" => Some(Err(crate::Error::Custom(std::boxed::Box::new(
+                std::io::Error::other(alloc::format!(
+                    "STONEWARE_GREENWARE=1 is set, but template '{original_path}' was built \
+                     against an askama without the `greenware` feature — enable feature \
+                     `greenware` on the askama dependency, or unset the variable"
+                )),
+            )))),
+            _ => None,
+        }
+    }
+}
+
+/// Greenware stub for no_std builds: greenware requires std, so hooks are
+/// always inactive here.
+#[cfg(all(not(feature = "greenware"), not(feature = "std"), feature = "alloc"))]
+pub mod greenware {
+    /// Always `None`: greenware requires std.
+    pub fn try_render<T>(
+        _original_path: &str,
+        _abs_path: &str,
+        _escape_html: bool,
+        _tmpl: &T,
+    ) -> Option<Result<alloc::string::String, crate::Error>> {
+        None
+    }
+}
 
 #[cfg(feature = "alloc")]
 use alloc::string::String;
