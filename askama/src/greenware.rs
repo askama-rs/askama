@@ -1,8 +1,8 @@
 //! Greenware mode — render-time template interpretation for debug builds.
 //!
-//! "Clay in dev, stone in prod." A template struct opting in with
+//! "Clay in dev, stone in prod": a template struct opting in with
 //! `#[template(path = "...", greenware = true)]` renders through this
-//! interpreter in debug builds when `STONEWARE_GREENWARE=1` is set: the
+//! interpreter in debug builds when `ASKAMA_GREENWARE=1` is set: the
 //! template source is re-read from disk on every render, so edits show up
 //! without recompiling. Release builds compile the greenware hook out
 //! entirely and always use the fired (compile-time) render path.
@@ -61,7 +61,7 @@ fn err<T>(msg: impl Into<String>) -> Result<T, GreenwareError> {
 }
 
 /// The derive-generated hook. Returns `None` when greenware is inactive
-/// (env `STONEWARE_GREENWARE` unset), so the compiled render runs.
+/// (env `ASKAMA_GREENWARE` unset), so the compiled render runs.
 ///
 /// Activation re-reads `abs_path` from disk, serializes the template struct
 /// to a JSON context, and interprets. Any failure — unreadable source, parse
@@ -79,7 +79,7 @@ pub fn try_render<T: serde::Serialize>(
 }
 
 fn env_active() -> bool {
-    matches!(std::env::var("STONEWARE_GREENWARE"), Ok(v) if v == "1")
+    matches!(std::env::var("ASKAMA_GREENWARE"), Ok(v) if v == "1")
 }
 
 fn render_greenware<T: serde::Serialize>(
@@ -89,12 +89,6 @@ fn render_greenware<T: serde::Serialize>(
     tmpl: &T,
 ) -> Result<String, crate::Error> {
     let inner = || -> Result<String, GreenwareError> {
-        if let Ok(spec) = std::env::var("STONEWARE_TEMPLATE_SOURCE") {
-            return err(format!(
-                "STONEWARE_TEMPLATE_SOURCE='{spec}' is set, but greenware runtime reads \
-                 only support the filesystem so far — unset it, or use the fired render"
-            ));
-        }
         let ctx = serde_json::to_value(tmpl)
             .map_err(|e| GreenwareError(format!("cannot serialize template context: {e}")))?;
         let read = |path: &str, relative_to: &str| -> Result<String, String> {

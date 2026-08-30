@@ -1,20 +1,13 @@
-//! Template source abstraction — the stoneware seam.
+//! Template source abstraction.
 //!
-//! Upstream Askama reads external templates from the filesystem, through the
-//! single cached chokepoint in [`crate::input::get_template_source`]. stoneware
-//! routes that read through this trait so alternative stores can plug in
-//! without touching the parser or the generator:
+//! Askama reads external templates from the filesystem, through the single
+//! cached chokepoint in [`crate::input::get_template_source`]. This module
+//! routes that read through a trait so alternative template stores (a
+//! database, an in-memory overlay, a remote fetch) can plug in without
+//! touching the parser or the generator.
 //!
-//! - [`FsSource`] — upstream behavior, the default. Byte-for-byte identical
-//!   to `std::fs::read_to_string` at the chokepoint.
-//! - `NedbSource` (PR-3) — templates stored content-addressed in an embedded
-//!   [nedb-engine](https://crates.io/crates/nedb-engine) database, with
-//!   `caused_by` lineage per edit and `AS OF` historical rendering.
-//!
-//! The dispatch lives in [`active_source`]. In PR-2 it always answers with the
-//! filesystem; PR-3 grows an environment-driven selection
-//! (`STONEWARE_TEMPLATE_SOURCE`) so a build can point template resolution at a
-//! store instead of a directory.
+//! [`FsSource`] is the default and only in-tree implementation — behavior is
+//! byte-for-byte identical to `std::fs::read_to_string` at the chokepoint.
 
 use std::path::Path;
 
@@ -39,7 +32,7 @@ impl TemplateSource for FsSource {
 
 /// The active template source for this expansion.
 ///
-/// PR-2: always the filesystem — zero behavior change from upstream.
+/// Always the filesystem today — zero behavior change.
 pub(crate) fn active_source() -> &'static dyn TemplateSource {
     static FS: FsSource = FsSource;
     &FS
@@ -51,7 +44,7 @@ mod tests {
 
     #[test]
     fn fs_source_reads_file() {
-        let dir = std::env::temp_dir().join("stoneware-source-test");
+        let dir = std::env::temp_dir().join("askama-source-test");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("t.html");
         std::fs::write(&path, "hello {{ name }}\n").unwrap();

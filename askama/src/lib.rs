@@ -78,7 +78,7 @@ mod values;
 /// Greenware stub: the `greenware` feature is not compiled in.
 ///
 /// The derive still generates hooks for templates opting in with
-/// `greenware = true`; this stub answers them. If `STONEWARE_GREENWARE=1`
+/// `greenware = true`; this stub answers them. If `ASKAMA_GREENWARE=1`
 /// is set it fails **loudly** instead of silently using the compiled render
 /// — a silent fallback would be indistinguishable from a broken reload.
 #[cfg(all(not(feature = "greenware"), feature = "std"))]
@@ -91,10 +91,10 @@ pub mod greenware {
         _escape_html: bool,
         _tmpl: &T,
     ) -> Option<Result<alloc::string::String, crate::Error>> {
-        match std::env::var("STONEWARE_GREENWARE") {
+        match std::env::var("ASKAMA_GREENWARE") {
             Ok(v) if v == "1" => Some(Err(crate::Error::Custom(std::boxed::Box::new(
                 std::io::Error::other(alloc::format!(
-                    "STONEWARE_GREENWARE=1 is set, but template '{original_path}' was built \
+                    "ASKAMA_GREENWARE=1 is set, but template '{original_path}' was built \
                      against an askama without the `greenware` feature — enable feature \
                      `greenware` on the askama dependency, or unset the variable"
                 )),

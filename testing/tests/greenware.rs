@@ -25,13 +25,13 @@ fn page() -> GreenwarePage {
 #[test]
 fn greenware_parity_and_gating() {
     // SAFETY: single-threaded use of the env var within this one test; no
-    // other test in this binary reads STONEWARE_GREENWARE.
-    unsafe { std::env::remove_var("STONEWARE_GREENWARE") };
+    // other test in this binary reads ASKAMA_GREENWARE.
+    unsafe { std::env::remove_var("ASKAMA_GREENWARE") };
     let fired = page().render().expect("fired render");
     assert!(fired.contains("Fired &#38; &#60;Greenware&#62;"));
 
     // Greenware ON: interpreted render must match the fired render exactly.
-    unsafe { std::env::set_var("STONEWARE_GREENWARE", "1") };
+    unsafe { std::env::set_var("ASKAMA_GREENWARE", "1") };
     let greenware = page().render().expect("greenware render");
     assert_eq!(
         greenware, fired,
@@ -42,7 +42,7 @@ fn greenware_parity_and_gating() {
     let mut p = page();
     p.note = None;
     let greenware_none = p.render().expect("greenware render, None branch");
-    unsafe { std::env::remove_var("STONEWARE_GREENWARE") };
+    unsafe { std::env::remove_var("ASKAMA_GREENWARE") };
     let fired_none = p.render().expect("fired render, None branch");
     assert_eq!(greenware_none, fired_none);
     assert!(fired_none.contains("no note"));
