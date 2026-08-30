@@ -16,6 +16,8 @@ mod heritage;
 mod html;
 mod input;
 mod integration;
+#[cfg(feature = "external-sources")]
+mod source;
 mod spans;
 #[cfg(test)]
 mod tests;

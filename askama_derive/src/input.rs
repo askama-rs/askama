@@ -767,7 +767,7 @@ pub(crate) fn get_template_source(
         .get_or_init(crate::OnceMap::default)
         .get_or_try_insert(
             tpl_path,
-            |tpl_path| match std::fs::read_to_string(tpl_path) {
+            |tpl_path| match crate::source::active_source().read(tpl_path) {
                 Ok(mut source) => {
                     if source.ends_with('\n') {
                         let _ = source.pop();
