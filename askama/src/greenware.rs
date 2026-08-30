@@ -31,11 +31,10 @@ use std::borrow::ToOwned;
 use std::boxed::Box;
 use std::collections::HashMap;
 use std::error::Error as StdError;
-use std::fmt;
 use std::path::Path;
 use std::string::{String, ToString};
 use std::vec::Vec;
-use std::{format, vec};
+use std::{fmt, format, vec};
 
 use parser::node::{Cond, Lit, Loop, Node, Whitespace, Ws};
 use parser::{Ast, Expr, Num, PathOrIdentifier, Syntax, Target, WithSpan};
