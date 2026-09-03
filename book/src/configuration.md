@@ -182,4 +182,4 @@ it.
 You can take a look at the [custom escaper example] in the `askama` repository.
 
 [`Escaper`]: https://docs.rs/askama/latest/askama/filters/trait.Escaper.html
-[custom escaper example]: https://github.com/askama-rs/askama/tree/main/examples/warp-app
+[custom escaper example]: https://github.com/askama-rs/askama/tree/main/examples/custom-escaper
