@@ -92,6 +92,13 @@ you need it to be mutable #}
 
 For compatibility with Jinja, `set` can be used in place of `let`.
 
+You can specify the type of the variable:
+
+```jinja
+{% let foo: &str = "bar" %}
+{% let another_foo: u32 = 12 %}
+```
+
 ### Let/set blocks
 
 You can create a variable and initialize it with a block computed string:
@@ -100,6 +107,12 @@ You can create a variable and initialize it with a block computed string:
 {% let x %}
 {{ crate::some_function() }} = {{ a * b}}
 {% endlet %}
+```
+
+You can specify the type of the variable, although it will always be `String`:
+
+```jinja
+{% let foo: String %}12{% endlet %}
 ```
 
 ### Set variable values later
