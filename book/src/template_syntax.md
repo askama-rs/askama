@@ -10,6 +10,7 @@
 | `{# ... #}` | [Comment](#comments) |
 | `{% let ... = ... %}` or `{% set ... = ... %}` | [Variable assignment](#assignments) |
 | `{% decl ... %}` or `{% declare ... = ... %}` | [Set variable values later](#set-variable-values-later) |
+| `{% mut ... += ... %}` | [Compound assignments](#compound-assignments) |
 | `{% if ... %} ... {% else if ... %} ... {% else %} ... {% endif %}` | [If-Else conditional block](#if) |
 | `{% match ... %} {% when ... %} ... {% else %} ... {% endmatch %}` | [Match block](#match) |
 | `{% for ... in ... %} ... {% else %} ... {% endfor %}` | [For loop block](#for) |
