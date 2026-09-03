@@ -70,3 +70,19 @@ fn let_block() {
 
     assert_eq!(Foo { b: 0 }.render().unwrap(), "0: c");
 }
+
+#[test]
+fn let_with_ty() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- let x: usize = 12 %}{{x}}
+{% let x: String %}58{% endlet %}{{x}}
+{% let y: String %}tadam{% endlet %}{{y-}}
+"#,
+        ext = "txt"
+    )]
+    struct Foo;
+
+    assert_eq!(Foo.render().unwrap(), "12\n58\ntadam");
+}

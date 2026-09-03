@@ -967,6 +967,15 @@ impl<'a> Generator<'a, '_> {
         Ok(size_hint)
     }
 
+    fn write_let_ty(&mut self, ctx: &Context<'a>, buf: &mut Buffer, l: &'a WithSpan<Let<'_>>) {
+        if let Some(ty) = &l.ty {
+            let span = ctx.span_for_node(ty.span());
+
+            buf.write_token(syn::Token![:], span);
+            self.visit_ty_generic(ctx, buf, ty, span);
+        }
+    }
+
     fn write_let_block(
         &mut self,
         ctx: &Context<'a>,
@@ -1001,6 +1010,7 @@ impl<'a> Generator<'a, '_> {
         let filter_def_buf = filter_def_buf.into_token_stream();
 
         size_hint += self.write_let_target(ctx, buf, l, span)?;
+        self.write_let_ty(ctx, buf, l);
         buf.write_token(Token![=], span);
 
         let var_writer = crate::var_writer();
@@ -1076,6 +1086,7 @@ impl<'a> Generator<'a, '_> {
 
         let span = ctx.span_for_node(l.span());
         size_hint += self.write_let_target(ctx, buf, l, span)?;
+        self.write_let_ty(ctx, buf, l);
         buf.write_token(Token![=], span);
 
         let var_writer = crate::var_writer();
@@ -1139,6 +1150,7 @@ impl<'a> Generator<'a, '_> {
         self.visit_expr(ctx, &mut expr_buf, val)?;
 
         let size_hint = self.write_let_target(ctx, buf, l, span)?;
+        self.write_let_ty(ctx, buf, l);
 
         // If it's not taking the ownership of a local variable or copyable, then we need to add
         // a reference.

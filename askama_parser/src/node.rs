@@ -1255,6 +1255,7 @@ pub enum LetValueOrBlock<'a> {
 pub struct Let<'a> {
     pub ws: Ws,
     pub var: Target<'a>,
+    pub ty: Option<WithSpan<TyGenerics<'a>>>,
     pub val: LetValueOrBlock<'a>,
     pub is_mutable: bool,
 }
@@ -1284,14 +1285,38 @@ impl<'a: 'l, 'l> Let<'a> {
             }
         };
 
-        let ((var, var_span), val, nws) = cut_node(
+        let ((var, var_span), ty, val, nws) = cut_node(
             Some("let"),
             (
                 ws(Target::parse.with_span()),
+                opt(preceded(
+                    ':',
+                    ws(|i: &mut _| {
+                        let start = *i;
+                        TyGenerics::parse(i)
+                            .or_else(|_| cut_error!("expected a type after `:`", start))
+                    }),
+                )),
                 alt((
                     preceded(
                         ws('='),
-                        cut_node(Some("let"), ws(|i: &mut _| Expr::parse(i, false).map(Some))),
+                        cut_node(
+                            Some("let"),
+                            ws(|i: &mut _| {
+                                let start = *i;
+                                Expr::parse(i, false)
+                                    .or_else(|err| {
+                                        // If this is an "unsure", then we know whatever came after
+                                        // isn't a valid expression.
+                                        if matches!(err, ParseErr::Backtrack(_)) {
+                                            cut_error!("expected an expression after `=`", start)
+                                        } else {
+                                            Err(err)
+                                        }
+                                    })
+                                    .map(Some)
+                            }),
+                        ),
                     ),
                     no_compound,
                 )),
@@ -1339,6 +1364,7 @@ impl<'a: 'l, 'l> Let<'a> {
                 Let {
                     ws: Ws(pws, nws),
                     var,
+                    ty,
                     val: LetValueOrBlock::Value(val),
                     is_mutable: is_mut.is_some(),
                 },
@@ -1348,6 +1374,21 @@ impl<'a: 'l, 'l> Let<'a> {
 
         // We do this operation
         if block_end.parse_next(i).is_err() {
+            if val.is_none() {
+                if ty.is_none() {
+                    return cut_error!(
+                        format!(
+                            "expected `=`, `:` or `{}` after variable name",
+                            i.state.syntax.block_end
+                        ),
+                        span,
+                    );
+                }
+                return cut_error!(
+                    format!("expected `=` or `{}` after type", i.state.syntax.block_end),
+                    span,
+                );
+            }
             return Err(
                 ErrorContext::unclosed("block", i.state.syntax.block_end, Span::new(span)).cut(),
             );
@@ -1381,6 +1422,7 @@ impl<'a: 'l, 'l> Let<'a> {
             Let {
                 ws: Ws(pws, nws),
                 var,
+                ty,
                 val: LetValueOrBlock::Block {
                     nodes,
                     ws: Ws(pws2, nws2),

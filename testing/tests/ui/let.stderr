@@ -1,0 +1,87 @@
+error: expected `=` or `%}` after type
+ --> <source attribute>:2:4
+       "let x: u32 : u64 = 12 -%}\n"
+ --> tests/ui/let.rs:4:21
+  |
+4 |   #[template(source = "
+  |  _____________________^
+5 | | {%- let x: u32 : u64 = 12 -%}
+6 | | ", ext = "html")]
+  | |_^
+
+error: expected `=` or `%}` after type
+ --> <source attribute>:2:4
+       "let x: u32 : u64 %}12{% endlet -%}\n"
+  --> tests/ui/let.rs:10:21
+   |
+10 |   #[template(source = "
+   |  _____________________^
+11 | | {%- let x: u32 : u64 %}12{% endlet -%}
+12 | | ", ext = "html")]
+   | |_^
+
+error: expected a type after `:`
+ --> <source attribute>:2:11
+       "= -%}\n"
+  --> tests/ui/let.rs:16:21
+   |
+16 |   #[template(source = "
+   |  _____________________^
+17 | | {%- let x: = -%}
+18 | | ", ext = "html")]
+   | |_^
+
+error: expected an expression after `=`
+ --> <source attribute>:2:16
+       "-%}\n"
+  --> tests/ui/let.rs:22:21
+   |
+22 |   #[template(source = "
+   |  _____________________^
+23 | | {%- let x: u8 = -%}
+24 | | ", ext = "html")]
+   | |_^
+
+error: expected a type after `:`
+ --> <source attribute>:2:11
+       "-%}\n"
+  --> tests/ui/let.rs:28:21
+   |
+28 |   #[template(source = "
+   |  _____________________^
+29 | | {%- let x: -%}
+30 | | ", ext = "html")]
+   | |_^
+
+error: expected `=` or `%}` after type
+ --> <source attribute>:2:4
+       "let x: u32\n"
+  --> tests/ui/let.rs:34:21
+   |
+34 |   #[template(source = "
+   |  _____________________^
+35 | | {%- let x: u32
+36 | | ", ext = "html")]
+   | |_^
+
+error: expected `=`, `:` or `%}` after variable name
+ --> <source attribute>:2:4
+       "let x\n"
+  --> tests/ui/let.rs:40:21
+   |
+40 |   #[template(source = "
+   |  _____________________^
+41 | | {%- let x
+42 | | ", ext = "html")]
+   | |_^
+
+error: unclosed block, missing "%}"
+ --> <source attribute>:1:0
+       "{%- let x = 12\n"
+  --> tests/ui/let.rs:46:21
+   |
+46 |   #[template(source = "
+   |  _____________________^
+47 | | {%- let x = 12
+48 | | ", ext = "html")]
+   | |_^
