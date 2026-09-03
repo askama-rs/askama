@@ -1662,6 +1662,7 @@ fn regression_tests_span_change() {
             val: LetValueOrBlock::Value(WithSpan::no_span(Box::new(Expr::Array(vec![int_lit(
                 "2"
             )])))),
+            ty: None,
             is_mutable: false,
         })))],
     );
@@ -1676,6 +1677,7 @@ fn regression_tests_span_change() {
             val: LetValueOrBlock::Value(WithSpan::no_span(Box::new(Expr::Array(vec![int_lit(
                 "2"
             )])))),
+            ty: None,
             is_mutable: false,
         })))],
     );
