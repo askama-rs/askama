@@ -5,17 +5,16 @@ mod node;
 
 use std::borrow::Cow;
 use std::ops::Deref;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::str;
 use std::sync::Arc;
 
 use parser::node::{Call, Macro, Whitespace};
 use parser::{CharLit, Expr, FloatKind, IntKind, Num, StrLit, WithSpan};
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::{Literal, Span, TokenStream};
 use quote::{ToTokens, quote_spanned};
 use syn::Token;
 
-use crate::generator::helpers::{clean_path, diff_paths};
 use crate::heritage::{Context, Heritage};
 use crate::html::write_escaped_str;
 use crate::input::{Source, TemplateInput};
@@ -123,14 +122,6 @@ struct Generator<'a, 'h> {
     is_in_block: BlockInfo,
     /// Set of called macros we are currently in. Used to prevent (indirect) recursions.
     seen_callers: Vec<(&'a Macro<'a>, Option<FileInfo<'a>>)>,
-    /// The directory path of the calling file.
-    caller_dir: CallerDir,
-}
-
-enum CallerDir {
-    Valid(PathBuf),
-    Invalid,
-    Unresolved,
 }
 
 impl<'a, 'h> Generator<'a, 'h> {
@@ -156,41 +147,6 @@ impl<'a, 'h> Generator<'a, 'h> {
             },
             is_in_block,
             seen_callers: Vec::new(),
-            caller_dir: CallerDir::Unresolved,
-        }
-    }
-
-    fn rel_path<'p>(&mut self, path: &'p Path) -> Cow<'p, Path> {
-        self.caller_dir()
-            .and_then(|caller_dir| {
-                diff_paths(path, caller_dir, std::env::var("CARGO_MANIFEST_DIR").ok())
-            })
-            .map_or(Cow::Borrowed(path), Cow::Owned)
-    }
-
-    fn caller_dir(&mut self) -> Option<&Path> {
-        match self.caller_dir {
-            CallerDir::Valid(ref caller_dir) => return Some(caller_dir.as_path()),
-            CallerDir::Invalid => return None,
-            CallerDir::Unresolved => {}
-        }
-
-        if proc_macro::is_available()
-            && let Some(mut local_file) = proc_macro::Span::call_site().local_file()
-        {
-            local_file.pop();
-            if !local_file.is_absolute() {
-                local_file = Path::new(".").join(local_file);
-            }
-
-            self.caller_dir = CallerDir::Valid(clean_path(&local_file));
-            match &self.caller_dir {
-                CallerDir::Valid(caller_dir) => Some(caller_dir.as_path()),
-                _ => None, // unreachable
-            }
-        } else {
-            self.caller_dir = CallerDir::Invalid;
-            None
         }
     }
 
@@ -211,11 +167,11 @@ impl<'a, 'h> Generator<'a, 'h> {
 
         let mut paths_ts = TokenStream::new();
 
-        if let Some(full_config_path) = &self.input.config.full_config_path {
-            let full_config_path = self.rel_path(full_config_path).display().to_string();
+        if self.input.config.full_config_path.is_some() {
+            let source = Literal::byte_string(self.input.config.source().as_bytes());
             paths_ts.extend(quote_spanned!(span =>
                 const _: &[askama::helpers::core::primitive::u8] =
-                    askama::helpers::core::include_bytes!(#full_config_path);
+                    #source;
             ));
         }
 
@@ -223,15 +179,7 @@ impl<'a, 'h> Generator<'a, 'h> {
         let mut paths = self
             .contexts
             .iter()
-            .map(|(path, _ctx)| {
-                (
-                    &***path,
-                    #[cfg(not(feature = "external-sources"))]
-                    (),
-                    #[cfg(feature = "external-sources")]
-                    _ctx,
-                )
-            })
+            .map(|(path, ctx)| (&***path, ctx))
             .filter(|&(path, _)| {
                 // Skip the fake path of templates defined in rust source.
                 match self.input.source {
@@ -242,15 +190,15 @@ impl<'a, 'h> Generator<'a, 'h> {
             })
             .collect::<Vec<_>>();
         paths.sort_by_key(|&(path, _)| path);
-        for (path, _ctx) in paths {
-            let path = self.rel_path(path).display().to_string();
+        for (_path, ctx) in paths {
+            let source = Literal::byte_string(ctx.parsed.source().as_bytes());
             paths_ts.extend(quote_spanned!(span=>
                 const _: &[askama::helpers::core::primitive::u8] =
-                    askama::helpers::core::include_bytes!(#path);
+                    #source;
             ));
 
             #[cfg(all(feature = "external-sources", feature = "nightly-spans"))]
-            _ctx.resolve_path(&path);
+            ctx.resolve_path(&_path.display().to_string());
         }
 
         let mut content = Buffer::new();

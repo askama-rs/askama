@@ -1,13 +1,11 @@
 //! Files containing tests for generated code.
 
-use std::fmt;
-use std::path::{Path, absolute};
-
 use console::style;
 use prettyplease::unparse;
 use proc_macro2::TokenStream;
 use quote::quote;
 use similar::{Algorithm, ChangeTag, TextDiffConfig};
+use std::fmt;
 use syn::parse_quote;
 
 use crate::integration::Buffer;
@@ -337,18 +335,12 @@ fn check_if_let_chain() {
 #[test]
 fn check_includes_only_once() {
     // In this test we make sure that every used template gets referenced exactly once.
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("templates");
-    let path1 = absolute(path.join("include1.html")).unwrap();
-    let path2 = absolute(path.join("include2.html")).unwrap();
-    let path3 = absolute(path.join("include3.html")).unwrap();
     compare(
         r#"{% include "include1.html" %}"#,
-        &format!(
-            r#"const _: &[askama::helpers::core::primitive::u8] = askama::helpers::core::include_bytes!({path1:#?});
-            const _: &[askama::helpers::core::primitive::u8] = askama::helpers::core::include_bytes!({path2:#?});
-            const _: &[askama::helpers::core::primitive::u8] = askama::helpers::core::include_bytes!({path3:#?});
-            __askama_writer.write_str("3333")?;"#
-        ),
+        r#"const _: &[askama::helpers::core::primitive::u8] = b"{%- include \"include2.html\" -%}\n{%- include \"include2.html\" -%}";
+        const _: &[askama::helpers::core::primitive::u8] = b"{%- include \"include3.html\" -%}\n{%- include \"include3.html\" -%}";
+        const _: &[askama::helpers::core::primitive::u8] = b"3";
+        __askama_writer.write_str("3333")?;"#,
         &[],
         4,
     );
@@ -1162,18 +1154,12 @@ fn extends_with_whitespace_control() {
 }
 
 #[test]
+#[cfg(feature = "config")]
 fn test_with_config() {
-    // In this test we make sure that the config path is tracked.
+    // In this test we make sure that the config contents are tracked.
     compare_ex(
         r#""#,
-        &format!(
-            "const _: &[askama::helpers::core::primitive::u8] = \
-            askama::helpers::core::include_bytes!({:#?});",
-            Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("empty_test_config.toml")
-                .canonicalize()
-                .unwrap(),
-        ),
+        r#"const _: &[askama::helpers::core::primitive::u8] = b"";"#,
         &[],
         0,
         r#"#[template(config = "empty_test_config.toml")]"#,
