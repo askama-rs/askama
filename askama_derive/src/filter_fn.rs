@@ -413,7 +413,7 @@ impl FilterSignature {
         quote! {
             #[allow(non_camel_case_types)]
             #vis struct #ident<'filter, #(#lifetimes,)* #(#struct_generics = (),)* #(const #required_flags : bool = false,)*> {
-                _lifetime: std::marker::PhantomData<&'filter ()>,
+                _lifetime: askama::helpers::core::marker::PhantomData<&'filter ()>,
                 /* required fields */
                 #(#required_fields,)*
                 /* optional fields */
@@ -447,10 +447,10 @@ impl FilterSignature {
         let lifetimes_fillers = self.lifetimes_fillers(|l| l.used_by_extra_args);
 
         quote! {
-            impl std::default::Default for #ident<'_, #(#lifetimes_fillers,)*> {
+            impl askama::helpers::core::default::Default for #ident<'_, #(#lifetimes_fillers,)*> {
                 fn default() -> Self {
                     Self {
-                        _lifetime: std::marker::PhantomData::default(),
+                        _lifetime: askama::helpers::core::marker::PhantomData::default(),
                         #(#required_defaults,)*
                         #(#optional_defaults,)*
                     }
