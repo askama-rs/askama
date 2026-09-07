@@ -91,7 +91,7 @@ impl<'a> Generator<'a, '_> {
             Expr::Call(ref v) => self.visit_call(ctx, buf, &v.path, &v.args)?,
             Expr::Struct(ref s) => self.visit_struct(ctx, buf, s, expr.span())?,
             Expr::RustMacro(ref path, args) => {
-                self.visit_rust_macro(ctx, buf, path, args, expr.span())
+                self.visit_rust_macro(ctx, buf, path, args, expr.span())?
             }
             Expr::Try(ref expr) => self.visit_try(ctx, buf, expr)?,
             Expr::Tuple(ref exprs) => self.visit_tuple(ctx, buf, exprs, expr.span())?,
@@ -296,7 +296,7 @@ impl<'a> Generator<'a, '_> {
         path: &[WithSpan<&str>],
         args: WithSpan<&str>,
         node: Span,
-    ) -> DisplayWrap {
+    ) -> Result<DisplayWrap, CompileError> {
         let [path @ .., name] = path else {
             unreachable!("path cannot be empty");
         };
@@ -309,13 +309,15 @@ impl<'a> Generator<'a, '_> {
         }
 
         let args = set_span_recursively(
-            TokenStream::from_str(*args).unwrap(),
+            TokenStream::from_str(*args).map_err(|err| {
+                ctx.generate_error(format_args!("invalid rust macro argument: {err}"), node)
+            })?,
             ctx.span_for_node(args.span()),
         );
 
         quote_into!(buf, span, { #name !(#args) });
 
-        DisplayWrap::Unwrapped
+        Ok(DisplayWrap::Unwrapped)
     }
 
     pub(super) fn visit_value(
