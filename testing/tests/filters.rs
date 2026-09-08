@@ -95,6 +95,15 @@ fn filter_fmt() {
     assert_eq!(t.render().unwrap(), "\"formatted\"");
 }
 
+#[test]
+fn filter_fmt2() {
+    #[derive(Template)]
+    #[template(source = r#"{{ "yup"|fmt("{:?}") }}"#, ext = "html", escape = "none")]
+    struct FmtTemplate;
+
+    assert_eq!(FmtTemplate.render().unwrap(), "\"yup\"");
+}
+
 mod filters {
     use askama::Values;
 

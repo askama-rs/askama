@@ -1,0 +1,31 @@
+error: the string literal ("{}") should be the first argument, use the `format` filter instead if you want to keep it that way
+ --> ShouldBeFormat.txt:1:8
+       "| fmt(12) }}"
+ --> tests/ui/filter-fmt.rs:4:21
+  |
+4 | #[template(source = r#"{{ "{}" | fmt(12) }}"#, ext = "txt")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: use `fmt` filter like `value|fmt("{:?}")`
+ --> WrongFmt.txt:1:6
+       "| fmt(12) }}"
+ --> tests/ui/filter-fmt.rs:8:21
+  |
+8 | #[template(source = r#"{{ 12 | fmt(12) }}"#, ext = "txt")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^
+
+error: the string literal ("{}") should be the input, use the `fmt` filter instead if you want to keep it that way
+ --> ShouldBeFmt.txt:1:6
+       "| format(\"{}\") }}"
+  --> tests/ui/filter-fmt.rs:12:21
+   |
+12 | #[template(source = r#"{{ 12 | format("{}") }}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: use `format` filter like `"a={} b={}"|format(a, b)`
+ --> WrongFormat.txt:1:6
+       "| format() }}"
+  --> tests/ui/filter-fmt.rs:16:21
+   |
+16 | #[template(source = r#"{{ 12 | format() }}"#, ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^

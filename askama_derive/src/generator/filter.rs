@@ -681,6 +681,14 @@ impl<'a> Generator<'a, '_> {
             quote_into!(buf, span, { askama::helpers::alloc::format!(#filter) });
             return Ok(DisplayWrap::Unwrapped);
         }
+        if let [_, tail, ..] = args
+            && let Expr::StrLit(ref fmt) = ***tail
+        {
+            return Err(ctx.generate_error(
+                format_args!("the string literal ({:?}) should be the input, use the `fmt` filter instead if you want to keep it that way", fmt.content),
+                node,
+            ));
+        }
         Err(ctx.generate_error(
             r#"use `format` filter like `"a={} b={}"|format(a, b)`"#,
             node,
@@ -705,6 +713,12 @@ impl<'a> Generator<'a, '_> {
         ensure_filter_has_feature_alloc(ctx, "fmt", node)?;
         let [source, fmt] = collect_filter_args(ctx, "fmt", node, args, ARGUMENTS)?;
         let Expr::StrLit(ref fmt) = ***fmt else {
+            if let Expr::StrLit(ref source) = ***source {
+                return Err(ctx.generate_error(
+                    format_args!("the string literal ({:?}) should be the first argument, use the `format` filter instead if you want to keep it that way", source.content),
+                    node,
+                ));
+            }
             return Err(ctx.generate_error(r#"use `fmt` filter like `value|fmt("{:?}")`"#, node));
         };
         let span = ctx.span_for_node(node);
