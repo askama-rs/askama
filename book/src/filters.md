@@ -251,10 +251,9 @@ enabled by <code>"default"</code>
 
 Formats arguments according to the specified format
 
-The *second* argument to this filter must be a string literal (as in normal
-Rust). The two arguments are passed through to [`format!()`] by
-the Askama code generator, but the order is swapped to support filter
-composition.
+The *second* argument to this filter must be a string literal. The two arguments are
+passed through to [`format!()`] by the Askama code generator, but the order is swapped
+to support filter composition.
 
 ```jinja
 {{ value | fmt("{:?}") }}
@@ -266,6 +265,8 @@ Which is not possible using the `format` filter.
 ```jinja
 {{ value | capitalize | fmt("{:?}") }}
 ```
+
+If you want the first argument to be the string literal, use [`format`](#format) instead.
 
 ### format
 
@@ -291,6 +292,8 @@ All arguments are passed through to [`format!()`] by the Askama code generator.
 ```
 
 [`format!()`]: https://doc.rust-lang.org/stable/std/macro.format.html
+
+If you want the second argument to be the string literal, use [`fmt`](#fmt) instead.
 
 ### indent
 
