@@ -189,6 +189,30 @@ fn test_json() {
     );
 }
 
+// U+2028 and U+2029 are valid in JSON but are line terminators in JavaScript, so `|json|safe`
+// output embedded in a `<script>` must escape them to stay a valid JS string literal.
+#[cfg(feature = "serde_json")]
+#[test]
+fn test_json_line_separators() {
+    #[derive(Template)]
+    #[template(
+        source = r#"<script>var x = {{ v|json|safe }};</script>"#,
+        ext = "html"
+    )]
+    struct JsonScript<'a> {
+        v: &'a str,
+    }
+
+    assert_eq!(
+        JsonScript {
+            v: "a\u{2028}b\u{2029}c",
+        }
+        .render()
+        .unwrap(),
+        r#"<script>var x = "a\u2028b\u2029c";</script>"#,
+    );
+}
+
 #[cfg(feature = "serde_json")]
 #[test]
 fn test_pretty_json() {
