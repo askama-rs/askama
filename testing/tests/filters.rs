@@ -211,6 +211,23 @@ fn test_json_line_separators() {
         .unwrap(),
         r#"<script>var x = "a\u2028b\u2029c";</script>"#,
     );
+
+    // The escaping is done by the `json` filter itself, not by the escaper, so it happens
+    // regardless of the active escaper.
+    #[derive(Template)]
+    #[template(source = r#"{{ v|json|safe }}"#, ext = "txt")]
+    struct JsonTxt<'a> {
+        v: &'a str,
+    }
+
+    assert_eq!(
+        JsonTxt {
+            v: "a\u{2028}b\u{2029}c",
+        }
+        .render()
+        .unwrap(),
+        r#""a\u2028b\u2029c""#,
+    );
 }
 
 #[cfg(feature = "serde_json")]
