@@ -165,13 +165,14 @@ where
         }
     }
 
-    /// Invariant: no character that needs escaping is multi-byte character when encoded in UTF-8;
-    /// that is true for characters in ASCII range.
+    /// Invariant: apart from U+2028 and U+2029, no character that needs escaping is a multi-byte
+    /// character when encoded in UTF-8; that is true for characters in ASCII range.
     #[inline]
     fn write_escaped_str(dest: &mut (impl fmt::Write + ?Sized), src: &str) -> fmt::Result {
         // This implementation reads one byte after another.
         // It's not very fast, but should work well enough until portable SIMD gets stabilized.
 
+        let bytes = src.as_bytes();
         let mut escaped_buf = ESCAPED_BUF_INIT;
         let mut last = 0;
 
@@ -180,6 +181,18 @@ where
                 [escaped_buf[4], escaped_buf[5]] = escaped;
                 write_str_if_nonempty(dest, &src[last..index])?;
                 dest.write_str(AsciiStr::from_slice(&escaped_buf[..ESCAPED_BUF_LEN]))?;
+                last = index + 1;
+            } else if matches!(byte, 0xa8 | 0xa9)
+                && index >= 2
+                && bytes[index - 2] == 0xe2
+                && bytes[index - 1] == 0x80
+            {
+                // U+2028 (LINE SEPARATOR, `e2 80 a8`) and U+2029 (PARAGRAPH SEPARATOR, `e2 80 a9`)
+                // are legal in JSON strings, but are line terminators in JavaScript. serde_json
+                // emits them verbatim, so escape them here to keep the output a valid JavaScript
+                // string literal when embedded in a `<script>`, as the filter documents.
+                write_str_if_nonempty(dest, &src[last..index - 2])?;
+                dest.write_str(if byte == 0xa8 { "\\u2028" } else { "\\u2029" })?;
                 last = index + 1;
             }
         }
@@ -297,6 +310,12 @@ mod tests {
         assert_eq!(
             json(vec!["foo", "bar"]).unwrap().to_string(),
             r#"["foo","bar"]"#
+        );
+        // U+2028 / U+2029 are legal in JSON but are JS line terminators; they must be escaped so
+        // the output is a valid JS string literal inside a `<script>`.
+        assert_eq!(
+            json("a\u{2028}b\u{2029}c").unwrap().to_string(),
+            r#""a\u2028b\u2029c""#
         );
     }
 
