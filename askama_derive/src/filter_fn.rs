@@ -666,18 +666,21 @@ impl FilterSignature {
         let result_ty = &self.result_ty;
 
         // variables
+        // The const generic flags should keep the `Option`s in sync, but only field privacy
+        // enforces that, so don't emit `unsafe` code for it. The `unwrap()` is optimized away,
+        // because the setters and `execute()` are `#[inline(always)]`.
         let required_args = self.args_required.iter().map(|a| {
             let mutability = a.mutability;
             let ident = &a.ident;
             quote! {
-                let #mutability #ident = unsafe { self.#ident.unwrap_unchecked() };
+                let #mutability #ident = self.#ident.unwrap();
             }
         });
         let optional_args = self.args_optional.iter().map(|a| {
             let mutability = a.mutability;
             let ident = &a.ident;
             quote! {
-                let #mutability #ident = unsafe { self.#ident };
+                let #mutability #ident = self.#ident;
             }
         });
 
