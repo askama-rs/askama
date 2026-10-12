@@ -266,24 +266,22 @@ impl Buffer {
 /// Similar to `write!(dest, "{src:?}")`, but only escapes the strictly needed characters,
 /// and without the surrounding `"…"` quotation marks.
 pub(crate) fn string_escape(dest: &mut String, src: &str) {
-    // SAFETY: we will only push valid str slices
-    let dest = unsafe { dest.as_mut_vec() };
-    let src = src.as_bytes();
     let mut last = 0;
 
     // According to <https://doc.rust-lang.org/reference/tokens.html#string-literals>, every
     // character is valid except `" \ IsolatedCR`. We don't test if the `\r` is isolated or not,
-    // but always escape it.
-    for x in memchr::memchr3_iter(b'\\', b'"', b'\r', src) {
-        dest.extend(&src[last..x]);
-        dest.extend(match src[x] {
-            b'\\' => br"\\",
-            b'\"' => br#"\""#,
-            _ => br"\r",
+    // but always escape it. All three characters are ASCII, so splitting `src` at their
+    // positions cannot fall inside a multi-byte character.
+    for x in memchr::memchr3_iter(b'\\', b'"', b'\r', src.as_bytes()) {
+        dest.push_str(&src[last..x]);
+        dest.push_str(match src.as_bytes()[x] {
+            b'\\' => r"\\",
+            b'"' => r#"\""#,
+            _ => r"\r",
         });
         last = x + 1;
     }
-    dest.extend(&src[last..]);
+    dest.push_str(&src[last..]);
 }
 
 // FIXME: Add span
