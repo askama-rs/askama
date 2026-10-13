@@ -13,6 +13,7 @@ harness = false
 [dependencies]
 askama = { path = "../askama" }
 
+futures = { version = "0.3.34", optional = true }
 serde_json = { version = "1.0", optional = true }
 
 # intentionally shadow the name `::core` to test if the generated code still works fine
@@ -29,6 +30,7 @@ trybuild = "1.0.116"
 
 [features]
 default = ["code-in-doc", "serde_json"]
+async = ["askama/async", "dep:futures"]
 code-in-doc = ["askama/code-in-doc"]
 nightly-spans = ["askama/nightly-spans"]
 serde_json = ["dep:serde_json", "askama/serde_json"]

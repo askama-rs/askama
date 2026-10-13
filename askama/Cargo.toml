@@ -29,6 +29,9 @@ itoa = "1.0.11"
 # needed by feature "derive"
 askama_macros = { version = "=0.16.1", path = "../askama_macros", default-features = false, optional = true }
 
+# needed by feature "async"
+futures = { version = "0.3.34", optional = true, default-features = false, features = ["std"] }
+
 # needed by feature "serde_json"
 serde = { version = "1.0", optional = true, default-features = false }
 serde_json = { version = "1.0", optional = true, default-features = false }
@@ -45,7 +48,7 @@ maintenance = { status = "actively-developed" }
 
 [features]
 default = ["config", "derive", "std", "urlencode"]
-full = ["default", "code-in-doc", "serde_json"]
+full = ["default", "async", "code-in-doc", "serde_json"]
 
 alloc = [
     "askama_macros?/alloc",
@@ -53,6 +56,7 @@ alloc = [
     "serde_json?/alloc",
     "percent-encoding?/alloc",
 ]
+async = ["std", "dep:futures", "askama_macros?/async"]
 code-in-doc = ["askama_macros?/code-in-doc"]
 config = ["askama_macros?/config"]
 derive = ["dep:askama_macros", "dep:askama_macros"]

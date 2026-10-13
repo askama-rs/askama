@@ -76,6 +76,8 @@ mod values;
 #[cfg(feature = "alloc")]
 use alloc::string::String;
 use core::fmt;
+#[cfg(feature = "async")]
+use core::future::Future;
 use core::ops::Deref;
 #[cfg(feature = "std")]
 use std::io;
@@ -84,6 +86,8 @@ use std::io;
 pub use askama_macros::Template;
 #[cfg(feature = "derive")]
 pub use askama_macros::filter_fn;
+#[cfg(feature = "async")]
+use futures::io::AsyncWrite;
 
 pub use crate::error::{Error, Result};
 pub use crate::helpers::PrimitiveType;
@@ -164,6 +168,53 @@ pub trait Template: fmt::Display + FastWritable {
         writer: &mut dyn fmt::Write,
         values: &dyn Values,
     ) -> Result<()>;
+
+    /// Helper method which allocates a new `String` and renders into it asynchronously with
+    /// provided [`Values`].
+    ///
+    /// See [`async_render_into_with_values()`][Template::async_render_into_with_values] for more
+    /// information about when the returned future is [`Send`].
+    ///
+    /// # Errors
+    ///
+    /// Returns the errors returned by
+    /// [`async_render_into_with_values()`][Template::async_render_into_with_values].
+    #[cfg(feature = "async")]
+    fn async_render_with_values(
+        &self,
+        values: &(dyn Values + Sync),
+    ) -> impl Future<Output = Result<String>> {
+        async move {
+            let mut buf = alloc::vec::Vec::new();
+            let _ = buf.try_reserve(Self::SIZE_HINT);
+            self.async_render_into_with_values(&mut buf, values).await?;
+            String::from_utf8(buf).map_err(Error::custom)
+        }
+    }
+
+    /// Renders the template to the given [`futures::io::AsyncWrite`] `writer` with provided
+    /// [`Values`].
+    ///
+    /// Every write on `writer` is `.await`ed. The `writer` is not flushed nor closed.
+    ///
+    /// ## `Send`
+    ///
+    /// The returned future is [`Send`] if `Self` is [`Sync`] and `W` is [`Send`] (and, for the
+    /// derived implementation, if the values used by the template are `Send` and `Sync`), which
+    /// is why `values` must be [`Sync`].
+    /// This is only known if the type of the template is known: in a generic context
+    /// (`fn f<T: Template>(t: &T)`), the compiler cannot know if the future is `Send`.
+    ///
+    /// # Errors
+    ///
+    /// I/O errors of `writer` are returned as [`Error::Custom`]. For other potential errors,
+    /// please take a look at the [`Error`] enum variants documentation.
+    #[cfg(feature = "async")]
+    fn async_render_into_with_values<W: AsyncWrite + Unpin + ?Sized>(
+        &self,
+        writer: &mut W,
+        values: &(dyn Values + Sync),
+    ) -> impl Future<Output = Result<()>>;
 
     /// Renders the template to the given `writer` io buffer.
     ///
@@ -255,6 +306,25 @@ impl<T: Template + ?Sized> Template for &T {
         values: &dyn Values,
     ) -> Result<()> {
         <T as Template>::render_into_with_values(self, writer, values)
+    }
+
+    #[inline]
+    #[cfg(feature = "async")]
+    fn async_render_with_values(
+        &self,
+        values: &(dyn Values + Sync),
+    ) -> impl Future<Output = Result<String>> {
+        <T as Template>::async_render_with_values(self, values)
+    }
+
+    #[inline]
+    #[cfg(feature = "async")]
+    fn async_render_into_with_values<W: AsyncWrite + Unpin + ?Sized>(
+        &self,
+        writer: &mut W,
+        values: &(dyn Values + Sync),
+    ) -> impl Future<Output = Result<()>> {
+        <T as Template>::async_render_into_with_values(self, writer, values)
     }
 
     #[inline]
@@ -586,6 +656,15 @@ mod tests {
                 _values: &dyn Values,
             ) -> Result<()> {
                 Ok(writer.write_str("test")?)
+            }
+
+            #[cfg(feature = "async")]
+            async fn async_render_into_with_values<W: futures::io::AsyncWrite + Unpin + ?Sized>(
+                &self,
+                writer: &mut W,
+                _values: &(dyn Values + Sync),
+            ) -> Result<()> {
+                crate::helpers::async_write_str(writer, "test").await
             }
 
             const SIZE_HINT: usize = 4;

@@ -125,6 +125,9 @@ struct Generator<'a, 'h> {
     seen_callers: Vec<(&'a Macro<'a>, Option<FileInfo<'a>>)>,
     /// The directory path of the calling file.
     caller_dir: CallerDir,
+    /// Whether the code is generated for `async_render_into_with_values()`, i.e. if writes into
+    /// `__askama_writer` must be `.await`ed.
+    is_async: bool,
 }
 
 enum CallerDir {
@@ -157,6 +160,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             is_in_block,
             seen_callers: Vec::new(),
             caller_dir: CallerDir::Unresolved,
+            is_async: false,
         }
     }
 
@@ -264,6 +268,11 @@ impl<'a, 'h> Generator<'a, 'h> {
             );
         }
 
+        #[cfg(not(feature = "async"))]
+        let async_method = TokenStream::new();
+        #[cfg(feature = "async")]
+        let async_method = self.impl_async_render(ctx)?;
+
         write_header(self.input.ast, buf, target);
         let var_writer = crate::var_writer();
         let var_values = crate::var_values();
@@ -283,6 +292,7 @@ impl<'a, 'h> Generator<'a, 'h> {
                 #content
                 askama::Result::Ok(())
             }
+            #async_method
             #size_hint_s
         } });
 
@@ -291,6 +301,51 @@ impl<'a, 'h> Generator<'a, 'h> {
         }
 
         Ok(size_hint)
+    }
+
+    /// Implement `async_render_into_with_values()`, which renders the same content as
+    /// `render_into_with_values()`, but `.await`s every write into the writer.
+    #[cfg(feature = "async")]
+    fn impl_async_render(&self, ctx: &Context<'a>) -> Result<TokenStream, CompileError> {
+        let mut generator = Generator::new(
+            self.input,
+            self.contexts,
+            self.heritage,
+            MapChain::default(),
+            self.input.block.is_some(),
+            BlockInfo::new(),
+        );
+        generator.is_async = true;
+        let mut content = Buffer::new();
+        let _: SizeHint = generator.impl_template_inner(ctx, &mut content)?;
+        let content = content.into_token_stream();
+
+        let span = Span::call_site();
+        let var_writer = crate::var_writer();
+        let var_values = crate::var_values();
+        let var_async_buf = crate::var_async_buf();
+        Ok(quote_spanned!(span=>
+            #[allow(non_camel_case_types)]
+            async fn async_render_into_with_values<__AskamaW: askama::helpers::futures::io::AsyncWrite
+                + askama::helpers::core::marker::Unpin
+                + ?askama::helpers::core::marker::Sized>(
+                &self,
+                #var_writer: &mut __AskamaW,
+                #var_values: &(dyn askama::Values + askama::helpers::core::marker::Sync),
+            ) -> askama::Result<()> {
+                #[allow(unused_imports)]
+                use askama::{
+                    filters::{AutoEscape as _, WriteWritable as _},
+                    helpers::{ResultConverter as _, core::fmt::Write as _},
+                };
+
+                // Buffer used to render expressions before writing them into the async writer.
+                #[allow(unused_mut, unused_variables)]
+                let mut #var_async_buf = askama::helpers::alloc::string::String::new();
+                #content
+                askama::Result::Ok(())
+            }
+        ))
     }
 
     fn impl_block(
@@ -353,6 +408,34 @@ impl<'a, 'h> Generator<'a, 'h> {
         )?;
 
         let template_buf = template_buf.into_token_stream();
+
+        #[cfg(not(feature = "async"))]
+        let (async_trait_method, async_wrapper_method) = (TokenStream::new(), TokenStream::new());
+        #[cfg(feature = "async")]
+        let (async_trait_method, async_wrapper_method) = (
+            quote_spanned!(span=>
+                fn async_render_into_with_values<__AskamaW: askama::helpers::futures::io::AsyncWrite
+                + askama::helpers::core::marker::Unpin
+                + ?askama::helpers::core::marker::Sized>(
+                    &self,
+                    writer: &mut __AskamaW,
+                    values: &(dyn askama::Values + askama::helpers::core::marker::Sync),
+                ) -> impl askama::helpers::core::future::Future<Output = askama::Result<()>>;
+            ),
+            quote_spanned!(span=>
+                #[inline]
+                fn async_render_into_with_values<__AskamaW: askama::helpers::futures::io::AsyncWrite
+                + askama::helpers::core::marker::Unpin
+                + ?askama::helpers::core::marker::Sized>(
+                    &self,
+                    writer: &mut __AskamaW,
+                    values: &(dyn askama::Values + askama::helpers::core::marker::Sync),
+                ) -> impl askama::helpers::core::future::Future<Output = askama::Result<()>> {
+                    <_ as #trait_id>::async_render_into_with_values(self.this, writer, values)
+                }
+            ),
+        );
+
         quote_into!(buf, span, {
             #[allow(missing_docs, non_camel_case_types, non_snake_case, unreachable_pub)]
             const _: () = {
@@ -364,6 +447,8 @@ impl<'a, 'h> Generator<'a, 'h> {
                         writer: &mut dyn askama::helpers::core::fmt::Write,
                         values: &dyn askama::Values,
                     ) -> askama::Result<()>;
+
+                    #async_trait_method
                 }
 
                 impl #impl_generics #ident #ty_generics #where_clause {
@@ -394,6 +479,8 @@ impl<'a, 'h> Generator<'a, 'h> {
                     ) -> askama::Result<()> {
                         <_ as #trait_id>::render_into_with_values(self.this, writer, values)
                     }
+
+                    #async_wrapper_method
 
                     const SIZE_HINT: askama::helpers::core::primitive::usize = #size_hint;
                 }

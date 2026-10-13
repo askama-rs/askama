@@ -58,6 +58,7 @@ default = [
 ]
 
 alloc = []
+async = ["std"]
 code-in-doc = ["dep:pulldown-cmark"]
 config = [
     "external-sources",

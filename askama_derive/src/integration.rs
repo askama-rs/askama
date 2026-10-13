@@ -87,6 +87,9 @@ pub(crate) struct Buffer {
     buf: TokenStream,
     discard: bool,
     string_literals: Vec<(String, proc_macro2::Span)>,
+    /// Whether `string_literals` must be written into the buffer of
+    /// `async_render_into_with_values()` instead of the writer
+    async_literals: bool,
 }
 
 impl Display for Buffer {
@@ -128,6 +131,7 @@ impl Buffer {
             buf: TokenStream::new(),
             discard: false,
             string_literals: Vec::new(),
+            async_literals: false,
         }
     }
 
@@ -143,6 +147,12 @@ impl Buffer {
 
         let mut literal: Literal = format!(r#""{literal}""#).parse().unwrap();
         literal.set_span(span);
+        #[cfg(feature = "async")]
+        let askama_writer = match self.async_literals {
+            true => crate::var_async_buf(),
+            false => crate::var_writer(),
+        };
+        #[cfg(not(feature = "async"))]
         let askama_writer = crate::var_writer();
         self.buf.extend(quote_spanned! {
             span =>
@@ -150,9 +160,20 @@ impl Buffer {
         });
     }
 
-    pub(crate) fn write_str_lit(&mut self, literal: String, span: proc_macro2::Span) {
+    pub(crate) fn write_str_lit(
+        &mut self,
+        literal: String,
+        span: proc_macro2::Span,
+        is_async: bool,
+    ) {
         if self.discard || literal.is_empty() {
             return;
+        }
+        // If the current buffer doesn't share the same `async` status, we need to flush it before
+        // we push the new string literals into our buffer.
+        if self.async_literals != is_async {
+            self.handle_str_lit();
+            self.async_literals = is_async;
         }
         self.string_literals.push((literal, span));
     }
@@ -251,6 +272,7 @@ impl Buffer {
         Buffer {
             buf,
             string_literals,
+            async_literals,
             ..
         }: Buffer,
     ) {
@@ -260,6 +282,7 @@ impl Buffer {
         self.handle_str_lit();
         self.buf.extend(buf);
         self.string_literals.extend(string_literals);
+        self.async_literals = async_literals;
     }
 }
 
@@ -318,6 +341,8 @@ pub(crate) fn build_template_enum(
 
     let mut biggest_size_hint = SizeHint::EMPTY;
     let mut render_into_arms = TokenStream::new();
+    #[cfg(feature = "async")]
+    let mut async_render_into_arms = TokenStream::new();
     let mut size_hint_arms = TokenStream::new();
     for (var, var_args) in enum_data.variants.iter().zip(vars_args) {
         let Some(mut var_args) = var_args else {
@@ -350,6 +375,8 @@ pub(crate) fn build_template_enum(
             var,
             size_hint,
             &mut render_into_arms,
+            #[cfg(feature = "async")]
+            &mut async_render_into_arms,
             &mut size_hint_arms,
         );
     }
@@ -381,6 +408,17 @@ pub(crate) fn build_template_enum(
                 )
             }
         });
+        #[cfg(feature = "async")]
+        async_render_into_arms.extend(quote_spanned! {
+            span =>
+            ref #var_arg => {
+                <_ as askama::helpers::EnumVariantTemplate>::async_render_into_with_values(
+                    #var_arg,
+                    #var_writer,
+                    #var_values,
+                ).await
+            }
+        });
         size_hint_arms.extend(quote_spanned! {
             span =>
             _ => {
@@ -401,6 +439,38 @@ pub(crate) fn build_template_enum(
             match *self {
                 #render_into_arms
             }
+        }
+    ));
+
+    #[cfg(feature = "async")]
+    methods.extend(quote_spanned!(span =>
+        async fn async_render_into_with_values<__AskamaW: askama::helpers::futures::io::AsyncWrite
+                + askama::helpers::core::marker::Unpin
+                + ?askama::helpers::core::marker::Sized>(
+            &self,
+            #var_writer: &mut __AskamaW,
+            #var_values: &(dyn askama::Values + askama::helpers::core::marker::Sync),
+        ) -> askama::Result<()> {
+            match *self {
+                #async_render_into_arms
+            }
+        }
+    ));
+
+    #[cfg(feature = "async")]
+    methods.extend(quote_spanned!(
+        span =>
+        async fn async_render_with_values(
+            &self,
+            #var_values: &(dyn askama::Values + askama::helpers::core::marker::Sync),
+        ) -> askama::Result<askama::helpers::alloc::string::String> {
+            let size_hint = match self {
+                #size_hint_arms
+            };
+            let mut buf = askama::helpers::alloc::vec::Vec::new();
+            let _ = buf.try_reserve(size_hint);
+            <Self as askama::Template>::async_render_into_with_values(self, &mut buf, #var_values).await?;
+            askama::helpers::alloc::string::String::from_utf8(buf).map_err(askama::Error::custom)
         }
     ));
 
@@ -550,6 +620,7 @@ fn variant_as_arm(
     var: &Variant,
     size_hint: SizeHint,
     render_into_arms: &mut TokenStream,
+    #[cfg(feature = "async")] async_render_into_arms: &mut TokenStream,
     size_hint_arms: &mut TokenStream,
 ) {
     let var_id = &var_ast.ident;
@@ -626,6 +697,17 @@ fn variant_as_arm(
                 #var_writer,
                 #var_values,
             )
+        }
+    });
+    #[cfg(feature = "async")]
+    async_render_into_arms.extend(quote_spanned! {
+        span =>
+        Self :: #ident { #src } => {
+            <_ as askama::helpers::EnumVariantTemplate>::async_render_into_with_values(
+                & #var_id #ty_generics { #this },
+                #var_writer,
+                #var_values,
+            ).await
         }
     });
     size_hint_arms.extend(quote_spanned! {
