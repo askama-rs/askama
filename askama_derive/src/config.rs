@@ -69,6 +69,10 @@ impl<'a> Borrow<ConfigKey<'a>> for OwnedConfigKey {
 }
 
 impl Config {
+    pub(crate) fn source(&self) -> &str {
+        self._key.0.source.as_ref()
+    }
+
     pub(crate) fn new(
         source: &str,
         config_path: Option<&str>,
