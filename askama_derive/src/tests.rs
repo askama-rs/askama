@@ -143,6 +143,23 @@ fn compare_ex(
     }
 }
 
+/// The generated code is compared to the expected synchronous code, so with the `async` feature,
+/// the generated `async_render_into_with_values()` method is removed.
+fn without_async_method(mut file: syn::File) -> syn::File {
+    if cfg!(feature = "async") {
+        for item in &mut file.items {
+            if let syn::Item::Impl(item) = item {
+                item.items.retain(|item| {
+                    !matches!(
+                        item, syn::ImplItem::Fn(f) if f.sig.ident == "async_render_into_with_values"
+                    )
+                });
+            }
+        }
+    }
+    file
+}
+
 fn jinja_to_rust(jinja: &str, fields: &[(&str, &str)], prefix: &str) -> syn::File {
     let jinja = format!(
         r##"#[template(source = {jinja:?}, ext = "txt")]
@@ -160,7 +177,7 @@ struct Foo {{ {} }}"##,
     )
     .expect("`build_template` failed");
     match syn::parse2(generated.clone()) {
-        Ok(generated) => generated,
+        Ok(generated) => without_async_method(generated),
         Err(err) => panic!(
             "\n\
             === Invalid code generated ===\n\

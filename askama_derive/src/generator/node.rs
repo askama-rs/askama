@@ -85,6 +85,7 @@ impl<'a> Generator<'a, '_> {
             self.is_in_block,
         );
         child.buf_writable = buf_writable;
+        child.is_async = self.is_async;
         let res = callback(&mut child);
         Generator {
             locals: self.locals,
@@ -731,9 +732,10 @@ impl<'a> Generator<'a, '_> {
         size_hint += self.write_buf_writable(ctx, buf)?;
         let span = ctx.span_for_node(filter.span());
 
-        // build `FmtCell` that contains the inner block
+        // build `FmtCell` that contains the inner block, which is always synchronous
         let mut filter_def_buf = Buffer::new();
-        size_hint += self.push_locals(|this| {
+        let is_async = mem::replace(&mut self.is_async, false);
+        let inner_size_hint = self.push_locals(|this| {
             this.prepare_ws(filter.ws1);
             let mut size_hint = this.handle(
                 ctx,
@@ -745,7 +747,9 @@ impl<'a> Generator<'a, '_> {
             this.flush_ws(filter.ws2);
             size_hint += this.write_buf_writable(ctx, &mut filter_def_buf)?;
             Ok(size_hint)
-        })?;
+        });
+        self.is_async = is_async;
+        size_hint += inner_size_hint?;
         let filter_def_buf = filter_def_buf.into_token_stream();
         let var_writer = crate::var_writer();
         let filter_def_buf = quote_spanned!(span=>
@@ -778,6 +782,25 @@ impl<'a> Generator<'a, '_> {
                 )
             }
         };
+        #[cfg(feature = "async")]
+        if self.is_async {
+            let var_async_buf = crate::var_async_buf();
+            // The `FmtCell` is dropped before the `.await`, so it does not prevent the future from
+            // being `Send`.
+            quote_into!(buf, span, {
+                {
+                    #filter_def_buf
+                    if askama::helpers::core::write!(#var_async_buf, "{}", #filter_buf).is_err() {
+                        return #var_filter_source.take_err();
+                    }
+                }
+                askama::helpers::async_write_str(#var_writer, &#var_async_buf).await?;
+                #var_async_buf.clear();
+            });
+            self.is_in_block.decrease();
+            self.prepare_ws(filter.ws2);
+            return Ok(size_hint);
+        }
         quote_into!(buf, span, { {
             #filter_def_buf
             if askama::helpers::core::write!(#var_writer, "{}", #filter_buf).is_err() {
@@ -994,7 +1017,8 @@ impl<'a> Generator<'a, '_> {
 
         // build `FmtCell` that contains the inner block
         let mut filter_def_buf = Buffer::new();
-        size_hint += self.push_locals(|this| {
+        let is_async = mem::replace(&mut self.is_async, false);
+        let inner_size_hint = self.push_locals(|this| {
             this.prepare_ws(l.ws);
             let mut size_hint = this.handle(
                 ctx,
@@ -1006,7 +1030,9 @@ impl<'a> Generator<'a, '_> {
             this.flush_ws(ws);
             size_hint += this.write_buf_writable(ctx, &mut filter_def_buf)?;
             Ok(size_hint)
-        })?;
+        });
+        self.is_async = is_async;
+        size_hint += inner_size_hint?;
         let filter_def_buf = filter_def_buf.into_token_stream();
 
         size_hint += self.write_let_target(ctx, buf, l, span)?;
@@ -1063,7 +1089,8 @@ impl<'a> Generator<'a, '_> {
         // FIXME: Try to merge this code with `write_let_block` to avoid the duplication.
         // build `FmtCell` that contains the inner block
         let mut filter_def_buf = Buffer::new();
-        let mut size_hint = match self.push_locals(|this| {
+        let is_async = mem::replace(&mut self.is_async, false);
+        let inner_size_hint = self.push_locals(|this| {
             let Some(size_hint) = this.handle_caller(
                 ctx,
                 &mut filter_def_buf,
@@ -1077,7 +1104,9 @@ impl<'a> Generator<'a, '_> {
             };
             this.write_buf_writable(ctx, &mut filter_def_buf)
                 .map(|size| Some(size_hint + size))
-        })? {
+        });
+        self.is_async = is_async;
+        let mut size_hint = match inner_size_hint? {
             Some(size_hint) => size_hint,
             None => return Ok(None),
         };
@@ -1579,6 +1608,32 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
     ) -> Result<SizeHint, CompileError> {
+        #[cfg(feature = "async")]
+        let has_items = !self.buf_writable.buf.is_empty();
+        let size_hint = self.write_buf_writable_inner(ctx, buf)?;
+
+        // In `async_render_into_with_values()`, the literals and expressions are rendered
+        // synchronously into a buffer, which is then written into the async writer. This way, no
+        // temporary value of the expressions is held across an `.await`, which could prevent the
+        // future from being `Send`.
+        #[cfg(feature = "async")]
+        if self.is_async && has_items {
+            let var_writer = crate::var_writer();
+            let var_async_buf = crate::var_async_buf();
+            quote_into!(buf, proc_macro2::Span::call_site(), {
+                askama::helpers::async_write_str(#var_writer, &#var_async_buf).await?;
+                #var_async_buf.clear();
+            });
+        }
+
+        Ok(size_hint)
+    }
+
+    fn write_buf_writable_inner(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+    ) -> Result<SizeHint, CompileError> {
         let mut size_hint = SizeHint::EMPTY;
         let items = mem::take(&mut self.buf_writable.buf);
         let mut it = items.iter().enumerate().peekable();
@@ -1600,7 +1655,7 @@ impl<'a> Generator<'a, '_> {
                 it.next();
             }
             let span = ctx.span_for_node(lit.span());
-            buf.write_str_lit(literal, span);
+            buf.write_str_lit(literal, span, self.is_async);
         }
         if it.peek().is_none() {
             return Ok(size_hint);
@@ -1629,7 +1684,7 @@ impl<'a> Generator<'a, '_> {
                             size_hint += s.len();
                             string_escape(&mut literal, s);
                         }
-                        lines.write_str_lit(literal, span);
+                        lines.write_str_lit(literal, span, self.is_async);
                     } else {
                         trailing_simple_lines = items;
                         break;
@@ -1675,6 +1730,15 @@ impl<'a> Generator<'a, '_> {
 
                     let var_writer = crate::var_writer();
                     let var_values = crate::var_values();
+                    #[cfg(feature = "async")]
+                    if self.is_async {
+                        let var_async_buf = crate::var_async_buf();
+                        quote_into!(&mut lines, span, {
+                            (&&&askama::filters::Writable(#id))
+                                .askama_write(&mut #var_async_buf, #var_values)?;
+                        });
+                        continue;
+                    }
                     quote_into!(&mut lines, span, {
                         (&&&askama::filters::Writable(#id)).askama_write(#var_writer, #var_values)?;
                     });
@@ -1696,7 +1760,7 @@ impl<'a> Generator<'a, '_> {
                 size_hint += s.len();
                 string_escape(&mut literal, s);
             }
-            buf.write_str_lit(literal, span);
+            buf.write_str_lit(literal, span, self.is_async);
         }
 
         Ok(size_hint)

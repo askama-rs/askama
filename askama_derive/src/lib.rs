@@ -750,6 +750,11 @@ fn field_new(name: &str, span: proc_macro2::Span) -> TokenStream {
     }
 }
 
+#[cfg(feature = "async")]
+fn var_async_buf() -> Ident {
+    syn::Ident::new("__askama_async_buf", proc_macro2::Span::call_site())
+}
+
 fn var_writer() -> Ident {
     syn::Ident::new("__askama_writer", proc_macro2::Span::call_site())
 }
