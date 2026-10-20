@@ -354,7 +354,7 @@ struct RawConfig<'a> {
 impl RawConfig<'_> {
     #[cfg(feature = "config")]
     fn from_toml_str(s: &str) -> Result<RawConfig<'_>, CompileError> {
-        basic_toml::from_str(s).map_err(|e| {
+        toml::from_str(s).map_err(|e| {
             CompileError::no_file_info(format!("invalid TOML in {CONFIG_FILE_NAME}: {e}"), None)
         })
     }

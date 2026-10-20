@@ -24,11 +24,11 @@ harness = false
 [dependencies]
 parser = { package = "askama_parser", version = "=0.16.1", path = "../askama_parser" }
 
-basic-toml = { version = "0.1.1", optional = true }
 glob = { version = "0.3.3", optional = true }
 pulldown-cmark = { version = "0.13.0", optional = true, default-features = false }
 serde = { version = "1.0", optional = true }
 serde_derive = { version = "1.0", optional = true }
+toml = { version = "1.0.7", optional = true, default-features = false, features = ["parse", "serde"] }
 
 memchr = "2"
 proc-macro2 = { version = "1", default-features = false }
@@ -61,10 +61,10 @@ alloc = []
 code-in-doc = ["dep:pulldown-cmark"]
 config = [
     "external-sources",
-    "dep:basic-toml",
     "dep:glob",
     "dep:serde",
     "dep:serde_derive",
+    "dep:toml",
     "parser/config",
 ]
 external-sources = []
