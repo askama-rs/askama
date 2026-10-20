@@ -4,7 +4,9 @@ use core::borrow::Borrow;
 use crate::Error;
 
 /// No runtime values provided.
-pub const NO_VALUES: &dyn Values = &();
+///
+/// It is [`Send`] and [`Sync`], so it can also be used with `async_render_into_with_values()`.
+pub const NO_VALUES: &(dyn Values + Send + Sync) = &();
 
 /// Try to find `key` in `values` and then to convert it to `T`.
 #[inline]
@@ -194,6 +196,20 @@ crate::impl_for_ref! {
 }
 
 impl Value for dyn Any {
+    #[inline]
+    fn ref_any(&self) -> Option<&dyn Any> {
+        Some(self)
+    }
+}
+
+impl Value for dyn Any + Sync {
+    #[inline]
+    fn ref_any(&self) -> Option<&dyn Any> {
+        Some(self)
+    }
+}
+
+impl Value for dyn Any + Send + Sync {
     #[inline]
     fn ref_any(&self) -> Option<&dyn Any> {
         Some(self)

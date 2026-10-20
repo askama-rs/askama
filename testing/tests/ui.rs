@@ -1,5 +1,8 @@
 #![cfg(not(windows))]
-#![cfg(RUN_UI_TESTS)] // set by `build.rs` if we are running rust stable
+// set by `build.rs` if we are running rust stable
+#![cfg(RUN_UI_TESTS)]
+// With `async`, the template body is generated twice, so rustc errors in it are reported twice.
+#![cfg(not(feature = "async"))]
 
 use std::os::unix::fs::symlink;
 use std::path::PathBuf;

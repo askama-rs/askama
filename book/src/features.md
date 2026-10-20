@@ -92,7 +92,7 @@ The most useful catch-all feature for a quick start might be `"full"`,
 which enables all implemented features, i.e.:
 
 ```toml
-full = ["default", "code-in-doc", "serde_json"]
+full = ["default", "async", "code-in-doc", "serde_json"]
 ```
 
 In production or once your project is “maturing” you might want to manually opt-in to any needed
@@ -129,6 +129,84 @@ even if it raises the <abbr title="Minimum Supported Rust Version">MSRV</abbr>.
 </div>
 
 Enables using [documentations as template code](creating_templates.html#documentation-as-template-code).
+
+### `"async"`
+
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"full"</code>
+</blockquote>
+
+<div class="warning">
+
+This feature depends on the crate [`futures`](https://crates.io/crates/futures).
+We won't treat upgrades to a newer `futures` version as a semver breaking change,
+even if it raises the <abbr title="Minimum Supported Rust Version">MSRV</abbr>.
+
+</div>
+
+Enabling `"async"` enables `"std"`, too.
+
+Adds the methods `async_render_into_with_values()` and `async_render_with_values()` to the
+`Template` trait. `async_render_into_with_values()` takes the same arguments as
+`render_into_with_values()`, except that the writer can be any
+[`futures::io::AsyncWrite`](https://docs.rs/futures/0.3/futures/io/trait.AsyncWrite.html)
+(which also needs to be `Unpin`), and that the values must be `Sync`
+(like [`NO_VALUES`](https://docs.rs/askama/latest/askama/constant.NO_VALUES.html)):
+
+```rust
+use askama::{NO_VALUES, Template};
+
+#[derive(Template)]
+#[template(path = "hello.html")]
+struct HelloTemplate<'a> {
+    name: &'a str,
+}
+
+async fn send_hello(
+    socket: &mut (impl futures::io::AsyncWrite + Unpin),
+) -> askama::Result<()> {
+    HelloTemplate { name: "world" }
+        .async_render_into_with_values(socket, NO_VALUES)
+        .await
+}
+```
+
+Every write into the writer is `.await`ed, so a writer which is not ready (e.g. a socket with a
+full send buffer) does not block the thread: the task is woken up once it can write again.
+I/O errors of the writer are converted into `askama::Error` (usually `askama::Error::Custom`).
+The writer is neither flushed nor closed, you need to do it yourself if needed.
+
+`async_render_with_values()` is the asynchronous equivalent of `render_with_values()`: it renders
+the template into a new `String`.
+
+The returned futures are `Send` if the template is `Sync` and the writer is `Send`, so they can be
+used with multi-threaded runtimes. To pass runtime values, use `Send + Sync` values:
+
+```rust
+use std::any::Any;
+
+let values: (&str, &(dyn Any + Send + Sync)) = ("name", &"Ferris");
+let rendered = HelloTemplate { name: "world" }
+    .async_render_with_values(&values)
+    .await?;
+```
+
+The compiler only knows that the future is `Send` if it knows the type of the template, i.e. not
+in a generic function `fn f<T: Template>(t: &T)`, nor for the sub-templates returned by the
+`as_<block>()` methods of [`blocks`](creating_templates.html#blocks), which return
+`impl Template`.
+
+If you are using [tokio](https://crates.io/crates/tokio), its writers implement tokio's own
+`AsyncWrite` trait. You can use [`tokio-util`'s compatibility layer](https://docs.rs/tokio-util/latest/tokio_util/compat/index.html)
+(`writer.compat_write()`) to turn them into a `futures::io::AsyncWrite`.
+
+Please note that:
+
+* Only the writes are asynchronous: consecutive text and `{{ expression }}`s are rendered into an
+  internal buffer, which is then written into the writer at once (e.g. once per iteration of a
+  `{% for %}` loop). The same is true for the content of `{% filter %}` blocks.
+* If you implement `Template` manually, you also need to implement
+  `async_render_into_with_values()` when this feature is enabled.
 
 ## “Anti-features” in a `#![no_std]` environment
 

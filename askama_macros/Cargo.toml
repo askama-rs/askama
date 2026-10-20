@@ -21,9 +21,10 @@ askama_derive = { package = "askama_derive", path = "../askama_derive", version 
 
 [features]
 default = ["config", "derive", "std", "urlencode"]
-full = ["default", "code-in-doc", "serde_json"]
+full = ["default", "async", "code-in-doc", "serde_json"]
 
 alloc = ["askama_derive/alloc"]
+async = ["askama_derive/async"]
 code-in-doc = ["askama_derive/code-in-doc"]
 config = ["askama_derive/config"]
 nightly-spans = ["askama_derive/nightly-spans"]

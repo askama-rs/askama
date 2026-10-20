@@ -12,6 +12,9 @@ use core::iter::{Enumerate, Peekable};
 use core::ops::Deref;
 use core::pin::Pin;
 
+#[cfg(feature = "async")]
+pub use futures;
+
 pub use crate::error::{ErrorMarker, ResultConverter};
 pub use crate::values::get_value;
 use crate::{FastWritable, Values};
@@ -283,10 +286,27 @@ impl<L: FastWritable, R: FastWritable> FastWritable for Concat<L, R> {
     }
 }
 
+/// Writes `s` entirely into the async `writer`. Used by the generated code.
+#[cfg(feature = "async")]
+#[inline]
+pub async fn async_write_str<W: futures::io::AsyncWrite + Unpin + ?Sized>(
+    writer: &mut W,
+    s: &str,
+) -> crate::Result<()> {
+    Ok(futures::io::AsyncWriteExt::write_all(writer, s.as_bytes()).await?)
+}
+
 pub trait EnumVariantTemplate {
     fn render_into_with_values(
         &self,
         writer: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()>;
+
+    #[cfg(feature = "async")]
+    fn async_render_into_with_values<W: futures::io::AsyncWrite + Unpin + ?Sized>(
+        &self,
+        writer: &mut W,
+        values: &(dyn crate::Values + Sync),
+    ) -> impl core::future::Future<Output = crate::Result<()>>;
 }
