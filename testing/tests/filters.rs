@@ -159,6 +159,24 @@ fn test_vec_join() {
     assert_eq!(t.render().unwrap(), "foo, bar, bazz");
 }
 
+#[test]
+fn test_join_escaped() {
+    #[derive(Template)]
+    #[template(source = r#"{{ s|join(sep) }}|{{ n|join("<") }}"#, ext = "html")]
+    struct JoinEscapedTemplate<'a> {
+        s: &'a [&'a str],
+        sep: &'a str,
+        n: &'a [u32],
+    }
+
+    let t = JoinEscapedTemplate {
+        s: &["<a>", "b&c"],
+        sep: " & ",
+        n: &[1, 2],
+    };
+    assert_eq!(t.render().unwrap(), "&#60;a&#62; &#38; b&#38;c|1&#60;2");
+}
+
 #[cfg(feature = "serde_json")]
 #[test]
 fn test_json() {
