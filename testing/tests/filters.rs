@@ -160,6 +160,40 @@ fn test_vec_join() {
 }
 
 #[test]
+fn test_join_uses_fast_writable() {
+    struct Item;
+
+    impl std::fmt::Display for Item {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("display")
+        }
+    }
+
+    impl askama::FastWritable for Item {
+        fn write_into(
+            &self,
+            dest: &mut dyn std::fmt::Write,
+            _: &dyn askama::Values,
+        ) -> askama::Result<()> {
+            Ok(dest.write_str("fast")?)
+        }
+    }
+
+    #[derive(Template)]
+    #[template(source = "{{ items|join(sep) }}", ext = "html")]
+    struct JoinTemplate<'a> {
+        items: &'a [Item],
+        sep: Item,
+    }
+
+    let t = JoinTemplate {
+        items: &[Item, Item],
+        sep: Item,
+    };
+    assert_eq!(t.render().unwrap(), "fastfastfast");
+}
+
+#[test]
 fn test_join_escaped() {
     #[derive(Template)]
     #[template(source = r#"{{ s|join(sep) }}|{{ n|join("<") }}"#, ext = "html")]
