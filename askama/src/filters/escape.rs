@@ -456,6 +456,13 @@ impl<T: fmt::Display> fmt::Display for HtmlSafeOutput<T> {
     }
 }
 
+impl<T: FastWritable> FastWritable for HtmlSafeOutput<T> {
+    #[inline]
+    fn write_into(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()> {
+        self.0.write_into(dest, values)
+    }
+}
+
 macro_rules! mark_html_safe {
     ($($ty:ty),* $(,)?) => {$(
         impl HtmlSafe for $ty {}
@@ -515,6 +522,32 @@ fn test_escape() {
     assert_eq!(escape("bla&", Text).unwrap().to_string(), "bla&");
     assert_eq!(escape("<foo", Text).unwrap().to_string(), "<foo");
     assert_eq!(escape("bla&h", Text).unwrap().to_string(), "bla&h");
+}
+
+#[test]
+#[cfg(feature = "alloc")]
+fn test_html_safe_output_uses_fast_writable() {
+    use alloc::string::String;
+
+    struct Fast;
+
+    impl fmt::Display for Fast {
+        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+            f.write_str("display")
+        }
+    }
+
+    impl FastWritable for Fast {
+        fn write_into(&self, dest: &mut dyn fmt::Write, _: &dyn Values) -> crate::Result<()> {
+            Ok(dest.write_str("fast")?)
+        }
+    }
+
+    let mut buf = String::new();
+    (&&&Writable(&HtmlSafeOutput(Fast)))
+        .askama_write(&mut buf, crate::NO_VALUES)
+        .unwrap();
+    assert_eq!(buf, "fast");
 }
 
 #[test]
