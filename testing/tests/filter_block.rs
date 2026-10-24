@@ -329,3 +329,43 @@ fn filter_block_custom_errors() {
     };
     assert_eq!(template.render().unwrap_err().to_string(), "🐢");
 }
+
+#[test]
+fn filter_block_custom_errors_display_only_filter() {
+    // `center` has no `FastWritable` impl, so the error has to come back through `Display`.
+    #[derive(Template)]
+    #[template(
+        source = r#"{% filter center(10) %}{{ msg.clone()? }}{% endfilter %}"#,
+        ext = "html"
+    )]
+    struct FilterBlockCustomErrors {
+        msg: Result<String, String>,
+    }
+
+    let template = FilterBlockCustomErrors {
+        msg: Err("🐢".to_owned()),
+    };
+    assert_eq!(template.render().unwrap_err().to_string(), "🐢");
+}
+
+#[test]
+fn let_block_custom_errors() {
+    #[derive(Template)]
+    #[template(
+        source = r#"{% let x %}{{ msg.clone()? }}{% endlet %}[{{ x }}]"#,
+        ext = "html"
+    )]
+    struct LetBlockCustomErrors {
+        msg: Result<String, String>,
+    }
+
+    let template = LetBlockCustomErrors {
+        msg: Err("🐢".to_owned()),
+    };
+    assert_eq!(template.render().unwrap_err().to_string(), "🐢");
+
+    let template = LetBlockCustomErrors {
+        msg: Ok("abc".to_owned()),
+    };
+    assert_eq!(template.render().unwrap(), "[abc]");
+}
