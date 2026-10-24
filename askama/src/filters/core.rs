@@ -179,6 +179,26 @@ where
     }
 }
 
+impl<I, S> FastWritable for JoinFilter<I, S>
+where
+    I: IntoIterator,
+    I::Item: FastWritable,
+    S: FastWritable,
+{
+    fn write_into(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()> {
+        let Some((iter, separator)) = self.0.take() else {
+            return Ok(());
+        };
+        for (idx, token) in iter.into_iter().enumerate() {
+            if idx > 0 {
+                separator.write_into(dest, values)?;
+            }
+            token.write_into(dest, values)?;
+        }
+        Ok(())
+    }
+}
+
 /// Centers the value in a field of a given width
 ///
 /// ```
@@ -857,6 +877,29 @@ mod tests {
                 .to_string(),
             "foo, bar"
         );
+    }
+
+    #[test]
+    fn test_join_fast_writable() {
+        fn write(filter: impl FastWritable) -> String {
+            let mut buf = String::new();
+            filter.write_into(&mut buf, NO_VALUES).unwrap();
+            buf
+        }
+
+        assert_eq!(
+            write(join(["hello", "world"].iter(), ", ").unwrap()),
+            "hello, world"
+        );
+        assert_eq!(write(join(["hello"].iter(), ", ").unwrap()), "hello");
+
+        let empty: &[&str] = &[];
+        assert_eq!(write(join(empty.iter(), ", ").unwrap()), "");
+
+        let input: Vec<String> = alloc::vec!["foo".into(), "bar".into(), "bazz".into()];
+        assert_eq!(write(join(input.iter(), ":").unwrap()), "foo:bar:bazz");
+
+        assert_eq!(write(join([1, 2, 3].iter(), 0).unwrap()), "10203");
     }
 
     #[test]
