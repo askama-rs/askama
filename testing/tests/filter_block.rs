@@ -369,3 +369,39 @@ fn let_block_custom_errors() {
     };
     assert_eq!(template.render().unwrap(), "[abc]");
 }
+
+#[test]
+fn filter_block_uses_fast_writable() {
+    pub(crate) mod filters {
+        use std::fmt;
+
+        pub struct Tag(String);
+
+        impl fmt::Display for Tag {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "display:{}", self.0)
+            }
+        }
+
+        impl askama::FastWritable for Tag {
+            fn write_into(
+                &self,
+                dest: &mut dyn fmt::Write,
+                _: &dyn askama::Values,
+            ) -> askama::Result<()> {
+                Ok(write!(dest, "fast:{}", self.0)?)
+            }
+        }
+
+        #[askama::filter_fn]
+        pub fn tag(value: impl fmt::Display, _: &dyn askama::Values) -> askama::Result<Tag> {
+            Ok(Tag(value.to_string()))
+        }
+    }
+
+    #[derive(Template)]
+    #[template(source = "{% filter tag %}x{% endfilter %}", ext = "html")]
+    struct FilterBlockFastWritable;
+
+    assert_eq!(FilterBlockFastWritable.render().unwrap(), "fast:x");
+}
