@@ -186,14 +186,15 @@ where
     S: FastWritable,
 {
     fn write_into(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()> {
-        let Some((iter, separator)) = self.0.take() else {
-            return Ok(());
-        };
-        for (idx, token) in iter.into_iter().enumerate() {
-            if idx > 0 {
-                separator.write_into(dest, values)?;
-            }
+        if let Some((iter, separator)) = self.0.take()
+            && let mut iter = iter.into_iter()
+            && let Some(token) = iter.next()
+        {
             token.write_into(dest, values)?;
+            for token in iter {
+                separator.write_into(dest, values)?;
+                token.write_into(dest, values)?;
+            }
         }
         Ok(())
     }

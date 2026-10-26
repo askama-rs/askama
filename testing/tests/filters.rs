@@ -159,6 +159,8 @@ fn test_vec_join() {
     assert_eq!(t.render().unwrap(), "foo, bar, bazz");
 }
 
+// `Item` writes something different through `FastWritable` than through `Display`, so this
+// ensures that `join` renders both the items and the separator with `FastWritable`.
 #[test]
 fn test_join_uses_fast_writable() {
     struct Item;
@@ -193,6 +195,8 @@ fn test_join_uses_fast_writable() {
     assert_eq!(t.render().unwrap(), "fastfastfast");
 }
 
+// Since `join` no longer goes through `Display`, this ensures that the items and the separator
+// are still HTML-escaped.
 #[test]
 fn test_join_escaped() {
     #[derive(Template)]
