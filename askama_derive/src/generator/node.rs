@@ -750,7 +750,7 @@ impl<'a> Generator<'a, '_> {
         let var_writer = crate::var_writer();
         let filter_def_buf = quote_spanned!(span=>
             let #var_filter_source = askama::helpers::FmtCell::new(
-                |#var_writer: &mut askama::helpers::core::fmt::Formatter<'_>| -> askama::Result<()> {
+                |#var_writer: &mut dyn askama::helpers::core::fmt::Write| -> askama::Result<()> {
                     #filter_def_buf
                     askama::Result::Ok(())
                 }
@@ -778,10 +778,13 @@ impl<'a> Generator<'a, '_> {
                 )
             }
         };
+        let var_values = crate::var_values();
         quote_into!(buf, span, { {
             #filter_def_buf
-            if askama::helpers::core::write!(#var_writer, "{}", #filter_buf).is_err() {
-                return #var_filter_source.take_err();
+            if let askama::Result::Err(__askama_err) = (&&&askama::filters::Writable(&(#filter_buf)))
+                .askama_write(#var_writer, #var_values)
+            {
+                return #var_filter_source.take_err(__askama_err);
             }
         } });
 
@@ -1018,7 +1021,7 @@ impl<'a> Generator<'a, '_> {
         let var_writer = crate::var_writer();
         let filter_def_buf = quote_spanned!(span=>
             let #var_let_source = askama::helpers::FmtCell::new(
-                |#var_writer: &mut askama::helpers::core::fmt::Formatter<'_>| -> askama::Result<()> {
+                |#var_writer: &mut dyn askama::helpers::core::fmt::Write| -> askama::Result<()> {
                     #filter_def_buf
                     askama::Result::Ok(())
                 }
@@ -1035,11 +1038,14 @@ impl<'a> Generator<'a, '_> {
                 &(#filter_buf), #escaper
             )).askama_auto_escape()?
         );
+        let var_values = crate::var_values();
         quote_into!(buf, span, { {
             #filter_def_buf
             let mut __askama_tmp_write = String::new();
-            if askama::helpers::core::write!(&mut __askama_tmp_write, "{}", #filter_buf).is_err() {
-                return #var_let_source.take_err();
+            if let askama::Result::Err(__askama_err) = (&&&askama::filters::Writable(&(#filter_buf)))
+                .askama_write(&mut __askama_tmp_write, #var_values)
+            {
+                return #var_let_source.take_err(__askama_err);
             }
             __askama_tmp_write
         }; });
@@ -1095,7 +1101,7 @@ impl<'a> Generator<'a, '_> {
         let var_let_caller = crate::var_let_caller();
         let filter_def_buf = quote_spanned!(span=>
             let #var_let_caller = askama::helpers::FmtCell::new(
-                |#var_writer: &mut askama::helpers::core::fmt::Formatter<'_>| -> askama::Result<()> {
+                |#var_writer: &mut dyn askama::helpers::core::fmt::Write| -> askama::Result<()> {
                     #filter_def_buf
                     askama::Result::Ok(())
                 }
@@ -1112,11 +1118,14 @@ impl<'a> Generator<'a, '_> {
                 &(#filter_buf), #escaper
             )).askama_auto_escape()?
         );
+        let var_values = crate::var_values();
         quote_into!(buf, span, { {
             #filter_def_buf
             let mut __askama_tmp_write = String::new();
-            if askama::helpers::core::write!(&mut __askama_tmp_write, "{}", #filter_buf).is_err() {
-                return #var_let_caller.take_err();
+            if let askama::Result::Err(__askama_err) = (&&&askama::filters::Writable(&(#filter_buf)))
+                .askama_write(&mut __askama_tmp_write, #var_values)
+            {
+                return #var_let_caller.take_err(__askama_err);
             }
             __askama_tmp_write
         }; });

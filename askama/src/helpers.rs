@@ -68,7 +68,7 @@ pub struct FmtCell<F> {
 
 impl<F> FmtCell<F>
 where
-    F: for<'a, 'b> FnOnce(&'a mut fmt::Formatter<'b>) -> crate::Result<()>,
+    F: FnOnce(&mut dyn fmt::Write) -> crate::Result<()>,
 {
     #[inline]
     pub fn new(f: F) -> Self {
@@ -78,15 +78,29 @@ where
         }
     }
 
+    /// Prefers the error stored by the `Display` impl, which can only return `fmt::Error`
     #[inline]
-    pub fn take_err(&self) -> crate::Result<()> {
-        Err(self.err.take().unwrap_or(crate::Error::Fmt))
+    pub fn take_err(&self, err: crate::Error) -> crate::Result<()> {
+        Err(self.err.take().unwrap_or(err))
+    }
+}
+
+impl<F> FastWritable for FmtCell<F>
+where
+    F: FnOnce(&mut dyn fmt::Write) -> crate::Result<()>,
+{
+    #[inline]
+    fn write_into(&self, dest: &mut dyn fmt::Write, _: &dyn Values) -> crate::Result<()> {
+        match self.func.take() {
+            Some(func) => func(dest),
+            None => Ok(()),
+        }
     }
 }
 
 impl<F> fmt::Display for FmtCell<F>
 where
-    F: for<'a, 'b> FnOnce(&'a mut fmt::Formatter<'b>) -> crate::Result<()>,
+    F: FnOnce(&mut dyn fmt::Write) -> crate::Result<()>,
 {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
