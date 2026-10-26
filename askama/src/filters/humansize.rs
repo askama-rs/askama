@@ -124,130 +124,135 @@ const SI_PREFIXES: &[SiPrefix] = &[
     SiPrefix::new('Q', 30),
 ];
 
-#[test]
-#[cfg(feature = "alloc")]
-fn test_filesizeformat_edgecases() {
-    use alloc::string::ToString;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    assert_eq!(filesizeformat(1000, 0).unwrap().to_string(), "1 kB");
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_filesizeformat_edgecases() {
+        use alloc::string::ToString;
 
-    assert_eq!(
-        filesizeformat(954_548_589_125_249_215_468, 0)
-            .unwrap()
-            .to_string(),
-        "954 EB"
-    );
-    assert_eq!(
-        filesizeformat(954_548_589_125_249_215_468, 10)
-            .unwrap()
-            .to_string(),
-        "954.5485891252 EB"
-    );
-    assert_eq!(
-        filesizeformat(954_548_589_125_249_215_468, 255)
-            .unwrap()
-            .to_string(),
-        "954.548589125249215468 EB"
-    );
-}
+        assert_eq!(filesizeformat(1000, 0).unwrap().to_string(), "1 kB");
 
-#[test]
-#[cfg(feature = "alloc")]
-fn test_filesizeformat_prec2() {
-    use alloc::string::ToString;
+        assert_eq!(
+            filesizeformat(954_548_589_125_249_215_468, 0)
+                .unwrap()
+                .to_string(),
+            "954 EB"
+        );
+        assert_eq!(
+            filesizeformat(954_548_589_125_249_215_468, 10)
+                .unwrap()
+                .to_string(),
+            "954.5485891252 EB"
+        );
+        assert_eq!(
+            filesizeformat(954_548_589_125_249_215_468, 255)
+                .unwrap()
+                .to_string(),
+            "954.548589125249215468 EB"
+        );
+    }
 
-    assert_eq!(filesizeformat(0, 2).unwrap().to_string(), "0 B");
-    assert_eq!(filesizeformat(999, 2).unwrap().to_string(), "999 B");
-    assert_eq!(filesizeformat(1000, 2).unwrap().to_string(), "1 kB");
-    assert_eq!(filesizeformat(1023, 2).unwrap().to_string(), "1.02 kB");
-    assert_eq!(filesizeformat(1024, 2).unwrap().to_string(), "1.02 kB");
-    assert_eq!(filesizeformat(1025, 2).unwrap().to_string(), "1.02 kB");
-    assert_eq!(filesizeformat(1100, 2).unwrap().to_string(), "1.1 kB");
-    assert_eq!(filesizeformat(9_499_014, 2).unwrap().to_string(), "9.49 MB");
-    assert_eq!(
-        filesizeformat(954_548_589, 2).unwrap().to_string(),
-        "954.54 MB"
-    );
-    assert_eq!(
-        filesizeformat(300_000_000_000, 2).unwrap().to_string(),
-        "300 GB"
-    );
-    assert_eq!(
-        filesizeformat(600_000_000_000, 2).unwrap().to_string(),
-        "600 GB"
-    );
-    assert_eq!(
-        filesizeformat(7_000_000_000_000, 2).unwrap().to_string(),
-        "7 TB"
-    );
-    assert_eq!(
-        filesizeformat(2_300_000_000_000_000, 2)
-            .unwrap()
-            .to_string(),
-        "2.3 PB"
-    );
-    assert_eq!(
-        filesizeformat(9_900_000_000_000_000_000, 2)
-            .unwrap()
-            .to_string(),
-        "9.9 EB"
-    );
-    assert_eq!(
-        filesizeformat(4_500_000_000_000_000_000_000, 2)
-            .unwrap()
-            .to_string(),
-        "4.5 ZB"
-    );
-}
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_filesizeformat_prec2() {
+        use alloc::string::ToString;
 
-#[test]
-#[cfg(feature = "alloc")]
-fn test_filesizeformat_prec3() {
-    use alloc::string::ToString;
+        assert_eq!(filesizeformat(0, 2).unwrap().to_string(), "0 B");
+        assert_eq!(filesizeformat(999, 2).unwrap().to_string(), "999 B");
+        assert_eq!(filesizeformat(1000, 2).unwrap().to_string(), "1 kB");
+        assert_eq!(filesizeformat(1023, 2).unwrap().to_string(), "1.02 kB");
+        assert_eq!(filesizeformat(1024, 2).unwrap().to_string(), "1.02 kB");
+        assert_eq!(filesizeformat(1025, 2).unwrap().to_string(), "1.02 kB");
+        assert_eq!(filesizeformat(1100, 2).unwrap().to_string(), "1.1 kB");
+        assert_eq!(filesizeformat(9_499_014, 2).unwrap().to_string(), "9.49 MB");
+        assert_eq!(
+            filesizeformat(954_548_589, 2).unwrap().to_string(),
+            "954.54 MB"
+        );
+        assert_eq!(
+            filesizeformat(300_000_000_000, 2).unwrap().to_string(),
+            "300 GB"
+        );
+        assert_eq!(
+            filesizeformat(600_000_000_000, 2).unwrap().to_string(),
+            "600 GB"
+        );
+        assert_eq!(
+            filesizeformat(7_000_000_000_000, 2).unwrap().to_string(),
+            "7 TB"
+        );
+        assert_eq!(
+            filesizeformat(2_300_000_000_000_000, 2)
+                .unwrap()
+                .to_string(),
+            "2.3 PB"
+        );
+        assert_eq!(
+            filesizeformat(9_900_000_000_000_000_000, 2)
+                .unwrap()
+                .to_string(),
+            "9.9 EB"
+        );
+        assert_eq!(
+            filesizeformat(4_500_000_000_000_000_000_000, 2)
+                .unwrap()
+                .to_string(),
+            "4.5 ZB"
+        );
+    }
 
-    assert_eq!(filesizeformat(0, 3).unwrap().to_string(), "0 B");
-    assert_eq!(filesizeformat(999, 3).unwrap().to_string(), "999 B");
-    assert_eq!(filesizeformat(1000, 3).unwrap().to_string(), "1 kB");
-    assert_eq!(filesizeformat(1023, 3).unwrap().to_string(), "1.023 kB");
-    assert_eq!(filesizeformat(1024, 3).unwrap().to_string(), "1.024 kB");
-    assert_eq!(filesizeformat(1025, 3).unwrap().to_string(), "1.025 kB");
-    assert_eq!(filesizeformat(1100, 3).unwrap().to_string(), "1.1 kB");
-    assert_eq!(
-        filesizeformat(9_499_014, 3).unwrap().to_string(),
-        "9.499 MB"
-    );
-    assert_eq!(
-        filesizeformat(954_548_589, 3).unwrap().to_string(),
-        "954.548 MB"
-    );
-    assert_eq!(
-        filesizeformat(300_000_000_000, 3).unwrap().to_string(),
-        "300 GB"
-    );
-    assert_eq!(
-        filesizeformat(600_000_000_000, 3).unwrap().to_string(),
-        "600 GB"
-    );
-    assert_eq!(
-        filesizeformat(7_000_000_000_000, 3).unwrap().to_string(),
-        "7 TB"
-    );
-    assert_eq!(
-        filesizeformat(2_300_000_000_000_000, 3)
-            .unwrap()
-            .to_string(),
-        "2.3 PB"
-    );
-    assert_eq!(
-        filesizeformat(9_900_000_000_000_000_000, 3)
-            .unwrap()
-            .to_string(),
-        "9.9 EB"
-    );
-    assert_eq!(
-        filesizeformat(4_500_000_000_000_000_000_000, 3)
-            .unwrap()
-            .to_string(),
-        "4.5 ZB"
-    );
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_filesizeformat_prec3() {
+        use alloc::string::ToString;
+
+        assert_eq!(filesizeformat(0, 3).unwrap().to_string(), "0 B");
+        assert_eq!(filesizeformat(999, 3).unwrap().to_string(), "999 B");
+        assert_eq!(filesizeformat(1000, 3).unwrap().to_string(), "1 kB");
+        assert_eq!(filesizeformat(1023, 3).unwrap().to_string(), "1.023 kB");
+        assert_eq!(filesizeformat(1024, 3).unwrap().to_string(), "1.024 kB");
+        assert_eq!(filesizeformat(1025, 3).unwrap().to_string(), "1.025 kB");
+        assert_eq!(filesizeformat(1100, 3).unwrap().to_string(), "1.1 kB");
+        assert_eq!(
+            filesizeformat(9_499_014, 3).unwrap().to_string(),
+            "9.499 MB"
+        );
+        assert_eq!(
+            filesizeformat(954_548_589, 3).unwrap().to_string(),
+            "954.548 MB"
+        );
+        assert_eq!(
+            filesizeformat(300_000_000_000, 3).unwrap().to_string(),
+            "300 GB"
+        );
+        assert_eq!(
+            filesizeformat(600_000_000_000, 3).unwrap().to_string(),
+            "600 GB"
+        );
+        assert_eq!(
+            filesizeformat(7_000_000_000_000, 3).unwrap().to_string(),
+            "7 TB"
+        );
+        assert_eq!(
+            filesizeformat(2_300_000_000_000_000, 3)
+                .unwrap()
+                .to_string(),
+            "2.3 PB"
+        );
+        assert_eq!(
+            filesizeformat(9_900_000_000_000_000_000, 3)
+                .unwrap()
+                .to_string(),
+            "9.9 EB"
+        );
+        assert_eq!(
+            filesizeformat(4_500_000_000_000_000_000_000, 3)
+                .unwrap()
+                .to_string(),
+            "4.5 ZB"
+        );
+    }
 }
