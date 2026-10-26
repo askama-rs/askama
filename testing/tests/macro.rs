@@ -805,3 +805,38 @@ fn test_macro_with_args_type_info4() {
         "+>-> 4\n-> 2\n+>-> 5\n-> 1\n",
     );
 }
+
+// Macro arguments are evaluated in the caller's scope, so an argument named like another
+// parameter of the macro must not see that parameter.
+#[test]
+fn test_args_named_like_params() {
+    #[derive(Template)]
+    #[template(
+        source = "
+{%- macro pair(a, b) -%}{{ a }}-{{ b }} {% endmacro -%}
+{{ pair(b, a) }}{{ pair(b=a, a=b) }}{% call pair(b, a) %}{% endcall %}
+{%- let a = \"a\" -%}{%- let b = \"b\" -%}
+{{ pair(b ~ \"\", a ~ \"\") }}{{ pair(b|upper, a|upper) }}",
+        ext = "txt"
+    )]
+    struct ArgsNamedLikeParams<'a> {
+        a: &'a str,
+        b: &'a str,
+    }
+
+    assert_eq!(
+        ArgsNamedLikeParams { a: "a", b: "b" }.render().unwrap(),
+        "b-a b-a b-a b-a B-A ",
+    );
+
+    #[derive(Template)]
+    #[template(
+        source = "
+{%- macro pair(a, b) -%}{{ caller(b, a) }}{% endmacro -%}
+{%- call(a, b) pair(\"a\", \"b\") %}{{ a }}-{{ b }}{% endcall %}",
+        ext = "txt"
+    )]
+    struct CallerArgsNamedLikeParams;
+
+    assert_eq!(CallerArgsNamedLikeParams.render().unwrap(), "b-a");
+}

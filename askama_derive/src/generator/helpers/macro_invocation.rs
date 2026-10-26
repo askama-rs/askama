@@ -4,8 +4,8 @@ use std::fmt::Write;
 use std::mem;
 use std::str::FromStr;
 
-use parser::node::{Call, Macro, MacroArg, Ws};
-use parser::{Expr, Span, WithSpan};
+use parser::node::{Call, Macro, Ws};
+use parser::{Expr, Span, TyGenerics, WithSpan};
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
 
@@ -94,93 +94,6 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         })
     }
 
-    fn handle_macro_arg<'h>(
-        &self,
-        expr: &WithSpan<Box<Expr<'a>>>,
-        arg: &MacroArg<'a>,
-        buf: &mut Buffer,
-        generator: &mut Generator<'a, 'h>,
-    ) -> Result<(), CompileError> {
-        let mut ty_buf = Buffer::new();
-        let span = self.callsite_ctx.span_for_node(arg.name.span());
-        if let Some(ref ty) = arg.ty {
-            ty_buf.write_token(syn::Token![:], span);
-            // To prevent moving the value/variable, we take a reference of it.
-            ty_buf.write_token(syn::Token![&], span);
-            generator.visit_ty_generic(self.callsite_ctx, &mut ty_buf, ty, span);
-        }
-
-        match &***expr {
-            // If `expr` is already a form of variable then
-            // don't reintroduce a new variable. This is
-            // to avoid moving non-copyable values.
-            &Expr::Var(name) if name != "self" => {
-                let var = generator.locals.resolve_or_self(name);
-                if arg.ty.is_none() {
-                    generator
-                        .locals
-                        .insert(Cow::Borrowed(*arg.name), LocalMeta::var_with_ref(var));
-                } else {
-                    let id = field_new(&arg.name, span);
-                    let var = TokenStream::from_str(&var).expect("invalid variable name");
-                    buf.write_tokens(quote_spanned! { span => let #id #ty_buf = &#var; });
-                    generator
-                        .locals
-                        .insert_with_default(Cow::Borrowed(*arg.name));
-                }
-            }
-            Expr::AssociatedItem(obj, associated_item) => {
-                let mut associated_item_buf = Buffer::new();
-                generator.visit_associated_item(
-                    self.callsite_ctx,
-                    &mut associated_item_buf,
-                    obj,
-                    associated_item,
-                )?;
-
-                // FIXME: Too many steps to get a string. Also, `visit_associated_item` returns
-                // stuff like `x.y`, how is this supposed to match a variable? O.o
-                let associated_item = associated_item_buf.into_token_stream().to_string();
-                let var = generator
-                    .locals
-                    .resolve(&associated_item)
-                    .unwrap_or(associated_item);
-                if arg.ty.is_none() {
-                    generator
-                        .locals
-                        .insert(Cow::Borrowed(*arg.name), LocalMeta::var_with_ref(var));
-                } else {
-                    let id = field_new(&arg.name, span);
-                    let var = TokenStream::from_str(&var).expect("invalid variable name");
-                    buf.write_tokens(quote_spanned! { span => let #id #ty_buf = &#var; });
-                    generator
-                        .locals
-                        .insert_with_default(Cow::Borrowed(*arg.name));
-                }
-            }
-            // Everything else still needs to become variables,
-            // to avoid having the same logic be executed
-            // multiple times, e.g. in the case of macro
-            // parameters being used multiple times.
-            _ => {
-                let mut value = Buffer::new();
-                value.write_tokens(generator.visit_expr_root(self.callsite_ctx, expr)?);
-                let id = field_new(&arg.name, span);
-                buf.write_tokens(if !is_copyable(expr) || arg.ty.is_some() {
-                    quote_spanned! { span => let #id #ty_buf = &(#value); }
-                } else {
-                    quote_spanned! { span => let #id #ty_buf = #value; }
-                });
-
-                generator
-                    .locals
-                    .insert_with_default(Cow::Borrowed(*arg.name));
-            }
-        }
-
-        Ok(())
-    }
-
     fn write_preamble<'h>(
         &self,
         buf: &'b mut Buffer,
@@ -229,22 +142,45 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             used_args[index] = Some(expr);
         }
 
-        for (index, used_arg) in used_args.into_iter().enumerate() {
-            let arg = &self.macro_def.args[index];
-            let expr = match &used_arg {
-                Some(expr) => expr,
-                None => {
-                    if let Some(default_value) = &arg.default {
-                        default_value
-                    } else {
-                        return Err(self.callsite_ctx.generate_error(
-                            format_args!("missing `{}` argument", arg.name.escape_debug()),
-                            self.callsite_span,
-                        ));
-                    }
-                }
+        let span = self.callsite_ctx.span_for_node(self.callsite_span);
+        let mut args = ArgBindings::default();
+        for (arg, expr) in self.macro_def.args.iter().zip(&used_args) {
+            if let Some(expr) = expr {
+                let span = self.callsite_ctx.span_for_node(arg.name.span());
+                args.add(
+                    generator,
+                    self.callsite_ctx,
+                    &arg.name,
+                    arg.ty.as_ref(),
+                    expr,
+                    span,
+                )?;
+            }
+        }
+        args.write(buf, generator, span);
+
+        // Default values can use the arguments before them, so they are bound one by one.
+        for (arg, expr) in self.macro_def.args.iter().zip(&used_args) {
+            if expr.is_some() {
+                continue;
+            }
+            let Some(default_value) = &arg.default else {
+                return Err(self.callsite_ctx.generate_error(
+                    format_args!("missing `{}` argument", arg.name.escape_debug()),
+                    self.callsite_span,
+                ));
             };
-            self.handle_macro_arg(expr, arg, buf, generator)?;
+            let span = self.callsite_ctx.span_for_node(arg.name.span());
+            let mut args = ArgBindings::default();
+            args.add(
+                generator,
+                self.callsite_ctx,
+                &arg.name,
+                arg.ty.as_ref(),
+                default_value,
+                span,
+            )?;
+            args.write(buf, generator, span);
         }
 
         Ok(())
@@ -355,5 +291,113 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         Err(self
             .callsite_ctx
             .generate_error(fmt_missing, self.callsite_span))
+    }
+}
+
+/// Arguments of a macro or `caller()` call. They are evaluated in the call-site scope, then bound
+/// all at once, so an argument can't see a parameter that has the same name as one of its variables.
+#[derive(Default)]
+pub(crate) struct ArgBindings<'a> {
+    ids: Vec<TokenStream>,
+    tys: Vec<TokenStream>,
+    values: Vec<TokenStream>,
+    locals: Vec<(&'a str, LocalMeta<'a>)>,
+}
+
+impl<'a> ArgBindings<'a> {
+    pub(crate) fn add(
+        &mut self,
+        generator: &mut Generator<'a, '_>,
+        ctx: &Context<'_>,
+        name: &'a str,
+        ty: Option<&WithSpan<TyGenerics<'a>>>,
+        expr: &WithSpan<Box<Expr<'a>>>,
+        span: proc_macro2::Span,
+    ) -> Result<(), CompileError> {
+        let var = match &***expr {
+            // If `expr` is already a form of variable then
+            // don't reintroduce a new variable. This is
+            // to avoid moving non-copyable values.
+            &Expr::Var(name) if name != "self" => Some(generator.locals.resolve_or_self(name)),
+            Expr::AssociatedItem(obj, associated_item) => {
+                let mut associated_item_buf = Buffer::new();
+                generator.visit_associated_item(
+                    ctx,
+                    &mut associated_item_buf,
+                    obj,
+                    associated_item,
+                )?;
+
+                // FIXME: Too many steps to get a string. Also, `visit_associated_item` returns
+                // stuff like `x.y`, how is this supposed to match a variable? O.o
+                let associated_item = associated_item_buf.into_token_stream().to_string();
+                Some(
+                    generator
+                        .locals
+                        .resolve(&associated_item)
+                        .unwrap_or(associated_item),
+                )
+            }
+            _ => None,
+        };
+
+        let value = match var {
+            Some(var) if ty.is_none() => {
+                self.locals.push((name, LocalMeta::var_with_ref(var)));
+                return Ok(());
+            }
+            Some(var) => {
+                let var = TokenStream::from_str(&var).expect("invalid variable name");
+                quote_spanned! { span => &#var }
+            }
+            // Everything else still needs to become variables,
+            // to avoid having the same logic be executed
+            // multiple times, e.g. in the case of macro
+            // parameters being used multiple times.
+            None => {
+                let value = generator.visit_expr_root(ctx, expr)?;
+                if !is_copyable(expr) || ty.is_some() {
+                    quote_spanned! { span => &(#value) }
+                } else {
+                    value
+                }
+            }
+        };
+        self.tys.push(match ty {
+            Some(ty) => {
+                // To prevent moving the value/variable, we take a reference of it.
+                let mut ty_buf = Buffer::new();
+                ty_buf.write_token(syn::Token![&], span);
+                generator.visit_ty_generic(ctx, &mut ty_buf, ty, span);
+                ty_buf.into_token_stream()
+            }
+            None => quote_spanned! { span => _ },
+        });
+        self.ids.push(field_new(name, span));
+        self.values.push(value);
+        self.locals.push((name, LocalMeta::var_decl()));
+        Ok(())
+    }
+
+    pub(crate) fn write(
+        self,
+        buf: &mut Buffer,
+        generator: &mut Generator<'a, '_>,
+        span: proc_macro2::Span,
+    ) {
+        let Self {
+            ids,
+            tys,
+            values,
+            locals,
+        } = self;
+        if !ids.is_empty() {
+            buf.write_tokens(quote_spanned! { span =>
+                let (#(#ids,)*): (#(#tys,)*) = (#(#values,)*);
+            });
+        }
+        for (name, meta) in locals {
+            generator.locals.insert(Cow::Borrowed(name), meta);
+        }
     }
 }
