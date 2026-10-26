@@ -167,3 +167,38 @@ fn test_shr() {
 
     assert_eq!(Test.render().unwrap(), "2");
 }
+
+#[test]
+fn test_output_before_assignment() {
+    #[derive(Template)]
+    #[template(
+        ext = "txt",
+        source = "{% let mut value = 9 %}{{ value }}-{% mut value += 1 %}{{ value }}"
+    )]
+    struct Test;
+
+    assert_eq!(Test.render().unwrap(), "9-10");
+}
+
+#[test]
+fn test_output_before_assignment_in_loop() {
+    #[derive(Template)]
+    #[template(
+        ext = "txt",
+        source = "
+        {%- let mut prefixsum = 0 -%}
+        {%- for i in 0..limit -%}
+            {{ prefixsum }}.
+            {%- mut prefixsum += i -%}
+        {%- endfor -%}
+    "
+    )]
+    struct PrefixSum {
+        limit: u32,
+    }
+
+    assert_eq!(
+        PrefixSum { limit: 10 }.render().unwrap(),
+        "0.0.1.3.6.10.15.21.28.36."
+    );
+}

@@ -124,7 +124,7 @@ impl<'a> Generator<'a, '_> {
                     size_hint += self.write_let(ctx, buf, l)?;
                 }
                 Node::Compound(ref c) => {
-                    self.write_compound(ctx, buf, c)?;
+                    size_hint += self.write_compound(ctx, buf, c)?;
                 }
                 Node::Declare(ref c) => {
                     size_hint += self.write_decl(ctx, buf, c)?;
@@ -915,13 +915,15 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         c: &'a WithSpan<Compound<'_>>,
-    ) -> Result<(), CompileError> {
+    ) -> Result<SizeHint, CompileError> {
         self.handle_ws(c.ws);
+        // Flush the buffer so expressions written before the assignment see the old value.
+        let size_hint = self.write_buf_writable(ctx, buf)?;
 
         let op = &c.op;
         self.visit_binop(ctx, buf, op.op, &op.lhs, &op.rhs, c.span())?;
         buf.write_token(Token![;], ctx.span_for_node(c.span()));
-        Ok(())
+        Ok(size_hint)
     }
 
     fn write_let(
