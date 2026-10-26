@@ -816,6 +816,10 @@ impl<'a> WritableBuffer<'a> {
             self.buf.push(writable);
         }
     }
+
+    fn has_expr(&self) -> bool {
+        self.buf.iter().any(|w| matches!(w, Writable::Expr(_)))
+    }
 }
 
 impl<'a> Deref for WritableBuffer<'a> {

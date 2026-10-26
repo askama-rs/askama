@@ -917,8 +917,7 @@ impl<'a> Generator<'a, '_> {
         c: &'a WithSpan<Compound<'_>>,
     ) -> Result<SizeHint, CompileError> {
         self.handle_ws(c.ws);
-        // Flush the buffer so expressions written before the assignment see the old value.
-        let size_hint = self.write_buf_writable(ctx, buf)?;
+        let size_hint = self.flush_before_statement(ctx, buf)?;
 
         let op = &c.op;
         self.visit_binop(ctx, buf, op.op, &op.lhs, &op.rhs, c.span())?;
@@ -948,13 +947,7 @@ impl<'a> Generator<'a, '_> {
         span: proc_macro2::Span,
     ) -> Result<SizeHint, CompileError> {
         let shadowed = self.is_shadowing_variable(ctx, &l.var, l.span())?;
-        let size_hint = if shadowed {
-            // Need to flush the buffer if the variable is being shadowed,
-            // to ensure the old variable is used.
-            self.write_buf_writable(ctx, buf)?
-        } else {
-            SizeHint::EMPTY
-        };
+        let size_hint = self.flush_before_statement(ctx, buf)?;
         if shadowed
             || !matches!(l.var, Target::Name(_))
             || matches!(&l.var, Target::Name(name) if self.locals.get(name).is_none())
@@ -1573,6 +1566,20 @@ impl<'a> Generator<'a, '_> {
         }
 
         Ok(ControlFlow::Continue(()))
+    }
+
+    /// Writes out the buffer if it holds any expressions, so they are evaluated before a statement
+    /// that could change what they see, like a shadowing `let` or a side effect.
+    fn flush_before_statement(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+    ) -> Result<SizeHint, CompileError> {
+        if self.buf_writable.has_expr() {
+            self.write_buf_writable(ctx, buf)
+        } else {
+            Ok(SizeHint::EMPTY)
+        }
     }
 
     // Write expression buffer and empty
