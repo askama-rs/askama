@@ -159,6 +159,62 @@ fn test_vec_join() {
     assert_eq!(t.render().unwrap(), "foo, bar, bazz");
 }
 
+// `Item` writes something different through `FastWritable` than through `Display`, so this
+// ensures that `join` renders both the items and the separator with `FastWritable`.
+#[test]
+fn test_join_uses_fast_writable() {
+    struct Item;
+
+    impl std::fmt::Display for Item {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.write_str("display")
+        }
+    }
+
+    impl askama::FastWritable for Item {
+        fn write_into(
+            &self,
+            dest: &mut dyn std::fmt::Write,
+            _: &dyn askama::Values,
+        ) -> askama::Result<()> {
+            Ok(dest.write_str("fast")?)
+        }
+    }
+
+    #[derive(Template)]
+    #[template(source = "{{ items|join(sep) }}", ext = "html")]
+    struct JoinTemplate<'a> {
+        items: &'a [Item],
+        sep: Item,
+    }
+
+    let t = JoinTemplate {
+        items: &[Item, Item],
+        sep: Item,
+    };
+    assert_eq!(t.render().unwrap(), "fastfastfast");
+}
+
+// Since `join` no longer goes through `Display`, this ensures that the items and the separator
+// are still HTML-escaped.
+#[test]
+fn test_join_escaped() {
+    #[derive(Template)]
+    #[template(source = r#"{{ s|join(sep) }}|{{ n|join("<") }}"#, ext = "html")]
+    struct JoinEscapedTemplate<'a> {
+        s: &'a [&'a str],
+        sep: &'a str,
+        n: &'a [u32],
+    }
+
+    let t = JoinEscapedTemplate {
+        s: &["<a>", "b&c"],
+        sep: " & ",
+        n: &[1, 2],
+    };
+    assert_eq!(t.render().unwrap(), "&#60;a&#62; &#38; b&#38;c|1&#60;2");
+}
+
 #[cfg(feature = "serde_json")]
 #[test]
 fn test_json() {
