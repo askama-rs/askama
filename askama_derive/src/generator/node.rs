@@ -1068,10 +1068,18 @@ impl<'a> Generator<'a, '_> {
         let Expr::Var(var_name) = **call.path else {
             return Ok(None);
         };
+        // Write out what is still pending, or `handle_caller` will flush it into the `FmtCell`.
+        let mut size_hint = SizeHint::EMPTY;
+        if self.locals.get_caller(var_name).is_some() {
+            size_hint = self.write_buf_writable(ctx, buf)?;
+            self.flush_ws(l.ws);
+            size_hint += self.write_buf_writable(ctx, buf)?;
+        }
+
         // FIXME: Try to merge this code with `write_let_block` to avoid the duplication.
         // build `FmtCell` that contains the inner block
         let mut filter_def_buf = Buffer::new();
-        let mut size_hint = match self.push_locals(|this| {
+        size_hint += match self.push_locals(|this| {
             let Some(size_hint) = this.handle_caller(
                 ctx,
                 &mut filter_def_buf,

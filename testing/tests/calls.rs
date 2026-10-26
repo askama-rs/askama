@@ -475,6 +475,39 @@ fn test_call_let_caller() {
 }
 
 #[test]
+fn test_call_let_caller_after_content() {
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test() -%}
+    before {%- let content = caller() %}[{{ content }}]
+{%- endmacro -%}
+{% call test() %}bla{% endcall -%}
+        "#,
+        ext = "txt"
+    )]
+    struct Foo;
+
+    assert_eq!(Foo.render().unwrap(), "before[bla]");
+
+    #[derive(Template)]
+    #[template(
+        source = r#"
+{%- macro test() -%}
+    <h1>Title</h1>
+    {%- let content = caller() -%}
+    {%- if false %}{{ content }}{% endif -%}
+{%- endmacro -%}
+{% call test() %}bla{% endcall -%}
+        "#,
+        ext = "html"
+    )]
+    struct Unused;
+
+    assert_eq!(Unused.render().unwrap(), "<h1>Title</h1>");
+}
+
+#[test]
 fn test_call_let_caller2() {
     #[derive(Template)]
     #[template(
