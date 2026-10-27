@@ -22,9 +22,7 @@ use super::{
 use crate::generator::{LocalCallerMeta, Writable, helpers, logic_op};
 use crate::heritage::{Context, Heritage};
 use crate::integration::{Buffer, string_escape};
-use crate::{
-    CompileError, FileInfo, HashMap, SizeHint, field_new, fmt_left, fmt_right, quote_into,
-};
+use crate::{CompileError, FileInfo, HashMap, SizeHint, fmt_left, fmt_right, quote_into};
 
 impl<'a> Generator<'a, '_> {
     pub(super) fn impl_template_inner(
@@ -1419,66 +1417,17 @@ impl<'a> Generator<'a, '_> {
                     call.args.len(),
                     "caller",
                 )?;
+                let mut args = helpers::ArgBindings::default();
                 for (index, arg) in def.caller_args.iter().enumerate() {
-                    match call.args.get(index) {
-                        Some(expr) => {
-                            value.clear();
-                            match &***expr {
-                                // If `expr` is already a form of variable then
-                                // don't reintroduce a new variable. This is
-                                // to avoid moving non-copyable values.
-                                &Expr::Var(name) if name != "self" => {
-                                    let var = this.locals.resolve_or_self(name);
-                                    this.locals
-                                        .insert(Cow::Borrowed(arg), LocalMeta::var_with_ref(var));
-                                }
-                                Expr::AssociatedItem(obj, associated_item) => {
-                                    let mut associated_item_buf = Buffer::new();
-                                    this.visit_associated_item(
-                                        &call_ctx,
-                                        &mut associated_item_buf,
-                                        obj,
-                                        associated_item,
-                                    )?;
-
-                                    // FIXME: Too many steps to get a string. Also,
-                                    // `visit_associated_item` returns stuff like `x.y`, how
-                                    // is this supposed to match a variable? O.o
-                                    let associated_item = associated_item_buf.to_string();
-                                    let var = this
-                                        .locals
-                                        .resolve(&associated_item)
-                                        .unwrap_or(associated_item);
-                                    this.locals
-                                        .insert(Cow::Borrowed(arg), LocalMeta::var_with_ref(var));
-                                }
-                                // Everything else still needs to become variables,
-                                // to avoid having the same logic be executed
-                                // multiple times, e.g. in the case of macro
-                                // parameters being used multiple times.
-                                _ => {
-                                    value.write_tokens(this.visit_expr_root(&call_ctx, expr)?);
-                                    // We need to normalize the arg to write it, thus we need to
-                                    // add it to locals in the normalized manner
-                                    let id = field_new(arg, span_span);
-                                    variable_buf.write_tokens(if !is_copyable(expr) {
-                                        quote_spanned! { span_span => let #id = &(#value); }
-                                    } else {
-                                        quote_spanned! { span_span => let #id = #value; }
-                                    });
-                                    this.locals.insert_with_default(Cow::Borrowed(arg));
-                                }
-                            }
-                        }
-                        None => {
-                            return Err(call_ctx.generate_error(
-                                format_args!("missing `{arg}` argument in `caller`"),
-                                span,
-                            ));
-                        }
-                    }
+                    let Some(expr) = call.args.get(index) else {
+                        return Err(call_ctx.generate_error(
+                            format_args!("missing `{arg}` argument in `caller`"),
+                            span,
+                        ));
+                    };
+                    args.add(this, &call_ctx, arg, None, expr, span_span)?;
                 }
-                value.clear();
+                args.write(&mut variable_buf, this, span_span);
                 size_hint += this.handle(
                     &call_ctx,
                     &def.nodes,
