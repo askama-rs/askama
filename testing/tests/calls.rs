@@ -490,6 +490,7 @@ fn test_call_let_caller_after_content() {
 
     assert_eq!(Foo.render().unwrap(), "before[bla]");
 
+    // `content` is never printed, but the text before the `let` must still be rendered.
     #[derive(Template)]
     #[template(
         source = r#"
