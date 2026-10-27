@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use askama::Template;
 
 // This test ensures that rust macro calls in `let`/`set` statements are not prepended with `&`.
@@ -85,4 +87,18 @@ fn let_with_ty() {
     struct Foo;
 
     assert_eq!(Foo.render().unwrap(), "12\n58\ntadam");
+}
+
+#[test]
+fn let_with_side_effect() {
+    #[derive(Template)]
+    #[template(
+        source = "{{ c.get() }}-{% let old = c.replace(5) %}{{ c.get() }}/{{ old }}",
+        ext = "txt"
+    )]
+    struct Foo {
+        c: Cell<u32>,
+    }
+
+    assert_eq!(Foo { c: Cell::new(0) }.render().unwrap(), "0-5/0");
 }

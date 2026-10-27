@@ -1572,6 +1572,61 @@ fn test_compound_assignment() {
 }
 
 #[test]
+fn test_flush_before_let() {
+    compare(
+        "{{ c.get() }}-{% let old = c.replace(5) %}{{ c.get() }}/{{ old }}",
+        r#"
+            match (
+                &((&&askama::filters::AutoEscaper::new(&(self.c.get()), askama::filters::Text))
+                    .askama_auto_escape()?),
+            ) {
+                (__askama_expr0,) => {
+                    (&&&askama::filters::Writable(__askama_expr0))
+                        .askama_write(__askama_writer, __askama_values)?;
+                }
+            }
+            __askama_writer.write_str("-")?;
+            let old = self.c.replace(5);
+            match (
+                &((&&askama::filters::AutoEscaper::new(&(self.c.get()), askama::filters::Text))
+                    .askama_auto_escape()?),
+                &((&&askama::filters::AutoEscaper::new(&(old), askama::filters::Text))
+                    .askama_auto_escape()?),
+            ) {
+                (__askama_expr0, __askama_expr2) => {
+                    (&&&askama::filters::Writable(__askama_expr0))
+                        .askama_write(__askama_writer, __askama_values)?;
+                    __askama_writer.write_str("/")?;
+                    (&&&askama::filters::Writable(__askama_expr2))
+                        .askama_write(__askama_writer, __askama_values)?;
+                }
+            }
+        "#,
+        &[("c", "std::cell::Cell<u32>")],
+        11,
+    );
+    // Only literals are pending, so they don't need a flush and stay merged into one write.
+    compare(
+        "a{% let x = 1 %}b{{ x }}",
+        r#"
+            let x = 1;
+            __askama_writer.write_str("ab")?;
+            match (
+                &((&&askama::filters::AutoEscaper::new(&(x), askama::filters::Text))
+                    .askama_auto_escape()?),
+            ) {
+                (__askama_expr2,) => {
+                    (&&&askama::filters::Writable(__askama_expr2))
+                        .askama_write(__askama_writer, __askama_values)?;
+                }
+            }
+        "#,
+        &[],
+        5,
+    );
+}
+
+#[test]
 fn check_size_hint() {
     compare(
         r#"{% for _ in .. %} Hello {% break %} {% endfor %}"#,
