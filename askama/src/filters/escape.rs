@@ -506,173 +506,178 @@ pub trait WriteWritable {
     fn askama_write(&self, dest: &mut dyn fmt::Write, values: &dyn Values) -> crate::Result<()>;
 }
 
-#[test]
-#[cfg(feature = "alloc")]
-fn test_escape() {
-    use alloc::string::ToString;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    assert_eq!(escape("", Html).unwrap().to_string(), "");
-    assert_eq!(escape("<&>", Html).unwrap().to_string(), "&#60;&#38;&#62;");
-    assert_eq!(escape("bla&", Html).unwrap().to_string(), "bla&#38;");
-    assert_eq!(escape("<foo", Html).unwrap().to_string(), "&#60;foo");
-    assert_eq!(escape("bla&h", Html).unwrap().to_string(), "bla&#38;h");
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_escape() {
+        use alloc::string::ToString;
 
-    assert_eq!(escape("", Text).unwrap().to_string(), "");
-    assert_eq!(escape("<&>", Text).unwrap().to_string(), "<&>");
-    assert_eq!(escape("bla&", Text).unwrap().to_string(), "bla&");
-    assert_eq!(escape("<foo", Text).unwrap().to_string(), "<foo");
-    assert_eq!(escape("bla&h", Text).unwrap().to_string(), "bla&h");
-}
+        assert_eq!(escape("", Html).unwrap().to_string(), "");
+        assert_eq!(escape("<&>", Html).unwrap().to_string(), "&#60;&#38;&#62;");
+        assert_eq!(escape("bla&", Html).unwrap().to_string(), "bla&#38;");
+        assert_eq!(escape("<foo", Html).unwrap().to_string(), "&#60;foo");
+        assert_eq!(escape("bla&h", Html).unwrap().to_string(), "bla&#38;h");
 
-#[test]
-#[cfg(feature = "alloc")]
-fn test_html_safe_output_uses_fast_writable() {
-    use alloc::string::String;
-
-    struct Fast;
-
-    impl fmt::Display for Fast {
-        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-            f.write_str("display")
-        }
+        assert_eq!(escape("", Text).unwrap().to_string(), "");
+        assert_eq!(escape("<&>", Text).unwrap().to_string(), "<&>");
+        assert_eq!(escape("bla&", Text).unwrap().to_string(), "bla&");
+        assert_eq!(escape("<foo", Text).unwrap().to_string(), "<foo");
+        assert_eq!(escape("bla&h", Text).unwrap().to_string(), "bla&h");
     }
 
-    impl FastWritable for Fast {
-        fn write_into(&self, dest: &mut dyn fmt::Write, _: &dyn Values) -> crate::Result<()> {
-            Ok(dest.write_str("fast")?)
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_html_safe_output_uses_fast_writable() {
+        use alloc::string::String;
+
+        struct Fast;
+
+        impl fmt::Display for Fast {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                f.write_str("display")
+            }
         }
+
+        impl FastWritable for Fast {
+            fn write_into(&self, dest: &mut dyn fmt::Write, _: &dyn Values) -> crate::Result<()> {
+                Ok(dest.write_str("fast")?)
+            }
+        }
+
+        let mut buf = String::new();
+        (&&&Writable(&HtmlSafeOutput(Fast)))
+            .askama_write(&mut buf, crate::NO_VALUES)
+            .unwrap();
+        assert_eq!(buf, "fast");
     }
 
-    let mut buf = String::new();
-    (&&&Writable(&HtmlSafeOutput(Fast)))
-        .askama_write(&mut buf, crate::NO_VALUES)
-        .unwrap();
-    assert_eq!(buf, "fast");
-}
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_html_safe_marker() {
+        use alloc::string::ToString;
 
-#[test]
-#[cfg(feature = "alloc")]
-fn test_html_safe_marker() {
-    use alloc::string::ToString;
+        struct Script1;
+        struct Script2;
 
-    struct Script1;
-    struct Script2;
-
-    impl fmt::Display for Script1 {
-        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-            f.write_str("<script>")
+        impl fmt::Display for Script1 {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                f.write_str("<script>")
+            }
         }
-    }
 
-    impl fmt::Display for Script2 {
-        fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-            f.write_str("<script>")
+        impl fmt::Display for Script2 {
+            fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+                f.write_str("<script>")
+            }
         }
+
+        impl HtmlSafe for Script2 {}
+
+        assert_eq!(
+            (&&AutoEscaper::new(&Script1, Html))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "&#60;script&#62;",
+        );
+        assert_eq!(
+            (&&AutoEscaper::new(&Script2, Html))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "<script>",
+        );
+
+        assert_eq!(
+            (&&AutoEscaper::new(&Script1, Text))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "<script>",
+        );
+        assert_eq!(
+            (&&AutoEscaper::new(&Script2, Text))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "<script>",
+        );
+
+        assert_eq!(
+            (&&AutoEscaper::new(&Safe(Script1), Html))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "<script>",
+        );
+        assert_eq!(
+            (&&AutoEscaper::new(&Safe(Script2), Html))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "<script>",
+        );
+
+        assert_eq!(
+            (&&AutoEscaper::new(&Unsafe(Script1), Html))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "&#60;script&#62;",
+        );
+        assert_eq!(
+            (&&AutoEscaper::new(&Unsafe(Script2), Html))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "&#60;script&#62;",
+        );
+
+        assert_eq!(
+            (&&AutoEscaper::new(&MaybeSafe::Safe(Script1), Html))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "<script>",
+        );
+        assert_eq!(
+            (&&AutoEscaper::new(&MaybeSafe::Safe(Script2), Html))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "<script>",
+        );
+        assert_eq!(
+            (&&AutoEscaper::new(&MaybeSafe::NeedsEscaping(Script1), Html))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "&#60;script&#62;",
+        );
+        assert_eq!(
+            (&&AutoEscaper::new(&MaybeSafe::NeedsEscaping(Script2), Html))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "&#60;script&#62;",
+        );
+
+        assert_eq!(
+            (&&AutoEscaper::new(&Safe(std::pin::Pin::new(&Script1)), Html))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "<script>",
+        );
+        assert_eq!(
+            (&&AutoEscaper::new(&Safe(std::pin::Pin::new(&Script2)), Html))
+                .askama_auto_escape()
+                .unwrap()
+                .to_string(),
+            "<script>",
+        );
     }
-
-    impl HtmlSafe for Script2 {}
-
-    assert_eq!(
-        (&&AutoEscaper::new(&Script1, Html))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "&#60;script&#62;",
-    );
-    assert_eq!(
-        (&&AutoEscaper::new(&Script2, Html))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "<script>",
-    );
-
-    assert_eq!(
-        (&&AutoEscaper::new(&Script1, Text))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "<script>",
-    );
-    assert_eq!(
-        (&&AutoEscaper::new(&Script2, Text))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "<script>",
-    );
-
-    assert_eq!(
-        (&&AutoEscaper::new(&Safe(Script1), Html))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "<script>",
-    );
-    assert_eq!(
-        (&&AutoEscaper::new(&Safe(Script2), Html))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "<script>",
-    );
-
-    assert_eq!(
-        (&&AutoEscaper::new(&Unsafe(Script1), Html))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "&#60;script&#62;",
-    );
-    assert_eq!(
-        (&&AutoEscaper::new(&Unsafe(Script2), Html))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "&#60;script&#62;",
-    );
-
-    assert_eq!(
-        (&&AutoEscaper::new(&MaybeSafe::Safe(Script1), Html))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "<script>",
-    );
-    assert_eq!(
-        (&&AutoEscaper::new(&MaybeSafe::Safe(Script2), Html))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "<script>",
-    );
-    assert_eq!(
-        (&&AutoEscaper::new(&MaybeSafe::NeedsEscaping(Script1), Html))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "&#60;script&#62;",
-    );
-    assert_eq!(
-        (&&AutoEscaper::new(&MaybeSafe::NeedsEscaping(Script2), Html))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "&#60;script&#62;",
-    );
-
-    assert_eq!(
-        (&&AutoEscaper::new(&Safe(std::pin::Pin::new(&Script1)), Html))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "<script>",
-    );
-    assert_eq!(
-        (&&AutoEscaper::new(&Safe(std::pin::Pin::new(&Script2)), Html))
-            .askama_auto_escape()
-            .unwrap()
-            .to_string(),
-        "<script>",
-    );
 }

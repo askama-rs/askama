@@ -115,20 +115,26 @@ const ESCAPED_BUF_INIT_UNPADDED: &str = "&#__;";
 const ESCAPED_BUF_INIT: [AsciiChar; 8] = AsciiStr::new_sized(ESCAPED_BUF_INIT_UNPADDED);
 const ESCAPED_BUF_LEN: usize = ESCAPED_BUF_INIT_UNPADDED.len();
 
-#[test]
-#[cfg(feature = "alloc")]
-fn test_simple_html_string_escaping() {
-    extern crate alloc;
+#[cfg(test)]
+mod tests {
+    #[cfg(feature = "alloc")]
+    use super::*;
 
-    let mut buf = alloc::string::String::new();
-    write_escaped_str(&mut buf, "<script>").unwrap();
-    assert_eq!(buf, "&#60;script&#62;");
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_simple_html_string_escaping() {
+        extern crate alloc;
 
-    buf.clear();
-    write_escaped_str(&mut buf, "s<crip>t").unwrap();
-    assert_eq!(buf, "s&#60;crip&#62;t");
+        let mut buf = alloc::string::String::new();
+        write_escaped_str(&mut buf, "<script>").unwrap();
+        assert_eq!(buf, "&#60;script&#62;");
 
-    buf.clear();
-    write_escaped_str(&mut buf, "s<cripcripcripcripcripcripcripcripcripcrip>t").unwrap();
-    assert_eq!(buf, "s&#60;cripcripcripcripcripcripcripcripcripcrip&#62;t");
+        buf.clear();
+        write_escaped_str(&mut buf, "s<crip>t").unwrap();
+        assert_eq!(buf, "s&#60;crip&#62;t");
+
+        buf.clear();
+        write_escaped_str(&mut buf, "s<cripcripcripcripcripcripcripcripcripcrip>t").unwrap();
+        assert_eq!(buf, "s&#60;cripcripcripcripcripcripcripcripcripcrip&#62;t");
+    }
 }

@@ -263,126 +263,131 @@ macro_rules! impl_for_float {
 
 impl_for_float!(f32 f64);
 
-#[test]
-#[cfg(feature = "std")]
-fn test_default_filterable() {
-    use std::borrow::Cow;
-    use std::rc::Rc;
-    use std::string::ToString;
-    use std::sync::{Arc, Mutex};
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    use assert_matches::assert_matches;
+    #[test]
+    #[cfg(feature = "std")]
+    fn test_default_filterable() {
+        use std::borrow::Cow;
+        use std::rc::Rc;
+        use std::string::ToString;
+        use std::sync::{Arc, Mutex};
 
-    // integers
-    assert_matches!(0_u8.as_filtered(), Ok(None));
-    assert_matches!(0_u16.as_filtered(), Ok(None));
-    assert_matches!(0_u32.as_filtered(), Ok(None));
-    assert_matches!(0_u64.as_filtered(), Ok(None));
-    assert_matches!(0_u128.as_filtered(), Ok(None));
-    assert_matches!(0_usize.as_filtered(), Ok(None));
-    assert_matches!(0_i8.as_filtered(), Ok(None));
-    assert_matches!(0_i16.as_filtered(), Ok(None));
-    assert_matches!(0_i32.as_filtered(), Ok(None));
-    assert_matches!(0_i64.as_filtered(), Ok(None));
-    assert_matches!(0_i128.as_filtered(), Ok(None));
-    assert_matches!(0_isize.as_filtered(), Ok(None));
-    assert_matches!(1_u8.as_filtered(), Ok(Some(1)));
-    assert_matches!(1_u16.as_filtered(), Ok(Some(1)));
-    assert_matches!(1_u32.as_filtered(), Ok(Some(1)));
-    assert_matches!(1_u64.as_filtered(), Ok(Some(1)));
-    assert_matches!(1_u128.as_filtered(), Ok(Some(1)));
-    assert_matches!(1_usize.as_filtered(), Ok(Some(1)));
-    assert_matches!(1_i8.as_filtered(), Ok(Some(1)));
-    assert_matches!(1_i16.as_filtered(), Ok(Some(1)));
-    assert_matches!(1_i32.as_filtered(), Ok(Some(1)));
-    assert_matches!(1_i64.as_filtered(), Ok(Some(1)));
-    assert_matches!(1_i128.as_filtered(), Ok(Some(1)));
-    assert_matches!(1_isize.as_filtered(), Ok(Some(1)));
-    assert_matches!((-1_i8).as_filtered(), Ok(Some(-1)));
-    assert_matches!((-1_i16).as_filtered(), Ok(Some(-1)));
-    assert_matches!((-1_i32).as_filtered(), Ok(Some(-1)));
-    assert_matches!((-1_i64).as_filtered(), Ok(Some(-1)));
-    assert_matches!((-1_i128).as_filtered(), Ok(Some(-1)));
-    assert_matches!((-1_isize).as_filtered(), Ok(Some(-1)));
+        use assert_matches::assert_matches;
 
-    // floats
-    // -> zero
-    assert_matches!(0_f32.as_filtered(), Ok(None));
-    assert_matches!(0_f64.as_filtered(), Ok(None));
-    // -> subnormal
-    assert_matches!((f32::MIN_POSITIVE / 2.0).as_filtered(), Ok(None));
-    assert_matches!((f64::MIN_POSITIVE / 2.0).as_filtered(), Ok(None));
-    // -> nan
-    assert_matches!(f32::NAN.as_filtered(), Ok(None));
-    assert_matches!(f64::NAN.as_filtered(), Ok(None));
-    // -> infinite
-    assert_matches!(f32::NEG_INFINITY.as_filtered(), Ok(None));
-    assert_matches!(f32::INFINITY.as_filtered(), Ok(None));
-    assert_matches!(f64::NEG_INFINITY.as_filtered(), Ok(None));
-    assert_matches!(f64::INFINITY.as_filtered(), Ok(None));
-    // -> normal
-    assert_matches!(1_f32.as_filtered(), Ok(Some(1.0)));
-    assert_matches!((-1_f32).as_filtered(), Ok(Some(-1.0)));
-    assert_matches!(f32::MIN.as_filtered(), Ok(Some(f32::MIN)));
-    assert_matches!(f32::MIN_POSITIVE.as_filtered(), Ok(Some(f32::MIN_POSITIVE)));
-    assert_matches!(f32::MAX.as_filtered(), Ok(Some(f32::MAX)));
-    assert_matches!(1_f64.as_filtered(), Ok(Some(1.0)));
-    assert_matches!((-1_f64).as_filtered(), Ok(Some(-1.0)));
-    assert_matches!(f64::MIN.as_filtered(), Ok(Some(f64::MIN)));
-    assert_matches!(f64::MIN_POSITIVE.as_filtered(), Ok(Some(f64::MIN_POSITIVE)));
-    assert_matches!(f64::MAX.as_filtered(), Ok(Some(f64::MAX)));
+        // integers
+        assert_matches!(0_u8.as_filtered(), Ok(None));
+        assert_matches!(0_u16.as_filtered(), Ok(None));
+        assert_matches!(0_u32.as_filtered(), Ok(None));
+        assert_matches!(0_u64.as_filtered(), Ok(None));
+        assert_matches!(0_u128.as_filtered(), Ok(None));
+        assert_matches!(0_usize.as_filtered(), Ok(None));
+        assert_matches!(0_i8.as_filtered(), Ok(None));
+        assert_matches!(0_i16.as_filtered(), Ok(None));
+        assert_matches!(0_i32.as_filtered(), Ok(None));
+        assert_matches!(0_i64.as_filtered(), Ok(None));
+        assert_matches!(0_i128.as_filtered(), Ok(None));
+        assert_matches!(0_isize.as_filtered(), Ok(None));
+        assert_matches!(1_u8.as_filtered(), Ok(Some(1)));
+        assert_matches!(1_u16.as_filtered(), Ok(Some(1)));
+        assert_matches!(1_u32.as_filtered(), Ok(Some(1)));
+        assert_matches!(1_u64.as_filtered(), Ok(Some(1)));
+        assert_matches!(1_u128.as_filtered(), Ok(Some(1)));
+        assert_matches!(1_usize.as_filtered(), Ok(Some(1)));
+        assert_matches!(1_i8.as_filtered(), Ok(Some(1)));
+        assert_matches!(1_i16.as_filtered(), Ok(Some(1)));
+        assert_matches!(1_i32.as_filtered(), Ok(Some(1)));
+        assert_matches!(1_i64.as_filtered(), Ok(Some(1)));
+        assert_matches!(1_i128.as_filtered(), Ok(Some(1)));
+        assert_matches!(1_isize.as_filtered(), Ok(Some(1)));
+        assert_matches!((-1_i8).as_filtered(), Ok(Some(-1)));
+        assert_matches!((-1_i16).as_filtered(), Ok(Some(-1)));
+        assert_matches!((-1_i32).as_filtered(), Ok(Some(-1)));
+        assert_matches!((-1_i64).as_filtered(), Ok(Some(-1)));
+        assert_matches!((-1_i128).as_filtered(), Ok(Some(-1)));
+        assert_matches!((-1_isize).as_filtered(), Ok(Some(-1)));
 
-    // non-zero integers
-    assert_matches!(num::NonZeroU8::new(1).unwrap().as_filtered(), Ok(Some(1)));
-    assert_matches!(num::NonZeroU16::new(1).unwrap().as_filtered(), Ok(Some(1)));
-    assert_matches!(num::NonZeroU32::new(1).unwrap().as_filtered(), Ok(Some(1)));
-    assert_matches!(num::NonZeroU64::new(1).unwrap().as_filtered(), Ok(Some(1)));
-    assert_matches!(num::NonZeroU128::new(1).unwrap().as_filtered(), Ok(Some(1)));
-    assert_matches!(
-        num::NonZeroUsize::new(1).unwrap().as_filtered(),
-        Ok(Some(1))
-    );
-    assert_matches!(num::NonZeroI8::new(1).unwrap().as_filtered(), Ok(Some(1)));
-    assert_matches!(num::NonZeroI16::new(1).unwrap().as_filtered(), Ok(Some(1)));
-    assert_matches!(num::NonZeroI32::new(1).unwrap().as_filtered(), Ok(Some(1)));
-    assert_matches!(num::NonZeroI64::new(1).unwrap().as_filtered(), Ok(Some(1)));
-    assert_matches!(num::NonZeroI128::new(1).unwrap().as_filtered(), Ok(Some(1)));
-    assert_matches!(
-        num::NonZeroIsize::new(1).unwrap().as_filtered(),
-        Ok(Some(1))
-    );
+        // floats
+        // -> zero
+        assert_matches!(0_f32.as_filtered(), Ok(None));
+        assert_matches!(0_f64.as_filtered(), Ok(None));
+        // -> subnormal
+        assert_matches!((f32::MIN_POSITIVE / 2.0).as_filtered(), Ok(None));
+        assert_matches!((f64::MIN_POSITIVE / 2.0).as_filtered(), Ok(None));
+        // -> nan
+        assert_matches!(f32::NAN.as_filtered(), Ok(None));
+        assert_matches!(f64::NAN.as_filtered(), Ok(None));
+        // -> infinite
+        assert_matches!(f32::NEG_INFINITY.as_filtered(), Ok(None));
+        assert_matches!(f32::INFINITY.as_filtered(), Ok(None));
+        assert_matches!(f64::NEG_INFINITY.as_filtered(), Ok(None));
+        assert_matches!(f64::INFINITY.as_filtered(), Ok(None));
+        // -> normal
+        assert_matches!(1_f32.as_filtered(), Ok(Some(1.0)));
+        assert_matches!((-1_f32).as_filtered(), Ok(Some(-1.0)));
+        assert_matches!(f32::MIN.as_filtered(), Ok(Some(f32::MIN)));
+        assert_matches!(f32::MIN_POSITIVE.as_filtered(), Ok(Some(f32::MIN_POSITIVE)));
+        assert_matches!(f32::MAX.as_filtered(), Ok(Some(f32::MAX)));
+        assert_matches!(1_f64.as_filtered(), Ok(Some(1.0)));
+        assert_matches!((-1_f64).as_filtered(), Ok(Some(-1.0)));
+        assert_matches!(f64::MIN.as_filtered(), Ok(Some(f64::MIN)));
+        assert_matches!(f64::MIN_POSITIVE.as_filtered(), Ok(Some(f64::MIN_POSITIVE)));
+        assert_matches!(f64::MAX.as_filtered(), Ok(Some(f64::MAX)));
 
-    // strings
-    assert_matches!("".as_filtered(), Ok(None));
-    assert_matches!("hello".as_filtered(), Ok(Some("hello")));
-    assert_matches!("".to_string().as_filtered(), Ok(None));
-    assert_matches!("hello".to_string().as_filtered(), Ok(Some("hello")));
-    assert_matches!(Cow::Borrowed("").as_filtered(), Ok(None));
-    assert_matches!(Cow::Borrowed("hello").as_filtered(), Ok(Some("hello")));
-    assert_matches!(Cow::<str>::Owned("".to_string()).as_filtered(), Ok(None));
-    assert_matches!(
-        Cow::<str>::Owned("hello".to_string()).as_filtered(),
-        Ok(Some("hello"))
-    );
+        // non-zero integers
+        assert_matches!(num::NonZeroU8::new(1).unwrap().as_filtered(), Ok(Some(1)));
+        assert_matches!(num::NonZeroU16::new(1).unwrap().as_filtered(), Ok(Some(1)));
+        assert_matches!(num::NonZeroU32::new(1).unwrap().as_filtered(), Ok(Some(1)));
+        assert_matches!(num::NonZeroU64::new(1).unwrap().as_filtered(), Ok(Some(1)));
+        assert_matches!(num::NonZeroU128::new(1).unwrap().as_filtered(), Ok(Some(1)));
+        assert_matches!(
+            num::NonZeroUsize::new(1).unwrap().as_filtered(),
+            Ok(Some(1))
+        );
+        assert_matches!(num::NonZeroI8::new(1).unwrap().as_filtered(), Ok(Some(1)));
+        assert_matches!(num::NonZeroI16::new(1).unwrap().as_filtered(), Ok(Some(1)));
+        assert_matches!(num::NonZeroI32::new(1).unwrap().as_filtered(), Ok(Some(1)));
+        assert_matches!(num::NonZeroI64::new(1).unwrap().as_filtered(), Ok(Some(1)));
+        assert_matches!(num::NonZeroI128::new(1).unwrap().as_filtered(), Ok(Some(1)));
+        assert_matches!(
+            num::NonZeroIsize::new(1).unwrap().as_filtered(),
+            Ok(Some(1))
+        );
 
-    // results + options
-    assert_matches!(Ok::<(), ()>(()).as_filtered(), Ok(Some(())));
-    assert_matches!(Err::<(), ()>(()).as_filtered(), Ok(None));
-    assert_matches!(Some(()).as_filtered(), Ok(Some(())));
-    assert_matches!(None::<()>.as_filtered(), Ok(None));
+        // strings
+        assert_matches!("".as_filtered(), Ok(None));
+        assert_matches!("hello".as_filtered(), Ok(Some("hello")));
+        assert_matches!("".to_string().as_filtered(), Ok(None));
+        assert_matches!("hello".to_string().as_filtered(), Ok(Some("hello")));
+        assert_matches!(Cow::Borrowed("").as_filtered(), Ok(None));
+        assert_matches!(Cow::Borrowed("hello").as_filtered(), Ok(Some("hello")));
+        assert_matches!(Cow::<str>::Owned("".to_string()).as_filtered(), Ok(None));
+        assert_matches!(
+            Cow::<str>::Owned("hello".to_string()).as_filtered(),
+            Ok(Some("hello"))
+        );
 
-    // references
-    assert_matches!(Arc::new("").as_filtered(), Ok(None));
-    assert_matches!(Arc::new("hello").as_filtered(), Ok(Some("hello")));
-    assert_matches!(Arc::pin("").as_filtered(), Ok(None));
-    assert_matches!(Arc::pin("hello").as_filtered(), Ok(Some("hello")));
-    assert_matches!(Rc::new("").as_filtered(), Ok(None));
-    assert_matches!(Rc::new("hello").as_filtered(), Ok(Some("hello")));
-    assert_matches!(Rc::pin("").as_filtered(), Ok(None));
-    assert_matches!(Rc::pin("hello").as_filtered(), Ok(Some("hello")));
-    assert_matches!(Mutex::new("").try_lock().unwrap().as_filtered(), Ok(None));
-    assert_matches!(
-        Mutex::new("hello").try_lock().unwrap().as_filtered(),
-        Ok(Some("hello"))
-    );
+        // results + options
+        assert_matches!(Ok::<(), ()>(()).as_filtered(), Ok(Some(())));
+        assert_matches!(Err::<(), ()>(()).as_filtered(), Ok(None));
+        assert_matches!(Some(()).as_filtered(), Ok(Some(())));
+        assert_matches!(None::<()>.as_filtered(), Ok(None));
+
+        // references
+        assert_matches!(Arc::new("").as_filtered(), Ok(None));
+        assert_matches!(Arc::new("hello").as_filtered(), Ok(Some("hello")));
+        assert_matches!(Arc::pin("").as_filtered(), Ok(None));
+        assert_matches!(Arc::pin("hello").as_filtered(), Ok(Some("hello")));
+        assert_matches!(Rc::new("").as_filtered(), Ok(None));
+        assert_matches!(Rc::new("hello").as_filtered(), Ok(Some("hello")));
+        assert_matches!(Rc::pin("").as_filtered(), Ok(None));
+        assert_matches!(Rc::pin("hello").as_filtered(), Ok(Some("hello")));
+        assert_matches!(Mutex::new("").try_lock().unwrap().as_filtered(), Ok(None));
+        assert_matches!(
+            Mutex::new("hello").try_lock().unwrap().as_filtered(),
+            Ok(Some("hello"))
+        );
+    }
 }

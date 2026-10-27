@@ -127,50 +127,55 @@ impl<W: fmt::Write> fmt::Write for UrlencodeWriter<W> {
     }
 }
 
-#[test]
-#[cfg(feature = "alloc")]
-fn test_urlencoding() {
-    use alloc::string::ToString;
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    // Unreserved (https://tools.ietf.org/html/rfc3986.html#section-2.3)
-    // alpha / digit
-    assert_eq!(urlencode("AZaz09").unwrap().to_string(), "AZaz09");
-    assert_eq!(urlencode_strict("AZaz09").unwrap().to_string(), "AZaz09");
-    // other
-    assert_eq!(urlencode("_.-~").unwrap().to_string(), "_.-~");
-    assert_eq!(urlencode_strict("_.-~").unwrap().to_string(), "_.-~");
+    #[test]
+    #[cfg(feature = "alloc")]
+    fn test_urlencoding() {
+        use alloc::string::ToString;
 
-    // Reserved (https://tools.ietf.org/html/rfc3986.html#section-2.2)
-    // gen-delims
-    assert_eq!(
-        urlencode(":/?#[]@").unwrap().to_string(),
-        "%3A/%3F%23%5B%5D%40"
-    );
-    assert_eq!(
-        urlencode_strict(":/?#[]@").unwrap().to_string(),
-        "%3A%2F%3F%23%5B%5D%40"
-    );
-    // sub-delims
-    assert_eq!(
-        urlencode("!$&'()*+,;=").unwrap().to_string(),
-        "%21%24%26%27%28%29%2A%2B%2C%3B%3D"
-    );
-    assert_eq!(
-        urlencode_strict("!$&'()*+,;=").unwrap().to_string(),
-        "%21%24%26%27%28%29%2A%2B%2C%3B%3D"
-    );
+        // Unreserved (https://tools.ietf.org/html/rfc3986.html#section-2.3)
+        // alpha / digit
+        assert_eq!(urlencode("AZaz09").unwrap().to_string(), "AZaz09");
+        assert_eq!(urlencode_strict("AZaz09").unwrap().to_string(), "AZaz09");
+        // other
+        assert_eq!(urlencode("_.-~").unwrap().to_string(), "_.-~");
+        assert_eq!(urlencode_strict("_.-~").unwrap().to_string(), "_.-~");
 
-    // Other
-    assert_eq!(
-        urlencode("žŠďŤňĚáÉóŮ").unwrap().to_string(),
-        "%C5%BE%C5%A0%C4%8F%C5%A4%C5%88%C4%9A%C3%A1%C3%89%C3%B3%C5%AE"
-    );
-    assert_eq!(
-        urlencode_strict("žŠďŤňĚáÉóŮ").unwrap().to_string(),
-        "%C5%BE%C5%A0%C4%8F%C5%A4%C5%88%C4%9A%C3%A1%C3%89%C3%B3%C5%AE"
-    );
+        // Reserved (https://tools.ietf.org/html/rfc3986.html#section-2.2)
+        // gen-delims
+        assert_eq!(
+            urlencode(":/?#[]@").unwrap().to_string(),
+            "%3A/%3F%23%5B%5D%40"
+        );
+        assert_eq!(
+            urlencode_strict(":/?#[]@").unwrap().to_string(),
+            "%3A%2F%3F%23%5B%5D%40"
+        );
+        // sub-delims
+        assert_eq!(
+            urlencode("!$&'()*+,;=").unwrap().to_string(),
+            "%21%24%26%27%28%29%2A%2B%2C%3B%3D"
+        );
+        assert_eq!(
+            urlencode_strict("!$&'()*+,;=").unwrap().to_string(),
+            "%21%24%26%27%28%29%2A%2B%2C%3B%3D"
+        );
 
-    // Ferris
-    assert_eq!(urlencode("🦀").unwrap().to_string(), "%F0%9F%A6%80");
-    assert_eq!(urlencode_strict("🦀").unwrap().to_string(), "%F0%9F%A6%80");
+        // Other
+        assert_eq!(
+            urlencode("žŠďŤňĚáÉóŮ").unwrap().to_string(),
+            "%C5%BE%C5%A0%C4%8F%C5%A4%C5%88%C4%9A%C3%A1%C3%89%C3%B3%C5%AE"
+        );
+        assert_eq!(
+            urlencode_strict("žŠďŤňĚáÉóŮ").unwrap().to_string(),
+            "%C5%BE%C5%A0%C4%8F%C5%A4%C5%88%C4%9A%C3%A1%C3%89%C3%B3%C5%AE"
+        );
+
+        // Ferris
+        assert_eq!(urlencode("🦀").unwrap().to_string(), "%F0%9F%A6%80");
+        assert_eq!(urlencode_strict("🦀").unwrap().to_string(), "%F0%9F%A6%80");
+    }
 }

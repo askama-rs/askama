@@ -1121,14 +1121,19 @@ const _: () = {
 #[cfg(feature = "code-in-doc")]
 const JINJA_EXTENSIONS: &[&str] = &["askama", "j2", "jinja", "jinja2", "rinja"];
 
-#[test]
-#[cfg(feature = "external-sources")]
-fn get_source() {
-    let path = Config::new("", None, None, None, None)
-        .and_then(|config| config.find_template("b.html", None, None, None))
-        .unwrap();
-    assert_eq!(
-        get_template_source(&path, "test.html", None).unwrap(),
-        "bar".into()
-    );
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[cfg(feature = "external-sources")]
+    fn get_source() {
+        let path = Config::new("", None, None, None, None)
+            .and_then(|config| config.find_template("b.html", None, None, None))
+            .unwrap();
+        assert_eq!(
+            get_template_source(&path, "test.html", None).unwrap(),
+            "bar".into()
+        );
+    }
 }
