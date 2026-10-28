@@ -1,23 +1,15 @@
-error: cannot render block `list` on its own: it is nested inside another statement, like `if`, `match` or `for`
- --> InIf.txt:1:16
-       "block list %}{{ s }}{% endblock %}{% endif %}"
- --> tests/ui/nested_block_fragment.rs:6:14
-  |
-6 |     source = "{% if show %}{% block list %}{{ s }}{% endblock %}{% endif %}",
-  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-error: cannot render block `one` on its own: it is nested inside another statement, like `if`, `match` or `for`
- --> InMatch.txt:1:34
-       "block one %}{{ n }}{% endblock %}{% else %}{% endmatch %}"
-  --> tests/ui/nested_block_fragment.rs:17:14
-   |
-17 |     source = "{% match n %}{% when Some(n) %}{% block one %}{{ n }}{% endblock %}{% else %}{% endmatch %}",
-   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-error: cannot render block `item` on its own: it is nested inside another statement, like `if`, `match` or `for`
+error: cannot render block `item` on its own: it is nested inside a `for`, `filter`, `call` or `let` block
  --> InFor.txt:1:23
        "block item %}{{ i }}{% endblock %}{% endfor %}"
-  --> tests/ui/nested_block_fragment.rs:27:14
+ --> tests/ui/nested_block_fragment.rs:6:14
+  |
+6 |     source = "{% for i in items %}{% block item %}{{ i }}{% endblock %}{% endfor %}",
+  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot render block `item` on its own: it is nested inside a `for`, `filter`, `call` or `let` block
+ --> InIfInFor.txt:1:38
+       "block item %}{{ i }}{% endblock %}{% endif %}{% endfor %}"
+  --> tests/ui/nested_block_fragment.rs:16:14
    |
-27 |     source = "{% for i in items %}{% block item %}{{ i }}{% endblock %}{% endfor %}",
-   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+16 |     source = "{% for i in items %}{% if *i > 1 %}{% block item %}{{ i }}{% endblock %}{% endif %}{% endfor %}",
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
