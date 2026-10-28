@@ -1,7 +1,8 @@
 # Editor support
 
 Askama doesn't ship editor integrations itself, but there are a few community projects.
-They are maintained separately, so they might lag behind new template syntax.
+The list below isn't exhaustive and can get outdated. The projects are maintained separately,
+so they might lag behind new template syntax.
 
 * [tree-sitter-askama](https://github.com/lpnh/tree-sitter-askama) is a
   [tree-sitter](https://tree-sitter.github.io/) grammar for Askama templates,
