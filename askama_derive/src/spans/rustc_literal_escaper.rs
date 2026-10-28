@@ -150,7 +150,7 @@ fn unicode_escape(chars: &mut impl Iterator<Item = char>) -> Result<u32, EscapeE
     }
 }
 
-/// Interpret a string continuation escape (https://doc.rust-lang.org/reference/expressions/literal-expr.html#string-continuation-escapes)
+/// Interpret a string continuation escape (<https://doc.rust-lang.org/reference/expressions/literal-expr.html#string-continuation-escapes>)
 ///
 /// Skip ASCII whitespace, except for the formfeed character
 /// (see [this issue](https://github.com/rust-lang/rust/issues/136600)).

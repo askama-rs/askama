@@ -53,9 +53,9 @@ pub(crate) fn template_to_string(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum TmplKind<'a> {
-    /// [`askama::Template`]
+    /// `askama::Template`
     Struct,
-    /// [`askama::helpers::EnumVariantTemplate`]
+    /// `askama::helpers::EnumVariantTemplate`
     Variant,
     /// Used in `blocks` implementation
     Block(&'a str),
@@ -433,7 +433,7 @@ impl<'a, 'h> Generator<'a, 'h> {
         self.locals.get_any(var_name).is_some() || self.input.fields.iter().any(|f| f == var_name)
     }
 
-    /// Like [`is_var_defined()`], but not true for a forward declaration `{% let var %}`.
+    /// Like [`Self::is_var_defined()`], but not true for a forward declaration `{% let var %}`.
     fn is_var_assigned(&self, var_name: &str) -> bool {
         if let Some(meta) = self.locals.get(var_name) {
             meta.initialized
