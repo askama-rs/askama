@@ -137,6 +137,20 @@ impl<'a> Generator<'a, '_> {
                     size_hint += self.write_loop(ctx, buf, loop_block, render_for)?;
                 }
                 Node::BlockDef(ref b) => {
+                    // Rendering one block discards the code around it, so a block whose
+                    // surrounding `if`, `match` or loop is discarded would render nothing.
+                    if level == AstLevel::Nested
+                        && self.input.block.is_some_and(|(name, _)| name == *b.name)
+                    {
+                        return Err(ctx.generate_error(
+                            format_args!(
+                                "cannot render block `{}` on its own: it is nested inside \
+                                 another statement, like `if`, `match` or `for`",
+                                b.name.escape_debug(),
+                            ),
+                            b.span(),
+                        ));
+                    }
                     if render_for == RenderFor::Template {
                         size_hint += self.write_block(
                             ctx,
