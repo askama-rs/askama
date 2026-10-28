@@ -1655,12 +1655,15 @@ fn try_assign_fallback_error<'a: 'l, 'l>(
     {
         let checkpoint = i.checkpoint();
         i.input.reset_to_start();
-        if take::<_, _, ()>(err_ctx.span.start).parse_next(i).is_ok()
-            && let Err(better_err) = opt(deny_any_rust_token).parse_next(i)
-            && let ErrMode::Backtrack(better_ctx) | ErrMode::Cut(better_ctx) = better_err
-            && better_ctx.message.is_some()
-        {
-            *err_ctx = better_ctx;
+        // `span.start` is a byte offset, so seek with `next_slice()`: `take()` counts chars
+        if i.is_char_boundary(err_ctx.span.start) {
+            i.next_slice(err_ctx.span.start);
+            if let Err(better_err) = opt(deny_any_rust_token).parse_next(i)
+                && let ErrMode::Backtrack(better_ctx) | ErrMode::Cut(better_ctx) = better_err
+                && better_ctx.message.is_some()
+            {
+                *err_ctx = better_ctx;
+            }
         }
         i.reset(&checkpoint);
     }
