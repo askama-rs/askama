@@ -397,6 +397,7 @@ impl<'a: 'l, 'l> Expr<'a> {
         };
         let mut unspaced_tilde = None;
         loop {
+            let operand_start = *i;
             while let Some((op, span)) =
                 opt(ws(alt(("!", "-", "*", "&")).with_span())).parse_next(i)?
             {
@@ -457,7 +458,10 @@ impl<'a: 'l, 'l> Expr<'a> {
             }
 
             let before = *i;
-            let Some((prec, op, span, spaced)) = infix_op(i)? else {
+            // Many operands swallow the whitespace after them, which `~` needs to see.
+            let ws_before =
+                operand_start[..operand_start.len() - i.len()].ends_with(char::is_whitespace);
+            let Some((prec, op, span, spaced)) = infix_op(i, ws_before)? else {
                 break;
             };
             if !spaced {
@@ -861,6 +865,7 @@ impl<'a: 'l, 'l> InfixStack<'a, 'l> {
 #[allow(clippy::type_complexity)]
 fn infix_op<'a: 'l, 'l>(
     i: &mut InputStream<'a, 'l>,
+    ws_before: bool,
 ) -> ParseResult<'a, Option<(Prec, &'a str, std::ops::Range<usize>, bool)>> {
     if let Some((op, span)) = opt(ws(alt(("*", "/", "%")).with_span())).parse_next(i)? {
         return Ok(Some((Prec::MulDivMod, op, span, true)));
@@ -873,7 +878,7 @@ fn infix_op<'a: 'l, 'l>(
             Prec::Concat,
             "~",
             span,
-            t1.is_some() && t2.is_some(),
+            (ws_before || t1.is_some()) && t2.is_some(),
         )));
     }
 
