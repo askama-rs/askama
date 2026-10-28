@@ -36,3 +36,22 @@ fn test_blocks() {
     assert_eq!(tmpl.as_third().render().unwrap(), "third=<bronze>");
     assert_eq!(tmpl.render().unwrap(), "better luck next time");
 }
+
+#[test]
+#[deny(single_use_lifetimes)]
+fn test_blocks_single_use_lifetime() {
+    #[derive(Template)]
+    #[template(
+        ext = "txt",
+        source = "{% block first %}{{ first }}{% endblock %}",
+        blocks = ["first"]
+    )]
+    struct WithLifetime<'a> {
+        first: &'a str,
+    }
+
+    let tmpl = WithLifetime {
+        first: "number one",
+    };
+    assert_eq!(tmpl.as_first().render().unwrap(), "number one");
+}
