@@ -1803,3 +1803,175 @@ fn test_fallback_error_after_non_ascii_text() {
         failed to parse template source near offset 30",
     );
 }
+
+/// Renders an expression with explicit parentheses around every operator.
+fn show(expr: &Expr<'_>) -> String {
+    let join = |exprs: &[WithSpan<Box<Expr<'_>>>], sep| {
+        exprs.iter().map(|e| show(e)).collect::<Vec<_>>().join(sep)
+    };
+    match expr {
+        Expr::Var(name) | Expr::NumLit(name, _) => name.to_string(),
+        Expr::Unary(op, e) => format!("({op}{})", show(e)),
+        Expr::BinOp(BinOp { op, lhs, rhs }) => format!("({} {op} {})", show(lhs), show(rhs)),
+        Expr::Concat(exprs) => format!("({})", join(exprs, " ~ ")),
+        Expr::Filter(Filter {
+            name: PathOrIdentifier::Identifier(name),
+            arguments,
+        }) => format!("{}({})", **name, join(arguments, ", ")),
+        Expr::As(e, ty) => format!("({} as {})", show(e), **ty),
+        Expr::IsDefined(name) => format!("({name} is defined)"),
+        Expr::Range(r) => {
+            let side =
+                |e: &Option<WithSpan<Box<Expr<'_>>>>| e.as_ref().map_or(String::new(), |e| show(e));
+            format!("({}{}{})", side(&r.lhs), r.op, side(&r.rhs))
+        }
+        Expr::Group(e) => format!("({})", show(e)),
+        Expr::Array(exprs) => format!("[{}]", join(exprs, ", ")),
+        Expr::Call(call) => format!("{}({})", show(&call.path), join(&call.args, ", ")),
+        _ => panic!("unexpected {expr:?}"),
+    }
+}
+
+fn parse_expr(src: &str) -> Result<String, String> {
+    let syntax = Syntax::default();
+    match Ast::from_str(&format!("{{{{ {src} }}}}"), None, &syntax) {
+        Ok(ast) => match &*ast.nodes {
+            [node] => match &**node {
+                Node::Expr(_, expr) => Ok(show(expr)),
+                node => panic!("unexpected {node:?}"),
+            },
+            nodes => panic!("unexpected {nodes:?}"),
+        },
+        Err(err) => Err(err.to_string()),
+    }
+}
+
+#[test]
+fn test_infix_precedence_of_every_level_pair() {
+    // From loosest to tightest binding; comparisons cannot be chained, so `==` is not repeated.
+    const LEVELS: &[(&str, &str)] = &[
+        ("||", "||"),
+        ("&&", "&&"),
+        ("==", "=="),
+        ("bitor", "|"),
+        ("xor", "^"),
+        ("bitand", "&"),
+        ("<<", "<<"),
+        ("+", "+"),
+        ("~", "~"),
+        ("*", "*"),
+    ];
+    for (i, &(lo, lo_show)) in LEVELS.iter().enumerate() {
+        for &(hi, hi_show) in &LEVELS[i + 1..] {
+            let tight = |a: &str, b: &str| match hi {
+                "~" => format!("({a} ~ {b})"),
+                _ => format!("({a} {hi_show} {b})"),
+            };
+            let loose = |a: &str, b: &str| match lo {
+                "~" => format!("({a} ~ {b})"),
+                _ => format!("({a} {lo_show} {b})"),
+            };
+            assert_eq!(
+                parse_expr(&format!("a {lo} b {hi} c")),
+                Ok(loose("a", &tight("b", "c")))
+            );
+            assert_eq!(
+                parse_expr(&format!("a {hi} b {lo} c")),
+                Ok(loose(&tight("a", "b"), "c"))
+            );
+        }
+        let expected = match lo {
+            "==" => continue,
+            "~" => "(a ~ b ~ c ~ d)".to_owned(),
+            _ => format!("(((a {lo_show} b) {lo_show} c) {lo_show} d)"),
+        };
+        assert_eq!(parse_expr(&format!("a {lo} b {lo} c {lo} d")), Ok(expected));
+    }
+}
+
+#[test]
+fn test_infix_edge_cases() {
+    for (src, expected) in [
+        // no whitespace around operators
+        ("a+b*c", "(a + (b * c))"),
+        ("a&&b||c", "((a && b) || c)"),
+        // prefix operators bind tighter than any infix operator
+        ("-a * b", "((-a) * b)"),
+        ("!a && !b", "((!a) && (!b))"),
+        ("- -a", "(-(-a))"),
+        ("*&a + b", "((*(&a)) + b)"),
+        // the same tokens as infix and prefix operators
+        ("a - -b", "(a - (-b))"),
+        ("a * *b", "(a * (*b))"),
+        ("a bitand &b", "(a & (&b))"),
+        ("a < -b", "(a < (-b))"),
+        // filters bind looser than prefix operators and tighter than infix ones
+        ("-a|f", "f((-a))"),
+        ("a + b|f", "(a + f(b))"),
+        ("a|f(1)|g + b", "(g(f(a, 1)) + b)"),
+        // `is` and `as` apply to the operand left of them
+        ("a as i32 + b", "((a as i32) + b)"),
+        ("-a as i32", "((-a) as i32)"),
+        ("a is defined && b", "((a is defined) && b)"),
+        // a `~` chain is flattened, but not across parentheses or looser operators
+        ("a ~ b * c ~ d", "(a ~ (b * c) ~ d)"),
+        ("(a ~ b) ~ c", "(((a ~ b)) ~ c)"),
+        ("a ~ b + c ~ d", "((a ~ b) + (c ~ d))"),
+        ("a ~ b|f ~ c", "(a ~ f(b) ~ c)"),
+        ("a|f(1) ~ b", "(f(a, 1) ~ b)"),
+        ("a as i32 ~ b", "((a as i32) ~ b)"),
+        ("f(1) ~ b", "(f(1) ~ b)"),
+        ("a is defined ~ b", "((a is defined) ~ b)"),
+        ("[a] ~ b", "([a] ~ b)"),
+        // ranges take whole expressions on either side
+        ("a + 1..b * 2", "((a + 1)..(b * 2))"),
+        ("..a || b", "(..(a || b))"),
+        ("a + b..", "((a + b)..)"),
+        ("a * (b + c)", "(a * ((b + c)))"),
+    ] {
+        assert_eq!(parse_expr(src).as_deref(), Ok(expected), "{src}");
+    }
+}
+
+#[test]
+fn test_infix_errors() {
+    for src in [
+        "a ~b",
+        "a~ b",
+        "a~b",
+        "a|f~ b",
+        "a ~ b ~",
+        "a +",
+        "a + / b",
+        "a && || b",
+        "+a",
+        "a + )",
+    ] {
+        assert!(parse_expr(src).is_err(), "{src}");
+    }
+    assert!(
+        parse_expr("a~b")
+            .unwrap_err()
+            .contains("the concat operator `~` must be surrounded by spaces")
+    );
+
+    // `~` and `-` next to the delimiters are whitespace control, not operators
+    let syntax = Syntax::default();
+    for src in [
+        "{{ a ~}}",
+        "{{~ a ~}}",
+        "{{ a -}}",
+        "{%~ if a ~%}{%~ endif ~%}",
+        "{%- if a + b -%}{%- endif -%}",
+    ] {
+        assert!(Ast::from_str(src, None, &syntax).is_ok(), "{src}");
+    }
+}
+
+#[test]
+fn test_infix_nesting_limit() {
+    assert!(parse_expr(&format!("{}a", "-".repeat(100))).is_ok());
+    assert!(parse_expr(&format!("{}a", "-".repeat(1000))).is_err());
+    assert!(parse_expr(&format!("a{}", " ~ a".repeat(1000))).is_ok());
+    assert!(parse_expr(&format!("a{}", " + a".repeat(1000))).is_err());
+}
