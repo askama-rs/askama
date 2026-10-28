@@ -9,6 +9,7 @@
 - [Opt-in features](./features.md)
 - [Filters](./filters.md)
 - [Web-frameworks](./frameworks.md)
+- [Editor support](./editor_support.md)
 - [Performance](./performance.md)
 - [Upgrading](./upgrading.md)
 - [API documentation](./doc/askama/index.html)
