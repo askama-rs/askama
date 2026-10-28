@@ -163,3 +163,78 @@ fn test_variable_inheritance_in_block() {
 
     assert_eq!(Y.render().unwrap(), "--> 42\n42");
 }
+
+// A block nested in an `if` or `match` renders on its own when its branch is taken.
+// See <https://github.com/askama-rs/askama/issues/81>.
+#[test]
+fn test_fragment_nested_in_if_and_match() {
+    #[derive(Template)]
+    #[template(
+        source = "<ul>{% if show %}<b>{{ s }}</b>{% block list %}<li>{{ s }}</li>{% endblock %}{% endif %}</ul>",
+        blocks = ["list"],
+        ext = "html"
+    )]
+    struct InIf<'a> {
+        show: bool,
+        s: &'a str,
+    }
+
+    let t = InIf { show: true, s: "x" };
+    assert_eq!(t.render().unwrap(), "<ul><b>x</b><li>x</li></ul>");
+    assert_eq!(t.as_list().render().unwrap(), "<li>x</li>");
+    assert_eq!(
+        InIf {
+            show: false,
+            s: "x"
+        }
+        .as_list()
+        .render()
+        .unwrap(),
+        ""
+    );
+
+    #[derive(Template)]
+    #[template(
+        source = "{% if let Some(n) = opt %}{{ n }}[{% block val %}{{ n }}{% endblock %}]{% else %}none{% endif %}",
+        blocks = ["val"],
+        ext = "txt"
+    )]
+    struct IfLet {
+        opt: Option<u32>,
+    }
+
+    assert_eq!(IfLet { opt: Some(3) }.render().unwrap(), "3[3]");
+    assert_eq!(IfLet { opt: Some(3) }.as_val().render().unwrap(), "3");
+    assert_eq!(IfLet { opt: None }.as_val().render().unwrap(), "");
+
+    #[derive(Template)]
+    #[template(
+        source = "{% match opt %}{% when Some(n) %}{% if *n > 1 %}{% block big %}big {{ n }}{% endblock %}{% endif %}{% when None %}nil{% endmatch %}",
+        blocks = ["big"],
+        ext = "txt"
+    )]
+    struct InMatch {
+        opt: Option<u32>,
+    }
+
+    assert_eq!(InMatch { opt: Some(3) }.as_big().render().unwrap(), "big 3");
+    assert_eq!(InMatch { opt: Some(1) }.as_big().render().unwrap(), "");
+    assert_eq!(InMatch { opt: None }.as_big().render().unwrap(), "");
+
+    #[derive(Template)]
+    #[template(
+        source = "{% block outer %}<div>{% if a %}{% block inner %}in{% endblock %}{% endif %}</div>{% endblock %}",
+        blocks = ["outer", "inner"],
+        ext = "html"
+    )]
+    struct InOuter {
+        a: bool,
+    }
+
+    assert_eq!(
+        InOuter { a: true }.as_outer().render().unwrap(),
+        "<div>in</div>"
+    );
+    assert_eq!(InOuter { a: true }.as_inner().render().unwrap(), "in");
+    assert_eq!(InOuter { a: false }.as_inner().render().unwrap(), "");
+}
