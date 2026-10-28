@@ -10,7 +10,7 @@ use proc_macro2::TokenStream;
 use quote::quote_spanned;
 
 use crate::generator::node::AstLevel;
-use crate::generator::{Generator, LocalMeta, RenderFor, is_copyable};
+use crate::generator::{BlockInfo, Generator, LocalMeta, MapChain, RenderFor, is_copyable};
 use crate::heritage::Context;
 use crate::integration::Buffer;
 use crate::{CompileError, HashMap, SizeHint, field_new, quote_into};
@@ -39,17 +39,20 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             .iter()
             .any(|(s, _)| std::ptr::eq(*s, self.macro_def))
         {
-            let mut message = "Found recursion in macro calls:".to_owned();
-            for (m, f) in &generator.seen_callers {
-                if let Some(f) = f {
-                    write!(message, "{f}").unwrap();
-                } else {
-                    write!(message, "\n`{}`", m.name.escape_debug()).unwrap();
+            if let Some(reason) = self.why_not_a_function() {
+                let mut message = format!("Found recursion in macro calls. {reason}:");
+                for (m, f) in &generator.seen_callers {
+                    if let Some(f) = f {
+                        write!(message, "{f}").unwrap();
+                    } else {
+                        write!(message, "\n`{}`", m.name.escape_debug()).unwrap();
+                    }
                 }
+                return Err(self
+                    .callsite_ctx
+                    .generate_error(message, self.callsite_span));
             }
-            return Err(self
-                .callsite_ctx
-                .generate_error(message, self.callsite_span));
+            return self.write_function_call(buf, generator);
         } else {
             generator.seen_callers.push((
                 self.macro_def,
@@ -90,6 +93,90 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
 
             this.prepare_ws(self.callsite_ws);
             this.seen_callers.pop();
+            Ok(size_hint)
+        })
+    }
+
+    /// A recursive call is written as a call to a function generated for the macro, see
+    /// [`Generator::write_macro_functions()`]. Returns why this call cannot be one.
+    fn why_not_a_function(&self) -> Option<String> {
+        let name = self.macro_def.name.escape_debug();
+        if let Some(arg) = self.macro_def.args.iter().find(|arg| arg.ty.is_none()) {
+            return Some(format!(
+                "A macro can only call itself if all its arguments have a type, \
+                 but argument `{}` of macro `{name}` has none",
+                arg.name.escape_debug(),
+            ));
+        }
+        // The body is passed as a closure, whose parameters would need a type.
+        if let Some(call) = self.call
+            && !call.caller_args.is_empty()
+        {
+            return Some(format!(
+                "A macro can only call itself without `caller` arguments, \
+                 but this call of macro `{name}` has some",
+            ));
+        }
+        None
+    }
+
+    fn write_function_call<'h>(
+        &self,
+        buf: &'b mut Buffer,
+        generator: &mut Generator<'a, 'h>,
+    ) -> Result<SizeHint, CompileError> {
+        self.ensure_arg_count()?;
+        let function =
+            generator.macro_function(self.macro_def, self.macro_ctx, self.call.is_some());
+        let span = self.callsite_ctx.span_for_node(self.callsite_span);
+        let var_writer = crate::var_writer();
+        let var_values = crate::var_values();
+
+        generator.push_locals(|this| {
+            this.flush_ws(self.callsite_ws);
+            let mut content = Buffer::new();
+            let mut size_hint = this.write_buf_writable(self.callsite_ctx, &mut content)?;
+            // Every argument has a type, so the preamble binds each one to a variable of its name.
+            self.write_preamble(&mut content, this)?;
+            let mut args = Buffer::new();
+            for arg in &self.macro_def.args {
+                let arg = field_new(&arg.name, span);
+                quote_into!(&mut args, span, { #arg, });
+            }
+            if let Some(call) = self.call {
+                let mut body = Buffer::new();
+                size_hint += this.push_locals(|this| {
+                    // Like an inlined `caller()`, the body cannot call `caller()` itself.
+                    this.locals.insert("caller".into(), LocalMeta::Negative);
+                    this.prepare_ws(call.ws1);
+                    let size_hint = this.handle(
+                        self.callsite_ctx,
+                        &call.nodes,
+                        &mut body,
+                        AstLevel::Nested,
+                        RenderFor::Template,
+                    )?;
+                    this.flush_ws(call.ws2);
+                    Ok(size_hint + this.write_buf_writable(self.callsite_ctx, &mut body)?)
+                })?;
+                let body = body.into_token_stream();
+                quote_into!(&mut args, span, {
+                    &|#var_writer: &mut dyn askama::helpers::core::fmt::Write,
+                      #var_values: &dyn askama::Values|
+                     -> askama::Result<()> {
+                        #body
+                        askama::Result::Ok(())
+                    },
+                });
+            }
+            let args = args.into_token_stream();
+            quote_into!(&mut content, span, {
+                self.#function(#var_writer, #var_values, #args)?;
+            });
+            let content = content.into_token_stream();
+            quote_into!(buf, span, {{ #content }});
+
+            this.prepare_ws(self.callsite_ws);
             Ok(size_hint)
         })
     }
@@ -399,5 +486,135 @@ impl<'a> ArgBindings<'a> {
         for (name, meta) in locals {
             generator.locals.insert(Cow::Borrowed(name), meta);
         }
+    }
+}
+
+impl<'a> Generator<'a, '_> {
+    /// The name of the function generated for a macro that calls itself.
+    pub(crate) fn macro_function(
+        &mut self,
+        macro_def: &'a Macro<'a>,
+        macro_ctx: &Context<'a>,
+        has_caller: bool,
+    ) -> syn::Ident {
+        let index = match self
+            .macro_functions
+            .iter()
+            .position(|(def, _, caller)| std::ptr::eq(*def, macro_def) && *caller == has_caller)
+        {
+            Some(index) => index,
+            None => {
+                self.macro_functions
+                    .push((macro_def, macro_ctx.clone(), has_caller));
+                self.macro_functions.len() - 1
+            }
+        };
+        // Each block fragment generates its own copy, in an `impl` of the same type.
+        let name = match self.input.block {
+            Some((block, _)) => format!("__askama_macro_{index}_{block}"),
+            None => format!("__askama_macro_{index}"),
+        };
+        syn::Ident::new(&name, proc_macro2::Span::call_site())
+    }
+
+    /// Writes an `impl` block with a method for each macro that calls itself (directly or
+    /// indirectly). The outermost call is inlined as usual; the recursive calls call the method.
+    /// Like a Rust function, the method only sees its arguments and the template's fields.
+    pub(crate) fn write_macro_functions(&mut self, buf: &mut Buffer) -> Result<(), CompileError> {
+        let span = proc_macro2::Span::call_site();
+        let var_writer = crate::var_writer();
+        let var_values = crate::var_values();
+        let mut functions = Buffer::new();
+        // A body can call further recursive macros, which adds them to the list.
+        let mut index = 0;
+        while let Some((macro_def, macro_ctx, has_caller)) =
+            self.macro_functions.get(index).cloned()
+        {
+            let function = self.macro_function(macro_def, &macro_ctx, has_caller);
+            let mut generator = Generator::new(
+                self.input,
+                self.contexts,
+                self.heritage,
+                MapChain::default(),
+                false,
+                BlockInfo::new(),
+            );
+            generator.macro_functions = mem::take(&mut self.macro_functions);
+            generator.seen_callers.push((macro_def, None));
+
+            let mut params = Buffer::new();
+            for arg in &macro_def.args {
+                let Some(ty) = &arg.ty else {
+                    unreachable!("checked by `why_not_a_function()`")
+                };
+                let name = field_new(&arg.name, span);
+                let mut ty_buf = Buffer::new();
+                generator.visit_ty_generic(&macro_ctx, &mut ty_buf, ty, span);
+                let ty = ty_buf.into_token_stream();
+                quote_into!(&mut params, span, { #name: &#ty, });
+                generator
+                    .locals
+                    .insert(Cow::Borrowed(*arg.name), LocalMeta::var_decl());
+            }
+            if has_caller {
+                let var_caller = crate::var_caller();
+                quote_into!(&mut params, span, {
+                    #var_caller: &dyn Fn(
+                        &mut dyn askama::helpers::core::fmt::Write,
+                        &dyn askama::Values,
+                    ) -> askama::Result<()>,
+                });
+                generator
+                    .locals
+                    .insert("caller".into(), LocalMeta::caller_param(macro_ctx.clone()));
+            }
+            let params = params.into_token_stream();
+
+            let mut body = Buffer::new();
+            generator.prepare_ws(macro_def.ws1);
+            let _: SizeHint = generator.handle(
+                &macro_ctx,
+                &macro_def.nodes,
+                &mut body,
+                AstLevel::Nested,
+                RenderFor::Template,
+            )?;
+            generator.flush_ws(macro_def.ws2);
+            let _: SizeHint = generator.write_buf_writable(&macro_ctx, &mut body)?;
+            let body = body.into_token_stream();
+            self.macro_functions = generator.macro_functions;
+
+            quote_into!(&mut functions, span, {
+                #[allow(clippy::too_many_arguments)]
+                fn #function(
+                    &self,
+                    #var_writer: &mut dyn askama::helpers::core::fmt::Write,
+                    #var_values: &dyn askama::Values,
+                    #params
+                ) -> askama::Result<()> {
+                    #[allow(unused_imports)]
+                    use askama::{
+                        filters::{AutoEscape as _, WriteWritable as _},
+                        helpers::{ResultConverter as _, core::fmt::Write as _},
+                    };
+
+                    #body
+                    askama::Result::Ok(())
+                }
+            });
+            index += 1;
+        }
+        if index > 0 {
+            let functions = functions.into_token_stream();
+            let ident = &self.input.ast.ident;
+            let (impl_generics, ty_generics, where_clause) =
+                self.input.ast.generics.split_for_impl();
+            quote_into!(buf, span, {
+                impl #impl_generics #ident #ty_generics #where_clause {
+                    #functions
+                }
+            });
+        }
+        Ok(())
     }
 }
