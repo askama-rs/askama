@@ -840,3 +840,61 @@ fn test_args_named_like_params() {
 
     assert_eq!(CallerArgsNamedLikeParams.render().unwrap(), "b-a");
 }
+
+// A macro whose arguments all have a type can call itself: the recursive call becomes a method
+// call, which sees the macro's arguments and the template's fields.
+#[test]
+fn test_recursive_macro() {
+    struct Node {
+        name: &'static str,
+        children: Vec<Node>,
+    }
+
+    #[derive(Template)]
+    #[template(
+        source = "
+{%- macro tree(node: Node, depth: usize = 0) -%}
+    {{ depth }}:{{ node.name }}{{ sep }}
+    {%- for child in node.children %}{{ tree(child, depth + 1) }}{% endfor -%}
+{%- endmacro -%}
+{%- block content %}{{ tree(root) }}{% endblock -%}",
+        ext = "html",
+        blocks = ["content"]
+    )]
+    struct Tree {
+        root: Node,
+        sep: &'static str,
+    }
+
+    let leaf = |name| Node {
+        name,
+        children: vec![],
+    };
+    let tree = Tree {
+        root: Node {
+            name: "a<",
+            children: vec![
+                Node {
+                    name: "b",
+                    children: vec![leaf("c")],
+                },
+                leaf("d"),
+            ],
+        },
+        sep: "|",
+    };
+    assert_eq!(tree.render().unwrap(), "0:a&#60;|1:b|2:c|1:d|");
+    assert_eq!(tree.as_content().render().unwrap(), "0:a&#60;|1:b|2:c|1:d|");
+}
+
+#[test]
+fn test_mutually_recursive_imported_macros() {
+    #[derive(Template)]
+    #[template(
+        source = r#"{% import "recursive-macros.html" as m %}{{ m::even(3) }}"#,
+        ext = "txt"
+    )]
+    struct EvenOdd;
+
+    assert_eq!(EvenOdd.render().unwrap(), "eoeo");
+}

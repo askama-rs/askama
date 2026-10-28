@@ -83,10 +83,12 @@ impl<'a> Generator<'a, '_> {
             self.is_in_block,
         );
         child.buf_writable = buf_writable;
+        child.macro_functions = mem::take(&mut self.macro_functions);
         let res = callback(&mut child);
         Generator {
             locals: self.locals,
             buf_writable: self.buf_writable,
+            macro_functions: self.macro_functions,
             ..
         } = child;
 

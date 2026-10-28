@@ -1,0 +1,6 @@
+{%- macro even(n: u32) -%}
+    e{% if *n > 0 %}{{ odd(n - 1) }}{% endif %}
+{%- endmacro -%}
+{%- macro odd(n: u32) -%}
+    o{% if *n > 0 %}{% call even(n - 1) %}{% endcall %}{% endif %}
+{%- endmacro -%}

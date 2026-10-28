@@ -1,61 +1,75 @@
-error: Found recursion in macro calls:
+error: Found recursion in macro calls. A macro can only call itself if all its arguments have a type, but argument `x` of macro `one` has none:
  --> Direct.html:3:11
-       "call one %}{% endcall %}\n    "
-         --> Direct.html:2:26
-       "call one %}{% endcall %}{% endmacro %}\n        {% call one %}{% endcall %}\n    "
+       "call one(1) %}{% endcall %}\n    "
+         --> Direct.html:2:29
+       "call one(x) %}{% endcall %}{% endmacro %}\n        {% call one(1) %}{% endcall %}"...
  --> tests/ui/macro-recursion.rs:5:14
   |
 5 |       source = "
   |  ______________^
-6 | |         {% macro one %}{% call one %}{% endcall %}{% endmacro %}
-7 | |         {% call one %}{% endcall %}
+6 | |         {% macro one(x) %}{% call one(x) %}{% endcall %}{% endmacro %}
+7 | |         {% call one(1) %}{% endcall %}
 8 | |     ",
   | |_____^
 
-error: Found recursion in macro calls:
+error: Found recursion in macro calls. A macro can only call itself if all its arguments have a type, but argument `x` of macro `one` has none:
  --> Indirect.html:7:11
-       "call one %}{% endcall %}\n    "
-         --> Indirect.html:2:26
+       "call one(1) %}{% endcall %}\n    "
+         --> Indirect.html:2:29
        "call two %}{% endcall %}{% endmacro %}\n        {% macro two %}{% call three %}{%"...
          --> Indirect.html:3:26
        "call three %}{% endcall %}{% endmacro %}\n        {% macro three %}{% call four %"...
          --> Indirect.html:4:28
        "call four %}{% endcall %}{% endmacro %}\n        {% macro four %}{% call five %}{"...
          --> Indirect.html:5:27
-       "call five %}{% endcall %}{% endmacro %}\n        {% macro five %}{% call one %}{%"...
+       "call five %}{% endcall %}{% endmacro %}\n        {% macro five %}{% call one(1) %"...
          --> Indirect.html:6:27
-       "call one %}{% endcall %}{% endmacro %}\n        {% call one %}{% endcall %}\n    "
+       "call one(1) %}{% endcall %}{% endmacro %}\n        {% call one(1) %}{% endcall %}"...
   --> tests/ui/macro-recursion.rs:15:14
    |
 15 |       source = "
    |  ______________^
-16 | |         {% macro one %}{% call two %}{% endcall %}{% endmacro %}
+16 | |         {% macro one(x) %}{% call two %}{% endcall %}{% endmacro %}
 17 | |         {% macro two %}{% call three %}{% endcall %}{% endmacro %}
 18 | |         {% macro three %}{% call four %}{% endcall %}{% endmacro %}
 ...  |
-21 | |         {% call one %}{% endcall %}
+21 | |         {% call one(1) %}{% endcall %}
 22 | |     ",
    | |_____^
 
-error: Found recursion in macro calls:
+error: Found recursion in macro calls. A macro can only call itself if all its arguments have a type, but argument `x` of macro `some_macro` has none:
  --> AcrossImports.html:6:11
-       "call some_macro %}{% endcall %}\n    "
+       "call some_macro(1) %}{% endcall %}\n    "
          --> AcrossImports.html:4:15
-       "call next::some_macro %}{% endcall %}\n        {% endmacro %}\n        {% call som"...
+       "call next::some_macro(x) %}{% endcall %}\n        {% endmacro %}\n        {% call "...
          --> testing/templates/macro-recursion-1.html:4:7
-       "call next::some_macro %}{% endcall %}\n{% endmacro %}"
+       "call next::some_macro(x) %}{% endcall %}\n{% endmacro %}"
          --> testing/templates/macro-recursion-2.html:4:7
-       "call next::some_macro %}{% endcall %}\n{% endmacro %}"
+       "call next::some_macro(x) %}{% endcall %}\n{% endmacro %}"
          --> testing/templates/macro-recursion-3.html:4:7
-       "call next::some_macro %}{% endcall %}\n{% endmacro %}"
+       "call next::some_macro(x) %}{% endcall %}\n{% endmacro %}"
   --> tests/ui/macro-recursion.rs:29:14
    |
 29 |       source = r#"
    |  ______________^
 30 | |         {% import "macro-recursion-1.html" as next %}
-31 | |         {% macro some_macro %}
-32 | |             {% call next::some_macro %}{% endcall %}
+31 | |         {% macro some_macro(x) %}
+32 | |             {% call next::some_macro(x) %}{% endcall %}
 33 | |         {% endmacro %}
-34 | |         {% call some_macro %}{% endcall %}
+34 | |         {% call some_macro(1) %}{% endcall %}
 35 | |     "#,
    | |______^
+
+error: Found recursion in macro calls. A macro can only call itself without a `caller` body, but this call of macro `one` has one:
+ --> CallerBody.html:3:11
+       "call one(1) %}{% endcall %}\n    "
+         --> CallerBody.html:2:34
+       "call one(n) %}{{ n }}{% endcall %}{% endmacro %}\n        {% call one(1) %}{% end"...
+  --> tests/ui/macro-recursion.rs:42:14
+   |
+42 |       source = "
+   |  ______________^
+43 | |         {% macro one(n: u32) %}{% call one(n) %}{{ n }}{% endcall %}{% endmacro %}
+44 | |         {% call one(1) %}{% endcall %}
+45 | |     ",
+   | |_____^
