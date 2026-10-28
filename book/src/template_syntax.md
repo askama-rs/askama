@@ -515,6 +515,15 @@ struct BlockFragment {
 }
 ```
 
+A block rendered by itself (with `block = "..."` or as one of the
+`blocks = [...]`) cannot be nested inside an `if`, `match` or `for`:
+rendering it would discard the surrounding statement, block included, so
+it is rejected at compile time:
+
+```text
+error: cannot render block `list` on its own: it is nested inside another statement, like `if`, `match` or `for`
+```
+
 ## HTML escaping
 
 Askama by default escapes variables if it thinks it is rendering HTML
