@@ -1781,3 +1781,25 @@ fn test_expr_end_catastrophic_backtracking() {
         .is_err()
     );
 }
+
+#[test]
+fn test_fallback_error_after_non_ascii_text() {
+    assert_eq!(
+        Ast::from_str("äöü {{a.b.c!( hello )}}", None, &Syntax::default())
+            .unwrap_err()
+            .to_string(),
+        "the token `!` was not expected at this point in the expression\n\
+        failed to parse template source near offset 14",
+    );
+    assert_eq!(
+        Ast::from_str(
+            "äöü {% block meta %}then{% else %}else{% endblock meta %}",
+            None,
+            &Syntax::default()
+        )
+        .unwrap_err()
+        .to_string(),
+        "node `else` was not expected in the current context: `block` block\n\
+        failed to parse template source near offset 30",
+    );
+}

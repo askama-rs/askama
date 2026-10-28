@@ -1,0 +1,15 @@
+error: the token `!` was not expected at this point in the expression
+ --> <source attribute>:1:12
+       "!( hello ) }}"
+ --> tests/ui/error-after-non-ascii.rs:4:34
+  |
+4 | #[template(ext = "txt", source = "äöü {{ a.b.c!( hello ) }}")]
+  |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: node `else` was not expected in the current context: `block` block
+ --> <source attribute>:1:27
+       "else %}else{% endblock meta %}"
+ --> tests/ui/error-after-non-ascii.rs:8:34
+  |
+8 | #[template(ext = "txt", source = "äöü {% block meta %}then{% else %}else{% endblock meta %}")]
+  |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

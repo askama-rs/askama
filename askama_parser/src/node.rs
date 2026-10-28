@@ -239,12 +239,15 @@ fn parse_with_unexpected_fallback<'a: 'l, 'l, O>(
 
         let checkpoint = i.checkpoint();
         i.input.reset_to_start();
-        if take::<_, _, ()>(err_ctx.span.start).parse_next(i).is_ok()
-            && let Err(better_err) = opt(unexpected_parser).parse_next(i)
-            && let ErrMode::Backtrack(better_ctx) | ErrMode::Cut(better_ctx) = &better_err
-            && better_ctx.message.is_some()
-        {
-            *err = better_err;
+        // `span.start` is a byte offset, so seek with `next_slice()`: `take()` counts chars
+        if i.is_char_boundary(err_ctx.span.start) {
+            i.next_slice(err_ctx.span.start);
+            if let Err(better_err) = opt(unexpected_parser).parse_next(i)
+                && let ErrMode::Backtrack(better_ctx) | ErrMode::Cut(better_ctx) = &better_err
+                && better_ctx.message.is_some()
+            {
+                *err = better_err;
+            }
         }
         i.reset(&checkpoint);
     }
