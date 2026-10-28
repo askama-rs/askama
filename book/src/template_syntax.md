@@ -1034,8 +1034,8 @@ To have a small library of reusable snippets, it's best to declare the macros in
 A macro can call itself, directly or through other macros, if all of its
 arguments have a type annotation. The recursive call is rendered by a method
 generated for the macro, so like a Rust function it only sees its arguments
-and the fields of the template, not the variables at its call site, and it
-cannot be given a `caller` body:
+and the fields of the template, not the variables at its call site. A
+recursive call can have a `caller` body, but no `caller` arguments:
 
 ```jinja
 {% macro tree(node: Node, depth: usize = 0) %}

@@ -60,16 +60,28 @@ error: Found recursion in macro calls. A macro can only call itself if all its a
 35 | |     "#,
    | |______^
 
-error: Found recursion in macro calls. A macro can only call itself without a `caller` body, but this call of macro `one` has one:
- --> CallerBody.html:3:11
-       "call one(1) %}{% endcall %}\n    "
-         --> CallerBody.html:2:34
-       "call one(n) %}{{ n }}{% endcall %}{% endmacro %}\n        {% call one(1) %}{% end"...
+error: Found recursion in macro calls. A macro can only call itself without `caller` arguments, but this call of macro `one` has some:
+ --> CallerArgs.html:3:11
+       "call(x) one(1) %}{{ x }}{% endcall %}\n    "
+         --> CallerArgs.html:2:34
+       "call(x) one(n) %}{{ x }}{% endcall %}{% endmacro %}\n        {% call(x) one(1) %}"...
   --> tests/ui/macro-recursion.rs:42:14
    |
 42 |       source = "
    |  ______________^
-43 | |         {% macro one(n: u32) %}{% call one(n) %}{{ n }}{% endcall %}{% endmacro %}
-44 | |         {% call one(1) %}{% endcall %}
+43 | |         {% macro one(n: u32) %}{% call(x) one(n) %}{{ x }}{% endcall %}{% endmacro %}
+44 | |         {% call(x) one(1) %}{{ x }}{% endcall %}
 45 | |     ",
+   | |_____^
+
+error: block is not defined for `caller`
+ --> NoCallerBody.html:2:40
+       "() }}{{ one(n) }}{% endmacro %}\n        {% call one(1) %}{% endcall %}\n    "
+  --> tests/ui/macro-recursion.rs:52:14
+   |
+52 |       source = "
+   |  ______________^
+53 | |         {% macro one(n: u32) %}{{ caller() }}{{ one(n) }}{% endmacro %}
+54 | |         {% call one(1) %}{% endcall %}
+55 | |     ",
    | |_____^

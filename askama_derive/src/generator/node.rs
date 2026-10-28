@@ -1402,6 +1402,16 @@ impl<'a> Generator<'a, '_> {
         // This is either `caller()` itself, or an alias created by  `{% set alias = caller %}`.
         if let Some(LocalCallerMeta { call_ctx, def }) = caller_alias.cloned() {
             self.handle_ws(ws);
+            let Some(def) = def else {
+                check_num_args(span, ctx, 0, call.args.len(), "caller")?;
+                let size_hint = self.write_buf_writable(ctx, buf)?;
+                let span = ctx.span_for_node(span);
+                let var_caller = crate::var_caller();
+                let var_writer = crate::var_writer();
+                let var_values = crate::var_values();
+                quote_into!(buf, span, { #var_caller(#var_writer, #var_values)?; });
+                return Ok(Some(size_hint));
+            };
             let span_span = ctx.span_for_node(span);
             let size_hint = self.push_locals(|this| {
                 // Block-out the special caller() variable from this scope onward until it is

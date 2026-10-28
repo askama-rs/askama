@@ -40,12 +40,22 @@ struct AcrossImports;
 #[derive(Template)]
 #[template(
     source = "
-        {% macro one(n: u32) %}{% call one(n) %}{{ n }}{% endcall %}{% endmacro %}
+        {% macro one(n: u32) %}{% call(x) one(n) %}{{ x }}{% endcall %}{% endmacro %}
+        {% call(x) one(1) %}{{ x }}{% endcall %}
+    ",
+    ext = "html"
+)]
+struct CallerArgs;
+
+#[derive(Template)]
+#[template(
+    source = "
+        {% macro one(n: u32) %}{{ caller() }}{{ one(n) }}{% endmacro %}
         {% call one(1) %}{% endcall %}
     ",
     ext = "html"
 )]
-struct CallerBody;
+struct NoCallerBody;
 
 fn main() {
 }

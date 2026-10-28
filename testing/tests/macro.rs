@@ -887,6 +887,26 @@ fn test_recursive_macro() {
     assert_eq!(tree.as_content().render().unwrap(), "0:a&#60;|1:b|2:c|1:d|");
 }
 
+// Each recursive call passes its `caller` body as a closure. Like an inlined `caller()`, the body
+// sees the arguments of the macro it is passed to.
+#[test]
+fn test_recursive_macro_with_caller() {
+    #[derive(Template)]
+    #[template(
+        source = "
+{%- macro list(n: u32) -%}
+    [{{ caller() }}{% if *n > 0 %}{% call list(n - 1) %}{{ n }}{{ sep }}{% endcall %}{% endif %}]
+{%- endmacro -%}
+{%- call list(2) %}x{% endcall -%}",
+        ext = "html"
+    )]
+    struct List {
+        sep: &'static str,
+    }
+
+    assert_eq!(List { sep: "<" }.render().unwrap(), "[x[1&#60;[0&#60;]]]");
+}
+
 #[test]
 fn test_mutually_recursive_imported_macros() {
     #[derive(Template)]

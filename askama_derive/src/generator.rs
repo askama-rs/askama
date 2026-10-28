@@ -125,7 +125,8 @@ struct Generator<'a, 'h> {
     seen_callers: Vec<(&'a Macro<'a>, Option<FileInfo<'a>>)>,
     /// Macros that call themselves, so they are generated as functions, see
     /// [`Generator::write_macro_functions()`].
-    macro_functions: Vec<(&'a Macro<'a>, Context<'a>)>,
+    /// The `bool` tells whether the method takes a `caller` body.
+    macro_functions: Vec<(&'a Macro<'a>, Context<'a>, bool)>,
     /// The directory path of the calling file.
     caller_dir: CallerDir,
 }
@@ -612,7 +613,9 @@ struct LocalVariableMeta {
 
 #[derive(Clone)]
 struct LocalCallerMeta<'a> {
-    def: &'a Call<'a>,
+    /// `None` inside a method generated for a recursive macro, where `caller()` calls the
+    /// closure the method was given.
+    def: Option<&'a Call<'a>>,
     call_ctx: Context<'a>,
 }
 
@@ -665,7 +668,18 @@ impl<'a> LocalMeta<'a> {
 
     /// Special variable aliasing a `caller()`
     const fn caller(def: &'a Call<'a>, call_ctx: Context<'a>) -> Self {
-        Self::CallerAlias(LocalCallerMeta { def, call_ctx })
+        Self::CallerAlias(LocalCallerMeta {
+            def: Some(def),
+            call_ctx,
+        })
+    }
+
+    /// `caller()` inside a method generated for a recursive macro
+    const fn caller_param(call_ctx: Context<'a>) -> Self {
+        Self::CallerAlias(LocalCallerMeta {
+            def: None,
+            call_ctx,
+        })
     }
 }
 

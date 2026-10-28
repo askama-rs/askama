@@ -4,7 +4,7 @@ use std::fmt::Write;
 use std::mem;
 use std::str::FromStr;
 
-use parser::node::{Call, Macro, Node, Ws};
+use parser::node::{Call, Macro, Ws};
 use parser::{Expr, Span, TyGenerics, WithSpan};
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
@@ -108,18 +108,13 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                 arg.name.escape_debug(),
             ));
         }
-        // The function cannot see the caller's body, so only an empty one is allowed.
+        // The body is passed as a closure, whose parameters would need a type.
         if let Some(call) = self.call
-            && (!call.caller_args.is_empty()
-                || call.nodes.iter().any(|node| match &**node {
-                    Node::Lit(lit) => !lit.val.is_empty(),
-                    Node::Comment(_) => false,
-                    _ => true,
-                }))
+            && !call.caller_args.is_empty()
         {
             return Some(format!(
-                "A macro can only call itself without a `caller` body, \
-                 but this call of macro `{name}` has one",
+                "A macro can only call itself without `caller` arguments, \
+                 but this call of macro `{name}` has some",
             ));
         }
         None
@@ -131,24 +126,52 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         generator: &mut Generator<'a, 'h>,
     ) -> Result<SizeHint, CompileError> {
         self.ensure_arg_count()?;
-        let function = generator.macro_function(self.macro_def, self.macro_ctx);
+        let function =
+            generator.macro_function(self.macro_def, self.macro_ctx, self.call.is_some());
         let span = self.callsite_ctx.span_for_node(self.callsite_span);
+        let var_writer = crate::var_writer();
+        let var_values = crate::var_values();
 
         generator.push_locals(|this| {
             this.flush_ws(self.callsite_ws);
             let mut content = Buffer::new();
-            let size_hint = this.write_buf_writable(self.callsite_ctx, &mut content)?;
+            let mut size_hint = this.write_buf_writable(self.callsite_ctx, &mut content)?;
             // Every argument has a type, so the preamble binds each one to a variable of its name.
             self.write_preamble(&mut content, this)?;
-            let args = self
-                .macro_def
-                .args
-                .iter()
-                .map(|arg| field_new(&arg.name, span));
-            let var_writer = crate::var_writer();
-            let var_values = crate::var_values();
+            let mut args = Buffer::new();
+            for arg in &self.macro_def.args {
+                let arg = field_new(&arg.name, span);
+                quote_into!(&mut args, span, { #arg, });
+            }
+            if let Some(call) = self.call {
+                let mut body = Buffer::new();
+                size_hint += this.push_locals(|this| {
+                    // Like an inlined `caller()`, the body cannot call `caller()` itself.
+                    this.locals.insert("caller".into(), LocalMeta::Negative);
+                    this.prepare_ws(call.ws1);
+                    let size_hint = this.handle(
+                        self.callsite_ctx,
+                        &call.nodes,
+                        &mut body,
+                        AstLevel::Nested,
+                        RenderFor::Template,
+                    )?;
+                    this.flush_ws(call.ws2);
+                    Ok(size_hint + this.write_buf_writable(self.callsite_ctx, &mut body)?)
+                })?;
+                let body = body.into_token_stream();
+                quote_into!(&mut args, span, {
+                    &|#var_writer: &mut dyn askama::helpers::core::fmt::Write,
+                      #var_values: &dyn askama::Values|
+                     -> askama::Result<()> {
+                        #body
+                        askama::Result::Ok(())
+                    },
+                });
+            }
+            let args = args.into_token_stream();
             quote_into!(&mut content, span, {
-                self.#function(#var_writer, #var_values, #(#args),*)?;
+                self.#function(#var_writer, #var_values, #args)?;
             });
             let content = content.into_token_stream();
             quote_into!(buf, span, {{ #content }});
@@ -472,15 +495,17 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         macro_def: &'a Macro<'a>,
         macro_ctx: &Context<'a>,
+        has_caller: bool,
     ) -> syn::Ident {
         let index = match self
             .macro_functions
             .iter()
-            .position(|(def, _)| std::ptr::eq(*def, macro_def))
+            .position(|(def, _, caller)| std::ptr::eq(*def, macro_def) && *caller == has_caller)
         {
             Some(index) => index,
             None => {
-                self.macro_functions.push((macro_def, macro_ctx.clone()));
+                self.macro_functions
+                    .push((macro_def, macro_ctx.clone(), has_caller));
                 self.macro_functions.len() - 1
             }
         };
@@ -502,8 +527,10 @@ impl<'a> Generator<'a, '_> {
         let mut functions = Buffer::new();
         // A body can call further recursive macros, which adds them to the list.
         let mut index = 0;
-        while let Some((macro_def, macro_ctx)) = self.macro_functions.get(index).cloned() {
-            let function = self.macro_function(macro_def, &macro_ctx);
+        while let Some((macro_def, macro_ctx, has_caller)) =
+            self.macro_functions.get(index).cloned()
+        {
+            let function = self.macro_function(macro_def, &macro_ctx, has_caller);
             let mut generator = Generator::new(
                 self.input,
                 self.contexts,
@@ -528,6 +555,18 @@ impl<'a> Generator<'a, '_> {
                 generator
                     .locals
                     .insert(Cow::Borrowed(*arg.name), LocalMeta::var_decl());
+            }
+            if has_caller {
+                let var_caller = crate::var_caller();
+                quote_into!(&mut params, span, {
+                    #var_caller: &dyn Fn(
+                        &mut dyn askama::helpers::core::fmt::Write,
+                        &dyn askama::Values,
+                    ) -> askama::Result<()>,
+                });
+                generator
+                    .locals
+                    .insert("caller".into(), LocalMeta::caller_param(macro_ctx.clone()));
             }
             let params = params.into_token_stream();
 
