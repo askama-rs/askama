@@ -354,7 +354,7 @@ impl<'a, 'h> Generator<'a, 'h> {
 
         let template_buf = template_buf.into_token_stream();
         quote_into!(buf, span, {
-            #[allow(missing_docs, non_camel_case_types, non_snake_case, unreachable_pub)]
+            #[allow(missing_docs, non_camel_case_types, non_snake_case, single_use_lifetimes, unreachable_pub)]
             const _: () = {
                 #template_buf
 
