@@ -18,26 +18,26 @@ use crate::{
 
 #[derive(Debug, PartialEq)]
 pub enum Node<'a> {
-    Lit(WithSpan<Lit<'a>>),
-    Comment(WithSpan<Comment<'a>>),
+    Lit(Lit<'a>),
+    Comment(Comment<'a>),
     Expr(Ws, WithSpan<Box<Expr<'a>>>),
-    Call(WithSpan<Call<'a>>),
-    Let(WithSpan<Let<'a>>),
+    Call(Call<'a>),
+    Let(Let<'a>),
     /// Mutable operations like `+=`.
-    Compound(WithSpan<Compound<'a>>),
-    Declare(WithSpan<Declare<'a>>),
-    If(WithSpan<If<'a>>),
-    Match(WithSpan<Match<'a>>),
-    Loop(WithSpan<Loop<'a>>),
-    Extends(WithSpan<Extends<'a>>),
-    BlockDef(WithSpan<BlockDef<'a>>),
-    Include(WithSpan<Include<'a>>),
-    Import(WithSpan<Import<'a>>),
-    Macro(WithSpan<Macro<'a>>),
-    Raw(WithSpan<Raw<'a>>),
-    Break(WithSpan<Ws>),
-    Continue(WithSpan<Ws>),
-    FilterBlock(WithSpan<FilterBlock<'a>>),
+    Compound(Compound<'a>),
+    Declare(Declare<'a>),
+    If(If<'a>),
+    Match(Match<'a>),
+    Loop(Loop<'a>),
+    Extends(Extends<'a>),
+    BlockDef(BlockDef<'a>),
+    Include(Include<'a>),
+    Import(Import<'a>),
+    Macro(Macro<'a>),
+    Raw(Raw<'a>),
+    Break(Ws, Span),
+    Continue(Ws, Span),
+    FilterBlock(FilterBlock<'a>),
 }
 
 impl<'a: 'l, 'l> Node<'a> {
@@ -82,7 +82,7 @@ impl<'a: 'l, 'l> Node<'a> {
     fn one(i: &mut InputStream<'a, 'l>, allow_extends: bool) -> ParseResult<'a, Box<Self>> {
         let node = alt((Lit::parse, Comment::parse, Self::expr, Self::parse)).parse_next(i)?;
         if !allow_extends && let Node::Extends(node) = &*node {
-            return cut_error!("`extends` block must come first in a template", node.span());
+            return cut_error!("`extends` block must come first in a template", node.span);
         }
         Ok(node)
     }
@@ -144,7 +144,7 @@ impl<'a: 'l, 'l> Node<'a> {
         if !i.state.is_in_loop() {
             return cut_error!("you can only `break` inside a `for` loop", span);
         }
-        Ok(Box::new(Self::Break(WithSpan::new(Ws(pws, nws), span))))
+        Ok(Box::new(Self::Break(Ws(pws, nws), span.into())))
     }
 
     fn r#continue(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
@@ -158,7 +158,7 @@ impl<'a: 'l, 'l> Node<'a> {
         if !i.state.is_in_loop() {
             return cut_error!("you can only `continue` inside a `for` loop", span);
         }
-        Ok(Box::new(Self::Continue(WithSpan::new(Ws(pws, nws), span))))
+        Ok(Box::new(Self::Continue(Ws(pws, nws), span.into())))
     }
 
     fn expr(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
@@ -195,25 +195,24 @@ impl<'a: 'l, 'l> Node<'a> {
     #[must_use]
     pub fn span(&self) -> Span {
         match self {
-            Self::Lit(span) => span.span,
-            Self::Comment(span) => span.span,
-            Self::Expr(_, span) => span.span,
-            Self::Call(span) => span.span,
-            Self::Let(span) => span.span,
-            Self::Compound(span) => span.span,
-            Self::Declare(span) => span.span,
-            Self::If(span) => span.span,
-            Self::Match(span) => span.span,
-            Self::Loop(span) => span.span,
-            Self::Extends(span) => span.span,
-            Self::BlockDef(span) => span.span,
-            Self::Include(span) => span.span,
-            Self::Import(span) => span.span,
-            Self::Macro(span) => span.span,
-            Self::Raw(span) => span.span,
-            Self::Break(span) => span.span,
-            Self::Continue(span) => span.span,
-            Self::FilterBlock(span) => span.span,
+            Self::Loop(node) => node.span,
+            Self::Macro(node) => node.span,
+            Self::FilterBlock(node) => node.span,
+            Self::Import(node) => node.span,
+            Self::Call(node) => node.span,
+            Self::Match(node) => node.span,
+            Self::BlockDef(node) => node.span,
+            Self::Lit(node) => node.span,
+            Self::Raw(node) => node.span,
+            Self::Declare(node) => node.span,
+            Self::Let(node) => node.span,
+            Self::Compound(node) => node.span,
+            Self::If(node) => node.span,
+            Self::Include(node) => node.span,
+            Self::Extends(node) => node.span,
+            Self::Comment(node) => node.span,
+            Self::Expr(_, expr) => expr.span(),
+            Self::Break(_, span) | Self::Continue(_, span) => *span,
         }
     }
 }
@@ -305,10 +304,11 @@ pub struct When<'a> {
     pub ws: Ws,
     pub target: Vec<Target<'a>>,
     pub nodes: Vec<Box<Node<'a>>>,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> When<'a> {
-    fn r#else(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+    fn r#else(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
         let mut p = (
             block_start,
             opt(Whitespace::parse),
@@ -329,12 +329,13 @@ impl<'a: 'l, 'l> When<'a> {
             ws: Ws(pws, nws),
             target: vec![Target::Placeholder(WithSpan::new((), span))],
             nodes,
+            span,
         };
-        Ok(WithSpan::new(inner, span))
+        Ok(inner)
     }
 
     #[allow(clippy::self_named_constructors)]
-    fn when(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+    fn when(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
         let mut p = (
             block_start,
             opt(Whitespace::parse),
@@ -354,14 +355,12 @@ impl<'a: 'l, 'l> When<'a> {
         if let Some(endwhen) = endwhen {
             nodes.push(endwhen);
         }
-        Ok(WithSpan::new(
-            Self {
-                ws: Ws(pws, nws),
-                target,
-                nodes,
-            },
-            span,
-        ))
+        Ok(Self {
+            ws: Ws(pws, nws),
+            target,
+            nodes,
+            span: span.into(),
+        })
     }
 
     fn endwhen(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
@@ -381,13 +380,11 @@ impl<'a: 'l, 'l> When<'a> {
             ),
         ));
         let (_, pws, span) = p.parse_next(i)?;
-        Ok(Box::new(Node::Comment(WithSpan::new(
-            Comment {
-                ws: Ws(pws, Some(Whitespace::Suppress)),
-                content: "",
-            },
-            span,
-        ))))
+        Ok(Box::new(Node::Comment(Comment {
+            ws: Ws(pws, Some(Whitespace::Suppress)),
+            content: "",
+            span: span.into(),
+        })))
     }
 }
 
@@ -396,10 +393,11 @@ pub struct Cond<'a> {
     pub ws: Ws,
     pub cond: Option<WithSpan<CondTest<'a>>>,
     pub nodes: Vec<Box<Node<'a>>>,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Cond<'a> {
-    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
         let alt_else = (ws(keyword("else").span()), opt(CondTest::parse));
         let alt_elif = |i: &mut _| {
             let mut p = (
@@ -420,14 +418,12 @@ impl<'a: 'l, 'l> Cond<'a> {
         )
             .parse_next(i)?;
 
-        Ok(WithSpan::new(
-            Self {
-                ws: Ws(pws, nws),
-                cond,
-                nodes,
-            },
-            span,
-        ))
+        Ok(Self {
+            ws: Ws(pws, nws),
+            cond,
+            nodes,
+            span: span.into(),
+        })
     }
 }
 
@@ -555,6 +551,7 @@ pub struct Loop<'a> {
     pub ws2: Ws,
     pub else_nodes: Vec<Box<Node<'a>>>,
     pub ws3: Ws,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Loop<'a> {
@@ -630,19 +627,17 @@ impl<'a: 'l, 'l> Loop<'a> {
         );
         let (var, _, (iter, cond, nws1, _, (body, pws2, else_block, nws2))) = p.parse_next(i)?;
         let (nws3, else_nodes, pws3) = else_block.unwrap_or_default();
-        Ok(Box::new(Node::Loop(WithSpan::new(
-            Self {
-                ws1: Ws(pws1, nws1),
-                var,
-                iter,
-                cond,
-                body,
-                ws2: Ws(pws2, nws3),
-                else_nodes,
-                ws3: Ws(pws3, nws2),
-            },
+        Ok(Box::new(Node::Loop(Self {
+            ws1: Ws(pws1, nws1),
+            var,
+            iter,
+            cond,
+            body,
+            ws2: Ws(pws2, nws3),
+            else_nodes,
+            ws3: Ws(pws3, nws2),
             span,
-        ))))
+        })))
     }
 }
 
@@ -653,6 +648,7 @@ pub struct Macro<'a> {
     pub args: Vec<MacroArg<'a>>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
+    pub span: Span,
 }
 
 #[derive(Debug, PartialEq)]
@@ -769,16 +765,14 @@ impl<'a: 'l, 'l> Macro<'a> {
         );
         let (contents, (_, pws2, _, nws2)) = end.parse_next(i)?;
 
-        Ok(Box::new(Node::Macro(WithSpan::new(
-            Self {
-                ws1: Ws(pws1, nws1),
-                name: WithSpan::new(name, name_span),
-                args: params.unwrap_or_default(),
-                nodes: contents,
-                ws2: Ws(pws2, nws2),
-            },
-            keyword_span,
-        ))))
+        Ok(Box::new(Node::Macro(Self {
+            ws1: Ws(pws1, nws1),
+            name: WithSpan::new(name, name_span),
+            args: params.unwrap_or_default(),
+            nodes: contents,
+            ws2: Ws(pws2, nws2),
+            span: keyword_span,
+        })))
     }
 }
 
@@ -788,6 +782,7 @@ pub struct FilterBlock<'a> {
     pub filters: Filter<'a>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> FilterBlock<'a> {
@@ -833,15 +828,13 @@ impl<'a: 'l, 'l> FilterBlock<'a> {
         );
         let ((filters, nws1, _), nodes, (_, pws2, _, nws2)) = p.parse_next(i)?;
 
-        Ok(Box::new(Node::FilterBlock(WithSpan::new(
-            Self {
-                ws1: Ws(pws1, nws1),
-                filters,
-                nodes,
-                ws2: Ws(pws2, nws2),
-            },
+        Ok(Box::new(Node::FilterBlock(Self {
+            ws1: Ws(pws1, nws1),
+            filters,
+            nodes,
+            ws2: Ws(pws2, nws2),
             span,
-        ))))
+        })))
     }
 }
 
@@ -850,6 +843,7 @@ pub struct Import<'a> {
     pub ws: Ws,
     pub path: &'a str,
     pub scope: &'a str,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Import<'a> {
@@ -867,14 +861,12 @@ impl<'a: 'l, 'l> Import<'a> {
             ),
         );
         let (pws, span, (path, _, (scope, nws))) = p.parse_next(i)?;
-        Ok(Box::new(Node::Import(WithSpan::new(
-            Self {
-                ws: Ws(pws, nws),
-                path,
-                scope,
-            },
-            span,
-        ))))
+        Ok(Box::new(Node::Import(Self {
+            ws: Ws(pws, nws),
+            path,
+            scope,
+            span: span.into(),
+        })))
     }
 }
 
@@ -887,6 +879,7 @@ pub struct Call<'a> {
     pub args: Option<Vec<WithSpan<Box<Expr<'a>>>>>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Call<'a> {
@@ -944,18 +937,16 @@ impl<'a: 'l, 'l> Call<'a> {
         );
         let (nodes, (_, pws2, _, nws2)) = end.parse_next(i)?;
 
-        Ok(Box::new(Node::Call(WithSpan::new(
-            Self {
-                ws1: Ws(pws, nws),
-                caller_args: call_args.unwrap_or_default(),
-                scope,
-                name: WithSpan::new(name, name_span),
-                args: args.map(|args| args.deconstruct().0),
-                nodes,
-                ws2: Ws(pws2, nws2),
-            },
-            keyword_span,
-        ))))
+        Ok(Box::new(Node::Call(Self {
+            ws1: Ws(pws, nws),
+            caller_args: call_args.unwrap_or_default(),
+            scope,
+            name: WithSpan::new(name, name_span),
+            args: args.map(|args| args.deconstruct().0),
+            nodes,
+            ws2: Ws(pws2, nws2),
+            span: keyword_span,
+        })))
     }
 }
 
@@ -963,8 +954,9 @@ impl<'a: 'l, 'l> Call<'a> {
 pub struct Match<'a> {
     pub ws1: Ws,
     pub expr: WithSpan<Box<Expr<'a>>>,
-    pub arms: Vec<WithSpan<When<'a>>>,
+    pub arms: Vec<When<'a>>,
     pub ws2: Ws,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Match<'a> {
@@ -1008,15 +1000,13 @@ impl<'a: 'l, 'l> Match<'a> {
             );
         }
 
-        Ok(Box::new(Node::Match(WithSpan::new(
-            Self {
-                ws1: Ws(pws1, nws1),
-                expr,
-                arms,
-                ws2: Ws(pws2, nws2),
-            },
+        Ok(Box::new(Node::Match(Self {
+            ws1: Ws(pws1, nws1),
+            expr,
+            arms,
+            ws2: Ws(pws2, nws2),
             span,
-        ))))
+        })))
     }
 }
 
@@ -1026,6 +1016,7 @@ pub struct BlockDef<'a> {
     pub name: WithSpan<&'a str>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> BlockDef<'a> {
@@ -1062,15 +1053,13 @@ impl<'a: 'l, 'l> BlockDef<'a> {
         );
         let (nodes, (_, pws2, _, nws2)) = end.parse_next(i)?;
 
-        Ok(Box::new(Node::BlockDef(WithSpan::new(
-            BlockDef {
-                ws1: Ws(pws1, nws1),
-                name: WithSpan::new(name, name_span),
-                nodes,
-                ws2: Ws(pws2, nws2),
-            },
-            keyword_span,
-        ))))
+        Ok(Box::new(Node::BlockDef(BlockDef {
+            ws1: Ws(pws1, nws1),
+            name: WithSpan::new(name, name_span),
+            nodes,
+            ws2: Ws(pws2, nws2),
+            span: keyword_span,
+        })))
     }
 }
 
@@ -1103,6 +1092,7 @@ pub struct Lit<'a> {
     pub lws: WithSpan<&'a str>,
     pub val: WithSpan<&'a str>,
     pub rws: WithSpan<&'a str>,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Lit<'a> {
@@ -1124,18 +1114,24 @@ impl<'a: 'l, 'l> Lit<'a> {
         )))))
     }
 
-    pub(crate) fn split_ws_parts(s: WithSpan<&'a str>) -> WithSpan<Self> {
-        let content = if let Some(mid) = s.find(|c: char| !c.is_ascii_whitespace()) {
+    pub(crate) fn split_ws_parts(s: WithSpan<&'a str>) -> Self {
+        if let Some(mid) = s.find(|c: char| !c.is_ascii_whitespace()) {
             let (lws, val) = s.split_at(mid);
             let mid = val.trim_ascii_end().len();
             if val.len() != mid {
                 let (val, rws) = val.split_at(mid);
-                Self { lws, val, rws }
+                Self {
+                    lws,
+                    val,
+                    rws,
+                    span: s.span,
+                }
             } else {
                 Self {
                     lws,
                     val,
                     rws: val.end(),
+                    span: s.span,
                 }
             }
         } else {
@@ -1144,24 +1140,23 @@ impl<'a: 'l, 'l> Lit<'a> {
                 lws: s,
                 val: end,
                 rws: end,
+                span: s.span,
             }
-        };
-        WithSpan::new(content, s.span)
+        }
     }
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Raw<'a> {
     pub ws1: Ws,
-    pub lit: WithSpan<Lit<'a>>,
+    pub lit: Lit<'a>,
     pub ws2: Ws,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Raw<'a> {
     fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
-        fn endraw<'a: 'l, 'l>(
-            i: &mut InputStream<'a, 'l>,
-        ) -> ParseResult<'a, (Ws, WithSpan<Lit<'a>>)> {
+        fn endraw<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, (Ws, Lit<'a>)> {
             let start_i = ***i;
             let start_idx = i.current_token_start();
             loop {
@@ -1212,10 +1207,12 @@ impl<'a: 'l, 'l> Raw<'a> {
         );
         let (pws, span, (nws, (ws2, lit))) = p.parse_next(i)?;
         let ws1 = Ws(pws, nws);
-        Ok(Box::new(Node::Raw(WithSpan::new(
-            Self { ws1, lit, ws2 },
-            span,
-        ))))
+        Ok(Box::new(Node::Raw(Self {
+            ws1,
+            lit,
+            ws2,
+            span: span.into(),
+        })))
     }
 }
 
@@ -1224,6 +1221,7 @@ pub struct Declare<'a> {
     pub ws: Ws,
     pub var_name: WithSpan<&'a str>,
     pub is_mutable: bool,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Declare<'a> {
@@ -1237,14 +1235,12 @@ impl<'a: 'l, 'l> Declare<'a> {
         );
         let (pws, span, is_mut, (var_name, var_name_span), nws) = p.parse_next(i)?;
 
-        Ok(Box::new(Node::Declare(WithSpan::new(
-            Declare {
-                ws: Ws(pws, nws),
-                var_name: WithSpan::new(var_name, var_name_span),
-                is_mutable: is_mut.is_some(),
-            },
-            span,
-        ))))
+        Ok(Box::new(Node::Declare(Declare {
+            ws: Ws(pws, nws),
+            var_name: WithSpan::new(var_name, var_name_span),
+            is_mutable: is_mut.is_some(),
+            span: span.into(),
+        })))
     }
 }
 
@@ -1261,6 +1257,7 @@ pub struct Let<'a> {
     pub ty: Option<WithSpan<TyGenerics<'a>>>,
     pub val: LetValueOrBlock<'a>,
     pub is_mutable: bool,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Let<'a> {
@@ -1363,16 +1360,14 @@ impl<'a: 'l, 'l> Let<'a> {
         }
 
         if let Some(val) = val {
-            return Ok(Box::new(Node::Let(WithSpan::new(
-                Let {
-                    ws: Ws(pws, nws),
-                    var,
-                    ty,
-                    val: LetValueOrBlock::Value(val),
-                    is_mutable: is_mut.is_some(),
-                },
-                span,
-            ))));
+            return Ok(Box::new(Node::Let(Let {
+                ws: Ws(pws, nws),
+                var,
+                ty,
+                val: LetValueOrBlock::Value(val),
+                is_mutable: is_mut.is_some(),
+                span: span.into(),
+            })));
         }
 
         // We do this operation
@@ -1421,19 +1416,17 @@ impl<'a: 'l, 'l> Let<'a> {
         );
         let (nodes, (_, pws2, _, nws2)) = end.parse_next(i)?;
 
-        Ok(Box::new(Node::Let(WithSpan::new(
-            Let {
-                ws: Ws(pws, nws),
-                var,
-                ty,
-                val: LetValueOrBlock::Block {
-                    nodes,
-                    ws: Ws(pws2, nws2),
-                },
-                is_mutable: is_mut.is_some(),
+        Ok(Box::new(Node::Let(Let {
+            ws: Ws(pws, nws),
+            var,
+            ty,
+            val: LetValueOrBlock::Block {
+                nodes,
+                ws: Ws(pws2, nws2),
             },
-            span,
-        ))))
+            is_mutable: is_mut.is_some(),
+            span: span.into(),
+        })))
     }
 }
 
@@ -1441,6 +1434,7 @@ impl<'a: 'l, 'l> Let<'a> {
 pub struct Compound<'a> {
     pub op: WithSpan<BinOp<'a>>,
     pub ws: Ws,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Compound<'a> {
@@ -1474,13 +1468,11 @@ impl<'a: 'l, 'l> Compound<'a> {
             );
         };
 
-        Ok(Box::new(Node::Compound(WithSpan::new(
-            Compound {
-                ws: Ws(pws, nws),
-                op: WithSpan::new(BinOp { op, lhs, rhs }, span.clone()),
-            },
-            span,
-        ))))
+        Ok(Box::new(Node::Compound(Compound {
+            ws: Ws(pws, nws),
+            op: WithSpan::new(BinOp { op, lhs, rhs }, span.clone()),
+            span: span.into(),
+        })))
     }
 }
 
@@ -1506,7 +1498,8 @@ fn compound_assignment_op<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResul
 #[derive(Debug, PartialEq)]
 pub struct If<'a> {
     pub ws: Ws,
-    pub branches: Vec<WithSpan<Cond<'a>>>,
+    pub branches: Vec<Cond<'a>>,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> If<'a> {
@@ -1539,23 +1532,19 @@ impl<'a: 'l, 'l> If<'a> {
         );
 
         let (nws1, _, (nodes, elifs, (_, pws2, _, nws2))) = p.parse_next(i)?;
-        let mut branches = vec![WithSpan::new(
-            Cond {
-                ws: Ws(pws1, nws1),
-                cond: Some(cond),
-                nodes,
-            },
-            cond_span,
-        )];
+        let mut branches = vec![Cond {
+            ws: Ws(pws1, nws1),
+            cond: Some(cond),
+            nodes,
+            span: cond_span,
+        }];
         branches.extend(elifs);
 
-        Ok(Box::new(Node::If(WithSpan::new(
-            Self {
-                ws: Ws(pws2, nws2),
-                branches,
-            },
-            cond_span,
-        ))))
+        Ok(Box::new(Node::If(Self {
+            ws: Ws(pws2, nws2),
+            branches,
+            span: cond_span,
+        })))
     }
 }
 
@@ -1563,45 +1552,49 @@ impl<'a: 'l, 'l> If<'a> {
 pub struct Include<'a> {
     pub ws: Ws,
     pub path: &'a str,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Include<'a> {
     fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
-        let p = (
+        let mut p = (
             opt(Whitespace::parse),
-            ws(keyword("include")),
+            ws(keyword("include").span()),
             cut_node(
                 Some("include"),
                 (ws(str_lit_without_prefix), opt(Whitespace::parse)),
             ),
         );
-        let ((pws, _, (path, nws)), span) = p.with_span().parse_next(i)?;
-        Ok(Box::new(Node::Include(WithSpan::new(
-            Self {
-                ws: Ws(pws, nws),
-                path,
-            },
-            span,
-        ))))
+        let (pws, span, (path, nws)) = p.parse_next(i)?;
+        Ok(Box::new(Node::Include(Self {
+            ws: Ws(pws, nws),
+            path,
+            span: span.into(),
+        })))
     }
 }
 
 #[derive(Debug, PartialEq)]
 pub struct Extends<'a> {
     pub path: &'a str,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Extends<'a> {
     fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Node<'a>>> {
-        let p = preceded(
-            (opt(Whitespace::parse), ws(keyword("extends"))),
+        let mut p = (
+            opt(Whitespace::parse),
+            ws(keyword("extends").span()),
             cut_node(
                 Some("extends"),
                 terminated(ws(str_lit_without_prefix), opt(Whitespace::parse)),
             ),
         );
-        let (path, span) = p.with_span().parse_next(i)?;
-        Ok(Box::new(Node::Extends(WithSpan::new(Self { path }, span))))
+        let (_, span, path) = p.parse_next(i)?;
+        Ok(Box::new(Node::Extends(Self {
+            path,
+            span: span.into(),
+        })))
     }
 }
 
@@ -1609,6 +1602,7 @@ impl<'a: 'l, 'l> Extends<'a> {
 pub struct Comment<'a> {
     pub ws: Ws,
     pub content: &'a str,
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> Comment<'a> {
@@ -1661,10 +1655,11 @@ impl<'a: 'l, 'l> Comment<'a> {
             [pws, .., nws] => Ws(Whitespace::parse_byte(pws), Whitespace::parse_byte(nws)),
             _ => Ws(None, None),
         };
-        Ok(Box::new(Node::Comment(WithSpan::new(
-            Self { ws, content },
-            span,
-        ))))
+        Ok(Box::new(Node::Comment(Self {
+            ws,
+            content,
+            span: span.into(),
+        })))
     }
 }
 

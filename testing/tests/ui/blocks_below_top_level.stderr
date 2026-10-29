@@ -1,6 +1,6 @@
 error: `extends` block must come first in a template
- --> <source attribute>:3:2
-       " extends \"bla.txt\" %}\n{% endblock %}\n"
+ --> <source attribute>:3:3
+       "extends \"bla.txt\" %}\n{% endblock %}\n"
  --> tests/ui/blocks_below_top_level.rs:4:21
   |
 4 |   #[template(source = r#"

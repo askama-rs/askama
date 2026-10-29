@@ -1,14 +1,14 @@
 error: template "transclude-missing.html" not found in directories ["$WORKSPACE/target/tests/trybuild/askama_testing/templates"]
- --> testing/templates/transclude-there.html:1:2
-       " include \"transclude-missing.html\" %}"
+ --> testing/templates/transclude-there.html:1:3
+       "include \"transclude-missing.html\" %}"
  --> tests/ui/transclude-missing.rs:4:19
   |
 4 | #[template(path = "transclude-there.html")]
   |                   ^^^^^^^^^^^^^^^^^^^^^^^
 
 error: template "transclude-missing.html" not found in directories ["$WORKSPACE/target/tests/trybuild/askama_testing/templates"]
- --> testing/templates/transclude-there.html:1:2
-       " include \"transclude-missing.html\" %}"
+ --> testing/templates/transclude-there.html:1:3
+       "include \"transclude-missing.html\" %}"
  --> tests/ui/transclude-missing.rs:8:21
   |
 8 | #[template(source = r#"{% include "transclude-there.html" %}"#, ext = "html")]

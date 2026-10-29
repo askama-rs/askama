@@ -6,7 +6,7 @@ use crate::expr::BinOp;
 use crate::node::{Let, Lit, Raw, Whitespace, Ws};
 use crate::{
     Ast, Expr, Filter, InnerSyntax, InputStream, LetValueOrBlock, Level, Node, Num, PathComponent,
-    PathOrIdentifier, State, StrLit, Syntax, SyntaxBuilder, Target, WithSpan,
+    PathOrIdentifier, Span, State, StrLit, Syntax, SyntaxBuilder, Target, WithSpan,
 };
 
 fn as_path<'a>(path: &'a [&'a str]) -> Vec<PathComponent<'a>> {
@@ -457,20 +457,22 @@ fn unicode_delimiters_in_syntax() {
             .unwrap()
             .nodes(),
         [
-            Box::new(Node::Lit(WithSpan::no_span(Lit {
+            Box::new(Node::Lit(Lit {
                 lws: WithSpan::no_span(""),
                 val: WithSpan::no_span("Here comes the expression:"),
                 rws: WithSpan::no_span(" "),
-            }))),
+                span: Span::no_span(),
+            })),
             Box::new(Node::Expr(
                 Ws(None, None),
                 WithSpan::no_span(Box::new(Expr::Var("e")))
             )),
-            Box::new(Node::Lit(WithSpan::no_span(Lit {
+            Box::new(Node::Lit(Lit {
                 lws: WithSpan::no_span(""),
                 val: WithSpan::no_span("."),
                 rws: WithSpan::no_span(""),
-            }))),
+                span: Span::no_span(),
+            })),
         ],
     );
 }
@@ -1469,15 +1471,17 @@ fn test_raw() {
         )
         .unwrap()
         .nodes,
-        [Box::new(Node::Raw(WithSpan::no_span(Raw {
+        [Box::new(Node::Raw(Raw {
             ws1: Ws(Some(Whitespace::Preserve), Some(Whitespace::Suppress)),
-            lit: WithSpan::no_span(Lit {
+            lit: Lit {
                 lws: WithSpan::no_span(" "),
                 val: WithSpan::no_span(val),
                 rws: WithSpan::no_span(" "),
-            }),
+                span: Span::no_span(),
+            },
             ws2: Ws(Some(Whitespace::Minimize), Some(Whitespace::Minimize)),
-        })))],
+            span: Span::no_span(),
+        }))],
     );
 
     // We must make sure that the character for whitespace handling, e.g. `-` is not consumed,
@@ -1493,15 +1497,17 @@ fn test_raw() {
         Ast::from_str("-$- raw -$- -$- endraw -$ endraw -$-", None, &syntax)
             .unwrap()
             .nodes,
-        [Box::new(Node::Raw(WithSpan::no_span(Raw {
+        [Box::new(Node::Raw(Raw {
             ws1: Ws(Some(Whitespace::Suppress), Some(Whitespace::Suppress)),
-            lit: WithSpan::no_span(Lit {
+            lit: Lit {
                 lws: WithSpan::no_span(" "),
                 val: WithSpan::no_span("-$- endraw"),
                 rws: WithSpan::no_span(" "),
-            }),
+                span: Span::no_span(),
+            },
             ws2: Ws(None, Some(Whitespace::Suppress)),
-        })))],
+            span: Span::no_span(),
+        }))],
     );
 }
 
@@ -1654,7 +1660,7 @@ fn regression_tests_span_change() {
         Ast::from_str("{%- let [_] = [2] -%}", None, &syntax)
             .unwrap()
             .nodes(),
-        [Box::new(Node::Let(WithSpan::no_span(Let {
+        [Box::new(Node::Let(Let {
             ws: Ws(Some(Whitespace::Suppress), Some(Whitespace::Suppress)),
             var: Target::Array(WithSpan::no_span(vec![Target::Placeholder(
                 WithSpan::no_span(())
@@ -1664,14 +1670,15 @@ fn regression_tests_span_change() {
             )])))),
             ty: None,
             is_mutable: false,
-        })))],
+            span: Span::no_span(),
+        }))],
     );
 
     assert_eq!(
         Ast::from_str("{%- let (_) = [2] -%}", None, &syntax)
             .unwrap()
             .nodes(),
-        [Box::new(Node::Let(WithSpan::no_span(Let {
+        [Box::new(Node::Let(Let {
             ws: Ws(Some(Whitespace::Suppress), Some(Whitespace::Suppress)),
             var: Target::Placeholder(WithSpan::no_span(())),
             val: LetValueOrBlock::Value(WithSpan::no_span(Box::new(Expr::Array(vec![int_lit(
@@ -1679,7 +1686,8 @@ fn regression_tests_span_change() {
             )])))),
             ty: None,
             is_mutable: false,
-        })))],
+            span: Span::no_span(),
+        }))],
     );
 
     assert_eq!(
@@ -1687,11 +1695,12 @@ fn regression_tests_span_change() {
             .unwrap()
             .nodes(),
         [
-            Box::new(Node::Lit(WithSpan::no_span(Lit {
+            Box::new(Node::Lit(Lit {
                 lws: WithSpan::no_span(""),
                 val: WithSpan::no_span("Hello,"),
                 rws: WithSpan::no_span(" "),
-            }))),
+                span: Span::no_span(),
+            })),
             Box::new(Node::Expr(
                 Ws(None, None),
                 WithSpan::no_span(Box::new(Expr::Filter(Filter {
@@ -1699,11 +1708,12 @@ fn regression_tests_span_change() {
                     arguments: vec![WithSpan::no_span(Box::new(Expr::Var("user")))],
                 })))
             )),
-            Box::new(Node::Lit(WithSpan::no_span(Lit {
+            Box::new(Node::Lit(Lit {
                 lws: WithSpan::no_span(""),
                 val: WithSpan::no_span("!"),
                 rws: WithSpan::no_span(""),
-            }))),
+                span: Span::no_span(),
+            })),
         ],
     );
 
@@ -1801,5 +1811,50 @@ fn test_fallback_error_after_non_ascii_text() {
         .to_string(),
         "node `else` was not expected in the current context: `block` block\n\
         failed to parse template source near offset 30",
+    );
+}
+
+#[test]
+fn test_node_spans() {
+    // `Span` compares equal to any span, so the `assert_eq!`s above cannot catch a wrong one.
+    const SRC: &str = concat!(
+        r#"{% extends "b.html" %}{% import "m.html" as m %}{% macro mac(a) %}{% endmacro %}"#,
+        "{% block b %}{% if a %}{%- else if b +%}{% else %}{% endif %}{% if let Some(q) = r %}",
+        "{% endif %}{% match x %}{% when Some(y) %}{{ y }}{% else %}{% endmatch %}{% for i in v %}",
+        "{% break %}{%- continue -%}{% endfor %}{% filter upper %}{% endfilter %}",
+        "{% call m::mac(1) %}{% endcall %}{% let z = 1 %}{% set w %}{% endset %}{% decl d %}",
+        r#"{% mut z += 2 %}{% raw %}r{% endraw %}{% include "i.html" %}{# c #}{% endblock %}"#,
+    );
+
+    fn walk(nodes: &[Box<Node<'_>>], out: &mut Vec<&'static str>) {
+        let text = |span: Span| span.as_infix_of(SRC).unwrap();
+        for node in nodes {
+            out.push(text(node.span()));
+            match &**node {
+                Node::If(node) => node.branches.iter().for_each(|cond| {
+                    out.push(text(cond.span));
+                    walk(&cond.nodes, out);
+                }),
+                Node::Match(node) => node.arms.iter().for_each(|arm| {
+                    out.push(text(arm.span));
+                    walk(&arm.nodes, out);
+                }),
+                Node::Loop(node) => walk(&node.body, out),
+                Node::BlockDef(node) => walk(&node.nodes, out),
+                _ => {}
+            }
+        }
+    }
+
+    let ast = Ast::from_str(SRC, None, &Syntax::default()).unwrap();
+    let mut spans = vec![];
+    walk(ast.nodes(), &mut spans);
+    assert_eq!(
+        spans,
+        [
+            "extends", "import", "macro", "block", "if", "if", "else", "else", "if", "if", "match",
+            "when", "y", "else", "for", "break", "continue", "filter", "call", "let", "set",
+            "decl", "mut", "raw", "include", "{# c #}",
+        ],
     );
 }
