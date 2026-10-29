@@ -21,7 +21,7 @@ pub(crate) struct MacroInvocation<'a, 'b> {
     pub callsite_span: Span,
     pub callsite_ws: Ws,
     pub call_args: &'b [WithSpan<Box<Expr<'a>>>],
-    pub call: Option<&'a WithSpan<Call<'a>>>,
+    pub call: Option<&'a Call<'a>>,
     pub macro_def: &'a Macro<'a>,
     pub macro_ctx: &'b Context<'a>,
 }

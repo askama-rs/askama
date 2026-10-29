@@ -3,7 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use parser::node::{BlockDef, Macro};
-use parser::{Node, Parsed, Span, WithSpan};
+use parser::{Node, Parsed, Span};
 
 use crate::config::Config;
 use crate::spans::SourceSpan;
@@ -82,7 +82,7 @@ impl<'a> Context<'a> {
         called_blocks: &mut crate::CalledBlocks<'a>,
     ) -> Result<Self, CompileError> {
         let mut extends = None;
-        let mut blocks: HashMap<&'a str, &'a WithSpan<BlockDef<'a>>> = HashMap::default();
+        let mut blocks: HashMap<&'a str, &'a BlockDef<'a>> = HashMap::default();
         let mut macros = HashMap::default();
         let mut nested = vec![parsed.nodes()];
         let mut top = true;
@@ -93,28 +93,28 @@ impl<'a> Context<'a> {
             for n in nodes {
                 match &**n {
                     Node::Extends(e) => {
-                        ensure_top(top, e.span(), path, parsed, "extends")?;
+                        ensure_top(top, e.span, path, parsed, "extends")?;
                         if extends.is_some() {
                             return Err(CompileError::new(
                                 "multiple extend blocks found",
-                                Some(FileInfo::of(e.span(), path, parsed)),
+                                Some(FileInfo::of(e.span, path, parsed)),
                             ));
                         }
                         extends = Some(e);
                     }
                     Node::Macro(m) => {
-                        ensure_top(top, m.span(), path, parsed, "macro")?;
-                        macros.insert(*m.name, &**m);
+                        ensure_top(top, m.span, path, parsed, "macro")?;
+                        macros.insert(*m.name, m);
                     }
                     Node::Import(import) => {
-                        ensure_top(top, import.span(), path, parsed, "import")?;
+                        ensure_top(top, import.span, path, parsed, "import")?;
                         imports.push(import);
                     }
                     Node::BlockDef(b) => {
-                        let current = Self::file_info_of_inner(b.span(), path, parsed);
+                        let current = Self::file_info_of_inner(b.span, path, parsed);
                         // This checks if the same block is called in a file.
                         if let Some(prev) = blocks.get(&*b.name) {
-                            let prev = Self::file_info_of_inner(prev.span(), path, parsed);
+                            let prev = Self::file_info_of_inner(prev.span, path, parsed);
                             let error_msg = format!(
                                 "⚠️ {current:#}: block `{}` was already called at `{prev:#}` so the previous one will be ignored\n\
                                  You can repeat blocks by using the `template` proc-macro blocks: \
@@ -123,7 +123,7 @@ impl<'a> Context<'a> {
                             );
                             return Err(CompileError::new(
                                 error_msg,
-                                Some(FileInfo::of(b.span(), path, parsed)),
+                                Some(FileInfo::of(b.span, path, parsed)),
                             ));
                         } else if extends.is_none() {
                             called_blocks.check_if_already_called(*b.name, current);
@@ -158,11 +158,6 @@ impl<'a> Context<'a> {
             top = false;
         }
 
-        let blocks = blocks
-            .into_iter()
-            .map(|(k, v)| (k, &**v))
-            .collect::<HashMap<_, _>>();
-
         let mut ctx = Context {
             nodes: parsed.nodes(),
             extends: None,
@@ -178,16 +173,16 @@ impl<'a> Context<'a> {
             ctx.extends = Some(config.find_template(
                 extends.path,
                 Some(path),
-                Some(FileInfo::of(extends.span(), path, parsed)),
-                Some(ctx.span_for_node(extends.span())),
+                Some(FileInfo::of(extends.span, path, parsed)),
+                Some(ctx.span_for_node(extends.span)),
             )?);
         }
         for import in imports {
             let path = config.find_template(
                 import.path,
                 Some(path),
-                Some(FileInfo::of(import.span(), path, parsed)),
-                Some(ctx.span_for_node(import.span())),
+                Some(FileInfo::of(import.span, path, parsed)),
+                Some(ctx.span_for_node(import.span)),
             )?;
             ctx.imports.insert(import.scope, path);
         }

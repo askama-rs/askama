@@ -169,6 +169,15 @@ impl Default for Span {
     }
 }
 
+/// Where a node was found is not part of what it is: a node equals the same node parsed
+/// elsewhere, as it did inside a `WithSpan`.
+impl PartialEq for Span {
+    #[inline]
+    fn eq(&self, _: &Self) -> bool {
+        true
+    }
+}
+
 impl From<&InputStream<'_, '_>> for Span {
     #[inline]
     fn from(i: &InputStream<'_, '_>) -> Self {

@@ -148,17 +148,12 @@ impl<'a> Generator<'a, '_> {
                                  another statement, like `if`, `match` or `for`",
                                 b.name.escape_debug(),
                             ),
-                            b.span(),
+                            b.span,
                         ));
                     }
                     if render_for == RenderFor::Template {
-                        size_hint += self.write_block(
-                            ctx,
-                            buf,
-                            Some(b.name),
-                            Ws(b.ws1.0, b.ws2.1),
-                            b.span(),
-                        )?;
+                        size_hint +=
+                            self.write_block(ctx, buf, Some(b.name), Ws(b.ws1.0, b.ws2.1), b.span)?;
                     }
                 }
                 Node::Include(ref i) => {
@@ -172,10 +167,8 @@ impl<'a> Generator<'a, '_> {
                 }
                 Node::Macro(ref m) => {
                     if level != AstLevel::Top {
-                        return Err(ctx.generate_error(
-                            "macro blocks only allowed at the top level",
-                            m.span(),
-                        ));
+                        return Err(ctx
+                            .generate_error("macro blocks only allowed at the top level", m.span));
                     }
                     self.flush_ws(m.ws1);
                     self.prepare_ws(m.ws2);
@@ -191,7 +184,7 @@ impl<'a> Generator<'a, '_> {
                     if level != AstLevel::Top {
                         return Err(ctx.generate_error(
                             "import blocks only allowed at the top level",
-                            i.span(),
+                            i.span,
                         ));
                     }
                     self.handle_ws(i.ws);
@@ -200,23 +193,23 @@ impl<'a> Generator<'a, '_> {
                     if level != AstLevel::Top {
                         return Err(ctx.generate_error(
                             "extends blocks only allowed at the top level",
-                            e.span(),
+                            e.span,
                         ));
                     }
                     // No whitespace handling: child template top-level is not used,
                     // except for the blocks defined in it.
                 }
-                Node::Break(ref ws) => {
-                    self.handle_ws(**ws);
+                Node::Break(ws, span) => {
+                    self.handle_ws(ws);
                     size_hint += self.write_buf_writable(ctx, buf)?;
-                    quote_into!(buf, ctx.span_for_node(ws.span()), {
+                    quote_into!(buf, ctx.span_for_node(span), {
                         break;
                     });
                 }
-                Node::Continue(ref ws) => {
-                    self.handle_ws(**ws);
+                Node::Continue(ws, span) => {
+                    self.handle_ws(ws);
                     size_hint += self.write_buf_writable(ctx, buf)?;
-                    quote_into!(buf, ctx.span_for_node(ws.span()), {
+                    quote_into!(buf, ctx.span_for_node(span), {
                         continue;
                     });
                 }
@@ -445,7 +438,7 @@ impl<'a> Generator<'a, '_> {
                         this.visit_condition(ctx, buf, expr)?;
                     }
                 } else if pos != 0 {
-                    buf.write_token(Token![else], ctx.span_for_node(cond.span()));
+                    buf.write_token(Token![else], ctx.span_for_node(cond.span));
                     has_else = true;
                 } else {
                     has_cond = false;
@@ -476,7 +469,7 @@ impl<'a> Generator<'a, '_> {
                 }
                 if has_cond {
                     let block_buf = block_buf.into_token_stream();
-                    quote_into!(buf, ctx.span_for_node(cond.span()), { { #block_buf } });
+                    quote_into!(buf, ctx.span_for_node(cond.span), { { #block_buf } });
                 } else {
                     buf.write_buf(block_buf);
                 }
@@ -503,6 +496,7 @@ impl<'a> Generator<'a, '_> {
             ref expr,
             ref arms,
             ws2,
+            span: _,
         } = *m;
 
         self.flush_ws(ws1);
@@ -558,11 +552,11 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        loop_block: &'a WithSpan<Loop<'_>>,
+        loop_block: &'a Loop<'_>,
         render_for: RenderFor,
     ) -> Result<SizeHint, CompileError> {
         self.handle_ws(loop_block.ws1);
-        let span = ctx.span_for_node(loop_block.span());
+        let span = ctx.span_for_node(loop_block.span);
         self.push_locals(|this| {
             let has_else_nodes = !loop_block.else_nodes.is_empty();
 
@@ -668,7 +662,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        call: &'a WithSpan<Call<'_>>,
+        call: &'a Call<'_>,
         render_for: RenderFor,
     ) -> Result<SizeHint, CompileError> {
         let Call {
@@ -678,19 +672,19 @@ impl<'a> Generator<'a, '_> {
             ref args,
             ws2,
             ..
-        } = **call;
+        } = *call;
 
         let (def, own_ctx) = if let Some(s) = scope {
             let path = ctx.imports.get(*s).ok_or_else(|| {
                 ctx.generate_error(
                     format_args!("no import found for scope `{}`", s.escape_debug()),
-                    call.span(),
+                    call.span,
                 )
             })?;
             let mctx = self.contexts.get(path).ok_or_else(|| {
                 ctx.generate_error(
                     format_args!("context for `{}` not found", path.display()),
-                    call.span(),
+                    call.span,
                 )
             })?;
             let def = mctx.macros.get(&*name).ok_or_else(|| {
@@ -700,7 +694,7 @@ impl<'a> Generator<'a, '_> {
                         name.escape_debug(),
                         s.escape_debug(),
                     ),
-                    call.span(),
+                    call.span,
                 )
             })?;
             (*def, mctx)
@@ -708,7 +702,7 @@ impl<'a> Generator<'a, '_> {
             let def = ctx.macros.get(&*name).ok_or_else(|| {
                 ctx.generate_error(
                     format_args!("macro `{}` not found", name.escape_debug()),
-                    call.span(),
+                    call.span,
                 )
             })?;
             (*def, ctx)
@@ -719,7 +713,7 @@ impl<'a> Generator<'a, '_> {
         // - endcall-block's outer (end)
         helpers::MacroInvocation {
             callsite_ctx: ctx,
-            callsite_span: call.span(),
+            callsite_span: call.span,
             call: Some(call),
             callsite_ws: Ws(ws1.0, ws2.1),
             call_args: args.as_deref().unwrap_or_default(),
@@ -733,7 +727,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        filter: &'a WithSpan<FilterBlock<'_>>,
+        filter: &'a FilterBlock<'_>,
     ) -> Result<SizeHint, CompileError> {
         let var_filter_source = crate::var_filter_source();
 
@@ -741,7 +735,7 @@ impl<'a> Generator<'a, '_> {
         self.flush_ws(filter.ws1);
         self.is_in_block.increase("filter");
         size_hint += self.write_buf_writable(ctx, buf)?;
-        let span = ctx.span_for_node(filter.span());
+        let span = ctx.span_for_node(filter.span);
 
         // build `FmtCell` that contains the inner block
         let mut filter_def_buf = Buffer::new();
@@ -776,7 +770,7 @@ impl<'a> Generator<'a, '_> {
             &mut filter_buf,
             &filter.filters.name,
             &filter.filters.arguments,
-            filter.span(),
+            filter.span,
         )?;
         let filter_buf = filter_buf.into_token_stream();
         let filter_buf = match display_wrap {
@@ -809,19 +803,17 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        i: &'a WithSpan<Include<'_>>,
+        i: &'a Include<'_>,
         render_for: RenderFor,
     ) -> Result<SizeHint, CompileError> {
         self.flush_ws(i.ws);
         let mut size_hint = self.write_buf_writable(ctx, buf)?;
-        let file_info = ctx
-            .path
-            .map(|path| FileInfo::of(i.span(), path, ctx.parsed));
+        let file_info = ctx.path.map(|path| FileInfo::of(i.span, path, ctx.parsed));
         let path = self.input.config.find_template(
             i.path,
             Some(ctx.path.unwrap_or(self.input.path.as_ref())),
             file_info,
-            Some(ctx.span_for_node(i.span())),
+            Some(ctx.span_for_node(i.span)),
         )?;
 
         // We clone the context of the child in order to preserve their macros and imports.
@@ -929,14 +921,14 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        c: &'a WithSpan<Compound<'_>>,
+        c: &'a Compound<'_>,
     ) -> Result<SizeHint, CompileError> {
         self.handle_ws(c.ws);
         let size_hint = self.flush_before_statement(ctx, buf)?;
 
         let op = &c.op;
-        self.visit_binop(ctx, buf, op.op, &op.lhs, &op.rhs, c.span())?;
-        buf.write_token(Token![;], ctx.span_for_node(c.span()));
+        self.visit_binop(ctx, buf, op.op, &op.lhs, &op.rhs, c.span)?;
+        buf.write_token(Token![;], ctx.span_for_node(c.span));
         Ok(size_hint)
     }
 
@@ -944,7 +936,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        l: &'a WithSpan<Let<'_>>,
+        l: &'a Let<'_>,
     ) -> Result<SizeHint, CompileError> {
         self.handle_ws(l.ws);
 
@@ -958,10 +950,10 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        l: &'a WithSpan<Let<'_>>,
+        l: &'a Let<'_>,
         span: proc_macro2::Span,
     ) -> Result<SizeHint, CompileError> {
-        let shadowed = self.is_shadowing_variable(ctx, &l.var, l.span())?;
+        let shadowed = self.is_shadowing_variable(ctx, &l.var, l.span)?;
         let size_hint = self.flush_before_statement(ctx, buf)?;
         if shadowed
             || !matches!(l.var, Target::Name(_))
@@ -977,7 +969,7 @@ impl<'a> Generator<'a, '_> {
         Ok(size_hint)
     }
 
-    fn write_let_ty(&mut self, ctx: &Context<'a>, buf: &mut Buffer, l: &'a WithSpan<Let<'_>>) {
+    fn write_let_ty(&mut self, ctx: &Context<'a>, buf: &mut Buffer, l: &'a Let<'_>) {
         if let Some(ty) = &l.ty {
             let span = ctx.span_for_node(ty.span());
 
@@ -990,7 +982,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        l: &'a WithSpan<Let<'_>>,
+        l: &'a Let<'_>,
         nodes: &'a [Box<Node<'a>>],
         ws: Ws,
     ) -> Result<SizeHint, CompileError> {
@@ -1000,7 +992,7 @@ impl<'a> Generator<'a, '_> {
         self.flush_ws(l.ws);
         self.is_in_block.increase("let/set");
         size_hint += self.write_buf_writable(ctx, buf)?;
-        let span = ctx.span_for_node(l.span());
+        let span = ctx.span_for_node(l.span);
 
         // build `FmtCell` that contains the inner block
         let mut filter_def_buf = Buffer::new();
@@ -1064,7 +1056,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        l: &'a WithSpan<Let<'_>>,
+        l: &'a Let<'_>,
         val: &'a WithSpan<Box<Expr<'a>>>,
     ) -> Result<Option<SizeHint>, CompileError> {
         let Expr::Call(ref call) = ***val else {
@@ -1088,7 +1080,7 @@ impl<'a> Generator<'a, '_> {
             let Some(size_hint) = this.handle_caller(
                 ctx,
                 &mut filter_def_buf,
-                l.span(),
+                l.span,
                 call,
                 var_name,
                 Ws(None, None),
@@ -1105,7 +1097,7 @@ impl<'a> Generator<'a, '_> {
         self.handle_ws(l.ws);
         let filter_def_buf = filter_def_buf.into_token_stream();
 
-        let span = ctx.span_for_node(l.span());
+        let span = ctx.span_for_node(l.span);
         size_hint += self.write_let_target(ctx, buf, l, span)?;
         self.write_let_ty(ctx, buf, l);
         buf.write_token(Token![=], span);
@@ -1151,7 +1143,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        l: &'a WithSpan<Let<'_>>,
+        l: &'a Let<'_>,
         val: &'a WithSpan<Box<Expr<'a>>>,
     ) -> Result<SizeHint, CompileError> {
         // Handle when this statement creates a new alias of a caller variable (or of another alias),
@@ -1169,7 +1161,7 @@ impl<'a> Generator<'a, '_> {
             }
         }
 
-        let span = ctx.span_for_node(l.span());
+        let span = ctx.span_for_node(l.span);
         let mut expr_buf = Buffer::new();
         self.visit_expr(ctx, &mut expr_buf, val)?;
 
@@ -1193,9 +1185,9 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        c: &'a WithSpan<Declare<'_>>,
+        c: &'a Declare<'_>,
     ) -> Result<SizeHint, CompileError> {
-        let span = ctx.span_for_node(c.span());
+        let span = ctx.span_for_node(c.span);
         if *c.var_name == "_" {
             return Err(ctx.generate_error(
                 "`_` cannot be used when there is no value assigned, use `let` instead",
@@ -1691,13 +1683,18 @@ impl<'a> Generator<'a, '_> {
         Ok(size_hint)
     }
 
-    fn write_comment(&mut self, comment: &'a WithSpan<Comment<'_>>) {
+    fn write_comment(&mut self, comment: &'a Comment<'_>) {
         self.handle_ws(comment.ws);
     }
 
-    fn write_lit(&mut self, lit: &'a WithSpan<Lit<'_>>) {
+    fn write_lit(&mut self, lit: &'a Lit<'_>) {
         assert!(self.next_ws.is_none());
-        let Lit { lws, val, rws } = **lit;
+        let Lit {
+            lws,
+            val,
+            rws,
+            span: _,
+        } = *lit;
         if !lws.is_empty() {
             match self.skip_ws {
                 Whitespace::Suppress => {}
@@ -1804,7 +1801,7 @@ fn bin_op<'a>(
 }
 
 struct CondInfo<'a> {
-    cond: &'a WithSpan<Cond<'a>>,
+    cond: &'a Cond<'a>,
     cond_expr: Option<WithSpan<Box<Expr<'a>>>>,
     generate_condition: bool,
     generate_content: bool,
