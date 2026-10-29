@@ -222,7 +222,7 @@ impl TemplateInput<'_> {
                             {
                                 return node_needs_external_sources(
                                     "extends",
-                                    extends.span(),
+                                    extends.span,
                                     &path,
                                     &parsed,
                                 );
@@ -233,7 +233,7 @@ impl TemplateInput<'_> {
                                 let extends = self.config.find_template(
                                     original_path,
                                     Some(&path),
-                                    Some(FileInfo::of(extends.span(), &path, &parsed)),
+                                    Some(FileInfo::of(extends.span, &path, &parsed)),
                                     Some(self.source_span.config_span()),
                                 )?;
                                 original_paths
@@ -258,7 +258,7 @@ impl TemplateInput<'_> {
                             {
                                 return node_needs_external_sources(
                                     "import",
-                                    import.span(),
+                                    import.span,
                                     &path,
                                     &parsed,
                                 );
@@ -269,7 +269,7 @@ impl TemplateInput<'_> {
                                 let import = self.config.find_template(
                                     original_path,
                                     Some(&path),
-                                    Some(FileInfo::of(import.span(), &path, &parsed)),
+                                    Some(FileInfo::of(import.span, &path, &parsed)),
                                     Some(self.source_span.config_span()),
                                 )?;
                                 original_paths
@@ -285,7 +285,7 @@ impl TemplateInput<'_> {
                             {
                                 return node_needs_external_sources(
                                     "include",
-                                    include.span(),
+                                    include.span,
                                     &path,
                                     &parsed,
                                 );
@@ -296,7 +296,7 @@ impl TemplateInput<'_> {
                                 let include = self.config.find_template(
                                     original_path,
                                     Some(&path),
-                                    Some(FileInfo::of(include.span(), &path, &parsed)),
+                                    Some(FileInfo::of(include.span, &path, &parsed)),
                                     Some(self.source_span.config_span()),
                                 )?;
                                 original_paths
@@ -334,8 +334,8 @@ impl TemplateInput<'_> {
                         | Node::Import(_)
                         | Node::Macro(_)
                         | Node::Raw(_)
-                        | Node::Continue(_)
-                        | Node::Break(_) => {}
+                        | Node::Continue(..)
+                        | Node::Break(..) => {}
                     }
                 }
                 top = false;

@@ -156,7 +156,7 @@ pub struct WithSpan<T> {
 }
 
 /// A location in `&'a str`
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span {
     start: usize,
     end: usize,
