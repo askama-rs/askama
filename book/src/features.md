@@ -130,6 +130,34 @@ even if it raises the <abbr title="Minimum Supported Rust Version">MSRV</abbr>.
 
 Enables using [documentations as template code](creating_templates.html#documentation-as-template-code).
 
+### `"nightly-spans"`
+
+<div class="warning">
+
+This feature needs a nightly compiler, as it uses unstable `proc_macro` APIs.
+On a stable compiler, the build fails. It is not enabled by `"full"`.
+
+</div>
+
+Lets compiler errors in the generated code point at the part of the template that caused them,
+instead of at `#[derive(Template)]`. This works for `source = "…"` and `path = "…"` templates:
+
+```text
+error[E0277]: can't compare `&str` with `str`
+ --> templates/icons.txt:2:12
+  |
+2 | {% if kind == "mail" %}@{% endif %}
+  |            ^^ no implementation for `&str == str`
+```
+
+To keep stable builds working, you can forward it from a feature of your own crate,
+and only enable that one on nightly, e.g. with `cargo +nightly build --features nightly-spans`:
+
+```toml
+[features]
+nightly-spans = ["askama/nightly-spans"]
+```
+
 ## “Anti-features” in a `#![no_std]` environment
 
 Opting-out of the default features `"std"` and `"alloc"` is only interesting for the use
