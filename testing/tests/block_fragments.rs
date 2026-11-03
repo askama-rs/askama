@@ -237,4 +237,35 @@ fn test_fragment_nested_in_if_and_match() {
     );
     assert_eq!(InOuter { a: true }.as_inner().render().unwrap(), "in");
     assert_eq!(InOuter { a: false }.as_inner().render().unwrap(), "");
+
+    #[derive(Template)]
+    #[template(
+        source = "{% if a %}{% block one %}1{% endblock %}{% endif %}{% if b %}{% block two %}2{% endblock %}{% endif %}",
+        blocks = ["one", "two"],
+        ext = "txt"
+    )]
+    struct Siblings {
+        a: bool,
+        b: bool,
+    }
+
+    let both = Siblings { a: true, b: true };
+    assert_eq!(both.as_one().render().unwrap(), "1");
+    assert_eq!(both.as_two().render().unwrap(), "2");
+    let only_b = Siblings { a: false, b: true };
+    assert_eq!(only_b.as_one().render().unwrap(), "");
+    assert_eq!(only_b.as_two().render().unwrap(), "2");
+
+    #[derive(Template)]
+    #[template(
+        source = r#"{% extends "fragment-base.html" %}{% block body %}{% if a %}{% block inner %}in{% endblock %}{% endif %}{% endblock %}"#,
+        block = "inner",
+        ext = "html"
+    )]
+    struct InheritedIf {
+        a: bool,
+    }
+
+    assert_eq!(InheritedIf { a: true }.render().unwrap(), "in");
+    assert_eq!(InheritedIf { a: false }.render().unwrap(), "");
 }
