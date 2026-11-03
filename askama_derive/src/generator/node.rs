@@ -371,7 +371,7 @@ impl<'a> Generator<'a, '_> {
         let mut arm_sizes = Vec::new();
         let mut has_else = false;
 
-        let keep = self.keeps_fragment(level, if_.branches.iter().map(|c| &*c.nodes));
+        let keep = self.keeps_fragment(ctx, level, if_.span);
         let level = if keep {
             AstLevel::Block
         } else {
@@ -522,7 +522,7 @@ impl<'a> Generator<'a, '_> {
         let expr_code = self.visit_expr_root(ctx, expr)?;
         let span = ctx.span_for_node(expr.span());
 
-        let keep = self.keeps_fragment(level, arms.iter().map(|arm| &*arm.nodes));
+        let keep = self.keeps_fragment(ctx, level, m.span);
         let level = if keep {
             AstLevel::Block
         } else {
@@ -576,17 +576,14 @@ impl<'a> Generator<'a, '_> {
 
     /// Whether this `if` or `match` holds the one block being rendered (`block = "..."`), so
     /// its own code must be kept while the code around it is discarded.
-    fn keeps_fragment<'n>(
-        &self,
-        level: AstLevel,
-        mut arms: impl Iterator<Item = &'n [Box<Node<'n>>]>,
-    ) -> bool {
+    fn keeps_fragment(&self, ctx: &Context<'a>, level: AstLevel, node: Span) -> bool {
         level != AstLevel::Nested
             && self.buf_writable.discard
-            && self
-                .input
-                .block
-                .is_some_and(|(name, _)| arms.any(|nodes| contains_block(nodes, name)))
+            && self.input.block.is_some_and(|(name, _)| {
+                ctx.block_holders
+                    .get(name)
+                    .is_some_and(|holders| holders.contains(&node))
+            })
     }
 
     fn write_loop(
@@ -1986,19 +1983,6 @@ pub(crate) enum AstLevel {
     Top,
     Block,
     Nested,
-}
-
-/// Whether the block `name` is defined anywhere in `nodes`.
-fn contains_block(nodes: &[Box<Node<'_>>], name: &str) -> bool {
-    nodes.iter().any(|node| match &**node {
-        Node::BlockDef(b) => *b.name == name || contains_block(&b.nodes, name),
-        Node::If(i) => i.branches.iter().any(|c| contains_block(&c.nodes, name)),
-        Node::Match(m) => m.arms.iter().any(|a| contains_block(&a.nodes, name)),
-        Node::Loop(l) => contains_block(&l.body, name) || contains_block(&l.else_nodes, name),
-        Node::FilterBlock(f) => contains_block(&f.nodes, name),
-        Node::Call(c) => contains_block(&c.nodes, name),
-        _ => false,
-    })
 }
 
 /// Returns `true` if the outcome of this expression may be used multiple times in the same
