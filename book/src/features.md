@@ -151,7 +151,7 @@ error[E0277]: can't compare `&str` with `str`
 ```
 
 To keep stable builds working, you can forward it from a feature of your own crate,
-and only enable that one on nightly, e.g. with `cargo +nightly build --features nightly-spans`:
+and only enable that one on nightly toolchain, e.g. with `cargo build --features nightly-spans`:
 
 ```toml
 [features]
