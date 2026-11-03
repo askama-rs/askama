@@ -393,23 +393,11 @@ impl<'a: 'l, 'l> Expr<'a> {
         let mut stack = InfixStack {
             operands: Vec::new(),
             ops: Vec::new(),
-            guard: i.state.level.guard(),
         };
         let mut unspaced_tilde = None;
         loop {
             let operand_start = *i;
-            while let Some((op, span)) =
-                opt(ws(alt(("!", "-", "*", "&")).with_span())).parse_next(i)?
-            {
-                stack.ops.push(PendingOp {
-                    prec: Prec::Prefix,
-                    op,
-                    span,
-                    before: None,
-                });
-                stack.reserve(i, 0)?;
-            }
-            match Suffix::parse(i) {
+            match Self::is_as(i) {
                 Ok(expr) => {
                     if let Some(span) = unspaced_tilde.take() {
                         return cut_error!(
@@ -417,44 +405,17 @@ impl<'a: 'l, 'l> Expr<'a> {
                             span
                         );
                     }
-                    stack.push_operand(i, expr, 0)?;
+                    stack.operands.push(expr);
                 }
                 // An infix operator without a right-hand side is not part of the expression.
                 Err(ErrMode::Backtrack(err)) => {
-                    while stack.ops.pop_if(|op| op.prec == Prec::Prefix).is_some() {}
-                    let Some(PendingOp {
-                        before: Some(before),
-                        ..
-                    }) = stack.ops.pop()
-                    else {
+                    let Some(op) = stack.ops.pop() else {
                         return Err(ErrMode::Backtrack(err));
                     };
-                    *i = before;
+                    *i = op.before;
                     break;
                 }
                 Err(err) => return Err(err),
-            }
-
-            while let Some((mut filter, span)) = opt(ws(filter.with_span())).parse_next(i)? {
-                let (lhs, depth) = stack.pop_postfix_operand(i)?;
-                filter.arguments.insert(0, lhs);
-                let expr = WithSpan::new(Box::new(Self::Filter(filter)), span);
-                stack.push_operand(i, expr, depth + 1)?;
-            }
-
-            let checkpoint = i.checkpoint();
-            match opt(ws(identifier.with_span())).parse_next(i)? {
-                Some(("is", span)) => {
-                    let (lhs, depth) = stack.pop_postfix_operand(i)?;
-                    let expr = Self::is_as_handle_is(i, lhs, span)?;
-                    stack.push_operand(i, expr, depth + 1)?;
-                }
-                Some(("as", span)) => {
-                    let (lhs, depth) = stack.pop_postfix_operand(i)?;
-                    let expr = Self::is_as_handle_as(i, lhs, span)?;
-                    stack.push_operand(i, expr, depth + 1)?;
-                }
-                _ => i.reset(&checkpoint),
             }
 
             let before = *i;
@@ -467,33 +428,58 @@ impl<'a: 'l, 'l> Expr<'a> {
             if !spaced {
                 unspaced_tilde = Some(span.clone());
             }
-            if prec == Prec::Compare {
-                stack.reduce_while(i, |prec| prec > Prec::Compare)?;
-                if let Some(prev) = stack.ops.last()
-                    && prev.prec == Prec::Compare
-                {
-                    return cut_error!(
-                        format!(
-                            "comparison operators cannot be chained; \
-                            consider using explicit parentheses, e.g.  `(_ {} _) {op} _`",
-                            prev.op,
-                        ),
-                        span,
-                    );
+
+            while stack.ops.last().is_some_and(|top| top.prec > prec) {
+                drop(stack.reduce());
+            }
+            // All binary operators are left-associative. A chain of them keeps counting on the
+            // same guard, which is given back once a looser operator ends the chain.
+            let mut guard = match stack.ops.last() {
+                Some(prev) if prev.prec == prec => {
+                    if prec == Prec::Compare {
+                        return cut_error!(
+                            format!(
+                                "comparison operators cannot be chained; \
+                                consider using explicit parentheses, e.g.  `(_ {} _) {op} _`",
+                                prev.op,
+                            ),
+                            span,
+                        );
+                    }
+                    stack.reduce()
                 }
-            } else {
-                // All binary operators are left-associative.
-                stack.reduce_while(i, |top| top >= prec)?;
+                _ => i.state.level.guard(),
+            };
+            // `~` flattens into one `Concat`, and a comparison cannot chain: neither nests.
+            if !matches!(prec, Prec::Compare | Prec::Concat) {
+                guard.nest(&before)?;
             }
             stack.ops.push(PendingOp {
                 prec,
                 op,
                 span,
-                before: Some(before),
+                before,
+                guard,
             });
         }
-        stack.reduce_while(i, |_| true)?;
-        Ok(stack.operands.pop().unwrap().0)
+        while !stack.ops.is_empty() {
+            drop(stack.reduce());
+        }
+        Ok(stack.operands.pop().unwrap())
+    }
+
+    fn is_as(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+        let lhs = Self::filtered(i)?;
+        let checkpoint = i.checkpoint();
+        let rhs = opt(ws(identifier.with_span())).parse_next(i)?;
+        match rhs {
+            Some(("is", span)) => Self::is_as_handle_is(i, lhs, span),
+            Some(("as", span)) => Self::is_as_handle_as(i, lhs, span),
+            _ => {
+                i.reset(&checkpoint);
+                Ok(lhs)
+            }
+        }
     }
 
     fn is_as_handle_is(
@@ -555,6 +541,41 @@ impl<'a: 'l, 'l> Expr<'a> {
                 span,
             )
         }
+    }
+
+    fn filtered(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+        let mut res = Self::prefix(i)?;
+
+        let mut level_guard = i.state.level.guard();
+        let mut i_before = *i;
+        while let Some((mut filter, span)) = opt(ws(filter.with_span())).parse_next(i)? {
+            level_guard.nest(&i_before)?;
+            filter.arguments.insert(0, res);
+            res = WithSpan::new(Box::new(Self::Filter(filter)), span);
+            i_before = *i;
+        }
+        Ok(res)
+    }
+
+    fn prefix(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+        // This is a rare place where we create recursion in the parsed AST
+        // without recursing the parser call stack. However, this can lead
+        // to stack overflows in drop glue when the AST is very deep.
+        let mut level_guard = i.state.level.guard();
+        let mut i_before = *i;
+        let mut ops = vec![];
+        while let Some(op) = opt(ws(alt(("!", "-", "*", "&")).with_span())).parse_next(i)? {
+            level_guard.nest(&i_before)?;
+            ops.push(op);
+            i_before = *i;
+        }
+
+        let mut expr = Suffix::parse(i)?;
+        for (op, span) in ops.into_iter().rev() {
+            expr = WithSpan::new(Box::new(Self::Unary(op, expr)), span);
+        }
+
+        Ok(expr)
     }
 
     fn single(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
@@ -763,8 +784,7 @@ impl<'a: 'l, 'l> Expr<'a> {
 }
 
 /// Precedence of the operators [`Expr::infix()`] handles, from the loosest to the tightest
-/// binding. Filters, `is` and `as` bind tighter than every infix operator and looser than the
-/// prefix operators; they are applied as soon as they are parsed.
+/// binding.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Prec {
     Or,
@@ -777,86 +797,48 @@ enum Prec {
     AddSub,
     Concat,
     MulDivMod,
-    Prefix,
 }
 
 struct PendingOp<'a, 'l> {
     prec: Prec,
     op: &'a str,
     span: std::ops::Range<usize>,
-    /// The input before an infix operator, to give it back if no operand follows.
-    before: Option<InputStream<'a, 'l>>,
-}
-
-struct InfixStack<'a, 'l> {
-    /// Each operand with the depth of its AST.
-    operands: Vec<(WithSpan<Box<Expr<'a>>>, usize)>,
-    ops: Vec<PendingOp<'a, 'l>>,
+    /// The input before the operator, to give it back if no operand follows.
+    before: InputStream<'a, 'l>,
+    /// The levels held by the chain of operators of this precedence that this one continues.
     guard: LevelGuard<'l>,
 }
 
+struct InfixStack<'a, 'l> {
+    operands: Vec<WithSpan<Box<Expr<'a>>>>,
+    ops: Vec<PendingOp<'a, 'l>>,
+}
+
 impl<'a: 'l, 'l> InfixStack<'a, 'l> {
-    /// Holds enough levels for the deepest AST seen so far: an operand's depth plus the pending
-    /// operators, which all end up above it. Without recursion, this is what the levels guard.
-    fn reserve(&mut self, i: &InputStream<'a, 'l>, depth: usize) -> ParseResult<'a, ()> {
-        while self.guard.count < depth + self.ops.len() {
-            self.guard.nest(i)?;
+    /// Applies the topmost operator to its operands, and hands back the levels it held.
+    fn reduce(&mut self) -> LevelGuard<'l> {
+        let op = self.ops.pop().unwrap();
+        let rhs = self.operands.pop().unwrap();
+        let mut lhs = self.operands.pop().unwrap();
+        // `a ~ b ~ c` is one `Concat`; a parenthesized one would be a `Group`.
+        if op.prec == Prec::Concat
+            && let Expr::Concat(exprs) = &mut **lhs
+        {
+            exprs.push(rhs);
+            self.operands.push(lhs);
+        } else {
+            let expr = if op.prec == Prec::Concat {
+                Expr::Concat(vec![lhs, rhs])
+            } else {
+                Expr::BinOp(BinOp {
+                    op: op.op,
+                    lhs,
+                    rhs,
+                })
+            };
+            self.operands.push(WithSpan::new(Box::new(expr), op.span));
         }
-        Ok(())
-    }
-
-    fn push_operand(
-        &mut self,
-        i: &InputStream<'a, 'l>,
-        expr: WithSpan<Box<Expr<'a>>>,
-        depth: usize,
-    ) -> ParseResult<'a, ()> {
-        self.operands.push((expr, depth));
-        self.reserve(i, depth)
-    }
-
-    /// The operand of a postfix operator, after the prefix operators that bind tighter.
-    fn pop_postfix_operand(
-        &mut self,
-        i: &InputStream<'a, 'l>,
-    ) -> ParseResult<'a, (WithSpan<Box<Expr<'a>>>, usize)> {
-        self.reduce_while(i, |prec| prec == Prec::Prefix)?;
-        Ok(self.operands.pop().unwrap())
-    }
-
-    fn reduce_while(
-        &mut self,
-        i: &InputStream<'a, 'l>,
-        cond: impl Fn(Prec) -> bool,
-    ) -> ParseResult<'a, ()> {
-        while let Some(op) = self.ops.pop_if(|op| cond(op.prec)) {
-            let (rhs, rhs_depth) = self.operands.pop().unwrap();
-            if op.prec == Prec::Prefix {
-                let expr = WithSpan::new(Box::new(Expr::Unary(op.op, rhs)), op.span);
-                self.push_operand(i, expr, rhs_depth + 1)?;
-                continue;
-            }
-            let (mut lhs, lhs_depth) = self.operands.pop().unwrap();
-            if op.prec == Prec::Concat {
-                // `a ~ b ~ c` is one `Concat`; a parenthesized one would be a `Group`.
-                if let Expr::Concat(exprs) = &mut **lhs {
-                    exprs.push(rhs);
-                    self.push_operand(i, lhs, lhs_depth.max(rhs_depth + 1))?;
-                } else {
-                    let expr = WithSpan::new(Box::new(Expr::Concat(vec![lhs, rhs])), op.span);
-                    self.push_operand(i, expr, lhs_depth.max(rhs_depth) + 1)?;
-                }
-                continue;
-            }
-            let expr = Expr::BinOp(BinOp {
-                op: op.op,
-                lhs,
-                rhs,
-            });
-            let expr = WithSpan::new(Box::new(expr), op.span);
-            self.push_operand(i, expr, lhs_depth.max(rhs_depth) + 1)?;
-        }
-        Ok(())
+        op.guard
     }
 }
 

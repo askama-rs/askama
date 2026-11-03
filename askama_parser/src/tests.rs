@@ -2043,4 +2043,24 @@ fn test_infix_nesting_limit() {
     assert!(parse_expr(&format!("{}a", "-".repeat(1000))).is_err());
     assert!(parse_expr(&format!("a{}", " ~ a".repeat(1000))).is_ok());
     assert!(parse_expr(&format!("a{}", " + a".repeat(1000))).is_err());
+
+    // A chain holds one level per operator and gives them back when it ends, so these limits
+    // are about the parser's state, not the depth of the AST.
+    let fits = |expr: String| {
+        Ast::from_str(&format!("{{{{ {expr} }}}}"), None, &Syntax::default()).is_ok()
+    };
+    assert!(fits(format!("a{}", " * a".repeat(126))));
+    assert!(!fits(format!("a{}", " * a".repeat(127))));
+    assert!(fits(format!(
+        "a{}{}",
+        " * a".repeat(126),
+        " + a".repeat(126)
+    )));
+    assert!(fits(format!("{}a{}", "!".repeat(126), " * a".repeat(126))));
+    assert!(fits(format!("a{}|f{}", " * a".repeat(62), "|f".repeat(62))));
+    assert!(!fits(format!(
+        "a{}|f{}",
+        " * a".repeat(64),
+        "|f".repeat(64)
+    )));
 }
