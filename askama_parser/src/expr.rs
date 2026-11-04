@@ -447,6 +447,9 @@ impl<'a: 'l, 'l> Expr<'a> {
 
     fn is_as(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let lhs = Self::filtered(i)?;
+        if !i.trim_ascii_start().starts_with(['i', 'a']) {
+            return Ok(lhs);
+        }
         let checkpoint = i.checkpoint();
         let rhs = opt(ws(identifier.with_span())).parse_next(i)?;
         match rhs {
@@ -525,7 +528,9 @@ impl<'a: 'l, 'l> Expr<'a> {
 
         let mut level_guard = i.state.level.guard();
         let mut i_before = *i;
-        while let Some((mut filter, span)) = opt(ws(filter.with_span())).parse_next(i)? {
+        while i.trim_ascii_start().starts_with('|')
+            && let Some((mut filter, span)) = opt(ws(filter.with_span())).parse_next(i)?
+        {
             level_guard.nest(&i_before)?;
             filter.arguments.insert(0, res);
             res = WithSpan::new(Box::new(Self::Filter(filter)), span);
@@ -541,7 +546,9 @@ impl<'a: 'l, 'l> Expr<'a> {
         let mut level_guard = i.state.level.guard();
         let mut i_before = *i;
         let mut ops = vec![];
-        while let Some(op) = opt(ws(alt(("!", "-", "*", "&")).with_span())).parse_next(i)? {
+        while i.trim_ascii_start().starts_with(['!', '-', '*', '&'])
+            && let Some(op) = opt(ws(alt(("!", "-", "*", "&")).with_span())).parse_next(i)?
+        {
             level_guard.nest(&i_before)?;
             ops.push(op);
             i_before = *i;
@@ -556,6 +563,10 @@ impl<'a: 'l, 'l> Expr<'a> {
     }
 
     fn single(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+        // Only `b"…"`, `b'…'` and `c"…"` are literals that start with a letter.
+        if let [b'a' | b'd'..=b'z' | b'A'..=b'Z', ..] = i.as_bytes() {
+            return Self::path_var_bool(i);
+        }
         alt((
             Self::num,
             Self::str,
@@ -943,7 +954,12 @@ impl<'a: 'l, 'l> Suffix<'a> {
         )));
 
         let mut i_before = i.checkpoint();
-        while let Some(suffix) = right.parse_next(i)? {
+        // Most operands have no suffix: don't let all six alternatives fail one after the other.
+        while i
+            .trim_ascii_start()
+            .starts_with(['.', '[', '(', '?', '!', '{', ':'])
+            && let Some(suffix) = right.parse_next(i)?
+        {
             level_guard.nest(i)?;
             let (suffix, span) = suffix.deconstruct();
             let inner = match suffix {
@@ -999,6 +1015,8 @@ impl<'a: 'l, 'l> Suffix<'a> {
             expr = WithSpan::new(inner, span);
             i_before = i.checkpoint();
         }
+        // `Self::r#struct` takes a level before it looks for `{`: keep the limit where it was.
+        drop(i.state.level.nest(i)?);
         Ok(expr)
     }
 
