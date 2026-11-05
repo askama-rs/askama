@@ -436,7 +436,7 @@ A base template defines **blocks** that child templates can override.
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>{% block title %}{{ title }} - My Site{% endblock %}</title>
+    <title>{% block title %}{{ title }}{% endblock %} - My Site</title>
     {% block head %}{% endblock %}
   </head>
   <body>
