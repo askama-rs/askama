@@ -100,12 +100,12 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
     /// A recursive call is written as a call to a function generated for the macro, see
     /// [`Generator::write_macro_functions()`]. Returns why this call cannot be one.
     fn why_not_a_function(&self) -> Option<String> {
-        let name = self.macro_def.name.escape_debug();
         if let Some(arg) = self.macro_def.args.iter().find(|arg| arg.ty.is_none()) {
             return Some(format!(
                 "A macro can only call itself if all its arguments have a type, \
-                 but argument `{}` of macro `{name}` has none",
+                 but argument `{}` of macro `{}` has none",
                 arg.name.escape_debug(),
+                self.macro_def.name.escape_debug(),
             ));
         }
         // The body is passed as a closure, whose parameters would need a type.
@@ -114,7 +114,8 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         {
             return Some(format!(
                 "A macro can only call itself without `caller` arguments, \
-                 but this call of macro `{name}` has some",
+                 but this call of macro `{}` has some",
+                self.macro_def.name.escape_debug(),
             ));
         }
         None
