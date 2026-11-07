@@ -1,5 +1,6 @@
 use core::fmt;
 use std::path::Path;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use parser::node::{BlockDef, Macro};
@@ -27,7 +28,7 @@ impl<'a, 'h> Heritage<'a, 'h> {
 
         while let Some(path) = &root.extends {
             root = &contexts[path];
-            for (name, def) in &root.blocks {
+            for (name, def) in root.blocks.iter() {
                 blocks.entry(*name).or_default().push((root, def));
             }
         }
@@ -49,9 +50,10 @@ type BlockAncestry<'a, 'h> = HashMap<&'a str, Vec<(&'h Context<'a>, &'a BlockDef
 pub(crate) struct Context<'a> {
     pub(crate) nodes: &'a [Box<Node<'a>>],
     pub(crate) extends: Option<Arc<Path>>,
-    pub(crate) blocks: HashMap<&'a str, &'a BlockDef<'a>>,
-    pub(crate) macros: HashMap<&'a str, &'a Macro<'a>>,
-    pub(crate) imports: HashMap<&'a str, Arc<Path>>,
+    // Behind `Rc` because `Context` is cloned for every `caller` and inherited block.
+    pub(crate) blocks: Rc<HashMap<&'a str, &'a BlockDef<'a>>>,
+    pub(crate) macros: Rc<HashMap<&'a str, &'a Macro<'a>>>,
+    pub(crate) imports: Rc<HashMap<&'a str, Arc<Path>>>,
     pub(crate) path: Option<&'a Path>,
     pub(crate) parsed: &'a Parsed,
     pub(crate) literal: SourceSpan,
@@ -63,9 +65,9 @@ impl<'a> Context<'a> {
         Context {
             nodes: &[],
             extends: None,
-            blocks: HashMap::default(),
-            macros: HashMap::default(),
-            imports: HashMap::default(),
+            blocks: Rc::default(),
+            macros: Rc::default(),
+            imports: Rc::default(),
             path: None,
             parsed,
             literal: SourceSpan::empty(),
@@ -161,9 +163,9 @@ impl<'a> Context<'a> {
         let mut ctx = Context {
             nodes: parsed.nodes(),
             extends: None,
-            blocks,
-            macros,
-            imports: HashMap::default(),
+            blocks: Rc::new(blocks),
+            macros: Rc::new(macros),
+            imports: Rc::default(),
             parsed,
             path: Some(path),
             literal,
@@ -184,7 +186,7 @@ impl<'a> Context<'a> {
                 Some(FileInfo::of(import.span, path, parsed)),
                 Some(ctx.span_for_node(import.span)),
             )?;
-            ctx.imports.insert(import.scope, path);
+            Rc::make_mut(&mut ctx.imports).insert(import.scope, path);
         }
 
         Ok(ctx)

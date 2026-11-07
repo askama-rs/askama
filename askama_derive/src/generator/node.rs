@@ -3,6 +3,7 @@ use std::collections::hash_map::Entry;
 use std::fmt::Debug;
 use std::mem;
 use std::ops::ControlFlow;
+use std::rc::Rc;
 use std::str::FromStr;
 
 use parser::expr::BinOp;
@@ -820,14 +821,13 @@ impl<'a> Generator<'a, '_> {
         // But also add all the imports and macros from this template that don't override the
         // child's ones to preserve this template's context.
         let child_ctx = &mut self.contexts[&path].clone();
-        for (name, mac) in &ctx.macros {
-            child_ctx.macros.entry(*name).or_insert(mac);
+        let macros = Rc::make_mut(&mut child_ctx.macros);
+        for (name, mac) in ctx.macros.iter() {
+            macros.entry(*name).or_insert(mac);
         }
-        for (name, import) in &ctx.imports {
-            child_ctx
-                .imports
-                .entry(name)
-                .or_insert_with(|| import.clone());
+        let imports = Rc::make_mut(&mut child_ctx.imports);
+        for (name, import) in ctx.imports.iter() {
+            imports.entry(name).or_insert_with(|| import.clone());
         }
 
         // Create a new generator for the child, and call it like in `impl_template` as if it were
@@ -1288,17 +1288,17 @@ impl<'a> Generator<'a, '_> {
         // But also add all the imports and macros from this template that don't override the
         // child's ones to preserve this template's context.
         let mut child_ctx = child_ctx.clone();
-        for (name, mac) in &ctx.macros {
-            child_ctx.macros.entry(*name).or_insert(mac);
+        let macros = Rc::make_mut(&mut child_ctx.macros);
+        for (name, mac) in ctx.macros.iter() {
+            macros.entry(*name).or_insert(mac);
         }
-        for (name, import) in &ctx.imports {
-            child_ctx
-                .imports
-                .entry(name)
-                .or_insert_with(|| import.clone());
+        let imports = Rc::make_mut(&mut child_ctx.imports);
+        for (name, import) in ctx.imports.iter() {
+            imports.entry(name).or_insert_with(|| import.clone());
         }
-        for (name, block) in &ctx.blocks {
-            child_ctx.blocks.entry(name).or_insert(block);
+        let blocks = Rc::make_mut(&mut child_ctx.blocks);
+        for (name, block) in ctx.blocks.iter() {
+            blocks.entry(name).or_insert(block);
         }
 
         size_hint += self.with_child(Some(heritage), |child| {
