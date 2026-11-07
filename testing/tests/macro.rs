@@ -840,3 +840,81 @@ fn test_args_named_like_params() {
 
     assert_eq!(CallerArgsNamedLikeParams.render().unwrap(), "b-a");
 }
+
+// A macro whose arguments all have a type can call itself: the recursive call becomes a method
+// call, which sees the macro's arguments and the template's fields.
+#[test]
+fn test_recursive_macro() {
+    struct Node {
+        name: &'static str,
+        children: Vec<Node>,
+    }
+
+    #[derive(Template)]
+    #[template(
+        source = "
+{%- macro tree(node: Node, depth: usize = 0) -%}
+    {{ depth }}:{{ node.name }}{{ sep }}
+    {%- for child in node.children %}{{ tree(child, depth + 1) }}{% endfor -%}
+{%- endmacro -%}
+{%- block content %}{{ tree(root) }}{% endblock -%}",
+        ext = "html",
+        blocks = ["content"]
+    )]
+    struct Tree {
+        root: Node,
+        sep: &'static str,
+    }
+
+    let leaf = |name| Node {
+        name,
+        children: vec![],
+    };
+    let tree = Tree {
+        root: Node {
+            name: "a<",
+            children: vec![
+                Node {
+                    name: "b",
+                    children: vec![leaf("c")],
+                },
+                leaf("d"),
+            ],
+        },
+        sep: "|",
+    };
+    assert_eq!(tree.render().unwrap(), "0:a&#60;|1:b|2:c|1:d|");
+    assert_eq!(tree.as_content().render().unwrap(), "0:a&#60;|1:b|2:c|1:d|");
+}
+
+// Each recursive call passes its `caller` body as a closure. Like an inlined `caller()`, the body
+// sees the arguments of the macro it is passed to.
+#[test]
+fn test_recursive_macro_with_caller() {
+    #[derive(Template)]
+    #[template(
+        source = "
+{%- macro list(n: u32) -%}
+    [{{ caller() }}{% if *n > 0 %}{% call list(n - 1) %}{{ n }}{{ sep }}{% endcall %}{% endif %}]
+{%- endmacro -%}
+{%- call list(2) %}x{% endcall -%}",
+        ext = "html"
+    )]
+    struct List {
+        sep: &'static str,
+    }
+
+    assert_eq!(List { sep: "<" }.render().unwrap(), "[x[1&#60;[0&#60;]]]");
+}
+
+#[test]
+fn test_mutually_recursive_imported_macros() {
+    #[derive(Template)]
+    #[template(
+        source = r#"{% import "recursive-macros.html" as m %}{{ m::even(3) }}"#,
+        ext = "txt"
+    )]
+    struct EvenOdd;
+
+    assert_eq!(EvenOdd.render().unwrap(), "eoeo");
+}

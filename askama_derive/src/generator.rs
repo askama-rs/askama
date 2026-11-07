@@ -123,6 +123,10 @@ struct Generator<'a, 'h> {
     is_in_block: BlockInfo,
     /// Set of called macros we are currently in. Used to prevent (indirect) recursions.
     seen_callers: Vec<(&'a Macro<'a>, Option<FileInfo<'a>>)>,
+    /// Macros that call themselves, so they are generated as functions, see
+    /// [`Generator::write_macro_functions()`].
+    /// The `bool` tells whether the method takes a `caller` body.
+    macro_functions: Vec<(&'a Macro<'a>, Context<'a>, bool)>,
     /// The directory path of the calling file.
     caller_dir: CallerDir,
 }
@@ -156,6 +160,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             },
             is_in_block,
             seen_callers: Vec::new(),
+            macro_functions: Vec::new(),
             caller_dir: CallerDir::Unresolved,
         }
     }
@@ -256,6 +261,8 @@ impl<'a, 'h> Generator<'a, 'h> {
         let mut content = Buffer::new();
         let size_hint = self.impl_template_inner(ctx, &mut content)?;
         let content = content.into_token_stream();
+        let mut macro_functions = Buffer::new();
+        self.write_macro_functions(&mut macro_functions)?;
 
         let mut size_hint_s = TokenStream::new();
         if tmpl_kind == TmplKind::Struct {
@@ -285,6 +292,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             }
             #size_hint_s
         } });
+        buf.write_buf(macro_functions);
 
         for block in self.input.blocks {
             self.impl_block(buf, block)?;
@@ -605,7 +613,9 @@ struct LocalVariableMeta {
 
 #[derive(Clone)]
 struct LocalCallerMeta<'a> {
-    def: &'a Call<'a>,
+    /// `None` inside a method generated for a recursive macro, where `caller()` calls the
+    /// closure the method was given.
+    def: Option<&'a Call<'a>>,
     call_ctx: Context<'a>,
 }
 
@@ -658,7 +668,18 @@ impl<'a> LocalMeta<'a> {
 
     /// Special variable aliasing a `caller()`
     const fn caller(def: &'a Call<'a>, call_ctx: Context<'a>) -> Self {
-        Self::CallerAlias(LocalCallerMeta { def, call_ctx })
+        Self::CallerAlias(LocalCallerMeta {
+            def: Some(def),
+            call_ctx,
+        })
+    }
+
+    /// `caller()` inside a method generated for a recursive macro
+    const fn caller_param(call_ctx: Context<'a>) -> Self {
+        Self::CallerAlias(LocalCallerMeta {
+            def: None,
+            call_ctx,
+        })
     }
 }
 
