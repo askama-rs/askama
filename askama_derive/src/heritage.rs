@@ -53,7 +53,7 @@ pub(crate) struct Context<'a> {
     // Behind `Rc` because `Context` is cloned for every `caller` and inherited block.
     pub(crate) blocks: Rc<HashMap<&'a str, &'a BlockDef<'a>>>,
     /// For each block nested in an `if` or `match`, the spans of those statements.
-    pub(crate) block_holders: HashMap<&'a str, Vec<Span>>,
+    pub(crate) block_holders: Rc<HashMap<&'a str, Vec<Span>>>,
     pub(crate) macros: Rc<HashMap<&'a str, &'a Macro<'a>>>,
     pub(crate) imports: Rc<HashMap<&'a str, Arc<Path>>>,
     pub(crate) path: Option<&'a Path>,
@@ -68,7 +68,7 @@ impl<'a> Context<'a> {
             nodes: &[],
             extends: None,
             blocks: Rc::default(),
-            block_holders: HashMap::default(),
+            block_holders: Rc::default(),
             macros: Rc::default(),
             imports: Rc::default(),
             path: None,
@@ -174,7 +174,7 @@ impl<'a> Context<'a> {
             nodes: parsed.nodes(),
             extends: None,
             blocks: Rc::new(blocks),
-            block_holders,
+            block_holders: Rc::new(block_holders),
             macros: Rc::new(macros),
             imports: Rc::default(),
             parsed,

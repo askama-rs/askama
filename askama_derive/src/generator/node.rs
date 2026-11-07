@@ -371,7 +371,7 @@ impl<'a> Generator<'a, '_> {
         let mut arm_sizes = Vec::new();
         let mut has_else = false;
 
-        let keep = self.keeps_fragment(ctx, level, if_.span);
+        let keep = self.contains_fragment(ctx, level, if_.span);
         let level = if keep {
             AstLevel::Block
         } else {
@@ -522,7 +522,7 @@ impl<'a> Generator<'a, '_> {
         let expr_code = self.visit_expr_root(ctx, expr)?;
         let span = ctx.span_for_node(expr.span());
 
-        let keep = self.keeps_fragment(ctx, level, m.span);
+        let keep = self.contains_fragment(ctx, level, m.span);
         let level = if keep {
             AstLevel::Block
         } else {
@@ -576,7 +576,7 @@ impl<'a> Generator<'a, '_> {
 
     /// Whether this `if` or `match` holds the one block being rendered (`block = "..."`), so
     /// its own code must be kept while the code around it is discarded.
-    fn keeps_fragment(&self, ctx: &Context<'a>, level: AstLevel, node: Span) -> bool {
+    fn contains_fragment(&self, ctx: &Context<'a>, level: AstLevel, node: Span) -> bool {
         level != AstLevel::Nested
             && self.buf_writable.discard
             && self.input.block.is_some_and(|(name, _)| {
