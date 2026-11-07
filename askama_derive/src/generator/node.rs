@@ -1187,7 +1187,7 @@ impl<'a> Generator<'a, '_> {
                 if let Some(caller_alias) = self.locals.get_caller(srcvar) {
                     self.locals.insert(
                         Cow::Borrowed(*dstvar),
-                        LocalMeta::CallerAlias(caller_alias.clone()),
+                        LocalMeta::CallerAlias(Box::new(caller_alias.clone())),
                     );
                     return Ok(SizeHint::EMPTY);
                 }
