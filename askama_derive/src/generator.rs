@@ -633,7 +633,7 @@ enum LocalMeta<'a> {
     Variable(LocalVariableMeta),
 
     /// This special variable is a caller alias. It's another name for caller().
-    CallerAlias(LocalCallerMeta<'a>),
+    CallerAlias(Box<LocalCallerMeta<'a>>),
 
     /// Represents a "negative" local variable. Meaning: When the resolve methods
     /// encounters a negative on its path down the stack of scopes, it will immediately
@@ -667,19 +667,19 @@ impl<'a> LocalMeta<'a> {
     }
 
     /// Special variable aliasing a `caller()`
-    const fn caller(def: &'a Call<'a>, call_ctx: Context<'a>) -> Self {
-        Self::CallerAlias(LocalCallerMeta {
+    fn caller(def: &'a Call<'a>, call_ctx: Context<'a>) -> Self {
+        Self::CallerAlias(Box::new(LocalCallerMeta {
             def: Some(def),
             call_ctx,
-        })
+        }))
     }
 
     /// `caller()` inside a method generated for a recursive macro
-    const fn caller_param(call_ctx: Context<'a>) -> Self {
-        Self::CallerAlias(LocalCallerMeta {
+    fn caller_param(call_ctx: Context<'a>) -> Self {
+        Self::CallerAlias(Box::new(LocalCallerMeta {
             def: None,
             call_ctx,
-        })
+        }))
     }
 }
 
