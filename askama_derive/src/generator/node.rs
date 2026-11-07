@@ -1,11 +1,10 @@
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::fmt::Debug;
-use std::mem;
 use std::ops::ControlFlow;
-use std::ptr;
 use std::rc::Rc;
 use std::str::FromStr;
+use std::{mem, ptr};
 
 use parser::expr::BinOp;
 use parser::node::{
