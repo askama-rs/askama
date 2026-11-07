@@ -4,48 +4,18 @@ use winnow::combinator::{
     alt, cut_err, empty, fail, not, opt, peek, preceded, repeat, separated, terminated,
 };
 use winnow::error::ErrMode;
-use winnow::stream::Stream;
+use winnow::stream::{Location, Stream};
 use winnow::token::{any, one_of, take, take_until};
 
 use crate::node::CondTest;
 use crate::{
-    CharLit, ErrorContext, HashSet, InputStream, Num, ParseResult, PathOrIdentifier, StrLit,
-    StrPrefix, WithSpan, any_rust_token, char_lit, cut_error, deny_any_rust_token, filter,
+    CharLit, ErrorContext, HashSet, InputStream, LevelGuard, Num, ParseResult, PathOrIdentifier,
+    StrLit, StrPrefix, WithSpan, any_rust_token, char_lit, cut_error, deny_any_rust_token, filter,
     identifier, is_rust_keyword, keyword, not_suffix_with_hash, num_lit, path_or_identifier,
     skip_ws0, skip_ws1, str_lit, ws,
 };
 
-macro_rules! expr_prec_layer {
-    ( $name:ident, $inner:ident, $op:expr ) => {
-        fn $name(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
-            expr_prec_layer(i, Expr::$inner, |i: &mut _| $op.parse_next(i))
-        }
-    };
-}
-
 const MAX_REFS: usize = 20;
-
-fn expr_prec_layer<'a: 'l, 'l>(
-    i: &mut InputStream<'a, 'l>,
-    inner: fn(&mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>>,
-    op: fn(&mut InputStream<'a, 'l>) -> ParseResult<'a>,
-) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
-    let mut expr = inner(i)?;
-
-    let mut level_guard = i.state.level.guard();
-    let mut next = opt(|i: &mut _| {
-        // We need to make sure that we decrement the level before we enter the right-hand side.
-        let i_before = *i;
-        let op = ws(op.with_span()).parse_next(i)?;
-        level_guard.nest(&i_before)?;
-        Ok((op, inner(i)?))
-    });
-    while let Some(((op, span), rhs)) = next.parse_next(i)? {
-        expr = WithSpan::new(Box::new(Expr::BinOp(BinOp { op, lhs: expr, rhs })), span);
-    }
-
-    Ok(expr)
-}
 
 #[derive(Clone, Copy, Default)]
 struct Allowed {
@@ -382,7 +352,7 @@ impl<'a: 'l, 'l> Expr<'a> {
     ) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let range_right = move |i: &mut InputStream<'a, 'l>| {
             let ((op, span), rhs) =
-                (ws(alt(("..=", "..")).with_span()), opt(Self::or)).parse_next(i)?;
+                (ws(alt(("..=", "..")).with_span()), opt(Self::infix)).parse_next(i)?;
             Ok((op, rhs, span))
         };
 
@@ -392,7 +362,7 @@ impl<'a: 'l, 'l> Expr<'a> {
         });
 
         // `expr..expr` or `expr..`
-        let range_from = (Self::or, opt(range_right)).map(move |(lhs, rhs)| match rhs {
+        let range_from = (Self::infix, opt(range_right)).map(move |(lhs, rhs)| match rhs {
             Some((op, rhs, span)) => WithSpan::new(
                 Box::new(Self::Range(Range {
                     op,
@@ -415,73 +385,71 @@ impl<'a: 'l, 'l> Expr<'a> {
         Ok(expr)
     }
 
-    expr_prec_layer!(or, and, "||");
-    expr_prec_layer!(and, compare, "&&");
+    /// Parses the binary operators with the
+    /// [Double-E method](https://erikeidt.github.io/The-Double-E-Method): instead of one function
+    /// per precedence level, it alternates between an operand and an operator, and keeps the
+    /// operators that wait for their right-hand side on a stack, with their left-hand side.
+    fn infix(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+        let mut stack: Vec<(WithSpan<Box<Self>>, InfixOp<'a>, LevelGuard<'l>)> = Vec::new();
+        let mut operand_start = *i;
+        let mut expr = Self::is_as(i)?;
+        loop {
+            let before = *i;
+            let Some((op, spaced)) = infix_op(i, &operand_start)? else {
+                break;
+            };
+            // All binary operators are left-associative. A chain of one precedence keeps
+            // counting on the same guard, which is given back once a looser operator ends it.
+            let mut guard = None;
+            while let Some((lhs, top, top_guard)) = stack.pop_if(|(_, top, _)| top.prec >= op.prec)
+            {
+                if top.prec == op.prec {
+                    if op.prec == Prec::Compare {
+                        return cut_error!(
+                            format!(
+                                "comparison operators cannot be chained; \
+                                consider using explicit parentheses, e.g.  `(_ {} _) {} _`",
+                                top.op, op.op,
+                            ),
+                            op.span,
+                        );
+                    }
+                    guard = Some(top_guard);
+                }
+                expr = top.apply(lhs, expr);
+            }
+            let mut guard = guard.unwrap_or_else(|| i.state.level.guard());
+            // `~` flattens into one `Concat`, and a comparison cannot chain: neither nests.
+            if !matches!(op.prec, Prec::Compare | Prec::Concat) {
+                guard.nest(&before)?;
+            }
 
-    fn compare(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
-        let mut parse_op = ws(alt(("==", "!=", ">=", ">", "<=", "<")).with_span());
-
-        let (expr, rhs) = (Self::bor, opt((parse_op.by_ref(), Self::bor))).parse_next(i)?;
-        let Some(((op, span), rhs)) = rhs else {
-            return Ok(expr);
-        };
-        let expr = WithSpan::new(Box::new(Expr::BinOp(BinOp { op, lhs: expr, rhs })), span);
-
-        if let Some((op2, span)) = opt(parse_op).parse_next(i)? {
-            return cut_error!(
-                format!(
-                    "comparison operators cannot be chained; \
-                    consider using explicit parentheses, e.g.  `(_ {op} _) {op2} _`"
-                ),
-                span,
-            );
+            operand_start = *i;
+            match Self::is_as(i) {
+                Ok(rhs) if spaced => stack.push((std::mem::replace(&mut expr, rhs), op, guard)),
+                Ok(_) => {
+                    let msg = "the concat operator `~` must be surrounded by spaces";
+                    return cut_error!(msg, op.span);
+                }
+                // An operator without a right-hand side is not part of the expression.
+                Err(ErrMode::Backtrack(_)) => {
+                    *i = before;
+                    break;
+                }
+                Err(err) => return Err(err),
+            }
         }
-
+        while let Some((lhs, op, _)) = stack.pop() {
+            expr = op.apply(lhs, expr);
+        }
         Ok(expr)
     }
 
-    expr_prec_layer!(bor, bxor, "bitor".value("|"));
-    expr_prec_layer!(bxor, band, token_xor);
-    expr_prec_layer!(band, shifts, token_bitand);
-    expr_prec_layer!(shifts, addsub, alt((">>", "<<")));
-    expr_prec_layer!(addsub, concat, alt(("+", "-")));
-
-    fn concat(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
-        #[allow(clippy::type_complexity)]
-        fn concat_expr<'a: 'l, 'l>(
-            i: &mut InputStream<'a, 'l>,
-        ) -> ParseResult<'a, Option<(WithSpan<Box<Expr<'a>>>, std::ops::Range<usize>)>> {
-            let ws1 = |i: &mut _| opt(skip_ws1).parse_next(i);
-            let tilde = (ws1, '~', ws1).with_span();
-            let data = opt((tilde, Expr::muldivmod)).parse_next(i)?;
-
-            let Some((((t1, _, t2), span), expr)) = data else {
-                return Ok(None);
-            };
-            if t1.is_none() || t2.is_none() {
-                return cut_error!("the concat operator `~` must be surrounded by spaces", span);
-            }
-
-            Ok(Some((expr, span)))
-        }
-
-        let expr = Self::muldivmod(i)?;
-        let expr2 = concat_expr(i)?;
-        if let Some((expr2, span)) = expr2 {
-            let mut exprs = vec![expr, expr2];
-            while let Some((expr, _)) = concat_expr(i)? {
-                exprs.push(expr);
-            }
-            Ok(WithSpan::new(Box::new(Self::Concat(exprs)), span))
-        } else {
-            Ok(expr)
-        }
-    }
-
-    expr_prec_layer!(muldivmod, is_as, alt(("*", "/", "%")));
-
     fn is_as(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
         let lhs = Self::filtered(i)?;
+        if !i.trim_ascii_start().starts_with(['i', 'a']) {
+            return Ok(lhs);
+        }
         let checkpoint = i.checkpoint();
         let rhs = opt(ws(identifier.with_span())).parse_next(i)?;
         match rhs {
@@ -560,7 +528,9 @@ impl<'a: 'l, 'l> Expr<'a> {
 
         let mut level_guard = i.state.level.guard();
         let mut i_before = *i;
-        while let Some((mut filter, span)) = opt(ws(filter.with_span())).parse_next(i)? {
+        while i.trim_ascii_start().starts_with('|')
+            && let Some((mut filter, span)) = opt(ws(filter.with_span())).parse_next(i)?
+        {
             level_guard.nest(&i_before)?;
             filter.arguments.insert(0, res);
             res = WithSpan::new(Box::new(Self::Filter(filter)), span);
@@ -576,7 +546,9 @@ impl<'a: 'l, 'l> Expr<'a> {
         let mut level_guard = i.state.level.guard();
         let mut i_before = *i;
         let mut ops = vec![];
-        while let Some(op) = opt(ws(alt(("!", "-", "*", "&")).with_span())).parse_next(i)? {
+        while i.trim_ascii_start().starts_with(['!', '-', '*', '&'])
+            && let Some(op) = opt(ws(alt(("!", "-", "*", "&")).with_span())).parse_next(i)?
+        {
             level_guard.nest(&i_before)?;
             ops.push(op);
             i_before = *i;
@@ -591,6 +563,10 @@ impl<'a: 'l, 'l> Expr<'a> {
     }
 
     fn single(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+        // Only `b"…"`, `b'…'` and `c"…"` are literals that start with a letter.
+        if let [b'a' | b'd'..=b'z' | b'A'..=b'Z', ..] = i.as_bytes() {
+            return Self::path_var_bool(i);
+        }
         alt((
             Self::num,
             Self::str,
@@ -795,6 +771,104 @@ impl<'a: 'l, 'l> Expr<'a> {
     }
 }
 
+/// Precedence of the operators [`Expr::infix()`] handles, from the loosest to the tightest
+/// binding.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Prec {
+    Or,
+    And,
+    Compare,
+    BitOr,
+    BitXor,
+    BitAnd,
+    Shift,
+    AddSub,
+    Concat,
+    MulDivMod,
+}
+
+struct InfixOp<'a> {
+    prec: Prec,
+    op: &'a str,
+    span: std::ops::Range<usize>,
+}
+
+impl<'a> InfixOp<'a> {
+    fn apply(
+        self,
+        mut lhs: WithSpan<Box<Expr<'a>>>,
+        rhs: WithSpan<Box<Expr<'a>>>,
+    ) -> WithSpan<Box<Expr<'a>>> {
+        let expr = match self.prec {
+            // `a ~ b ~ c` is one `Concat`; a parenthesized one would be a `Group`.
+            Prec::Concat => {
+                if let Expr::Concat(exprs) = &mut **lhs {
+                    exprs.push(rhs);
+                    return lhs;
+                }
+                Expr::Concat(vec![lhs, rhs])
+            }
+            _ => Expr::BinOp(BinOp {
+                op: self.op,
+                lhs,
+                rhs,
+            }),
+        };
+        WithSpan::new(Box::new(expr), self.span)
+    }
+}
+
+/// Parses a binary operator. The `bool` is `false` for a `~` without spaces around it; `operand`
+/// is the input before the operand in front of it, because many operands swallow the space after
+/// them.
+fn infix_op<'a: 'l, 'l>(
+    i: &mut InputStream<'a, 'l>,
+    operand: &InputStream<'a, 'l>,
+) -> ParseResult<'a, Option<(InfixOp<'a>, bool)>> {
+    let before = *i;
+    skip_ws0(i)?;
+    let start = i.current_token_start();
+    let op = match i.as_bytes() {
+        [b'*' | b'/' | b'%', ..] => Some((Prec::MulDivMod, 1usize)),
+        [b'~', ..] => Some((Prec::Concat, 1)),
+        [b'+' | b'-', ..] => Some((Prec::AddSub, 1)),
+        [b'>', b'>', ..] | [b'<', b'<', ..] => Some((Prec::Shift, 2)),
+        [b'=' | b'!' | b'>' | b'<', b'=', ..] => Some((Prec::Compare, 2)),
+        [b'>' | b'<', ..] => Some((Prec::Compare, 1)),
+        [b'&', b'&', ..] => Some((Prec::And, 2)),
+        [b'|', b'|', ..] => Some((Prec::Or, 2)),
+        [b'&' | b'^' | b'b' | b'x', ..] => None,
+        _ => {
+            *i = before;
+            return Ok(None);
+        }
+    };
+    let op = match op {
+        Some((prec, len)) => Some((prec, take(len).parse_next(i)?)),
+        None => opt(alt((
+            token_bitand.map(|op| (Prec::BitAnd, op)),
+            token_xor.map(|op| (Prec::BitXor, op)),
+            "bitor".value((Prec::BitOr, "|")),
+        )))
+        .parse_next(i)?,
+    };
+    let Some((prec, op)) = op else {
+        *i = before;
+        return Ok(None);
+    };
+    if prec != Prec::Concat {
+        let span = start..i.current_token_start();
+        skip_ws0(i)?;
+        return Ok(Some((InfixOp { prec, op, span }, true)));
+    }
+
+    // `~` is also whitespace control, so an unspaced one is only an error before an operand.
+    let ws_before = operand[..operand.len() - (i.len() + 1)].ends_with(char::is_whitespace);
+    let spaced = opt(skip_ws1).parse_next(i)?.is_some() && ws_before;
+    let span = before.current_token_start()..i.current_token_start();
+    Ok(Some((InfixOp { prec, op, span }, spaced)))
+}
+
 fn token_xor<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a> {
     let good = keyword("xor").value(None);
     let bad = ('^', not('=')).span().map(Some);
@@ -880,7 +954,12 @@ impl<'a: 'l, 'l> Suffix<'a> {
         )));
 
         let mut i_before = i.checkpoint();
-        while let Some(suffix) = right.parse_next(i)? {
+        // Most operands have no suffix: don't let all six alternatives fail one after the other.
+        while i
+            .trim_ascii_start()
+            .starts_with(['.', '[', '(', '?', '!', '{', ':'])
+            && let Some(suffix) = right.parse_next(i)?
+        {
             level_guard.nest(i)?;
             let (suffix, span) = suffix.deconstruct();
             let inner = match suffix {
@@ -936,6 +1015,8 @@ impl<'a: 'l, 'l> Suffix<'a> {
             expr = WithSpan::new(inner, span);
             i_before = i.checkpoint();
         }
+        // `Self::r#struct` takes a level before it looks for `{`, even when skipped above.
+        level_guard.nest(i)?;
         Ok(expr)
     }
 
