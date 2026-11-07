@@ -118,3 +118,159 @@ fn test_nested_includes() {
         "\n  NESTED: INCLUDED: foo\n  NESTED: INCLUDED: bar"
     );
 }
+
+#[test]
+fn test_include_block() {
+    // Only `value` and `length` are rendered, so the struct needs no `title`.
+    #[derive(Template)]
+    #[template(
+        source = r#"{% include "include-block-page.html" block value %}
+{%- include "include-block-page.html" block length %}"#,
+        ext = "html"
+    )]
+    struct Partial<'a> {
+        value: &'a str,
+        length: usize,
+    }
+
+    let partial = Partial {
+        value: "some value",
+        length: 10,
+    };
+    assert_eq!(
+        partial.render().unwrap(),
+        "\n<p>Value: some value</p>\n<p>Length: 10</p>"
+    );
+}
+
+#[test]
+fn test_include_block_ws() {
+    #[derive(Template)]
+    #[template(
+        source = r#"<b> {%- include "include-block-page.html" block title -%} </b>"#,
+        ext = "html"
+    )]
+    struct Title<'a> {
+        title: &'a str,
+    }
+
+    assert_eq!(Title { title: "Home" }.render().unwrap(), "<b>Home</b>");
+}
+
+#[test]
+fn test_include_block_sees_locals() {
+    #[derive(Template)]
+    #[template(
+        source = r#"{% for name in names %}{% include "fragment-simple.html" block body %}{% endfor %}"#,
+        ext = "html"
+    )]
+    struct Loop<'a> {
+        names: &'a [&'a str],
+    }
+
+    let names = ["a", "b"];
+    assert_eq!(
+        Loop { names: &names }.render().unwrap(),
+        "\n<p>Hello a!</p>\n\n<p>Hello b!</p>\n"
+    );
+}
+
+#[test]
+fn test_include_nested_block() {
+    #[derive(Template)]
+    #[template(
+        source = r#"{% include "fragment-nested-block.html" block nested %}"#,
+        ext = "html"
+    )]
+    struct Nested;
+
+    #[derive(Template)]
+    #[template(
+        source = r#"{% include "fragment-nested-block.html" block body %}"#,
+        ext = "html"
+    )]
+    struct Outer;
+
+    assert_eq!(Nested.render().unwrap(), "\n<p>I should be here.</p>\n");
+    assert_eq!(
+        Outer.render().unwrap(),
+        "\n<p>Don't render me!</p>\n\n<p>I should be here.</p>\n\n"
+    );
+}
+
+#[test]
+fn test_include_block_super() {
+    #[derive(Template)]
+    #[template(
+        source = r#"{% include "fragment-super.html" block body %}"#,
+        ext = "html"
+    )]
+    struct Super<'a> {
+        name: &'a str,
+    }
+
+    #[derive(Template)]
+    #[template(
+        source = r#"{% include "fragment-nested-super.html" block body %}"#,
+        ext = "html"
+    )]
+    struct NestedSuper<'a> {
+        name: &'a str,
+    }
+
+    // A block the child template does not override comes from its parent.
+    #[derive(Template)]
+    #[template(
+        source = r#"{% include "fragment-simple.html" block body %}"#,
+        ext = "html"
+    )]
+    struct Overridden<'a> {
+        name: &'a str,
+    }
+
+    #[derive(Template)]
+    #[template(
+        source = r#"{% include "fragment-mid-super.html" block body %}"#,
+        ext = "html"
+    )]
+    struct FromParent;
+
+    assert_eq!(
+        Super { name: "world" }.render().unwrap(),
+        "\n<p>Hello world!</p>\n\n<p>Parent body content</p>\n\n"
+    );
+    assert_eq!(
+        NestedSuper { name: "world" }.render().unwrap(),
+        "\n<p>Hello world!</p>\n\n[\n<p>Parent body content</p>\n]\n\n"
+    );
+    assert_eq!(
+        Overridden { name: "world" }.render().unwrap(),
+        "\n<p>Hello world!</p>\n"
+    );
+    assert_eq!(
+        FromParent.render().unwrap(),
+        "\n[\n<p>Parent body content</p>\n]\n"
+    );
+}
+
+#[test]
+fn test_include_block_in_block_fragment() {
+    // The `oob` block is rendered on its own and includes a block of another template.
+    #[derive(Template)]
+    #[template(
+        source = r#"{{ skipped }}{% block oob %}[{% include "fragment-simple.html" block body %}]{% endblock %}"#,
+        ext = "html",
+        blocks = ["oob"]
+    )]
+    struct Page<'a> {
+        skipped: &'a str,
+        name: &'a str,
+    }
+
+    let page = Page {
+        skipped: "skipped",
+        name: "world",
+    };
+    assert_eq!(page.as_oob().render().unwrap(), "[\n<p>Hello world!</p>\n]");
+    assert_eq!(page.render().unwrap(), "skipped[\n<p>Hello world!</p>\n]");
+}

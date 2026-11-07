@@ -1,0 +1,23 @@
+error: cannot find block `missing` in `fragment-simple.html`
+ --> UnknownBlock.html:1:40
+       "missing %}"
+ --> tests/ui/include-block.rs:6:14
+  |
+6 |     source = r#"{% include "fragment-simple.html" block missing %}"#
+  |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot find block `a` in `included.html`
+ --> NoBlocks.html:1:33
+       "a %}"
+  --> tests/ui/include-block.rs:11:35
+   |
+11 | #[template(ext = "html", source = r#"{% include "included.html" block a %}"#)]
+   |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot include block `list` on its own: it is nested inside another statement, like `if`, `match` or `for`
+ --> NestedInIf.html:1:45
+       "list %}"
+  --> tests/ui/include-block.rs:17:14
+   |
+17 |     source = r#"{% include "include-block-nested.html" block list %}"#
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

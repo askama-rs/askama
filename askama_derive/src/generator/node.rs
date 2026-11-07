@@ -3,13 +3,14 @@ use std::collections::hash_map::Entry;
 use std::fmt::Debug;
 use std::mem;
 use std::ops::ControlFlow;
+use std::ptr;
 use std::rc::Rc;
 use std::str::FromStr;
 
 use parser::expr::BinOp;
 use parser::node::{
-    Call, Comment, Compound, Cond, CondTest, Declare, FilterBlock, If, Include, Let, Lit, Loop,
-    Match, Whitespace, Ws,
+    BlockDef, Call, Comment, Compound, Cond, CondTest, Declare, FilterBlock, If, Include, Let, Lit,
+    Loop, Match, Whitespace, Ws,
 };
 use parser::{Expr, LetValueOrBlock, Node, Span, Target, WithSpan};
 use proc_macro2::TokenStream;
@@ -880,13 +881,51 @@ impl<'a> Generator<'a, '_> {
             None => child_ctx,
         };
 
-        size_hint += self.with_child(heritage.as_ref(), |child| {
-            let mut size_hint = SizeHint::EMPTY;
-            size_hint +=
-                child.handle(handle_ctx, handle_ctx.nodes, buf, AstLevel::Top, render_for)?;
-            size_hint += child.write_buf_writable(handle_ctx, buf)?;
-            Ok(size_hint)
-        })?;
+        if let Some(block) = i.block {
+            // `{% include "..." block name %}` renders only that block, the way it renders in
+            // the included template, `super()` and nested blocks included.
+            let Some(defs) = heritage.as_ref().and_then(|h| h.blocks.get(*block)) else {
+                return Err(ctx.generate_error(
+                    format_args!(
+                        "cannot find block `{}` in `{}`",
+                        block.escape_debug(),
+                        i.path.escape_debug(),
+                    ),
+                    block.span(),
+                ));
+            };
+            // Like `#[template(block = "...")]`, a block cannot be taken out of its `if`,
+            // `match` or loop.
+            if !defs
+                .iter()
+                .all(|(def_ctx, def)| is_block_outside_statements(def_ctx.nodes, def))
+            {
+                return Err(ctx.generate_error(
+                    format_args!(
+                        "cannot include block `{}` on its own: it is nested inside another \
+                         statement, like `if`, `match` or `for`",
+                        block.escape_debug(),
+                    ),
+                    block.span(),
+                ));
+            }
+            if render_for == RenderFor::Template {
+                size_hint += self.with_child(heritage.as_ref(), |child| {
+                    let mut size_hint =
+                        child.write_block(child_ctx, buf, Some(block), Ws(None, None), i.span)?;
+                    size_hint += child.write_buf_writable(child_ctx, buf)?;
+                    Ok(size_hint)
+                })?;
+            }
+        } else {
+            size_hint += self.with_child(heritage.as_ref(), |child| {
+                let mut size_hint = SizeHint::EMPTY;
+                size_hint +=
+                    child.handle(handle_ctx, handle_ctx.nodes, buf, AstLevel::Top, render_for)?;
+                size_hint += child.write_buf_writable(handle_ctx, buf)?;
+                Ok(size_hint)
+            })?;
+        }
 
         self.prepare_ws(i.ws);
 
@@ -1964,6 +2003,15 @@ impl<'a> Conds<'a> {
             ws_after,
         }
     }
+}
+
+/// Whether `def` is reachable from `nodes` through blocks alone, i.e. not inside an `if`, `match`
+/// or loop.
+fn is_block_outside_statements<'a>(nodes: &[Box<Node<'a>>], def: &BlockDef<'a>) -> bool {
+    nodes.iter().any(|node| match &**node {
+        Node::BlockDef(b) => ptr::eq(b, def) || is_block_outside_statements(&b.nodes, def),
+        _ => false,
+    })
 }
 
 fn median(sizes: &mut [SizeHint]) -> SizeHint {
