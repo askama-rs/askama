@@ -1015,8 +1015,8 @@ impl<'a: 'l, 'l> Suffix<'a> {
             expr = WithSpan::new(inner, span);
             i_before = i.checkpoint();
         }
-        // `Self::r#struct` takes a level before it looks for `{`: keep the limit where it was.
-        drop(i.state.level.nest(i)?);
+        // `Self::r#struct` takes a level before it looks for `{`, even when skipped above.
+        level_guard.nest(i)?;
         Ok(expr)
     }
 
