@@ -218,7 +218,6 @@ fn test_include_block_super() {
         name: &'a str,
     }
 
-    // A block the child template does not override comes from its parent.
     #[derive(Template)]
     #[template(
         source = r#"{% include "fragment-simple.html" block body %}"#,
@@ -228,9 +227,10 @@ fn test_include_block_super() {
         name: &'a str,
     }
 
+    // A block the child template does not override comes from its parent.
     #[derive(Template)]
     #[template(
-        source = r#"{% include "fragment-mid-super.html" block body %}"#,
+        source = r#"{% include "include-block-child.html" block body %}"#,
         ext = "html"
     )]
     struct FromParent;
@@ -249,7 +249,7 @@ fn test_include_block_super() {
     );
     assert_eq!(
         FromParent.render().unwrap(),
-        "\n[\n<p>Parent body content</p>\n]\n"
+        "\n<p>Parent body content</p>\n"
     );
 }
 
@@ -273,4 +273,24 @@ fn test_include_block_in_block_fragment() {
     };
     assert_eq!(page.as_oob().render().unwrap(), "[\n<p>Hello world!</p>\n]");
     assert_eq!(page.render().unwrap(), "skipped[\n<p>Hello world!</p>\n]");
+}
+
+#[test]
+fn test_include_block_in_child_template() {
+    // Like any top-level content of a child template, the first include renders nothing.
+    #[derive(Template)]
+    #[template(
+        source = r#"{% extends "fragment-base.html" %}
+{%- include "include-block-page.html" block title %}
+{%- block body %}<h1>{% include "include-block-page.html" block title %}</h1>{% endblock %}"#,
+        ext = "html"
+    )]
+    struct Child<'a> {
+        title: &'a str,
+    }
+
+    assert_eq!(
+        Child { title: "Home" }.render().unwrap(),
+        "<html>\n<head></head>\n<body>\n<h1>Home</h1>\n\n</body>\n</html>"
+    );
 }

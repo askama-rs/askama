@@ -21,3 +21,11 @@ error: cannot include block `list` on its own: it is nested inside another state
    |
 17 |     source = r#"{% include "include-block-nested.html" block list %}"#
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot include block `list` on its own: it is nested inside another statement, like `if`, `match` or `for`
+ --> NestedInParentIf.html:1:51
+       "list %}"
+  --> tests/ui/include-block.rs:25:14
+   |
+25 |     source = r#"{% include "include-block-nested-child.html" block list %}"#
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
