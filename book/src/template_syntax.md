@@ -1048,6 +1048,36 @@ recursive call can have a `caller` body, but no `caller` arguments:
 {{ tree(root) }}
 ```
 
+A macro without arguments counts as having all of its arguments typed, so it
+can call itself as well. Since every call sees the same values, only the
+template can end the recursion, for example with a method that changes its
+result between calls:
+
+```jinja
+{% macro countdown %}
+    {% if self.tick() %}
+        {{ left.get() }}
+        {{ countdown() }}
+    {% endif %}
+{% endmacro %}
+```
+
+```rust
+#[derive(Template)]
+#[template(path = "countdown.html")]
+struct Countdown {
+    left: Cell<u32>,
+}
+
+impl Countdown {
+    fn tick(&self) -> bool {
+        let left = self.left.get();
+        self.left.set(left.saturating_sub(1));
+        left > 0
+    }
+}
+```
+
 ### Named Arguments
 
 Additionally to specifying arguments positionally, you can also pass arguments by name. This allows passing the arguments in any order:

@@ -907,6 +907,37 @@ fn test_recursive_macro_with_caller() {
     assert_eq!(List { sep: "<" }.render().unwrap(), "[x[1&#60;[0&#60;]]]");
 }
 
+// A macro without arguments has all of its arguments typed, so it can call itself too. Only the
+// template's fields can end the recursion.
+#[test]
+fn test_recursive_macro_without_arguments() {
+    use std::cell::Cell;
+
+    #[derive(Template)]
+    #[template(
+        source = "
+{%- macro countdown -%}
+    {%- if self.tick() %}{{ left.get() }}{{ countdown() }}{% endif -%}
+{%- endmacro -%}
+{{- countdown() }}",
+        ext = "txt"
+    )]
+    struct Countdown {
+        left: Cell<u32>,
+    }
+
+    impl Countdown {
+        fn tick(&self) -> bool {
+            let left = self.left.get();
+            self.left.set(left.saturating_sub(1));
+            left > 0
+        }
+    }
+
+    let countdown = Countdown { left: Cell::new(3) };
+    assert_eq!(countdown.render().unwrap(), "210");
+}
+
 #[test]
 fn test_mutually_recursive_imported_macros() {
     #[derive(Template)]
