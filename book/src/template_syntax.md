@@ -968,7 +968,8 @@ A Comment
 ## Recursive Structures
 
 Recursive implementations should preferably use a custom iterator and
-use a plain loop. If that is not doable, call `.render()`
+use a plain loop. If that is not doable, use a
+[recursive macro](#recursive-macros), or call `.render()`
 directly by using an expression as shown below.
 
 ```rust
@@ -1035,6 +1036,55 @@ To have a small library of reusable snippets, it's best to declare the macros in
 {% import "macro.html" as scope %}
 
 {{ scope::heading("test") }}
+```
+
+### Recursive Macros
+
+A macro can call itself, directly or through other macros, if all of its
+arguments have a type annotation. The recursive call is rendered by a method
+generated for the macro, so like a Rust function it only sees its arguments
+and the fields of the template, not the variables at its call site. A
+recursive call can have a `caller` body, but no `caller` arguments:
+
+```jinja
+{% macro tree(node: Node, depth: usize = 0) %}
+    {{ depth }}: {{ node.name }}
+    {% for child in node.children %}
+        {{ tree(child, depth + 1) }}
+    {% endfor %}
+{% endmacro %}
+
+{{ tree(root) }}
+```
+
+A macro without arguments counts as having all of its arguments typed, so it
+can call itself as well. Since every call sees the same values, only the
+template can end the recursion, for example with a method that changes its
+result between calls:
+
+```jinja
+{% macro countdown %}
+    {% if self.tick() %}
+        {{ left.get() }}
+        {{ countdown() }}
+    {% endif %}
+{% endmacro %}
+```
+
+```rust
+#[derive(Template)]
+#[template(path = "countdown.html")]
+struct Countdown {
+    left: Cell<u32>,
+}
+
+impl Countdown {
+    fn tick(&self) -> bool {
+        let left = self.left.get();
+        self.left.set(left.saturating_sub(1));
+        left > 0
+    }
+}
 ```
 
 ### Named Arguments
