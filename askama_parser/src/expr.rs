@@ -1015,8 +1015,6 @@ impl<'a: 'l, 'l> Suffix<'a> {
             expr = WithSpan::new(inner, span);
             i_before = i.checkpoint();
         }
-        // `Self::r#struct` takes a level before it looks for `{`, even when skipped above.
-        level_guard.nest(i)?;
         Ok(expr)
     }
 
@@ -1454,9 +1452,9 @@ impl<'a: 'l, 'l> Suffix<'a> {
     }
 
     fn r#struct(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+        let span = ws('{'.span()).parse_next(i)?;
         let _level_guard = i.state.level.nest(i)?;
         let mut p = (
-            ws('{'.span()),
             cut_err((separated(
                 0..,
                 alt((Self::struct_field, Self::struct_base)),
@@ -1465,12 +1463,8 @@ impl<'a: 'l, 'l> Suffix<'a> {
             opt(ws(',')), // Trailing comma.
             opt(ws(winnow::token::any.with_span())),
         );
-        let (span, (all_fields,), trailing_comma, closed): (
-            _,
-            (Vec<Field<'_>>,),
-            Option<_>,
-            Option<_>,
-        ) = p.parse_next(i)?;
+        let ((all_fields,), trailing_comma, closed): ((Vec<Field<'_>>,), Option<_>, Option<_>) =
+            p.parse_next(i)?;
         if trailing_comma.is_some() && all_fields.is_empty() {
             return cut_error!("missing field before `,`", span);
         }

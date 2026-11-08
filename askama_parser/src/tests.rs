@@ -2049,14 +2049,14 @@ fn test_infix_nesting_limit() {
     let fits = |expr: String| {
         Ast::from_str(&format!("{{{{ {expr} }}}}"), None, &Syntax::default()).is_ok()
     };
-    assert!(fits(format!("a{}", " * a".repeat(126))));
-    assert!(!fits(format!("a{}", " * a".repeat(127))));
+    assert!(fits(format!("a{}", " * a".repeat(127))));
+    assert!(!fits(format!("a{}", " * a".repeat(128))));
     assert!(fits(format!(
         "a{}{}",
-        " * a".repeat(126),
-        " + a".repeat(126)
+        " * a".repeat(127),
+        " + a".repeat(127)
     )));
-    assert!(fits(format!("{}a{}", "!".repeat(126), " * a".repeat(126))));
+    assert!(fits(format!("{}a{}", "!".repeat(127), " * a".repeat(127))));
     assert!(fits(format!("a{}|f{}", " * a".repeat(62), "|f".repeat(62))));
     assert!(!fits(format!(
         "a{}|f{}",
