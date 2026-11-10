@@ -517,12 +517,12 @@ struct BlockFragment {
 ```
 
 A block rendered by itself (with `block = "..."` or as one of the
-`blocks = [...]`) cannot be nested inside an `if`, `match` or `for`:
-rendering it would discard the surrounding statement, block included, so
-it is rejected at compile time:
+`blocks = [...]`) can be nested inside an `if` or `match`, which is then
+evaluated as usual. It cannot be nested inside a `for`, `filter`, `call`
+or `let` block, which is rejected at compile time:
 
 ```text
-error: cannot render block `list` on its own: it is nested inside another statement, like `if`, `match` or `for`
+error: cannot render block `item` on its own: it is nested inside a `for`, `filter`, `call` or `let` block
 ```
 
 ## HTML escaping
@@ -868,8 +868,9 @@ regions of a page in one partial response, as htmx out-of-band swaps do,
 without splitting the page into separate templates.
 
 The block has to exist in the included template, and, as with the
-`block` parameter, it cannot be nested inside an `if`, `match` or `for`;
-both are reported at compile time.
+`block` parameter, it can be nested inside an `if` or `match` but not
+inside a `for`, `filter`, `call` or `let` block; both are reported at
+compile time.
 
 ## Expressions
 

@@ -14,17 +14,9 @@ struct NoBlocks;
 #[derive(Template)]
 #[template(
     ext = "html",
-    source = r#"{% include "include-block-nested.html" block list %}"#
+    source = r#"{% include "include-block-loop.html" block item %}"#
 )]
-struct NestedInIf;
-
-// The child's block is at its top level, but the parent places it inside an `if`.
-#[derive(Template)]
-#[template(
-    ext = "html",
-    source = r#"{% include "include-block-nested-child.html" block list %}"#
-)]
-struct NestedInParentIf;
+struct NestedInFor;
 
 fn main() {
 }

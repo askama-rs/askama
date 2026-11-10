@@ -1,15 +1,15 @@
 use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 use std::fmt::Debug;
+use std::mem;
 use std::ops::ControlFlow;
 use std::rc::Rc;
 use std::str::FromStr;
-use std::{mem, ptr};
 
 use parser::expr::BinOp;
 use parser::node::{
-    BlockDef, Call, Comment, Compound, Cond, CondTest, Declare, FilterBlock, If, Include, Let, Lit,
-    Loop, Match, Whitespace, Ws,
+    Call, Comment, Compound, Cond, CondTest, Declare, FilterBlock, If, Include, Let, Lit, Loop,
+    Match, Whitespace, Ws,
 };
 use parser::{Expr, LetValueOrBlock, Node, Span, Target, WithSpan};
 use proc_macro2::TokenStream;
@@ -84,6 +84,7 @@ impl<'a> Generator<'a, '_> {
             self.is_in_block,
         );
         child.buf_writable = buf_writable;
+        child.fragment = self.fragment;
         child.macro_functions = mem::take(&mut self.macro_functions);
         let res = callback(&mut child);
         Generator {
@@ -142,9 +143,7 @@ impl<'a> Generator<'a, '_> {
                 Node::BlockDef(ref b) => {
                     // Rendering one block discards the code around it; only an `if` or `match`
                     // keeps its own code for it, so a block in a loop would render nothing.
-                    if level == AstLevel::Nested
-                        && self.input.block.is_some_and(|(name, _)| name == *b.name)
-                    {
+                    if level == AstLevel::Nested && self.fragment == Some(*b.name) {
                         return Err(ctx.generate_error(
                             format_args!(
                                 "cannot render block `{}` on its own: it is nested inside \
@@ -574,12 +573,12 @@ impl<'a> Generator<'a, '_> {
         Ok(flushed + median(&mut arm_sizes))
     }
 
-    /// Whether this `if` or `match` holds the one block being rendered (`block = "..."`), so
+    /// Whether this `if` or `match` holds the one block being rendered (`self.fragment`), so
     /// its own code must be kept while the code around it is discarded.
     fn contains_fragment(&self, ctx: &Context<'a>, level: AstLevel, node: Span) -> bool {
         level != AstLevel::Nested
             && self.buf_writable.discard
-            && self.input.block.is_some_and(|(name, _)| {
+            && self.fragment.is_some_and(|name| {
                 ctx.block_holders
                     .get(name)
                     .is_some_and(|holders| holders.contains(&node))
@@ -883,7 +882,10 @@ impl<'a> Generator<'a, '_> {
         if let Some(block) = i.block {
             // `{% include "..." block name %}` renders only that block, the way it renders in
             // the included template, `super()` and nested blocks included.
-            let Some(defs) = heritage.as_ref().and_then(|h| h.blocks.get(*block)) else {
+            if heritage
+                .as_ref()
+                .is_none_or(|h| !h.blocks.contains_key(*block))
+            {
                 return Err(ctx.generate_error(
                     format_args!(
                         "cannot find block `{}` in `{}`",
@@ -892,27 +894,27 @@ impl<'a> Generator<'a, '_> {
                     ),
                     block.span(),
                 ));
-            };
-            // Like `#[template(block = "...")]`, a block cannot be taken out of its `if`,
-            // `match` or loop.
-            if !defs
-                .iter()
-                .all(|(def_ctx, def)| is_block_outside_statements(def_ctx.nodes, def))
-            {
-                return Err(ctx.generate_error(
-                    format_args!(
-                        "cannot include block `{}` on its own: it is nested inside another \
-                         statement, like `if`, `match` or `for`",
-                        block.escape_debug(),
-                    ),
-                    block.span(),
-                ));
             }
-            if render_for == RenderFor::Template {
+            // Inside discarded code, e.g. outside the fragment being rendered, the block would
+            // switch writing back on.
+            if render_for == RenderFor::Template && !self.buf_writable.discard {
                 size_hint += self.with_child(heritage.as_ref(), |child| {
-                    let mut size_hint =
-                        child.write_block(child_ctx, buf, Some(block), Ws(None, None), i.span)?;
-                    size_hint += child.write_buf_writable(child_ctx, buf)?;
+                    // Render the template as a fragment, like `#[template(block = "...")]`,
+                    // so the `if` or `match` around the block is kept.
+                    child.fragment = Some(*block);
+                    child.buf_writable.discard = true;
+                    let prev_buf_discard = buf.is_discard();
+                    buf.set_discard(true);
+                    let mut size_hint = child.handle(
+                        handle_ctx,
+                        handle_ctx.nodes,
+                        buf,
+                        AstLevel::Top,
+                        RenderFor::Template,
+                    )?;
+                    size_hint += child.write_buf_writable(handle_ctx, buf)?;
+                    buf.set_discard(prev_buf_discard);
+                    child.buf_writable.discard = false;
                     Ok(size_hint)
                 })?;
             }
@@ -1330,9 +1332,8 @@ impl<'a> Generator<'a, '_> {
 
         let mut size_hint = self.write_buf_writable(ctx, buf)?;
 
-        let block_fragment_write = self.input.block.map(|(block, _)| block)
-            == name.as_deref().copied()
-            && self.buf_writable.discard;
+        let block_fragment_write =
+            self.fragment == name.as_deref().copied() && self.buf_writable.discard;
         // Allow writing to the buffer if we're in the block fragment
         if block_fragment_write {
             self.buf_writable.discard = false;
@@ -2002,15 +2003,6 @@ impl<'a> Conds<'a> {
             ws_after,
         }
     }
-}
-
-/// Whether `def` is reachable from `nodes` through blocks alone, i.e. not inside an `if`, `match`
-/// or loop.
-fn is_block_outside_statements<'a>(nodes: &[Box<Node<'a>>], def: &BlockDef<'a>) -> bool {
-    nodes.iter().any(|node| match &**node {
-        Node::BlockDef(b) => ptr::eq(b, def) || is_block_outside_statements(&b.nodes, def),
-        _ => false,
-    })
 }
 
 fn median(sizes: &mut [SizeHint]) -> SizeHint {

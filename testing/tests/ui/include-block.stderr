@@ -14,18 +14,10 @@ error: cannot find block `a` in `included.html`
 11 | #[template(ext = "html", source = r#"{% include "included.html" block a %}"#)]
    |                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-error: cannot include block `list` on its own: it is nested inside another statement, like `if`, `match` or `for`
- --> NestedInIf.html:1:45
-       "list %}"
+error: cannot render block `item` on its own: it is nested inside a `for`, `filter`, `call` or `let` block
+ --> testing/templates/include-block-loop.html:1:22
+       "block item %}{{ s }}{% endblock %}{% endfor %}"
   --> tests/ui/include-block.rs:17:14
    |
-17 |     source = r#"{% include "include-block-nested.html" block list %}"#
-   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-error: cannot include block `list` on its own: it is nested inside another statement, like `if`, `match` or `for`
- --> NestedInParentIf.html:1:51
-       "list %}"
-  --> tests/ui/include-block.rs:25:14
-   |
-25 |     source = r#"{% include "include-block-nested-child.html" block list %}"#
-   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+17 |     source = r#"{% include "include-block-loop.html" block item %}"#
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

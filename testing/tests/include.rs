@@ -276,6 +276,72 @@ fn test_include_block_in_block_fragment() {
 }
 
 #[test]
+fn test_include_block_outside_block_fragment() {
+    // Outside the `oob` fragment, the included block must stay discarded too.
+    #[derive(Template)]
+    #[template(
+        source = r#"{% include "fragment-simple.html" block body %}{% block oob %}x{% endblock %}"#,
+        ext = "html",
+        blocks = ["oob"]
+    )]
+    struct Page<'a> {
+        name: &'a str,
+    }
+
+    assert_eq!(Page { name: "world" }.as_oob().render().unwrap(), "x");
+}
+
+// Like a block fragment, an included block can sit inside an `if` or `match`.
+#[test]
+fn test_include_block_in_if_and_match() {
+    #[derive(Template)]
+    #[template(
+        source = r#"[{% include "include-block-nested.html" block list %}]"#,
+        ext = "html"
+    )]
+    struct InIf<'a> {
+        show: bool,
+        s: &'a str,
+    }
+
+    assert_eq!(InIf { show: true, s: "x" }.render().unwrap(), "[x]");
+    assert_eq!(
+        InIf {
+            show: false,
+            s: "x"
+        }
+        .render()
+        .unwrap(),
+        "[]"
+    );
+
+    // The child overrides a block that its parent places inside the `if`.
+    #[derive(Template)]
+    #[template(
+        source = r#"[{% include "include-block-nested-child.html" block list %}]"#,
+        ext = "html"
+    )]
+    struct InParentIf {
+        show: bool,
+    }
+
+    assert_eq!(InParentIf { show: true }.render().unwrap(), "[overridden]");
+    assert_eq!(InParentIf { show: false }.render().unwrap(), "[]");
+
+    #[derive(Template)]
+    #[template(
+        source = r#"[{% include "include-block-match.html" block val %}]"#,
+        ext = "txt"
+    )]
+    struct InMatch {
+        opt: Option<u32>,
+    }
+
+    assert_eq!(InMatch { opt: Some(3) }.render().unwrap(), "[3]");
+    assert_eq!(InMatch { opt: None }.render().unwrap(), "[]");
+}
+
+#[test]
 fn test_include_block_in_child_template() {
     // Like any top-level content of a child template, the first include renders nothing.
     #[derive(Template)]
