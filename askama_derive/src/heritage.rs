@@ -52,6 +52,8 @@ pub(crate) struct Context<'a> {
     pub(crate) extends: Option<Arc<Path>>,
     // Behind `Rc` because `Context` is cloned for every `caller` and inherited block.
     pub(crate) blocks: Rc<HashMap<&'a str, &'a BlockDef<'a>>>,
+    /// For each block nested in an `if` or `match`, the spans of those statements.
+    pub(crate) block_holders: Rc<HashMap<&'a str, Vec<Span>>>,
     pub(crate) macros: Rc<HashMap<&'a str, &'a Macro<'a>>>,
     pub(crate) imports: Rc<HashMap<&'a str, Arc<Path>>>,
     pub(crate) path: Option<&'a Path>,
@@ -66,6 +68,7 @@ impl<'a> Context<'a> {
             nodes: &[],
             extends: None,
             blocks: Rc::default(),
+            block_holders: Rc::default(),
             macros: Rc::default(),
             imports: Rc::default(),
             path: None,
@@ -86,12 +89,14 @@ impl<'a> Context<'a> {
         let mut extends = None;
         let mut blocks: HashMap<&'a str, &'a BlockDef<'a>> = HashMap::default();
         let mut macros = HashMap::default();
-        let mut nested = vec![parsed.nodes()];
+        let mut block_holders = HashMap::default();
+        // Each list of nodes comes with the spans of the `if` and `match` statements around it.
+        let mut nested = vec![(parsed.nodes(), Vec::new())];
         let mut top = true;
 
         let mut imports = Vec::new();
 
-        while let Some(nodes) = nested.pop() {
+        while let Some((nodes, holders)) = nested.pop() {
             for n in nodes {
                 match &**n {
                     Node::Extends(e) => {
@@ -138,20 +143,25 @@ impl<'a> Context<'a> {
                             called_blocks.unprocessed.push((*b.name, current));
                         }
                         blocks.insert(*b.name, b);
-                        nested.push(&b.nodes);
+                        if !holders.is_empty() {
+                            block_holders.insert(*b.name, holders.clone());
+                        }
+                        nested.push((&b.nodes, holders.clone()));
                     }
                     Node::If(i) => {
+                        let holders = [&holders[..], &[i.span]].concat();
                         for cond in &i.branches {
-                            nested.push(&cond.nodes);
+                            nested.push((&cond.nodes, holders.clone()));
                         }
                     }
                     Node::Loop(l) => {
-                        nested.push(&l.body);
-                        nested.push(&l.else_nodes);
+                        nested.push((&l.body, holders.clone()));
+                        nested.push((&l.else_nodes, holders.clone()));
                     }
                     Node::Match(m) => {
+                        let holders = [&holders[..], &[m.span]].concat();
                         for arm in &m.arms {
-                            nested.push(&arm.nodes);
+                            nested.push((&arm.nodes, holders.clone()));
                         }
                     }
                     _ => {}
@@ -164,6 +174,7 @@ impl<'a> Context<'a> {
             nodes: parsed.nodes(),
             extends: None,
             blocks: Rc::new(blocks),
+            block_holders: Rc::new(block_holders),
             macros: Rc::new(macros),
             imports: Rc::default(),
             parsed,

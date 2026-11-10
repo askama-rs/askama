@@ -131,24 +131,24 @@ impl<'a> Generator<'a, '_> {
                     size_hint += self.write_decl(ctx, buf, c)?;
                 }
                 Node::If(ref i) => {
-                    size_hint += self.write_if(ctx, buf, i, render_for)?;
+                    size_hint += self.write_if(ctx, buf, i, level, render_for)?;
                 }
                 Node::Match(ref m) => {
-                    size_hint += self.write_match(ctx, buf, m, render_for)?;
+                    size_hint += self.write_match(ctx, buf, m, level, render_for)?;
                 }
                 Node::Loop(ref loop_block) => {
                     size_hint += self.write_loop(ctx, buf, loop_block, render_for)?;
                 }
                 Node::BlockDef(ref b) => {
-                    // Rendering one block discards the code around it, so a block whose
-                    // surrounding `if`, `match` or loop is discarded would render nothing.
+                    // Rendering one block discards the code around it; only an `if` or `match`
+                    // keeps its own code for it, so a block in a loop would render nothing.
                     if level == AstLevel::Nested
                         && self.input.block.is_some_and(|(name, _)| name == *b.name)
                     {
                         return Err(ctx.generate_error(
                             format_args!(
                                 "cannot render block `{}` on its own: it is nested inside \
-                                 another statement, like `if`, `match` or `for`",
+                                 a `for`, `filter`, `call` or `let` block",
                                 b.name.escape_debug(),
                             ),
                             b.span,
@@ -364,11 +364,21 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'a>,
         buf: &mut Buffer,
         if_: &'a If<'_>,
+        level: AstLevel,
         render_for: RenderFor,
     ) -> Result<SizeHint, CompileError> {
         let mut flushed = SizeHint::EMPTY;
         let mut arm_sizes = Vec::new();
         let mut has_else = false;
+
+        let keep = self.contains_fragment(ctx, level, if_.span);
+        let level = if keep {
+            AstLevel::Block
+        } else {
+            AstLevel::Nested
+        };
+        let prev_buf_discard = buf.is_discard();
+        buf.set_discard(prev_buf_discard && !keep);
 
         let conds = Conds::compute_branches(self, if_);
 
@@ -448,12 +458,13 @@ impl<'a> Generator<'a, '_> {
                 }
 
                 let mut block_buf = Buffer::new();
+                block_buf.set_discard(keep);
                 if cond_info.generate_content {
                     arm_sizes.push(this.handle(
                         ctx,
                         &cond.nodes,
                         &mut block_buf,
-                        AstLevel::Nested,
+                        level,
                         render_for,
                     )?);
                 }
@@ -483,6 +494,7 @@ impl<'a> Generator<'a, '_> {
         if !has_else && !conds.conds.is_empty() {
             arm_sizes.push(SizeHint::EMPTY);
         }
+        buf.set_discard(prev_buf_discard);
         Ok(flushed + median(&mut arm_sizes))
     }
 
@@ -492,6 +504,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'a>,
         buf: &mut Buffer,
         m: &'a Match<'a>,
+        level: AstLevel,
         render_for: RenderFor,
     ) -> Result<SizeHint, CompileError> {
         let Match {
@@ -508,6 +521,15 @@ impl<'a> Generator<'a, '_> {
 
         let expr_code = self.visit_expr_root(ctx, expr)?;
         let span = ctx.span_for_node(expr.span());
+
+        let keep = self.contains_fragment(ctx, level, m.span);
+        let level = if keep {
+            AstLevel::Block
+        } else {
+            AstLevel::Nested
+        };
+        let prev_buf_discard = buf.is_discard();
+        buf.set_discard(prev_buf_discard && !keep);
 
         let mut arm_size = SizeHint::EMPTY;
         let mut iter = arms.iter().enumerate().peekable();
@@ -528,8 +550,8 @@ impl<'a> Generator<'a, '_> {
                 }
 
                 let mut arm_buf = Buffer::new();
-                arm_size =
-                    this.handle(ctx, &arm.nodes, &mut arm_buf, AstLevel::Nested, render_for)?;
+                arm_buf.set_discard(keep);
+                arm_size = this.handle(ctx, &arm.nodes, &mut arm_buf, level, render_for)?;
 
                 if let Some((_, arm)) = iter.peek() {
                     this.handle_ws(arm.ws);
@@ -547,8 +569,21 @@ impl<'a> Generator<'a, '_> {
 
         let arms = arms.into_token_stream();
         quote_into!(buf, span, { match &#expr_code { #arms } });
+        buf.set_discard(prev_buf_discard);
 
         Ok(flushed + median(&mut arm_sizes))
+    }
+
+    /// Whether this `if` or `match` holds the one block being rendered (`block = "..."`), so
+    /// its own code must be kept while the code around it is discarded.
+    fn contains_fragment(&self, ctx: &Context<'a>, level: AstLevel, node: Span) -> bool {
+        level != AstLevel::Nested
+            && self.buf_writable.discard
+            && self.input.block.is_some_and(|(name, _)| {
+                ctx.block_holders
+                    .get(name)
+                    .is_some_and(|holders| holders.contains(&node))
+            })
     }
 
     fn write_loop(
@@ -1154,7 +1189,7 @@ impl<'a> Generator<'a, '_> {
                 if let Some(caller_alias) = self.locals.get_caller(srcvar) {
                     self.locals.insert(
                         Cow::Borrowed(*dstvar),
-                        LocalMeta::CallerAlias(caller_alias.clone()),
+                        LocalMeta::CallerAlias(Box::new(caller_alias.clone())),
                     );
                     return Ok(SizeHint::EMPTY);
                 }
