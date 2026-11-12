@@ -43,7 +43,7 @@ use crate::{FastWritable, NO_VALUES, Values};
 /// # }
 /// ```
 #[inline]
-pub fn json(value: impl Serialize) -> Result<impl fmt::Display, Infallible> {
+pub fn json(value: impl Serialize) -> Result<impl fmt::Display + FastWritable, Infallible> {
     Ok(ToJson { value })
 }
 
@@ -85,7 +85,7 @@ pub fn json(value: impl Serialize) -> Result<impl fmt::Display, Infallible> {
 pub fn json_pretty(
     value: impl Serialize,
     indent: impl AsIndent,
-) -> Result<impl fmt::Display, Infallible> {
+) -> Result<impl fmt::Display + FastWritable, Infallible> {
     Ok(ToJsonPretty { value, indent })
 }
 
@@ -292,7 +292,7 @@ const ESCAPED_BUF_LEN: usize = ESCAPED_BUF_INIT_UNPADDED.len();
 
 #[cfg(all(test, feature = "alloc"))]
 mod tests {
-    use alloc::string::ToString;
+    use alloc::string::{String, ToString};
     use alloc::vec;
 
     use super::*;
@@ -345,6 +345,29 @@ mod tests {
             r#"[
 ————"foo",
 ————"bar"
+]"#
+        );
+    }
+
+    #[test]
+    fn test_fast_writable() {
+        let mut buf = String::new();
+        json(vec!["foo", "<bar>"])
+            .unwrap()
+            .write_into(&mut buf, NO_VALUES)
+            .unwrap();
+        assert_eq!(buf, r#"["foo","\u003cbar\u003e"]"#);
+
+        buf.clear();
+        json_pretty(vec!["foo", "bar"], 2)
+            .unwrap()
+            .write_into(&mut buf, NO_VALUES)
+            .unwrap();
+        assert_eq!(
+            buf,
+            r#"[
+  "foo",
+  "bar"
 ]"#
         );
     }
