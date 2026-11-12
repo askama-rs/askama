@@ -98,8 +98,7 @@ error[E0277]: Argument at position 1 is invalid on filter req1<'_>. Too many arg
 36 | #[derive(Template)]
    |          ^^^^^^^^ Filter function
    |
-help: the trait `ValidArgIdx<1>` is not implemented for `req1<'_>`
-      but trait `ValidArgIdx<0>` is implemented for it
+help: the trait `_::askama::filters::ValidArgIdx<1>` is not implemented for `req1<'_>`
   --> tests/ui/filter-invocation-invalid-arguments.rs:12:5
    |
 12 |     #[askama::filter_fn]
