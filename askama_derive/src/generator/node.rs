@@ -928,14 +928,13 @@ impl<'a> Generator<'a, '_> {
                     child.buf_writable.discard = true;
                     let prev_buf_discard = buf.is_discard();
                     buf.set_discard(true);
-                    let mut size_hint = child.handle(
+                    let size_hint = child.handle(
                         handle_ctx,
                         handle_ctx.nodes,
                         buf,
                         AstLevel::Top,
                         RenderFor::Template,
                     )?;
-                    size_hint += child.write_buf_writable(handle_ctx, buf)?;
                     buf.set_discard(prev_buf_discard);
                     child.buf_writable.discard = false;
                     Ok(size_hint)
