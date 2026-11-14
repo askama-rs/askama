@@ -1,7 +1,6 @@
 use std::borrow::Cow;
 use std::fmt::{self, Write};
 use std::mem::replace;
-use std::ptr;
 use std::str::FromStr;
 
 use parser::{
@@ -23,7 +22,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: &PathOrIdentifier<'a>,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let (name, generics) = match name {
@@ -78,7 +77,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         path: &[PathComponent<'a>],
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let span = ctx.span_for_node(node);
@@ -119,7 +118,9 @@ impl<'a> Generator<'a, '_> {
         for (arg_idx, arg) in args[1..].iter().enumerate() {
             let expr: &Expr<'a> = arg;
             let (arg_setter_ident, arg_expr_span) = match expr {
-                Expr::NamedArgument(name, expr) => (format_ident!("with_{}", **name), expr.span()),
+                Expr::NamedArgument(name, expr, _) => {
+                    (format_ident!("with_{}", **name), expr.span())
+                }
                 _ => (format_ident!("with_{arg_idx}"), arg.span()),
             };
             let arg_span = ctx.span_for_node(arg.span());
@@ -148,7 +149,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: WithSpan<&'a str>,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         _generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
@@ -169,7 +170,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: WithSpan<&'a str>,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
@@ -182,7 +183,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: WithSpan<&'a str>,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
@@ -195,7 +196,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: WithSpan<&'a str>,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
@@ -218,7 +219,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_urlencode_filter_inner(ctx, buf, "urlencode", args, node)
@@ -228,7 +229,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_urlencode_filter_inner(ctx, buf, "urlencode_strict", args, node)
@@ -239,7 +240,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: &str,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         if cfg!(not(feature = "urlencode")) {
@@ -265,7 +266,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, "wordcount", node)?;
@@ -293,11 +294,11 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        const DEFAULT_PRECISION: &WithSpan<&Expr<'_>> =
-            &WithSpan::no_span(&Expr::NumLit("2u8", Num::Int("2", Some(IntKind::U8))));
+        const DEFAULT_PRECISION: &Expr<'_> =
+            &Expr::NumLit("2u8", Num::Int("2", Some(IntKind::U8)), Span::no_span());
         const ARGUMENTS: &[&FilterArgument; 2] = &[
             FILTER_SOURCE,
             &FilterArgument {
@@ -327,7 +328,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
@@ -341,7 +342,7 @@ impl<'a> Generator<'a, '_> {
         let span = ctx.span_for_node(node);
 
         let mut tmp = Buffer::new();
-        if matches!(&***filter, Expr::Path(_)) {
+        if matches!(filter, Expr::Path(_, _)) {
             self.visit_loop_iter(ctx, &mut tmp, input)?;
             let arg = self.visit_arg(ctx, filter, ctx.span_for_node(filter.span()))?;
 
@@ -365,25 +366,31 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        const SINGULAR: &WithSpan<&Expr<'_>> = &WithSpan::no_span(&Expr::StrLit(StrLit {
-            prefix: None,
-            content: "",
-            contains_null: false,
-            contains_unicode_character: false,
-            contains_unicode_escape: false,
-            contains_high_ascii: false,
-        }));
-        const PLURAL: &WithSpan<&Expr<'_>> = &WithSpan::no_span(&Expr::StrLit(StrLit {
-            prefix: None,
-            content: "s",
-            contains_null: false,
-            contains_unicode_character: false,
-            contains_unicode_escape: false,
-            contains_high_ascii: false,
-        }));
+        const SINGULAR: &Expr<'_> = &Expr::StrLit(
+            StrLit {
+                prefix: None,
+                content: "",
+                contains_null: false,
+                contains_unicode_character: false,
+                contains_unicode_escape: false,
+                contains_high_ascii: false,
+            },
+            Span::no_span(),
+        );
+        const PLURAL: &Expr<'_> = &Expr::StrLit(
+            StrLit {
+                prefix: None,
+                content: "s",
+                contains_null: false,
+                contains_unicode_character: false,
+                contains_unicode_escape: false,
+                contains_high_ascii: false,
+            },
+            Span::no_span(),
+        );
         const ARGUMENTS: &[&FilterArgument; 3] = &[
             FILTER_SOURCE,
             &FilterArgument {
@@ -419,7 +426,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_linebreaks_filters(ctx, buf, "paragraphbreaks", args, node)
@@ -429,7 +436,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_linebreaks_filters(ctx, buf, "linebreaksbr", args, node)
@@ -439,7 +446,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_linebreaks_filters(ctx, buf, "linebreaks", args, node)
@@ -450,7 +457,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         name: &str,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let arg = no_arguments(ctx, name, args)?;
@@ -472,7 +479,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let arg = no_arguments(ctx, "ref", args)?;
@@ -485,7 +492,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let arg = no_arguments(ctx, "deref", args)?;
@@ -498,7 +505,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
@@ -533,7 +540,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 4] = &[
@@ -575,7 +582,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let arg = no_arguments(ctx, "safe", args)?;
@@ -591,7 +598,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
@@ -604,9 +611,12 @@ impl<'a> Generator<'a, '_> {
 
         let [source, opt_escaper] = collect_filter_args(ctx, "escape", node, args, ARGUMENTS)?;
         let opt_escaper = if !is_argument_placeholder(opt_escaper) {
-            let Expr::StrLit(StrLit {
-                prefix, content, ..
-            }) = ***opt_escaper
+            let Expr::StrLit(
+                StrLit {
+                    prefix, content, ..
+                },
+                _,
+            ) = *opt_escaper
             else {
                 return Err(ctx.generate_error("invalid escaper type for escape filter", node));
             };
@@ -662,13 +672,13 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, "format", node)?;
         ensure_no_named_arguments(ctx, "format", args)?;
         if let [head, tail @ ..] = args
-            && let Expr::StrLit(ref fmt) = ***head
+            && let Expr::StrLit(ref fmt, _) = **head
         {
             let span = ctx.span_for_node(node);
             let mut filter = Buffer::new();
@@ -682,7 +692,7 @@ impl<'a> Generator<'a, '_> {
             return Ok(DisplayWrap::Unwrapped);
         }
         if let [_, tail, ..] = args
-            && let Expr::StrLit(ref fmt) = ***tail
+            && let Expr::StrLit(ref fmt, _) = **tail
         {
             return Err(ctx.generate_error(
                 format_args!("the string literal ({:?}) should be the input, use the `fmt` filter instead if you want to keep it that way", fmt.content),
@@ -699,7 +709,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
@@ -712,8 +722,8 @@ impl<'a> Generator<'a, '_> {
 
         ensure_filter_has_feature_alloc(ctx, "fmt", node)?;
         let [source, fmt] = collect_filter_args(ctx, "fmt", node, args, ARGUMENTS)?;
-        let Expr::StrLit(ref fmt) = ***fmt else {
-            if let Expr::StrLit(ref source) = ***source {
+        let Expr::StrLit(ref fmt, _) = *fmt else {
+            if let Expr::StrLit(ref source, _) = *source {
                 return Err(ctx.generate_error(
                     format_args!("the string literal ({:?}) should be the first argument, use the `format` filter instead if you want to keep it that way", source.content),
                     node,
@@ -737,7 +747,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
@@ -763,7 +773,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_center_truncate_filter(ctx, buf, args, node, "center")
@@ -773,7 +783,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_center_truncate_filter(ctx, buf, args, node, "truncate")
@@ -783,7 +793,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
         name: &'a str,
     ) -> Result<DisplayWrap, CompileError> {
@@ -814,7 +824,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 3] = &[
@@ -831,7 +841,7 @@ impl<'a> Generator<'a, '_> {
 
         let [value, fallback, is_assigned] =
             collect_filter_args(ctx, "default", node, args, ARGUMENTS)?;
-        let Expr::BoolLit(is_assigned) = ***is_assigned else {
+        let Expr::BoolLit(is_assigned, _) = *is_assigned else {
             return Err(ctx.generate_error(
                 "the `default` filter takes a boolean literal as its optional second argument",
                 is_assigned.span(),
@@ -848,7 +858,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
@@ -868,10 +878,10 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         node: Span,
-        value: &WithSpan<Box<Expr<'a>>>,
-        fallback: &WithSpan<Box<Expr<'a>>>,
+        value: &Expr<'a>,
+        fallback: &Expr<'a>,
     ) -> Result<DisplayWrap, CompileError> {
-        if let Expr::Var(var_name) = ***value
+        if let Expr::Var(var_name, _) = *value
             && !self.is_var_assigned(var_name)
         {
             self.visit_expr(ctx, buf, fallback)?;
@@ -901,7 +911,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        args: &[WithSpan<Box<Expr<'a>>>],
+        args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         const ARGUMENTS: &[&FilterArgument; 2] = &[
@@ -921,11 +931,11 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         node: Span,
-        value: &WithSpan<Box<Expr<'a>>>,
-        fallback: &WithSpan<Box<Expr<'a>>>,
+        value: &Expr<'a>,
+        fallback: &Expr<'a>,
         name: &str,
     ) -> Result<DisplayWrap, CompileError> {
-        let Expr::Var(var_name) = ***value else {
+        let Expr::Var(var_name, _) = *value else {
             return Err(ctx.generate_error(
                 format!("the `{name}` filter requires a variable name on its left-hand side"),
                 node,
@@ -942,7 +952,7 @@ impl<'a> Generator<'a, '_> {
     }
 }
 
-const FALSE: &WithSpan<&Expr<'static>> = &WithSpan::no_span(&Expr::BoolLit(false));
+const FALSE: &Expr<'static> = &Expr::BoolLit(false, Span::no_span());
 
 #[inline]
 fn ensure_filter_has_feature_alloc(
@@ -1000,7 +1010,7 @@ fn ensure_no_generics(
     Ok(())
 }
 
-fn expr_is_int_lit_plus_minus_one(expr: &WithSpan<Box<Expr<'_>>>) -> Option<bool> {
+fn expr_is_int_lit_plus_minus_one(expr: &Expr<'_>) -> Option<bool> {
     fn is_signed_singular<T: Eq + Default, E>(
         from_str_radix: impl Fn(&str, u32) -> Result<T, E>,
         value: &str,
@@ -1039,7 +1049,7 @@ fn expr_is_int_lit_plus_minus_one(expr: &WithSpan<Box<Expr<'_>>>) -> Option<bool
         };
     }
 
-    let Expr::NumLit(_, Num::Int(value, kind)) = ***expr else {
+    let Expr::NumLit(_, Num::Int(value, kind), _) = *expr else {
         return None;
     };
     impl_match! {
@@ -1059,19 +1069,12 @@ fn expr_is_int_lit_plus_minus_one(expr: &WithSpan<Box<Expr<'_>>>) -> Option<bool
     }
 }
 
-#[repr(C)] // rationale: needs to have the same layout as `StaticBoxFilterArgument`
 struct FilterArgument {
     name: &'static str,
     /// If set to `None`, then a value is needed.
     /// If set to `Some(ARGUMENT_PLACEHOLDER)`, then no value has to be assigned.
-    /// If set to `Some(&WithSpan...)`, then this value will be used if no argument was supplied.
-    default_value: Option<&'static WithSpan<&'static Expr<'static>>>,
-}
-
-#[repr(C)] // rationale: needs to have the same layout as `FilterArgument`
-struct StaticBoxFilterArgument {
-    name: &'static str,
-    default_value: Option<&'static WithSpan<Box<Expr<'static>>>>,
+    /// If set to `Some(&Expr...)`, then this value will be used if no argument was supplied.
+    default_value: Option<&'static Expr<'static>>,
 }
 
 /// Must be the first entry to `collect_filter_args()`'s argument `filter_args`.
@@ -1080,18 +1083,18 @@ const FILTER_SOURCE: &FilterArgument = &FilterArgument {
     default_value: None,
 };
 
-const ARGUMENT_PLACEHOLDER: &WithSpan<&Expr<'_>> = &WithSpan::no_span(&Expr::ArgumentPlaceholder);
+const ARGUMENT_PLACEHOLDER: &Expr<'_> = &Expr::ArgumentPlaceholder(Span::no_span());
 
 #[inline]
-fn is_argument_placeholder(arg: &WithSpan<Box<Expr<'_>>>) -> bool {
-    matches!(***arg, Expr::ArgumentPlaceholder)
+fn is_argument_placeholder(arg: &Expr<'_>) -> bool {
+    matches!(*arg, Expr::ArgumentPlaceholder(_))
 }
 
 fn no_arguments<'a, 'b>(
     ctx: &Context<'_>,
     name: &str,
-    args: &'b [WithSpan<Box<Expr<'a>>>],
-) -> Result<&'b WithSpan<Box<Expr<'a>>>, CompileError> {
+    args: &'b [Box<Expr<'a>>],
+) -> Result<&'b Expr<'a>, CompileError> {
     match args {
         [arg] => Ok(arg),
         [_, arg, ..] => Err(ctx.generate_error(
@@ -1107,26 +1110,10 @@ fn collect_filter_args<'a, 'b, const N: usize>(
     ctx: &Context<'_>,
     name: &str,
     node: Span,
-    input_args: &'b [WithSpan<Box<Expr<'a>>>],
+    input_args: &'b [Box<Expr<'a>>],
     filter_args: &'static [&'static FilterArgument; N],
-) -> Result<[&'b WithSpan<Box<Expr<'a>>>; N], CompileError> {
-    // The transmutations are needed, because you cannot build a `Box` in a `const` context,
-    // not even `&Box`.
-
-    // Cannot use `transmute() to transmute dependently sized types: `[_; N]`
-    // SAFETY: `&WithSpan<&Expr<'_>>` has the same layout as `&WithSpan<Box<Expr<'_>>>`.
-    //         `WithSpan` is `repr(C)`, and `Box<T>` has the same layout as `&T`.
-    //         Since we work with `&WithSpan<Box<_>>`, there is no need to use `ManuallyDrop`.
-    let mut collected_args: [&WithSpan<Box<Expr<'_>>>; N] = unsafe {
-        let collected_args: [&WithSpan<&Expr<'_>>; N] = [ARGUMENT_PLACEHOLDER; N];
-        ptr::read(ptr::addr_of!(collected_args).cast())
-    };
-
-    // SAFETY: `StaticBoxFilterArgument` has the same layout as `FilterArgument`.
-    //         It contains a `&WithSpan<Box<Expr<'_>>>` instead of `&WithSpan<&Expr<'_>>`.
-    //         See the comments for `collected_args` for further explanations.
-    let filter_args: &[&StaticBoxFilterArgument; N] = unsafe { std::mem::transmute(filter_args) };
-
+) -> Result<[&'b Expr<'a>; N], CompileError> {
+    let mut collected_args = [ARGUMENT_PLACEHOLDER; N];
     // rationale: less code duplication by implementing the bulk of the function non-generic
     collect_filter_args_inner(
         ctx,
@@ -1143,14 +1130,14 @@ fn collect_filter_args_inner<'a, 'b>(
     ctx: &Context<'_>,
     name: &str,
     node: Span,
-    input_args: &'b [WithSpan<Box<Expr<'a>>>],
-    filter_args: &'static [&'static StaticBoxFilterArgument],
-    collected_args: &mut [&'b WithSpan<Box<Expr<'a>>>],
+    input_args: &'b [Box<Expr<'a>>],
+    filter_args: &'static [&'static FilterArgument],
+    collected_args: &mut [&'b Expr<'a>],
 ) -> Result<(), CompileError> {
     // invariant: the parser ensures that named arguments come after positional arguments
     let mut arg_idx = 0;
     for arg in input_args {
-        let (idx, value) = if let Expr::NamedArgument(arg_name, value) = &***arg {
+        let (idx, value) = if let Expr::NamedArgument(arg_name, value, _) = &**arg {
             let Some(idx) = filter_args
                 .iter()
                 .enumerate()
@@ -1222,7 +1209,7 @@ fn collect_filter_args_inner<'a, 'b>(
     Ok(())
 }
 
-struct ItsArgumentsAre(&'static [&'static StaticBoxFilterArgument]);
+struct ItsArgumentsAre(&'static [&'static FilterArgument]);
 
 impl fmt::Display for ItsArgumentsAre {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -1246,10 +1233,10 @@ impl fmt::Display for ItsArgumentsAre {
 fn ensure_no_named_arguments(
     ctx: &Context<'_>,
     name: &str,
-    args: &[WithSpan<Box<Expr<'_>>>],
+    args: &[Box<Expr<'_>>],
 ) -> Result<(), CompileError> {
     for arg in args {
-        if let Expr::NamedArgument(..) = &***arg {
+        if let Expr::NamedArgument(..) = &**arg {
             return Err(ctx.generate_error(
                 format_args!(
                     "`{}` filter cannot accept named arguments",

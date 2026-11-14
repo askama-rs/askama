@@ -149,7 +149,6 @@ impl<'a> Ast<'a> {
 #[derive(Clone, Copy)]
 /// Struct used to wrap types with their associated "span" which is used when generating errors
 /// in the code generation.
-#[repr(C)] // rationale: `WithSpan<Box<T>` needs to have the same layout as `WithSpan<&T>`.
 pub struct WithSpan<T> {
     inner: T,
     span: Span,

@@ -10,9 +10,9 @@ use winnow::token::{any, one_of, take, take_until};
 use crate::node::CondTest;
 use crate::{
     CharLit, ErrorContext, HashSet, InputStream, LevelGuard, Num, ParseResult, PathOrIdentifier,
-    StrLit, StrPrefix, WithSpan, any_rust_token, char_lit, cut_error, deny_any_rust_token, filter,
-    identifier, is_rust_keyword, keyword, not_suffix_with_hash, num_lit, path_or_identifier,
-    skip_ws0, skip_ws1, str_lit, ws,
+    Span, StrLit, StrPrefix, WithSpan, any_rust_token, char_lit, cut_error, deny_any_rust_token,
+    filter, identifier, is_rust_keyword, keyword, not_suffix_with_hash, num_lit,
+    path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
 };
 
 const MAX_REFS: usize = 20;
@@ -23,27 +23,27 @@ struct Allowed {
     super_keyword: bool,
 }
 
-fn check_expr<'a>(expr: &WithSpan<Box<Expr<'a>>>, allowed: Allowed) -> ParseResult<'a, ()> {
-    match &*expr.inner {
-        &Expr::Var(name) => {
+fn check_expr<'a>(expr: &Expr<'a>, allowed: Allowed) -> ParseResult<'a, ()> {
+    match *expr {
+        Expr::Var(name, span) => {
             // List can be found in rust compiler "can_be_raw" function (although in our case, it's
             // also used in cases like `match`, so `self` is allowed in this case).
             if (!allowed.super_keyword && name == "super") || matches!(name, "crate" | "Self") {
-                err_reserved_identifier(&WithSpan::new(name, expr.span))
+                err_reserved_identifier(&WithSpan::new(name, span))
             } else if !allowed.underscore && name == "_" {
-                err_underscore_identifier(&WithSpan::new(name, expr.span))
+                err_underscore_identifier(&WithSpan::new(name, span))
             } else {
                 Ok(())
             }
         }
-        &Expr::IsDefined(var) | &Expr::IsNotDefined(var) => {
+        Expr::IsDefined(var, span) | Expr::IsNotDefined(var, span) => {
             if var == "_" {
-                err_underscore_identifier(&WithSpan::new(var, expr.span))
+                err_underscore_identifier(&WithSpan::new(var, span))
             } else {
                 Ok(())
             }
         }
-        Expr::Path(path) => {
+        Expr::Path(ref path, _) => {
             if let [arg] = path.as_slice()
                 && !crate::can_be_variable_name(*arg.name)
             {
@@ -51,18 +51,18 @@ fn check_expr<'a>(expr: &WithSpan<Box<Expr<'a>>>, allowed: Allowed) -> ParseResu
             }
             Ok(())
         }
-        Expr::Array(elems) | Expr::Tuple(elems) | Expr::Concat(elems) => {
+        Expr::Array(ref elems, _) | Expr::Tuple(ref elems, _) | Expr::Concat(ref elems, _) => {
             for elem in elems {
                 check_expr(elem, allowed)?;
             }
             Ok(())
         }
-        Expr::ArrayRepeat(elem, count) => {
+        Expr::ArrayRepeat(ref elem, ref count, _) => {
             check_expr(elem, allowed)?;
             check_expr(count, allowed)?;
             Ok(())
         }
-        Expr::AssociatedItem(elem, associated_item) => {
+        Expr::AssociatedItem(ref elem, ref associated_item, _) => {
             if *associated_item.name == "_" {
                 err_underscore_identifier(&associated_item.name)
             } else if !crate::can_be_variable_name(*associated_item.name) {
@@ -71,15 +71,15 @@ fn check_expr<'a>(expr: &WithSpan<Box<Expr<'a>>>, allowed: Allowed) -> ParseResu
                 check_expr(elem, Allowed::default())
             }
         }
-        Expr::Index(elem1, elem2) => {
+        Expr::Index(ref elem1, ref elem2, _) => {
             check_expr(elem1, Allowed::default())?;
             check_expr(elem2, Allowed::default())
         }
-        Expr::BinOp(v) => {
+        Expr::BinOp(ref v, _) => {
             check_expr(&v.lhs, Allowed::default())?;
             check_expr(&v.rhs, Allowed::default())
         }
-        Expr::Range(v) => {
+        Expr::Range(ref v, _) => {
             if let Some(elem1) = v.lhs.as_ref() {
                 check_expr(elem1, Allowed::default())?;
             }
@@ -88,12 +88,12 @@ fn check_expr<'a>(expr: &WithSpan<Box<Expr<'a>>>, allowed: Allowed) -> ParseResu
             }
             Ok(())
         }
-        Expr::As(elem, _)
-        | Expr::Unary(_, elem)
-        | Expr::Group(elem)
-        | Expr::NamedArgument(_, elem)
-        | Expr::Try(elem) => check_expr(elem, Allowed::default()),
-        Expr::Call(v) => {
+        Expr::As(ref elem, _, _)
+        | Expr::Unary(_, ref elem, _)
+        | Expr::Group(ref elem, _)
+        | Expr::NamedArgument(_, ref elem, _)
+        | Expr::Try(ref elem, _) => check_expr(elem, Allowed::default()),
+        Expr::Call(ref v, _) => {
             check_expr(
                 &v.path,
                 Allowed {
@@ -106,13 +106,13 @@ fn check_expr<'a>(expr: &WithSpan<Box<Expr<'a>>>, allowed: Allowed) -> ParseResu
             }
             Ok(())
         }
-        Expr::Filter(filter) => {
+        Expr::Filter(ref filter, _) => {
             for arg in &filter.arguments {
                 check_expr(arg, Allowed::default())?;
             }
             Ok(())
         }
-        Expr::Struct(s) => {
+        Expr::Struct(ref s, _) => {
             check_expr(
                 &s.path,
                 Allowed {
@@ -132,14 +132,14 @@ fn check_expr<'a>(expr: &WithSpan<Box<Expr<'a>>>, allowed: Allowed) -> ParseResu
             }
             Ok(())
         }
-        Expr::LetCond(cond) => check_expr(&cond.expr, Allowed::default()),
-        Expr::ArgumentPlaceholder => cut_error!("unreachable", expr.span),
-        Expr::BoolLit(_)
-        | Expr::NumLit(_, _)
-        | Expr::StrLit(_)
-        | Expr::CharLit(_)
-        | Expr::RustMacro(_, _)
-        | Expr::FilterSource => Ok(()),
+        Expr::LetCond(ref cond, _) => check_expr(&cond.expr, Allowed::default()),
+        Expr::ArgumentPlaceholder(span) => cut_error!("unreachable", span),
+        Expr::BoolLit(..)
+        | Expr::NumLit(..)
+        | Expr::StrLit(..)
+        | Expr::CharLit(..)
+        | Expr::RustMacro(..)
+        | Expr::FilterSource(_) => Ok(()),
     }
 }
 
@@ -186,73 +186,106 @@ impl<'a: 'l, 'l> PathComponent<'a> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Expr<'a> {
-    BoolLit(bool),
-    NumLit(&'a str, Num<'a>),
-    StrLit(StrLit<'a>),
-    CharLit(CharLit<'a>),
-    Var(&'a str),
-    Path(Vec<PathComponent<'a>>),
-    Array(Vec<WithSpan<Box<Expr<'a>>>>),
-    ArrayRepeat(WithSpan<Box<Expr<'a>>>, WithSpan<Box<Expr<'a>>>),
-    AssociatedItem(WithSpan<Box<Expr<'a>>>, AssociatedItem<'a>),
-    Index(WithSpan<Box<Expr<'a>>>, WithSpan<Box<Expr<'a>>>),
-    Filter(Filter<'a>),
-    As(WithSpan<Box<Expr<'a>>>, WithSpan<&'a str>),
-    NamedArgument(WithSpan<&'a str>, WithSpan<Box<Expr<'a>>>),
-    Unary(&'a str, WithSpan<Box<Expr<'a>>>),
-    BinOp(BinOp<'a>),
-    Range(Range<'a>),
-    Group(WithSpan<Box<Expr<'a>>>),
-    Tuple(Vec<WithSpan<Box<Expr<'a>>>>),
-    Call(Call<'a>),
-    RustMacro(Vec<WithSpan<&'a str>>, WithSpan<&'a str>),
-    Try(WithSpan<Box<Expr<'a>>>),
+    BoolLit(bool, Span),
+    NumLit(&'a str, Num<'a>, Span),
+    StrLit(StrLit<'a>, Span),
+    CharLit(CharLit<'a>, Span),
+    Var(&'a str, Span),
+    Path(Vec<PathComponent<'a>>, Span),
+    Array(Vec<Box<Expr<'a>>>, Span),
+    ArrayRepeat(Box<Expr<'a>>, Box<Expr<'a>>, Span),
+    AssociatedItem(Box<Expr<'a>>, AssociatedItem<'a>, Span),
+    Index(Box<Expr<'a>>, Box<Expr<'a>>, Span),
+    Filter(Filter<'a>, Span),
+    As(Box<Expr<'a>>, WithSpan<&'a str>, Span),
+    NamedArgument(WithSpan<&'a str>, Box<Expr<'a>>, Span),
+    Unary(&'a str, Box<Expr<'a>>, Span),
+    BinOp(BinOp<'a>, Span),
+    Range(Range<'a>, Span),
+    Group(Box<Expr<'a>>, Span),
+    Tuple(Vec<Box<Expr<'a>>>, Span),
+    Call(Call<'a>, Span),
+    RustMacro(Vec<WithSpan<&'a str>>, WithSpan<&'a str>, Span),
+    Try(Box<Expr<'a>>, Span),
     /// A struct expression (ie `Foo {a: u32, ..Default::default() })`).
-    Struct(ExprStruct<'a>),
+    Struct(ExprStruct<'a>, Span),
     /// This variant should never be used directly. It is created when generating filter blocks.
-    FilterSource,
-    IsDefined(&'a str),
-    IsNotDefined(&'a str),
-    Concat(Vec<WithSpan<Box<Expr<'a>>>>),
+    FilterSource(Span),
+    IsDefined(&'a str, Span),
+    IsNotDefined(&'a str, Span),
+    Concat(Vec<Box<Expr<'a>>>, Span),
     /// If you have `&& let Some(y)`, this variant handles it.
-    LetCond(WithSpan<CondTest<'a>>),
+    LetCond(WithSpan<CondTest<'a>>, Span),
     /// This variant should never be used directly.
     /// It is used for the handling of named arguments in the generator, esp. with filters.
-    ArgumentPlaceholder,
+    ArgumentPlaceholder(Span),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Call<'a> {
-    pub path: WithSpan<Box<Expr<'a>>>,
+    pub path: Box<Expr<'a>>,
     pub generics: Option<WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
-    pub args: Vec<WithSpan<Box<Expr<'a>>>>,
+    pub args: Vec<Box<Expr<'a>>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Range<'a> {
     pub op: &'a str,
-    pub lhs: Option<WithSpan<Box<Expr<'a>>>>,
-    pub rhs: Option<WithSpan<Box<Expr<'a>>>>,
+    pub lhs: Option<Box<Expr<'a>>>,
+    pub rhs: Option<Box<Expr<'a>>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BinOp<'a> {
     pub op: &'a str,
-    pub lhs: WithSpan<Box<Expr<'a>>>,
-    pub rhs: WithSpan<Box<Expr<'a>>>,
+    pub lhs: Box<Expr<'a>>,
+    pub rhs: Box<Expr<'a>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExprStruct<'a> {
-    pub path: WithSpan<Box<Expr<'a>>>,
+    pub path: Box<Expr<'a>>,
     pub fields: Vec<ExprStructField<'a>>,
-    pub base: Option<WithSpan<Box<Expr<'a>>>>,
+    pub base: Option<Box<Expr<'a>>>,
 }
 
 impl<'a: 'l, 'l> Expr<'a> {
+    pub fn span(&self) -> Span {
+        match *self {
+            Self::BoolLit(_, span)
+            | Self::NumLit(_, _, span)
+            | Self::StrLit(_, span)
+            | Self::CharLit(_, span)
+            | Self::Var(_, span)
+            | Self::Path(_, span)
+            | Self::Array(_, span)
+            | Self::ArrayRepeat(_, _, span)
+            | Self::AssociatedItem(_, _, span)
+            | Self::Index(_, _, span)
+            | Self::Filter(_, span)
+            | Self::As(_, _, span)
+            | Self::NamedArgument(_, _, span)
+            | Self::Unary(_, _, span)
+            | Self::BinOp(_, span)
+            | Self::Range(_, span)
+            | Self::Group(_, span)
+            | Self::Tuple(_, span)
+            | Self::Call(_, span)
+            | Self::RustMacro(_, _, span)
+            | Self::Try(_, span)
+            | Self::Struct(_, span)
+            | Self::FilterSource(span)
+            | Self::IsDefined(_, span)
+            | Self::IsNotDefined(_, span)
+            | Self::Concat(_, span)
+            | Self::LetCond(_, span)
+            | Self::ArgumentPlaceholder(span) => span,
+        }
+    }
+
     pub(super) fn arguments(
         i: &mut InputStream<'a, 'l>,
-    ) -> ParseResult<'a, WithSpan<Vec<WithSpan<Box<Self>>>>> {
+    ) -> ParseResult<'a, WithSpan<Vec<Box<Self>>>> {
         fn comma<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
             (ws(','), no_comma).void().parse_next(i)
         }
@@ -288,8 +321,8 @@ impl<'a: 'l, 'l> Expr<'a> {
                     move |i: &mut _| Self::parse(i, false),
                 ));
                 let expr = p.parse_next(i)?;
-                if has_named_arguments && !matches!(**expr, Self::NamedArgument(..)) {
-                    return cut_error!("named arguments must always be passed last", expr.span);
+                if has_named_arguments && !matches!(*expr, Self::NamedArgument(..)) {
+                    return cut_error!("named arguments must always be passed last", expr.span());
                 }
                 Ok(expr)
             },
@@ -308,7 +341,7 @@ impl<'a: 'l, 'l> Expr<'a> {
     fn named_argument(
         i: &mut InputStream<'a, 'l>,
         named_arguments: &mut HashSet<&'a str>,
-    ) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    ) -> ParseResult<'a, Box<Self>> {
         let (((argument, arg_span), _, value), span) =
             (identifier.with_span(), ws('='), move |i: &mut _| {
                 Self::parse(i, false)
@@ -325,19 +358,17 @@ impl<'a: 'l, 'l> Expr<'a> {
             );
         }
 
-        Ok(WithSpan::new(
-            Box::new(Self::NamedArgument(
-                WithSpan::new(argument, arg_span),
-                value,
-            )),
-            span,
-        ))
+        Ok(Box::new(Self::NamedArgument(
+            WithSpan::new(argument, arg_span),
+            value,
+            span.into(),
+        )))
     }
 
     pub(super) fn parse(
         i: &mut InputStream<'a, 'l>,
         allow_underscore: bool,
-    ) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    ) -> ParseResult<'a, Box<Self>> {
         let _level_guard = i.state.level.nest(i)?;
         let mut result = Self::range(i, allow_underscore);
         if let Err(err) = &mut result {
@@ -346,10 +377,7 @@ impl<'a: 'l, 'l> Expr<'a> {
         result
     }
 
-    fn range(
-        i: &mut InputStream<'a, 'l>,
-        allow_underscore: bool,
-    ) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn range(i: &mut InputStream<'a, 'l>, allow_underscore: bool) -> ParseResult<'a, Box<Self>> {
         let range_right = move |i: &mut InputStream<'a, 'l>| {
             let ((op, span), rhs) =
                 (ws(alt(("..=", "..")).with_span()), opt(Self::infix)).parse_next(i)?;
@@ -358,19 +386,19 @@ impl<'a: 'l, 'l> Expr<'a> {
 
         // `..expr` or `..`
         let range_to = range_right.map(move |(op, rhs, span)| {
-            WithSpan::new(Box::new(Self::Range(Range { op, lhs: None, rhs })), span)
+            Box::new(Self::Range(Range { op, lhs: None, rhs }, span.into()))
         });
 
         // `expr..expr` or `expr..`
         let range_from = (Self::infix, opt(range_right)).map(move |(lhs, rhs)| match rhs {
-            Some((op, rhs, span)) => WithSpan::new(
-                Box::new(Self::Range(Range {
+            Some((op, rhs, span)) => Box::new(Self::Range(
+                Range {
                     op,
                     lhs: Some(lhs),
                     rhs,
-                })),
-                span,
-            ),
+                },
+                span.into(),
+            )),
             None => lhs,
         });
 
@@ -389,8 +417,8 @@ impl<'a: 'l, 'l> Expr<'a> {
     /// [Double-E method](https://erikeidt.github.io/The-Double-E-Method): instead of one function
     /// per precedence level, it alternates between an operand and an operator, and keeps the
     /// operators that wait for their right-hand side on a stack, with their left-hand side.
-    fn infix(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
-        let mut stack: Vec<(WithSpan<Box<Self>>, InfixOp<'a>, LevelGuard<'l>)> = Vec::new();
+    fn infix(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
+        let mut stack: Vec<(Box<Self>, InfixOp<'a>, LevelGuard<'l>)> = Vec::new();
         let mut operand_start = *i;
         let mut expr = Self::is_as(i)?;
         loop {
@@ -445,7 +473,7 @@ impl<'a: 'l, 'l> Expr<'a> {
         Ok(expr)
     }
 
-    fn is_as(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn is_as(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         let lhs = Self::filtered(i)?;
         if !i.trim_ascii_start().starts_with(['i', 'a']) {
             return Ok(lhs);
@@ -453,7 +481,7 @@ impl<'a: 'l, 'l> Expr<'a> {
         let checkpoint = i.checkpoint();
         let rhs = opt(ws(identifier.with_span())).parse_next(i)?;
         match rhs {
-            Some(("is", span)) => Self::is_as_handle_is(i, lhs, span),
+            Some(("is", span)) => Self::is_as_handle_is(i, &lhs, span),
             Some(("as", span)) => Self::is_as_handle_as(i, lhs, span),
             _ => {
                 i.reset(&checkpoint);
@@ -464,9 +492,9 @@ impl<'a: 'l, 'l> Expr<'a> {
 
     fn is_as_handle_is(
         i: &mut InputStream<'a, 'l>,
-        lhs: WithSpan<Box<Expr<'a>>>,
+        lhs: &Expr<'a>,
         span: std::ops::Range<usize>,
-    ) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    ) -> ParseResult<'a, Box<Self>> {
         let mut rhs = opt(terminated(opt(keyword("not")), ws(keyword("defined"))));
         let ctor = match rhs.parse_next(i)? {
             None => {
@@ -475,9 +503,9 @@ impl<'a: 'l, 'l> Expr<'a> {
             Some(None) => Self::IsDefined,
             Some(Some(_)) => Self::IsNotDefined,
         };
-        let var_name = match &**lhs {
-            Self::Var(var_name) => var_name,
-            Self::AssociatedItem(_, _) => {
+        let var_name = match *lhs {
+            Self::Var(var_name, _) => var_name,
+            Self::AssociatedItem(..) => {
                 return cut_error!(
                     "`is defined` operator can only be used on variables, not on their fields",
                     span,
@@ -487,14 +515,14 @@ impl<'a: 'l, 'l> Expr<'a> {
                 return cut_error!("`is defined` operator can only be used on variables", span);
             }
         };
-        Ok(WithSpan::new(Box::new(ctor(var_name)), span))
+        Ok(Box::new(ctor(var_name, span.into())))
     }
 
     fn is_as_handle_as(
         i: &mut InputStream<'a, 'l>,
-        lhs: WithSpan<Box<Expr<'a>>>,
+        lhs: Box<Expr<'a>>,
         span: std::ops::Range<usize>,
-    ) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    ) -> ParseResult<'a, Box<Self>> {
         let target = opt(path_or_identifier).parse_next(i)?;
         let Some(PathOrIdentifier::Identifier(target)) = target else {
             return cut_error!(
@@ -505,7 +533,7 @@ impl<'a: 'l, 'l> Expr<'a> {
         };
 
         if crate::PRIMITIVE_TYPES.contains(&target) {
-            Ok(WithSpan::new(Box::new(Self::As(lhs, target)), span))
+            Ok(Box::new(Self::As(lhs, target, span.into())))
         } else if target.is_empty() {
             cut_error!(
                 "`as` operator expects the name of a primitive type on its right-hand side",
@@ -523,7 +551,7 @@ impl<'a: 'l, 'l> Expr<'a> {
         }
     }
 
-    fn filtered(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn filtered(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         let mut res = Self::prefix(i)?;
 
         let mut level_guard = i.state.level.guard();
@@ -533,13 +561,13 @@ impl<'a: 'l, 'l> Expr<'a> {
         {
             level_guard.nest(&i_before)?;
             filter.arguments.insert(0, res);
-            res = WithSpan::new(Box::new(Self::Filter(filter)), span);
+            res = Box::new(Self::Filter(filter, span.into()));
             i_before = *i;
         }
         Ok(res)
     }
 
-    fn prefix(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn prefix(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         // This is a rare place where we create recursion in the parsed AST
         // without recursing the parser call stack. However, this can lead
         // to stack overflows in drop glue when the AST is very deep.
@@ -556,13 +584,13 @@ impl<'a: 'l, 'l> Expr<'a> {
 
         let mut expr = Suffix::parse(i)?;
         for (op, span) in ops.into_iter().rev() {
-            expr = WithSpan::new(Box::new(Self::Unary(op, expr)), span);
+            expr = Box::new(Self::Unary(op, expr, span.into()));
         }
 
         Ok(expr)
     }
 
-    fn single(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn single(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         // Only `b"…"`, `b'…'` and `c"…"` are literals that start with a letter.
         if let [b'a' | b'd'..=b'z' | b'A'..=b'Z', ..] = i.as_bytes() {
             return Self::path_var_bool(i);
@@ -578,22 +606,27 @@ impl<'a: 'l, 'l> Expr<'a> {
         .parse_next(i)
     }
 
-    fn group(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn group(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         (skip_ws0, peek('(')).parse_next(i)?;
         Self::group_actually(i)
     }
 
     // `Self::group()` is quite big. Let's only put it on the stack if needed.
     #[inline(never)]
-    fn group_actually(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
-        let (expr, span) = cut_err(preceded('(', Self::group_actually_inner))
-            .with_span()
-            .parse_next(i)?;
-        Ok(WithSpan::new(expr, span))
+    fn group_actually(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
+        let start = i.current_token_start();
+        cut_err(preceded('(', |i: &mut _| {
+            Self::group_actually_inner(i, start)
+        }))
+        .parse_next(i)
     }
 
     #[inline]
-    fn group_actually_inner(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
+    fn group_actually_inner(
+        i: &mut InputStream<'a, 'l>,
+        start: usize,
+    ) -> ParseResult<'a, Box<Self>> {
+        let group_span = |i: &InputStream<'a, 'l>| Span::new(start..i.current_token_start());
         let (expr, comma, closing) = (
             ws(opt(|i: &mut _| Self::parse(i, true))),
             opt(terminated(','.span(), skip_ws0)),
@@ -605,11 +638,13 @@ impl<'a: 'l, 'l> Expr<'a> {
             // `(expr,`
             (Some(expr), Some(_), None) => expr,
             // `()`
-            (None, None, Some(_)) => return Ok(Box::new(Self::Tuple(vec![]))),
+            (None, None, Some(_)) => return Ok(Box::new(Self::Tuple(vec![], group_span(i)))),
             // `(expr)`
-            (Some(expr), None, Some(_)) => return Ok(Box::new(Self::Group(expr))),
+            (Some(expr), None, Some(_)) => return Ok(Box::new(Self::Group(expr, group_span(i)))),
             // `(expr,)`
-            (Some(expr), Some(_), Some(_)) => return Ok(Box::new(Self::Tuple(vec![expr]))),
+            (Some(expr), Some(_), Some(_)) => {
+                return Ok(Box::new(Self::Tuple(vec![expr], group_span(i))));
+            }
             // `(`
             (None, None, None) => return cut_error!("expected closing `)` or an expression", *i),
             // `(expr`
@@ -635,7 +670,7 @@ impl<'a: 'l, 'l> Expr<'a> {
         let msg = if items.is_none() {
             "expected `)` or an expression"
         } else if close.is_some() {
-            return Ok(Box::new(Self::Tuple(exprs)));
+            return Ok(Box::new(Self::Tuple(exprs, group_span(i))));
         } else if comma.is_some() {
             "expected `)` or an expression"
         } else {
@@ -644,9 +679,9 @@ impl<'a: 'l, 'l> Expr<'a> {
         cut_error!(msg, span)
     }
 
-    fn array(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn array(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         let _level_guard = i.state.level.nest(i)?;
-        let (span, mut elements): (_, Vec<_>) = (
+        let (span, mut elements): (std::ops::Range<usize>, Vec<_>) = (
             '['.span(),
             separated(0.., ws(move |i: &mut _| Self::parse(i, true)), ','),
         )
@@ -679,14 +714,14 @@ impl<'a: 'l, 'l> Expr<'a> {
                     span
                 );
             }
-            Self::ArrayRepeat(elem, count)
+            Self::ArrayRepeat(elem, count, span.clone().into())
         } else {
             // normal array [<expr>,...?]
             if !elements.is_empty() {
                 // strip optional trailing comma
                 ws(opt(',')).parse_next(i)?;
             }
-            Self::Array(elements)
+            Self::Array(elements, span.clone().into())
         };
 
         if ws(opt(']')).parse_next(i)?.is_none() {
@@ -707,66 +742,68 @@ impl<'a: 'l, 'l> Expr<'a> {
                 span
             );
         }
-        Ok(WithSpan::new(Box::new(expr), span))
+        Ok(Box::new(expr))
     }
 
-    fn path_var_bool(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn path_var_bool(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         let (ret, span) = path_or_identifier.with_span().parse_next(i)?;
-        let ret = match ret {
-            PathOrIdentifier::Path(v) => Box::new(Self::Path(v)),
-            PathOrIdentifier::Identifier(v) if *v == "true" => Box::new(Self::BoolLit(true)),
-            PathOrIdentifier::Identifier(v) if *v == "false" => Box::new(Self::BoolLit(false)),
-            PathOrIdentifier::Identifier(v) => Box::new(Self::Var(*v)),
-        };
-        Ok(WithSpan::new(ret, span))
+        let span = Span::new(span);
+        Ok(Box::new(match ret {
+            PathOrIdentifier::Path(v) => Self::Path(v, span),
+            PathOrIdentifier::Identifier(v) if *v == "true" => Self::BoolLit(true, span),
+            PathOrIdentifier::Identifier(v) if *v == "false" => Self::BoolLit(false, span),
+            PathOrIdentifier::Identifier(v) => Self::Var(*v, span),
+        }))
     }
 
-    fn str(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn str(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         let (s, span) = str_lit.with_span().parse_next(i)?;
-        Ok(WithSpan::new(Box::new(Self::StrLit(s)), span))
+        Ok(Box::new(Self::StrLit(s, span.into())))
     }
 
-    fn num(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn num(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         let ((num, full), span) = num_lit.with_taken().with_span().parse_next(i)?;
-        Ok(WithSpan::new(Box::new(Expr::NumLit(full, num)), span))
+        Ok(Box::new(Expr::NumLit(full, num, span.into())))
     }
 
-    fn char(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Self>>> {
+    fn char(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
         let (c, span) = char_lit.with_span().parse_next(i)?;
-        Ok(WithSpan::new(Box::new(Self::CharLit(c)), span))
+        Ok(Box::new(Self::CharLit(c, span.into())))
     }
 
     #[must_use]
     pub fn contains_bool_lit_or_is_defined(&self) -> bool {
         match self {
-            Self::BoolLit(_) | Self::IsDefined(_) | Self::IsNotDefined(_) => true,
-            Self::Unary(_, expr) | Self::Group(expr) => expr.contains_bool_lit_or_is_defined(),
-            Self::BinOp(v) if matches!(v.op, "&&" | "||") => {
+            Self::BoolLit(..) | Self::IsDefined(..) | Self::IsNotDefined(..) => true,
+            Self::Unary(_, expr, _) | Self::Group(expr, _) => {
+                expr.contains_bool_lit_or_is_defined()
+            }
+            Self::BinOp(v, _) if matches!(v.op, "&&" | "||") => {
                 v.lhs.contains_bool_lit_or_is_defined() || v.rhs.contains_bool_lit_or_is_defined()
             }
-            Self::NumLit(_, _)
-            | Self::StrLit(_)
-            | Self::CharLit(_)
-            | Self::Var(_)
-            | Self::FilterSource
-            | Self::RustMacro(_, _)
-            | Self::As(_, _)
-            | Self::Call { .. }
-            | Self::Range(_)
-            | Self::Try(_)
-            | Self::Struct(_)
-            | Self::NamedArgument(_, _)
-            | Self::Filter(_)
-            | Self::AssociatedItem(_, _)
-            | Self::Index(_, _)
-            | Self::Tuple(_)
-            | Self::Array(_)
-            | Self::ArrayRepeat(_, _)
-            | Self::BinOp(_)
-            | Self::Path(_)
-            | Self::Concat(_)
-            | Self::LetCond(_)
-            | Self::ArgumentPlaceholder => false,
+            Self::NumLit(..)
+            | Self::StrLit(..)
+            | Self::CharLit(..)
+            | Self::Var(..)
+            | Self::FilterSource(..)
+            | Self::RustMacro(..)
+            | Self::As(..)
+            | Self::Call(..)
+            | Self::Range(..)
+            | Self::Try(..)
+            | Self::Struct(..)
+            | Self::NamedArgument(..)
+            | Self::Filter(..)
+            | Self::AssociatedItem(..)
+            | Self::Index(..)
+            | Self::Tuple(..)
+            | Self::Array(..)
+            | Self::ArrayRepeat(..)
+            | Self::BinOp(..)
+            | Self::Path(..)
+            | Self::Concat(..)
+            | Self::LetCond(..)
+            | Self::ArgumentPlaceholder(..) => false,
         }
     }
 }
@@ -794,27 +831,26 @@ struct InfixOp<'a> {
 }
 
 impl<'a> InfixOp<'a> {
-    fn apply(
-        self,
-        mut lhs: WithSpan<Box<Expr<'a>>>,
-        rhs: WithSpan<Box<Expr<'a>>>,
-    ) -> WithSpan<Box<Expr<'a>>> {
-        let expr = match self.prec {
+    fn apply(self, mut lhs: Box<Expr<'a>>, rhs: Box<Expr<'a>>) -> Box<Expr<'a>> {
+        let span = Span::new(self.span);
+        Box::new(match self.prec {
             // `a ~ b ~ c` is one `Concat`; a parenthesized one would be a `Group`.
             Prec::Concat => {
-                if let Expr::Concat(exprs) = &mut **lhs {
+                if let Expr::Concat(exprs, _) = &mut *lhs {
                     exprs.push(rhs);
                     return lhs;
                 }
-                Expr::Concat(vec![lhs, rhs])
+                Expr::Concat(vec![lhs, rhs], span)
             }
-            _ => Expr::BinOp(BinOp {
-                op: self.op,
-                lhs,
-                rhs,
-            }),
-        };
-        WithSpan::new(Box::new(expr), self.span)
+            _ => Expr::BinOp(
+                BinOp {
+                    op: self.op,
+                    lhs,
+                    rhs,
+                },
+                span,
+            ),
+        })
     }
 }
 
@@ -892,7 +928,7 @@ fn token_bitand<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Filter<'a> {
     pub name: PathOrIdentifier<'a>,
-    pub arguments: Vec<WithSpan<Box<Expr<'a>>>>,
+    pub arguments: Vec<Box<Expr<'a>>>,
 }
 
 impl<'a: 'l, 'l> Filter<'a> {
@@ -915,19 +951,19 @@ pub struct AssociatedItem<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExprStructField<'a> {
     pub name: WithSpan<&'a str>,
-    pub value: Option<WithSpan<Box<Expr<'a>>>>,
+    pub value: Option<Box<Expr<'a>>>,
 }
 
 enum Suffix<'a> {
     AssociatedItem(AssociatedItem<'a>),
-    Index(WithSpan<Box<Expr<'a>>>),
+    Index(Box<Expr<'a>>),
     Call {
         generics: Option<WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
-        args: Vec<WithSpan<Box<Expr<'a>>>>,
+        args: Vec<Box<Expr<'a>>>,
     },
     Struct {
         fields: Vec<ExprStructField<'a>>,
-        base: Option<WithSpan<Box<Expr<'a>>>>,
+        base: Option<Box<Expr<'a>>>,
     },
     // The value is the arguments of the macro call.
     MacroCall(&'a str),
@@ -936,12 +972,12 @@ enum Suffix<'a> {
 
 #[derive(Debug)]
 enum Field<'a> {
-    Base(WithSpan<Box<Expr<'a>>>),
+    Base(Box<Expr<'a>>),
     Field(ExprStructField<'a>),
 }
 
 impl<'a: 'l, 'l> Suffix<'a> {
-    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Box<Expr<'a>>>> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Expr<'a>>> {
         let mut level_guard = i.state.level.guard();
         let mut expr = Expr::single(i)?;
         let mut right = opt(alt((
@@ -962,26 +998,32 @@ impl<'a: 'l, 'l> Suffix<'a> {
         {
             level_guard.nest(i)?;
             let (suffix, span) = suffix.deconstruct();
-            let inner = match suffix {
+            expr = Box::new(match suffix {
                 Self::AssociatedItem(associated_item) => {
-                    Box::new(Expr::AssociatedItem(expr, associated_item))
+                    Expr::AssociatedItem(expr, associated_item, span)
                 }
-                Self::Index(index) => Box::new(Expr::Index(expr, index)),
-                Self::Call { generics, args } => Box::new(Expr::Call(Call {
-                    path: expr,
-                    generics,
-                    args,
-                })),
-                Self::Struct { fields, base } => Box::new(Expr::Struct(ExprStruct {
-                    path: expr,
-                    fields,
-                    base,
-                })),
-                Self::Try => Box::new(Expr::Try(expr)),
+                Self::Index(index) => Expr::Index(expr, index, span),
+                Self::Call { generics, args } => Expr::Call(
+                    Call {
+                        path: expr,
+                        generics,
+                        args,
+                    },
+                    span,
+                ),
+                Self::Struct { fields, base } => Expr::Struct(
+                    ExprStruct {
+                        path: expr,
+                        fields,
+                        base,
+                    },
+                    span,
+                ),
+                Self::Try => Expr::Try(expr, span),
                 Self::MacroCall(args) => {
                     let args = WithSpan::new(args, span);
-                    match *expr.inner {
-                        Expr::Path(path) => {
+                    match *expr {
+                        Expr::Path(path, _) => {
                             let last = path.last().unwrap();
                             ensure_macro_name(&last.name)?;
 
@@ -993,17 +1035,18 @@ impl<'a: 'l, 'l> Suffix<'a> {
                                 .cut());
                             }
 
-                            Box::new(Expr::RustMacro(
+                            Expr::RustMacro(
                                 path.into_iter()
                                     .map(|c: PathComponent<'_>| c.name)
                                     .collect(),
                                 args,
-                            ))
+                                span,
+                            )
                         }
-                        Expr::Var(name) => {
-                            let name = WithSpan::new(name, expr.span);
+                        Expr::Var(name, name_span) => {
+                            let name = WithSpan::new(name, name_span);
                             ensure_macro_name(&name)?;
-                            Box::new(Expr::RustMacro(vec![name], args))
+                            Expr::RustMacro(vec![name], args, span)
                         }
                         _ => {
                             i.reset(&i_before);
@@ -1011,8 +1054,7 @@ impl<'a: 'l, 'l> Suffix<'a> {
                         }
                     }
                 }
-            };
-            expr = WithSpan::new(inner, span);
+            });
             i_before = i.checkpoint();
         }
         Ok(expr)
@@ -1468,7 +1510,7 @@ impl<'a: 'l, 'l> Suffix<'a> {
         if trailing_comma.is_some() && all_fields.is_empty() {
             return cut_error!("missing field before `,`", span);
         }
-        let mut base: Option<WithSpan<Box<Expr<'a>>>> = None;
+        let mut base: Option<Box<Expr<'a>>> = None;
         let mut fields = Vec::with_capacity(all_fields.len());
         for field in all_fields {
             match field {

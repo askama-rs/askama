@@ -20,7 +20,7 @@ use crate::{
 pub enum Node<'a> {
     Lit(Lit<'a>),
     Comment(Comment<'a>),
-    Expr(Ws, WithSpan<Box<Expr<'a>>>),
+    Expr(Ws, Box<Expr<'a>>),
     Call(Call<'a>),
     Let(Let<'a>),
     /// Mutable operations like `+=`.
@@ -431,7 +431,7 @@ impl<'a: 'l, 'l> Cond<'a> {
 #[derive(Debug, PartialEq, Clone)]
 pub struct CondTest<'a> {
     pub target: Option<Target<'a>>,
-    pub expr: WithSpan<Box<Expr<'a>>>,
+    pub expr: Box<Expr<'a>>,
     pub contains_bool_lit_or_is_defined: bool,
 }
 
@@ -457,16 +457,16 @@ impl<'a: 'l, 'l> CondTest<'a> {
                 let start_offset = i.current_token_start();
 
                 let mut expr = Expr::parse(i, false)?;
-                if let Expr::BinOp(v) = &mut *expr.inner
-                    && matches!(*v.rhs.inner, Expr::Var("set" | "let"))
+                if let Expr::BinOp(v, _) = &mut *expr
+                    && let Expr::Var("set" | "let", rhs_span) = *v.rhs
                 {
                     let _level_guard = i.state.level.nest(i)?;
 
                     i.reset(&start_checkpoint);
-                    i.next_slice(v.rhs.span.start - start_offset);
+                    i.next_slice(rhs_span.start - start_offset);
 
                     let (new_right, span) = Self::parse_cond.with_span().parse_next(i)?;
-                    *v.rhs.inner = Expr::LetCond(WithSpan::new(new_right, span));
+                    *v.rhs = Expr::LetCond(WithSpan::new(new_right, span), rhs_span);
                 }
                 Ok(expr)
             }),
@@ -546,8 +546,8 @@ fn check_block_start<'a: 'l, 'l>(
 pub struct Loop<'a> {
     pub ws1: Ws,
     pub var: Target<'a>,
-    pub iter: WithSpan<Box<Expr<'a>>>,
-    pub cond: Option<WithSpan<Box<Expr<'a>>>>,
+    pub iter: Box<Expr<'a>>,
+    pub cond: Option<Box<Expr<'a>>>,
     pub body: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
     pub else_nodes: Vec<Box<Node<'a>>>,
@@ -656,7 +656,7 @@ pub struct Macro<'a> {
 pub struct MacroArg<'a> {
     pub name: WithSpan<&'a str>,
     pub ty: Option<WithSpan<TyGenerics<'a>>>,
-    pub default: Option<WithSpan<Box<Expr<'a>>>>,
+    pub default: Option<Box<Expr<'a>>>,
 }
 
 fn check_duplicated_name<'a>(
@@ -796,7 +796,7 @@ impl<'a: 'l, 'l> FilterBlock<'a> {
 
             let (mut res, span) = Filter::parse.with_span().parse_next(i)?;
             res.arguments
-                .insert(0, WithSpan::new(Box::new(Expr::FilterSource), span));
+                .insert(0, Box::new(Expr::FilterSource(span.into())));
 
             let mut level_guard = i.state.level.guard();
             let mut i_before = *i;
@@ -804,7 +804,7 @@ impl<'a: 'l, 'l> FilterBlock<'a> {
                 level_guard.nest(&i_before)?;
                 filter
                     .arguments
-                    .insert(0, WithSpan::new(Box::new(Expr::Filter(res)), span));
+                    .insert(0, Box::new(Expr::Filter(res, span.into())));
                 res = filter;
                 i_before = *i;
             }
@@ -877,7 +877,7 @@ pub struct Call<'a> {
     pub caller_args: Vec<&'a str>,
     pub scope: Option<WithSpan<&'a str>>,
     pub name: WithSpan<&'a str>,
-    pub args: Option<Vec<WithSpan<Box<Expr<'a>>>>>,
+    pub args: Option<Vec<Box<Expr<'a>>>>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
     pub span: Span,
@@ -954,7 +954,7 @@ impl<'a: 'l, 'l> Call<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Match<'a> {
     pub ws1: Ws,
-    pub expr: WithSpan<Box<Expr<'a>>>,
+    pub expr: Box<Expr<'a>>,
     pub arms: Vec<When<'a>>,
     pub ws2: Ws,
     pub span: Span,
@@ -1247,7 +1247,7 @@ impl<'a: 'l, 'l> Declare<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum LetValueOrBlock<'a> {
-    Value(WithSpan<Box<Expr<'a>>>),
+    Value(Box<Expr<'a>>),
     Block { nodes: Vec<Box<Node<'a>>>, ws: Ws },
 }
 
