@@ -12,19 +12,19 @@ use crate::{
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Target<'a> {
-    Name(WithSpan<&'a str>),
-    Tuple(WithSpan<(Vec<PathComponent<'a>>, Vec<Target<'a>>)>),
-    Array(WithSpan<Vec<Target<'a>>>),
-    Struct(WithSpan<(Vec<PathComponent<'a>>, Vec<NamedTarget<'a>>)>),
-    NumLit(WithSpan<&'a str>, Num<'a>),
-    StrLit(WithSpan<StrLit<'a>>),
-    CharLit(WithSpan<CharLit<'a>>),
-    BoolLit(WithSpan<&'a str>),
-    Path(WithSpan<Vec<PathComponent<'a>>>),
-    OrChain(WithSpan<Vec<Target<'a>>>),
-    Placeholder(WithSpan<()>),
+    Name(&'a str, Span),
+    Tuple(Vec<PathComponent<'a>>, Vec<Target<'a>>, Span),
+    Array(Vec<Target<'a>>, Span),
+    Struct(Vec<PathComponent<'a>>, Vec<NamedTarget<'a>>, Span),
+    NumLit(&'a str, Num<'a>, Span),
+    StrLit(StrLit<'a>, Span),
+    CharLit(CharLit<'a>, Span),
+    BoolLit(&'a str, Span),
+    Path(Vec<PathComponent<'a>>, Span),
+    OrChain(Vec<Target<'a>>, Span),
+    Placeholder(Span),
     /// The `Option` is the variable name (if any) in `var_name @ ..`.
-    Rest(WithSpan<Option<WithSpan<&'a str>>>),
+    Rest(Option<WithSpan<&'a str>>, Span),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -42,19 +42,19 @@ impl<'a> From<(WithSpan<&'a str>, Target<'a>)> for NamedTarget<'a> {
 
 impl<'a: 'l, 'l> Target<'a> {
     pub fn span(&self) -> Span {
-        match self {
-            Target::Name(v) => v.span(),
-            Target::Tuple(v) => v.span(),
-            Target::Array(v) => v.span(),
-            Target::Struct(v) => v.span(),
-            Target::NumLit(v, _) => v.span(),
-            Target::StrLit(v) => v.span(),
-            Target::CharLit(v) => v.span(),
-            Target::BoolLit(v) => v.span(),
-            Target::Path(v) => v.span(),
-            Target::OrChain(v) => v.span(),
-            Target::Placeholder(v) => v.span(),
-            Target::Rest(v) => v.span(),
+        match *self {
+            Target::Name(_, span)
+            | Target::Tuple(_, _, span)
+            | Target::Array(_, span)
+            | Target::Struct(_, _, span)
+            | Target::NumLit(_, _, span)
+            | Target::StrLit(_, span)
+            | Target::CharLit(_, span)
+            | Target::BoolLit(_, span)
+            | Target::Path(_, span)
+            | Target::OrChain(_, span)
+            | Target::Placeholder(span)
+            | Target::Rest(_, span) => span,
         }
     }
 
@@ -83,7 +83,7 @@ impl<'a: 'l, 'l> Target<'a> {
         let (inner, span) = one_or_many.with_span().parse_next(i)?;
         match inner {
             OneOrMany::One(target) => Ok(target),
-            OneOrMany::Many(targets) => Ok(Self::OrChain(WithSpan::new(targets, span))),
+            OneOrMany::Many(targets) => Ok(Self::OrChain(targets, span.into())),
         }
     }
 
@@ -110,7 +110,7 @@ impl<'a: 'l, 'l> Target<'a> {
 
             let range = start..i.current_token_start();
             let targets = only_one_rest_pattern(targets, false, "tuple")?;
-            return Ok(Self::Tuple(WithSpan::new((Vec::new(), targets), range)));
+            return Ok(Self::Tuple(Vec::new(), targets, range.into()));
         }
 
         // match array
@@ -119,7 +119,7 @@ impl<'a: 'l, 'l> Target<'a> {
             let targets = collect_targets(i, ']', Self::unnamed)?.1;
             let inner = only_one_rest_pattern(targets, true, "array")?;
             let range = start..i.current_token_start();
-            return Ok(Self::Array(WithSpan::new(inner, range)));
+            return Ok(Self::Array(inner, range.into()));
         }
 
         // match structs
@@ -136,13 +136,13 @@ impl<'a: 'l, 'l> Target<'a> {
             if is_unnamed_struct {
                 let targets = collect_targets(i, ')', Self::unnamed)?.1;
                 let inner = only_one_rest_pattern(targets, false, "struct")?;
-                return Ok(Self::Tuple(WithSpan::new((path, inner), path_span)));
+                return Ok(Self::Tuple(path, inner, path_span.into()));
             }
 
             let is_named_struct = opt_opening_brace.parse_next(i)?;
             if is_named_struct {
                 let targets = collect_targets(i, '}', Self::named)?.1;
-                return Ok(Self::Struct(WithSpan::new((path, targets), path_span)));
+                return Ok(Self::Struct(path, targets, path_span.into()));
             }
 
             if let [arg] = path.as_slice() {
@@ -170,13 +170,13 @@ impl<'a: 'l, 'l> Target<'a> {
             }
 
             i.reset(&i_before_matching_with);
-            return Ok(Self::Path(WithSpan::new(path, path_span)));
+            return Ok(Self::Path(path, path_span.into()));
         }
 
         // neither literal nor struct nor path
         let (name, span) = identifier.with_span().parse_next(i)?;
         match name {
-            "_" => Ok(Self::Placeholder(WithSpan::new((), span))),
+            "_" => Ok(Self::Placeholder(span.into())),
             _ => verify_name(WithSpan::new(name, span)),
         }
     }
@@ -198,10 +198,10 @@ impl<'a: 'l, 'l> Target<'a> {
         let (inner, span) = p.with_span().parse_next(i)?;
         let span = Span::new(span);
         match inner {
-            Lit::Str(v) => Ok(Target::StrLit(WithSpan::new(v, span))),
-            Lit::Bool(v) => Ok(Target::BoolLit(WithSpan::new(v, span))),
-            Lit::Char(v) => Ok(Target::CharLit(WithSpan::new(v, span))),
-            Lit::Num(v, num) => Ok(Target::NumLit(WithSpan::new(v, span), num)),
+            Lit::Str(v) => Ok(Target::StrLit(v, span)),
+            Lit::Bool(v) => Ok(Target::BoolLit(v, span)),
+            Lit::Char(v) => Ok(Target::CharLit(v, span)),
+            Lit::Num(v, num) => Ok(Target::NumLit(v, num, span)),
         }
     }
 
@@ -224,10 +224,11 @@ impl<'a: 'l, 'l> Target<'a> {
                     span,
                 );
             }
-            if rest.inner.is_some() {
-                return cut_error!("`@ ..` cannot be used in struct", rest.span);
+            let (name, span) = rest;
+            if name.is_some() {
+                return cut_error!("`@ ..` cannot be used in struct", span);
             }
-            Ok((WithSpan::new("..", rest.span), Target::Rest(rest)).into())
+            Ok((WithSpan::new("..", span), Target::Rest(name, span)).into())
         } else {
             let ((src, span), target) =
                 (identifier.with_span(), opt(preceded(ws(':'), Self::parse))).parse_next(i)?;
@@ -249,19 +250,20 @@ impl<'a: 'l, 'l> Target<'a> {
     }
 
     fn rest(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
-        Self::rest_inner.map(Self::Rest).parse_next(i)
+        let (name, span) = Self::rest_inner(i)?;
+        Ok(Self::Rest(name, span))
     }
 
     fn rest_inner(
         i: &mut InputStream<'a, 'l>,
-    ) -> ParseResult<'a, WithSpan<Option<WithSpan<&'a str>>>> {
+    ) -> ParseResult<'a, (Option<WithSpan<&'a str>>, Span)> {
         let p = |i: &mut _| {
             let id =
                 terminated(opt(terminated(identifier.with_span(), ws('@'))), "..").parse_next(i)?;
             Ok(id.map(|(id, span)| WithSpan::new(id, span)))
         };
         let (id, span) = ws(p.with_span()).parse_next(i)?;
-        Ok(WithSpan::new(id, span))
+        Ok((id, span.into()))
     }
 }
 
@@ -288,7 +290,7 @@ fn verify_name<'a>(name: WithSpan<&'a str>) -> Result<Target<'a>, ErrMode<ErrorC
             name.span,
         )
     } else {
-        Ok(Target::Name(name))
+        Ok(Target::Name(*name, name.span))
     }
 }
 
@@ -335,13 +337,13 @@ fn only_one_rest_pattern<'a>(
 ) -> Result<Vec<Target<'a>>, ParseErr<'a>> {
     let mut found_rest = false;
     for target in &targets {
-        if let Target::Rest(s) = target {
-            if !allow_named_rest && s.is_some() {
-                return cut_error!("`@ ..` is only allowed in slice patterns", s.span);
+        if let Target::Rest(name, span) = target {
+            if !allow_named_rest && name.is_some() {
+                return cut_error!("`@ ..` is only allowed in slice patterns", *span);
             } else if found_rest {
                 return cut_error!(
                     format!("`..` can only be used once per {type_kind} pattern"),
-                    s.span,
+                    *span,
                 );
             } else {
                 found_rest = true;

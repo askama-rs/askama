@@ -1910,9 +1910,10 @@ fn regression_tests_span_change() {
             .nodes(),
         [Box::new(Node::Let(Let {
             ws: Ws(Some(Whitespace::Suppress), Some(Whitespace::Suppress)),
-            var: Target::Array(WithSpan::no_span(vec![Target::Placeholder(
-                WithSpan::no_span(())
-            )])),
+            var: Target::Array(
+                vec![Target::Placeholder(Span::new(9..10))],
+                Span::new(8..12)
+            ),
             val: LetValueOrBlock::Value(Box::new(Expr::Array(
                 vec![int_lit("2", Span::new(15..16))],
                 Span::new(14..15)
@@ -1929,7 +1930,7 @@ fn regression_tests_span_change() {
             .nodes(),
         [Box::new(Node::Let(Let {
             ws: Ws(Some(Whitespace::Suppress), Some(Whitespace::Suppress)),
-            var: Target::Placeholder(WithSpan::no_span(())),
+            var: Target::Placeholder(Span::new(9..10)),
             val: LetValueOrBlock::Value(Box::new(Expr::Array(
                 vec![int_lit("2", Span::new(15..16))],
                 Span::new(14..15)
@@ -2154,6 +2155,58 @@ fn test_expr_spans() {
             assert_eq!(call.args[0].span().as_infix_of(&src), Some("x = 1"));
         }
     }
+}
+
+#[test]
+fn test_target_spans() {
+    const SRC: &str = concat!(
+        r#"{% match x %}{% when (a, [_, b @ ..]) or S { c, .. } %}{% when T(1, "s", 'c', true) %}"#,
+        "{% when P::Q %}{% endmatch %}",
+    );
+
+    fn walk(target: &Target<'_>, out: &mut Vec<&'static str>) {
+        out.push(target.span().as_infix_of(SRC).unwrap());
+        match target {
+            Target::Tuple(_, targets, _)
+            | Target::Array(targets, _)
+            | Target::OrChain(targets, _) => {
+                targets.iter().for_each(|target| walk(target, out));
+            }
+            Target::Struct(_, targets, _) => targets.iter().for_each(|t| walk(&t.dest, out)),
+            _ => {}
+        }
+    }
+
+    let ast = Ast::from_str(SRC, None, &Syntax::default()).unwrap();
+    let Node::Match(m) = &*ast.nodes()[0] else {
+        panic!("expected a match");
+    };
+    let mut spans = vec![];
+    for arm in &m.arms {
+        arm.target
+            .iter()
+            .for_each(|target| walk(target, &mut spans));
+    }
+    assert_eq!(
+        spans,
+        [
+            "(a, [_, b @ ..]) or S { c, .. } ",
+            "(a, [_, b @ ..]) ",
+            "a",
+            "[_, b @ ..]",
+            "_",
+            "b @ ..",
+            "S",
+            "c",
+            "..",
+            "T",
+            "1",
+            "\"s\"",
+            "'c'",
+            "true",
+            "P::Q",
+        ],
+    );
 }
 
 /// Renders an expression with explicit parentheses around every operator.

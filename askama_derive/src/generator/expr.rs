@@ -1025,10 +1025,10 @@ impl<'a> Generator<'a, '_> {
         span: proc_macro2::Span,
     ) {
         match target {
-            Target::Placeholder(s) => quote_into!(buf, ctx.span_for_node(s.span()), { _ }),
-            Target::Rest(s) => {
-                let span = ctx.span_for_node(s.span());
-                if let Some(var_name) = &**s {
+            &Target::Placeholder(s) => quote_into!(buf, ctx.span_for_node(s), { _ }),
+            Target::Rest(var_name, s) => {
+                let span = ctx.span_for_node(*s);
+                if let Some(var_name) = var_name {
                     let id = field_new(var_name, span);
                     self.locals
                         .insert(Cow::Borrowed(var_name), LocalMeta::var_def());
@@ -1036,17 +1036,17 @@ impl<'a> Generator<'a, '_> {
                 }
                 buf.write_token(Token![..], span);
             }
-            Target::Name(name) => {
+            &Target::Name(name, s) => {
                 match initialized {
                     true => self
                         .locals
                         .insert(Cow::Borrowed(name), LocalMeta::var_def()),
                     false => self.locals.insert_with_default(Cow::Borrowed(name)),
                 }
-                buf.write_field(name, ctx.span_for_node(name.span()));
+                buf.write_field(name, ctx.span_for_node(s));
             }
-            Target::OrChain(targets) => match targets.as_slice() {
-                [] => quote_into!(buf, ctx.span_for_node(targets.span()), { _ }),
+            Target::OrChain(targets, s) => match targets.as_slice() {
+                [] => quote_into!(buf, ctx.span_for_node(*s), { _ }),
                 [first_target, targets @ ..] => {
                     self.visit_target(ctx, buf, initialized, first_level, first_target, span);
                     for target in targets {
@@ -1055,8 +1055,7 @@ impl<'a> Generator<'a, '_> {
                     }
                 }
             },
-            Target::Tuple(v) => {
-                let (path, targets) = &**v;
+            Target::Tuple(path, targets, _) => {
                 buf.write_separated_path(ctx, path);
                 let mut targets_buf = Buffer::new();
                 for target in targets {
@@ -1066,22 +1065,21 @@ impl<'a> Generator<'a, '_> {
                 let targets_buf = targets_buf.into_token_stream();
                 quote_into!(buf, span, { (#targets_buf) });
             }
-            Target::Array(targets) => {
+            Target::Array(targets, _) => {
                 let mut targets_buf = Buffer::new();
-                for target in &**targets {
+                for target in targets {
                     self.visit_target(ctx, &mut targets_buf, initialized, false, target, span);
                     targets_buf.write_token(Token![,], ctx.span_for_node(target.span()));
                 }
                 let targets_buf = targets_buf.into_token_stream();
                 quote_into!(buf, span, { [#targets_buf] });
             }
-            Target::Struct(v) => {
-                let (path, targets) = &**v;
+            Target::Struct(path, targets, _) => {
                 buf.write_separated_path(ctx, path);
                 let mut targets_buf = Buffer::new();
                 for named_target in targets {
-                    if let Target::Rest(rest) = named_target.dest {
-                        targets_buf.write_token(Token![..], ctx.span_for_node(rest.span()));
+                    if let Target::Rest(_, rest) = named_target.dest {
+                        targets_buf.write_token(Token![..], ctx.span_for_node(rest));
                         continue;
                     }
 
@@ -1101,37 +1099,37 @@ impl<'a> Generator<'a, '_> {
                 let targets_buf = targets_buf.into_token_stream();
                 quote_into!(buf, span, { { #targets_buf } });
             }
-            Target::Path(path) => {
+            Target::Path(path, s) => {
                 self.visit_path(ctx, buf, path);
-                quote_into!(buf, ctx.span_for_node(path.span()), { {} });
+                quote_into!(buf, ctx.span_for_node(*s), { {} });
             }
-            Target::StrLit(s) => {
-                let span = ctx.span_for_node(s.span());
+            Target::StrLit(s, span) => {
+                let span = ctx.span_for_node(*span);
                 if first_level {
                     buf.write_token(Token![&], span);
                 }
                 self.visit_str_lit(buf, s, span);
             }
-            &Target::NumLit(repr, _) => {
-                let span = ctx.span_for_node(repr.span());
+            &Target::NumLit(repr, _, span) => {
+                let span = ctx.span_for_node(span);
                 if first_level {
                     buf.write_token(Token![&], span);
                 }
-                self.visit_num_lit(buf, *repr, span);
+                self.visit_num_lit(buf, repr, span);
             }
-            Target::CharLit(s) => {
-                let span = ctx.span_for_node(s.span());
+            Target::CharLit(s, span) => {
+                let span = ctx.span_for_node(*span);
                 if first_level {
                     buf.write_token(Token![&], span);
                 }
                 self.visit_char_lit(buf, s, span);
             }
-            &Target::BoolLit(s) => {
-                let span = ctx.span_for_node(s.span());
+            &Target::BoolLit(s, span) => {
+                let span = ctx.span_for_node(span);
                 if first_level {
                     buf.write_token(Token![&], span);
                 }
-                match *s {
+                match s {
                     "true" => quote_into!(buf, span, { true }),
                     "false" => quote_into!(buf, span, { false }),
                     _ => unreachable!(),

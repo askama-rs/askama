@@ -328,7 +328,7 @@ impl<'a: 'l, 'l> When<'a> {
         let span = Span::new(span);
         let inner = Self {
             ws: Ws(pws, nws),
-            target: vec![Target::Placeholder(WithSpan::new((), span))],
+            target: vec![Target::Placeholder(span)],
             nodes,
             span,
         };
@@ -1328,7 +1328,7 @@ impl<'a: 'l, 'l> Let<'a> {
 
         if val.is_none()
             && let Some(kind) = match &var {
-                Target::Name(_) => None,
+                Target::Name(..) => None,
                 Target::Tuple(..) => Some("a tuple"),
                 Target::Array(..) => Some("an array"),
                 Target::Struct(..) => Some("a struct"),
@@ -1352,7 +1352,7 @@ impl<'a: 'l, 'l> Let<'a> {
         }
 
         if let Some(mut_span) = &is_mut
-            && !matches!(var, Target::Name(_))
+            && !matches!(var, Target::Name(..))
         {
             return cut_error!(
                 "you can only use the `mut` keyword with a variable name",
