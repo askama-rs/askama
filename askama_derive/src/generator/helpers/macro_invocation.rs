@@ -52,6 +52,11 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     .callsite_ctx
                     .generate_error(message, self.callsite_span));
             }
+            // The first pass over a template with blocks only collects variables, and outside
+            // the block rendered on its own nothing is written: neither calls the function.
+            if render_for == RenderFor::Extends || generator.buf_writable.discard {
+                return Ok(SizeHint::EMPTY);
+            }
             return self.write_function_call(buf, generator);
         } else {
             generator.seen_callers.push((
