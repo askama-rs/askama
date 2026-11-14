@@ -143,12 +143,15 @@ impl<'a> Generator<'a, '_> {
                 Node::BlockDef(ref b) => {
                     // Rendering one block discards the code around it; only an `if` or `match`
                     // keeps its own code for it, so a block in a loop would render nothing.
-                    if level == AstLevel::Nested && self.fragment == Some(*b.name) {
+                    if level == AstLevel::Nested
+                        && let fragment = self.fragment_path()
+                        && fragment.contains(&*b.name)
+                    {
                         return Err(ctx.generate_error(
                             format_args!(
                                 "cannot render block `{}` on its own: it is nested inside \
                                  a `for`, `filter`, `call` or `let` block",
-                                b.name.escape_debug(),
+                                fragment[0].escape_debug(),
                             ),
                             b.span,
                         ));
@@ -578,11 +581,31 @@ impl<'a> Generator<'a, '_> {
     fn contains_fragment(&self, ctx: &Context<'a>, level: AstLevel, node: Span) -> bool {
         level != AstLevel::Nested
             && self.buf_writable.discard
-            && self.fragment.is_some_and(|name| {
+            && self.fragment_path().iter().any(|name| {
                 ctx.block_holders
                     .get(name)
                     .is_some_and(|holders| holders.contains(&node))
             })
+    }
+
+    /// The block being rendered on its own, followed by the blocks around it. A child template
+    /// can define the block inside another one that only its parent nests in a statement, so
+    /// that statement holds the block without naming it.
+    fn fragment_path(&self) -> Vec<&'a str> {
+        let mut path = Vec::from_iter(self.fragment);
+        let mut index = 0;
+        while let Some(name) = path.get(index).copied() {
+            let defs = self.heritage.and_then(|heritage| heritage.blocks.get(name));
+            for (ctx, _) in defs.into_iter().flatten() {
+                if let Some(parent) = ctx.block_parents.get(name)
+                    && !path.contains(parent)
+                {
+                    path.push(parent);
+                }
+            }
+            index += 1;
+        }
+        path
     }
 
     fn write_loop(

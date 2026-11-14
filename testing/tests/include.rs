@@ -328,6 +328,25 @@ fn test_include_block_in_if_and_match() {
     assert_eq!(InParentIf { show: true }.render().unwrap(), "[overridden]");
     assert_eq!(InParentIf { show: false }.render().unwrap(), "[]");
 
+    // The child nests the block in one that only its parent places inside the `if`.
+    #[derive(Template)]
+    #[template(
+        source = r#"[{% include "include-block-nested-inner.html" block item %}]"#,
+        ext = "html"
+    )]
+    struct InBlockInParentIf<'a> {
+        show: bool,
+        s: &'a str,
+    }
+
+    let t = InBlockInParentIf { show: true, s: "x" };
+    assert_eq!(t.render().unwrap(), "[x]");
+    let t = InBlockInParentIf {
+        show: false,
+        s: "x",
+    };
+    assert_eq!(t.render().unwrap(), "[]");
+
     #[derive(Template)]
     #[template(
         source = r#"[{% include "include-block-match.html" block val %}]"#,

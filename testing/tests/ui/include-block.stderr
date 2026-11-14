@@ -21,3 +21,11 @@ error: cannot render block `item` on its own: it is nested inside a `for`, `filt
    |
 17 |     source = r#"{% include "include-block-loop.html" block item %}"#
    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: cannot render block `inner` on its own: it is nested inside a `for`, `filter`, `call` or `let` block
+ --> testing/templates/include-block-loop.html:1:22
+       "block item %}{{ s }}{% endblock %}{% endfor %}"
+  --> tests/ui/include-block.rs:24:14
+   |
+24 |     source = r#"{% include "include-block-loop-child.html" block inner %}"#
+   |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

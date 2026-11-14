@@ -18,5 +18,12 @@ struct NoBlocks;
 )]
 struct NestedInFor;
 
+#[derive(Template)]
+#[template(
+    ext = "html",
+    source = r#"{% include "include-block-loop-child.html" block inner %}"#
+)]
+struct ParentNestedInFor;
+
 fn main() {
 }
