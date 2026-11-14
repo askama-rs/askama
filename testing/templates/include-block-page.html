@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<head><title>{% block title %}{{ title }}{% endblock %}</title></head>
+<body>
+{%- block value %}
+<p>Value: {{ value }}</p>
+{%- endblock %}
+{%- block length %}
+<p>Length: {{ length }}</p>
+{%- endblock %}
+</body>
+</html>

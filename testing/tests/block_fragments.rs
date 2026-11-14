@@ -268,4 +268,20 @@ fn test_fragment_nested_in_if_and_match() {
 
     assert_eq!(InheritedIf { a: true }.render().unwrap(), "in");
     assert_eq!(InheritedIf { a: false }.render().unwrap(), "");
+
+    // The child nests the block in one that only its parent places inside the `if`.
+    #[derive(Template)]
+    #[template(path = "include-block-nested-inner.html", block = "item")]
+    struct InBlockInParentIf<'a> {
+        show: bool,
+        s: &'a str,
+    }
+
+    let t = InBlockInParentIf { show: true, s: "x" };
+    assert_eq!(t.render().unwrap(), "x");
+    let t = InBlockInParentIf {
+        show: false,
+        s: "x",
+    };
+    assert_eq!(t.render().unwrap(), "");
 }

@@ -17,6 +17,7 @@
 | `{% continue %}` | Continue to next iteration of loop |
 | `{% break %}` | Break out of loop |
 | `{% include "..." %}` | [Include another template](#include) |
+| `{% include "..." block ... %}` | [Include one block of another template](#include) |
 | `{% extends "..." %}` | [Template inheritance](#template-inheritance) |
 | `{% block ... %} ... {% endblock %}` | [Block definition for inheritance](#template-inheritance) |
 | `{% macro ...(...) %} ... {% endmacro %}` | [Macro definition](#macros) |
@@ -516,12 +517,12 @@ struct BlockFragment {
 ```
 
 A block rendered by itself (with `block = "..."` or as one of the
-`blocks = [...]`) cannot be nested inside an `if`, `match` or `for`:
-rendering it would discard the surrounding statement, block included, so
-it is rejected at compile time:
+`blocks = [...]`) can be nested inside an `if` or `match`, which is then
+evaluated as usual. It cannot be nested inside a `for`, `filter`, `call`
+or `let` block, which is rejected at compile time:
 
 ```text
-error: cannot render block `list` on its own: it is nested inside another statement, like `if`, `match` or `for`
+error: cannot render block `item` on its own: it is nested inside a `for`, `filter`, `call` or `let` block
 ```
 
 ## HTML escaping
@@ -849,6 +850,27 @@ compile time. Askama will try to find the specified template relative
 to the including template's path before falling back to the absolute
 template path. Use `include` within the branches of an `if`/`else`
 block to use includes more dynamically.
+
+To include a single [block](#template-inheritance) of another template instead of the
+whole template, name it after the path:
+
+```jinja
+{% include "page.html" block title %}
+{% include "page.html" block content %}
+```
+
+The block renders as it would inside `page.html`: blocks nested in it
+are rendered too, and if `page.html` extends another template, the block
+from the most derived template is used and `super()` works as usual.
+Nothing outside the block is rendered, so the including template only
+needs the fields that the block uses. This is handy to send several
+regions of a page in one partial response, as htmx out-of-band swaps do,
+without splitting the page into separate templates.
+
+The block has to exist in the included template, and, as with the
+`block` parameter, it can be nested inside an `if` or `match` but not
+inside a `for`, `filter`, `call` or `let` block; both are reported at
+compile time.
 
 ## Expressions
 

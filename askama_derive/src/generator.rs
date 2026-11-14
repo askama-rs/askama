@@ -129,6 +129,9 @@ struct Generator<'a, 'h> {
     macro_functions: Vec<(&'a Macro<'a>, Context<'a>, bool)>,
     /// The directory path of the calling file.
     caller_dir: CallerDir,
+    /// The block rendered on its own, by `block = "..."` or `{% include "..." block ... %}`:
+    /// only it and the `if` or `match` around it generate code.
+    fragment: Option<&'a str>,
 }
 
 enum CallerDir {
@@ -162,6 +165,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             seen_callers: Vec::new(),
             macro_functions: Vec::new(),
             caller_dir: CallerDir::Unresolved,
+            fragment: input.block.map(|(name, _)| name),
         }
     }
 

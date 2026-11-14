@@ -1553,6 +1553,8 @@ impl<'a: 'l, 'l> If<'a> {
 pub struct Include<'a> {
     pub ws: Ws,
     pub path: &'a str,
+    /// The block to render instead of the whole template, from `{% include "..." block name %}`.
+    pub block: Option<WithSpan<&'a str>>,
     pub span: Span,
 }
 
@@ -1563,13 +1565,18 @@ impl<'a: 'l, 'l> Include<'a> {
             ws(keyword("include").span()),
             cut_node(
                 Some("include"),
-                (ws(str_lit_without_prefix), opt(Whitespace::parse)),
+                (
+                    ws(str_lit_without_prefix),
+                    opt(preceded(ws(keyword("block")), ws(identifier.with_span()))),
+                    opt(Whitespace::parse),
+                ),
             ),
         );
-        let (pws, span, (path, nws)) = p.parse_next(i)?;
+        let (pws, span, (path, block, nws)) = p.parse_next(i)?;
         Ok(Box::new(Node::Include(Self {
             ws: Ws(pws, nws),
             path,
+            block: block.map(|(name, span)| WithSpan::new(name, span)),
             span: span.into(),
         })))
     }
