@@ -355,6 +355,23 @@ fn check_includes_only_once() {
 }
 
 #[test]
+fn check_include_block() {
+    // Only the block is generated, nested block included, and it folds into the surrounding
+    // literals like a block written inline would.
+    let path = absolute(Path::new(env!("CARGO_MANIFEST_DIR")).join("templates/include-block.html"))
+        .unwrap();
+    compare(
+        r#"<{% include "include-block.html" block a %}>"#,
+        &format!(
+            r#"const _: &[askama::helpers::core::primitive::u8] = askama::helpers::core::include_bytes!({path:#?});
+            __askama_writer.write_str("<[b]>")?;"#
+        ),
+        &[],
+        5,
+    );
+}
+
+#[test]
 fn check_is_defined() {
     // Checks that it removes conditions if we know at compile-time that they always return false.
     //

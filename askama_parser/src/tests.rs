@@ -3,7 +3,7 @@ use std::cell::Cell;
 use winnow::{LocatingSlice, Parser};
 
 use crate::expr::BinOp;
-use crate::node::{Extends, Let, Lit, Raw, Whitespace, Ws};
+use crate::node::{Extends, Include, Let, Lit, Raw, Whitespace, Ws};
 use crate::{
     Ast, Expr, Filter, InnerSyntax, InputStream, LetValueOrBlock, Level, Node, Num, PathComponent,
     PathOrIdentifier, Span, State, StrLit, Syntax, SyntaxBuilder, Target, WithSpan,
@@ -1189,6 +1189,54 @@ fn extends_with_whitespace_control() {
                 "source: {src:?}",
             );
         }
+    }
+}
+
+#[test]
+fn test_include() {
+    let syntax = Syntax::default();
+
+    assert_eq!(
+        Ast::from_str(r#"{% include "a.html" %}"#, None, &syntax)
+            .unwrap()
+            .nodes(),
+        [Box::new(Node::Include(Include {
+            ws: Ws(None, None),
+            path: "a.html",
+            block: None,
+            span: Span::new(3..10),
+        }))],
+    );
+
+    let src = r#"{%- include "a.html" block b_1 ~%}"#;
+    let ast = Ast::from_str(src, None, &syntax).unwrap();
+    assert_eq!(
+        ast.nodes(),
+        [Box::new(Node::Include(Include {
+            ws: Ws(Some(Whitespace::Suppress), Some(Whitespace::Minimize)),
+            path: "a.html",
+            block: Some(WithSpan::no_span("b_1")),
+            span: Span::new(4..11),
+        }))],
+    );
+    let Node::Include(Include {
+        block: Some(block), ..
+    }) = &*ast.nodes()[0]
+    else {
+        unreachable!();
+    };
+    assert_eq!(block.span().as_infix_of(src), Some("b_1"));
+
+    for src in [
+        r#"{% include "a.html" block %}"#,
+        r#"{% include "a.html" block "b" %}"#,
+        r#"{% include "a.html" block b c %}"#,
+        r#"{% include "a.html" b %}"#,
+    ] {
+        assert!(
+            Ast::from_str(src, None, &syntax).is_err(),
+            "source: {src:?}"
+        );
     }
 }
 

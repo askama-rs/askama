@@ -949,3 +949,57 @@ fn test_mutually_recursive_imported_macros() {
 
     assert_eq!(EvenOdd.render().unwrap(), "eoeo");
 }
+
+// A template with blocks is generated in two passes, and the first one only collects variables.
+// It must not write the recursive call, or the call would render twice.
+#[test]
+fn test_recursive_macro_beside_blocks() {
+    #[derive(Template)]
+    #[template(
+        source = "
+{%- macro count(n: u32) -%}
+    {{ n }}{% if *n > 0 %}{{ count(n - 1) }}{% endif %}
+{%- endmacro -%}
+{{- count(2) }}{% block tail %}!{% endblock %}",
+        ext = "txt"
+    )]
+    struct WithBlock;
+
+    assert_eq!(WithBlock.render().unwrap(), "210!");
+
+    // The top level of a child template is not rendered at all.
+    #[derive(Template)]
+    #[template(
+        source = r#"{% extends "base.html" %}
+{%- macro count(n: u32) -%}
+    {{ n }}{% if *n > 0 %}{% call count(n - 1) %}{% endcall %}{% endif %}
+{%- endmacro -%}
+{% call count(2) %}{% endcall %}
+{%- block content %}{{ count(1) }}{% endblock %}"#,
+        ext = "txt"
+    )]
+    struct Child {
+        title: &'static str,
+    }
+
+    assert_eq!(
+        Child { title: "t" }.render().unwrap(),
+        "t\n10\nFoo\nCopyright 2017"
+    );
+
+    // Outside the block rendered on its own, the call is discarded, and so is the method behind
+    // it, which would need a `sep` field.
+    #[derive(Template)]
+    #[template(
+        source = "
+{%- macro count(n: u32) -%}
+    {{ n }}{{ sep }}{% if *n > 0 %}{{ count(n - 1) }}{% endif %}
+{%- endmacro -%}
+{{- count(2) }}{% block tail %}!{% endblock %}",
+        block = "tail",
+        ext = "txt"
+    )]
+    struct Fragment;
+
+    assert_eq!(Fragment.render().unwrap(), "!");
+}

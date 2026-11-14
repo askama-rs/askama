@@ -84,6 +84,7 @@ impl<'a> Generator<'a, '_> {
             self.is_in_block,
         );
         child.buf_writable = buf_writable;
+        child.fragment = self.fragment;
         child.macro_functions = mem::take(&mut self.macro_functions);
         let res = callback(&mut child);
         Generator {
@@ -143,13 +144,14 @@ impl<'a> Generator<'a, '_> {
                     // Rendering one block discards the code around it; only an `if` or `match`
                     // keeps its own code for it, so a block in a loop would render nothing.
                     if level == AstLevel::Nested
-                        && self.input.block.is_some_and(|(name, _)| name == *b.name)
+                        && let fragment = self.fragment_path()
+                        && fragment.contains(&*b.name)
                     {
                         return Err(ctx.generate_error(
                             format_args!(
                                 "cannot render block `{}` on its own: it is nested inside \
                                  a `for`, `filter`, `call` or `let` block",
-                                b.name.escape_debug(),
+                                fragment[0].escape_debug(),
                             ),
                             b.span,
                         ));
@@ -574,16 +576,36 @@ impl<'a> Generator<'a, '_> {
         Ok(flushed + median(&mut arm_sizes))
     }
 
-    /// Whether this `if` or `match` holds the one block being rendered (`block = "..."`), so
+    /// Whether this `if` or `match` holds the one block being rendered (`self.fragment`), so
     /// its own code must be kept while the code around it is discarded.
     fn contains_fragment(&self, ctx: &Context<'a>, level: AstLevel, node: Span) -> bool {
         level != AstLevel::Nested
             && self.buf_writable.discard
-            && self.input.block.is_some_and(|(name, _)| {
+            && self.fragment_path().iter().any(|name| {
                 ctx.block_holders
                     .get(name)
                     .is_some_and(|holders| holders.contains(&node))
             })
+    }
+
+    /// The block being rendered on its own, followed by the blocks around it. A child template
+    /// can define the block inside another one that only its parent nests in a statement, so
+    /// that statement holds the block without naming it.
+    fn fragment_path(&self) -> Vec<&'a str> {
+        let mut path = Vec::from_iter(self.fragment);
+        let mut index = 0;
+        while let Some(name) = path.get(index).copied() {
+            let defs = self.heritage.and_then(|heritage| heritage.blocks.get(name));
+            for (ctx, _) in defs.into_iter().flatten() {
+                if let Some(parent) = ctx.block_parents.get(name)
+                    && !path.contains(parent)
+                {
+                    path.push(parent);
+                }
+            }
+            index += 1;
+        }
+        path
     }
 
     fn write_loop(
@@ -880,13 +902,53 @@ impl<'a> Generator<'a, '_> {
             None => child_ctx,
         };
 
-        size_hint += self.with_child(heritage.as_ref(), |child| {
-            let mut size_hint = SizeHint::EMPTY;
-            size_hint +=
-                child.handle(handle_ctx, handle_ctx.nodes, buf, AstLevel::Top, render_for)?;
-            size_hint += child.write_buf_writable(handle_ctx, buf)?;
-            Ok(size_hint)
-        })?;
+        if let Some(block) = i.block {
+            // `{% include "..." block name %}` renders only that block, the way it renders in
+            // the included template, `super()` and nested blocks included.
+            if heritage
+                .as_ref()
+                .is_none_or(|h| !h.blocks.contains_key(*block))
+            {
+                return Err(ctx.generate_error(
+                    format_args!(
+                        "cannot find block `{}` in `{}`",
+                        block.escape_debug(),
+                        i.path.escape_debug(),
+                    ),
+                    block.span(),
+                ));
+            }
+            // Inside discarded code, e.g. outside the fragment being rendered, the block would
+            // switch writing back on.
+            if render_for == RenderFor::Template && !self.buf_writable.discard {
+                size_hint += self.with_child(heritage.as_ref(), |child| {
+                    // Render the template as a fragment, like `#[template(block = "...")]`,
+                    // so the `if` or `match` around the block is kept.
+                    child.fragment = Some(*block);
+                    child.buf_writable.discard = true;
+                    let prev_buf_discard = buf.is_discard();
+                    buf.set_discard(true);
+                    let size_hint = child.handle(
+                        handle_ctx,
+                        handle_ctx.nodes,
+                        buf,
+                        AstLevel::Top,
+                        RenderFor::Template,
+                    )?;
+                    buf.set_discard(prev_buf_discard);
+                    child.buf_writable.discard = false;
+                    Ok(size_hint)
+                })?;
+            }
+        } else {
+            size_hint += self.with_child(heritage.as_ref(), |child| {
+                let mut size_hint = SizeHint::EMPTY;
+                size_hint +=
+                    child.handle(handle_ctx, handle_ctx.nodes, buf, AstLevel::Top, render_for)?;
+                size_hint += child.write_buf_writable(handle_ctx, buf)?;
+                Ok(size_hint)
+            })?;
+        }
 
         self.prepare_ws(i.ws);
 
@@ -1292,9 +1354,8 @@ impl<'a> Generator<'a, '_> {
 
         let mut size_hint = self.write_buf_writable(ctx, buf)?;
 
-        let block_fragment_write = self.input.block.map(|(block, _)| block)
-            == name.as_deref().copied()
-            && self.buf_writable.discard;
+        let block_fragment_write =
+            self.fragment == name.as_deref().copied() && self.buf_writable.discard;
         // Allow writing to the buffer if we're in the block fragment
         if block_fragment_write {
             self.buf_writable.discard = false;
