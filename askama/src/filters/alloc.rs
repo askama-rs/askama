@@ -143,12 +143,35 @@ impl<S: FastWritable> FastWritable for Lower<S> {
     ) -> crate::Result<()> {
         let mut buffer = String::new();
         self.0.write_into(&mut buffer, values)?;
-        Ok(flush_lower(dest, &buffer)?)
+        if buffer.is_ascii() {
+            buffer.make_ascii_lowercase();
+            Ok(dest.write_str(&buffer)?)
+        } else {
+            Ok(flush_lower(dest, &buffer)?)
+        }
     }
 }
 
 fn flush_lower(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
     dest.write_str(&s.to_lowercase())
+}
+
+/// What `flush_capitalize()` does, without a copy of the text. `s` must be ASCII.
+fn capitalize_ascii(s: &mut str) {
+    s.make_ascii_lowercase();
+    if let Some(first) = s.get_mut(..1) {
+        first.make_ascii_uppercase();
+    }
+}
+
+/// What `flush_title()` does, without a copy of every word. `s` must be ASCII.
+fn title_ascii(mut s: &mut str) {
+    while !s.is_empty() {
+        let end = s.find(char::is_whitespace).map_or(s.len(), |pos| pos + 1);
+        let word;
+        (word, s) = s.split_at_mut(end);
+        capitalize_ascii(word);
+    }
 }
 
 /// Converts to lowercase, alias for the `|lower` filter
@@ -230,7 +253,12 @@ impl<S: FastWritable> FastWritable for Upper<S> {
     ) -> crate::Result<()> {
         let mut buffer = String::new();
         self.0.write_into(&mut buffer, values)?;
-        Ok(flush_upper(dest, &buffer)?)
+        if buffer.is_ascii() {
+            buffer.make_ascii_uppercase();
+            Ok(dest.write_str(&buffer)?)
+        } else {
+            Ok(flush_upper(dest, &buffer)?)
+        }
     }
 }
 
@@ -298,9 +326,7 @@ pub struct Trim<S>(S);
 impl<S: fmt::Display> fmt::Display for Trim<S> {
     #[inline]
     fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut collector = TrimCollector(String::new());
-        write!(collector, "{}", self.0)?;
-        flush_trim(dest, collector)
+        write!(TrimWriter::new(dest), "{}", self.0)
     }
 }
 
@@ -311,25 +337,45 @@ impl<S: FastWritable> FastWritable for Trim<S> {
         dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        let mut collector = TrimCollector(String::new());
-        self.0.write_into(&mut collector, values)?;
-        Ok(flush_trim(dest, collector)?)
+        self.0.write_into(&mut TrimWriter::new(dest), values)
     }
 }
 
-struct TrimCollector(String);
+struct TrimWriter<W> {
+    dest: W,
+    /// Whether any text was written, so that whitespace is not leading anymore.
+    started: bool,
+    /// Whitespace that is trailing unless more text follows.
+    pending: String,
+}
 
-impl fmt::Write for TrimCollector {
-    fn write_str(&mut self, s: &str) -> fmt::Result {
-        match self.0.is_empty() {
-            true => self.0.write_str(s.trim_start()),
-            false => self.0.write_str(s),
+impl<W> TrimWriter<W> {
+    fn new(dest: W) -> Self {
+        Self {
+            dest,
+            started: false,
+            pending: String::new(),
         }
     }
 }
 
-fn flush_trim(dest: &mut (impl fmt::Write + ?Sized), collector: TrimCollector) -> fmt::Result {
-    dest.write_str(collector.0.trim_end())
+impl<W: fmt::Write> fmt::Write for TrimWriter<W> {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let s = if self.started { s } else { s.trim_start() };
+        let text = s.trim_end();
+        if text.is_empty() {
+            self.pending.push_str(s);
+            return Ok(());
+        }
+        if !self.pending.is_empty() {
+            self.dest.write_str(&self.pending)?;
+            self.pending.clear();
+        }
+        self.started = true;
+        self.dest.write_str(text)?;
+        self.pending.push_str(&s[text.len()..]);
+        Ok(())
+    }
 }
 
 /// Capitalize a value. The first character will be uppercase, all others lowercase.
@@ -381,7 +427,12 @@ impl<S: FastWritable> FastWritable for Capitalize<S> {
     ) -> crate::Result<()> {
         let mut buffer = String::new();
         self.0.write_into(&mut buffer, values)?;
-        Ok(flush_capitalize(dest, &buffer)?)
+        if buffer.is_ascii() {
+            capitalize_ascii(&mut buffer);
+            Ok(dest.write_str(&buffer)?)
+        } else {
+            Ok(flush_capitalize(dest, &buffer)?)
+        }
     }
 }
 
@@ -444,7 +495,12 @@ impl<S: FastWritable> FastWritable for Title<S> {
     ) -> crate::Result<()> {
         let mut buffer = String::new();
         self.0.write_into(&mut buffer, values)?;
-        Ok(flush_title(dest, &buffer)?)
+        if buffer.is_ascii() {
+            title_ascii(&mut buffer);
+            Ok(dest.write_str(&buffer)?)
+        } else {
+            Ok(flush_title(dest, &buffer)?)
+        }
     }
 }
 
@@ -543,5 +599,88 @@ mod tests {
                 .to_string(),
             "Fo\x0bOo\x0cOo\u{2002}Oo\u{3000}Bar"
         );
+    }
+
+    fn fast(value: impl FastWritable) -> String {
+        let mut dest = String::new();
+        value.write_into(&mut dest, crate::NO_VALUES).unwrap();
+        dest
+    }
+
+    #[test]
+    fn test_fast_writable_is_display() {
+        const INPUTS: &[&str] = &[
+            "",
+            "f",
+            "F",
+            " \n\t",
+            " foo BAR ",
+            "hElLo wOrLD",
+            "foo\x0bbAR\x0cbAZ\tqUX\r\nqUUX  x",
+            "fOO\u{2002}bAR\u{3000}bAZ",
+            "äØÄÅÖ",
+            "ß",
+            "ßß straße",
+            "İSTANBUL",
+            "ﬁne ǆ",
+            "ὈΔΥΣΣΕΎΣ ΌΣΟΣ Σ",
+        ];
+
+        for &input in INPUTS {
+            assert_eq!(fast(lower(input).unwrap()), input.to_lowercase());
+            assert_eq!(fast(upper(input).unwrap()), input.to_uppercase());
+            assert_eq!(
+                fast(capitalize(input).unwrap()),
+                capitalize(input).unwrap().to_string(),
+            );
+            assert_eq!(
+                fast(title(input).unwrap()),
+                title(input).unwrap().to_string()
+            );
+            assert_eq!(fast(trim(input).unwrap()), input.trim());
+        }
+
+        assert_eq!(fast(capitalize("foO BAR").unwrap()), "Foo bar");
+        assert_eq!(
+            fast(title("fOo  BaR\x0bbAZ\r\nqux ").unwrap()),
+            "Foo  Bar\x0bBaz\r\nQux "
+        );
+    }
+
+    #[test]
+    fn test_trim_chunks() {
+        struct Chunks(&'static [&'static str]);
+
+        impl fmt::Display for Chunks {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                self.0.iter().try_for_each(|chunk| f.write_str(chunk))
+            }
+        }
+
+        impl FastWritable for Chunks {
+            fn write_into(
+                &self,
+                dest: &mut dyn fmt::Write,
+                _: &dyn crate::Values,
+            ) -> crate::Result<()> {
+                Ok(self.0.iter().try_for_each(|chunk| dest.write_str(chunk))?)
+            }
+        }
+
+        const INPUTS: &[&[&str]] = &[
+            &[],
+            &["", " ", "\n"],
+            &[" ", " a ", "  ", "", "b  ", " ", ""],
+            &["a", " ", "\n", "b"],
+            &["a", " ", "\n"],
+            &["\u{3000}a\u{2002}", "\u{2002}b\u{3000}", "\u{2002}"],
+        ];
+
+        for &input in INPUTS {
+            let expected = input.concat();
+            let expected = expected.trim();
+            assert_eq!(trim(Chunks(input)).unwrap().to_string(), expected);
+            assert_eq!(fast(trim(Chunks(input)).unwrap()), expected);
+        }
     }
 }
