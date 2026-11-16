@@ -38,12 +38,14 @@ impl<'a> Generator<'a, '_> {
         let expr_code = self.visit_expr_root(ctx, iter)?;
         let span = ctx.span_for_node(iter.span());
         buf.write_tokens(match iter {
-            Expr::Range(..) => expr_code,
-            Expr::Array(..) => quote_spanned!(span => #expr_code.iter()),
+            Expr::Range { .. } => expr_code,
+            Expr::Array { .. } => quote_spanned!(span => #expr_code.iter()),
             // If `iter` is a call then we assume it's something that returns
             // an iterator. If not then the user can explicitly add the needed
             // call without issues.
-            Expr::Call(..) | Expr::Index(..) => quote_spanned!(span => (#expr_code).into_iter()),
+            Expr::Call { .. } | Expr::Index { .. } => {
+                quote_spanned!(span => (#expr_code).into_iter())
+            }
             // If accessing `self` then it most likely needs to be
             // borrowed, to prevent an attempt of moving.
             _ if starts_with_self_dot(&expr_code) => {
@@ -51,7 +53,7 @@ impl<'a> Generator<'a, '_> {
             }
             // If accessing a field then it most likely needs to be
             // borrowed, to prevent an attempt of moving.
-            Expr::AssociatedItem(..) => quote_spanned!(span => (&#expr_code).into_iter()),
+            Expr::AssociatedItem { .. } => quote_spanned!(span => (&#expr_code).into_iter()),
             // Otherwise, we borrow `iter` assuming that it implements `IntoIterator`.
             _ => quote_spanned!(span => (#expr_code).into_iter()),
         });
@@ -65,54 +67,76 @@ impl<'a> Generator<'a, '_> {
         expr: &Expr<'a>,
     ) -> Result<DisplayWrap, CompileError> {
         Ok(match *expr {
-            Expr::BoolLit(s, _) => self.visit_bool_lit(ctx, buf, s, expr.span()),
-            Expr::NumLit(s, _, _) => self.visit_num_lit(buf, s, ctx.span_for_node(expr.span())),
-            Expr::StrLit(ref s, _) => self.visit_str_lit(buf, s, ctx.span_for_node(expr.span())),
-            Expr::CharLit(ref s, _) => self.visit_char_lit(buf, s, ctx.span_for_node(expr.span())),
-            Expr::Var(s, _) => self.visit_var(ctx, buf, s, expr.span()),
-            Expr::Path(ref path, _) => self.visit_path(ctx, buf, path),
-            Expr::Array(ref elements, _) => self.visit_array(ctx, buf, elements, expr.span())?,
-            Expr::ArrayRepeat(ref elem, ref cnt, _) => {
-                self.visit_array_repeat(ctx, buf, elem, cnt, expr.span())?
+            Expr::BoolLit { value, .. } => self.visit_bool_lit(ctx, buf, value, expr.span()),
+            Expr::NumLit {
+                num_with_suffix, ..
+            } => self.visit_num_lit(buf, num_with_suffix, ctx.span_for_node(expr.span())),
+            Expr::StrLit { ref inner, .. } => {
+                self.visit_str_lit(buf, inner, ctx.span_for_node(expr.span()))
             }
-            Expr::AssociatedItem(ref obj, ref associated_item, _) => {
-                self.visit_associated_item(ctx, buf, obj, associated_item)?
+            Expr::CharLit { ref inner, .. } => {
+                self.visit_char_lit(buf, inner, ctx.span_for_node(expr.span()))
             }
-            Expr::Index(ref obj, ref key, _) => self.visit_index(ctx, buf, obj, key)?,
-            Expr::Filter(ref v, _) => {
-                self.visit_filter(ctx, buf, &v.name, &v.arguments, expr.span())?
+            Expr::Var { name, .. } => self.visit_var(ctx, buf, name, expr.span()),
+            Expr::Path { ref components, .. } => self.visit_path(ctx, buf, components),
+            Expr::Array { ref elems, .. } => self.visit_array(ctx, buf, elems, expr.span())?,
+            Expr::ArrayRepeat {
+                ref value,
+                ref repeat,
+                ..
+            } => self.visit_array_repeat(ctx, buf, value, repeat, expr.span())?,
+            Expr::AssociatedItem {
+                ref parent_item,
+                ref associated_item,
+                ..
+            } => self.visit_associated_item(ctx, buf, parent_item, associated_item)?,
+            Expr::Index {
+                ref parent_item,
+                ref index,
+                ..
+            } => self.visit_index(ctx, buf, parent_item, index)?,
+            Expr::Filter { ref inner, .. } => {
+                self.visit_filter(ctx, buf, &inner.name, &inner.arguments, expr.span())?
             }
-            Expr::Unary(op, ref inner, _) => self.visit_unary(ctx, buf, op, inner, expr.span())?,
-            Expr::BinOp(ref v, _) => {
-                self.visit_binop(ctx, buf, v.op, &v.lhs, &v.rhs, expr.span())?
+            Expr::Unary {
+                operator,
+                expr: ref inner,
+                ..
+            } => self.visit_unary(ctx, buf, operator, inner, expr.span())?,
+            Expr::BinOp { ref inner, .. } => {
+                self.visit_binop(ctx, buf, inner.op, &inner.lhs, &inner.rhs, expr.span())?
             }
-            Expr::Range(ref v, _) => self.visit_range(
+            Expr::Range { ref inner, .. } => self.visit_range(
                 ctx,
                 buf,
-                v.op,
-                v.lhs.as_deref(),
-                v.rhs.as_deref(),
+                inner.op,
+                inner.lhs.as_deref(),
+                inner.rhs.as_deref(),
                 expr.span(),
             )?,
-            Expr::Group(ref inner, _) => self.visit_group(ctx, buf, inner, expr.span())?,
-            Expr::Call(ref v, _) => self.visit_call(ctx, buf, &v.path, &v.args)?,
-            Expr::Struct(ref s, _) => self.visit_struct(ctx, buf, s, expr.span())?,
-            Expr::RustMacro(ref path, args, _) => {
-                self.visit_rust_macro(ctx, buf, path, args, expr.span())?
-            }
-            Expr::Try(ref expr, _) => self.visit_try(ctx, buf, expr)?,
-            Expr::Tuple(ref exprs, _) => self.visit_tuple(ctx, buf, exprs, expr.span())?,
-            Expr::NamedArgument(_, ref expr, _) => self.visit_named_argument(ctx, buf, expr)?,
+            Expr::Group { ref elem, .. } => self.visit_group(ctx, buf, elem, expr.span())?,
+            Expr::Call { ref call, .. } => self.visit_call(ctx, buf, &call.path, &call.args)?,
+            Expr::Struct { ref inner, .. } => self.visit_struct(ctx, buf, inner, expr.span())?,
+            Expr::RustMacro {
+                ref path,
+                arguments,
+                ..
+            } => self.visit_rust_macro(ctx, buf, path, arguments, expr.span())?,
+            Expr::Try { ref expr, .. } => self.visit_try(ctx, buf, expr)?,
+            Expr::Tuple { ref elems, .. } => self.visit_tuple(ctx, buf, elems, expr.span())?,
+            Expr::NamedArgument { ref value, .. } => self.visit_named_argument(ctx, buf, value)?,
             Expr::FilterSource(_) => self.visit_filter_source(ctx, buf, expr.span()),
-            Expr::IsDefined(var_name, _) => {
+            Expr::IsDefined { var_name, .. } => {
                 self.visit_is_defined(ctx, buf, true, var_name, expr.span())?
             }
-            Expr::IsNotDefined(var_name, _) => {
+            Expr::IsNotDefined { var_name, .. } => {
                 self.visit_is_defined(ctx, buf, false, var_name, expr.span())?
             }
-            Expr::As(ref expr, target, _) => self.visit_as(ctx, buf, expr, target)?,
-            Expr::Concat(ref exprs, _) => self.visit_concat(ctx, buf, exprs)?,
-            Expr::LetCond(ref cond, _) => self.visit_let_cond(ctx, buf, cond)?,
+            Expr::As {
+                ref lhs, target, ..
+            } => self.visit_as(ctx, buf, lhs, target)?,
+            Expr::Concat { ref exprs, .. } => self.visit_concat(ctx, buf, exprs)?,
+            Expr::LetCond { ref cond, .. } => self.visit_let_cond(ctx, buf, cond)?,
             Expr::ArgumentPlaceholder(_) => DisplayWrap::Unwrapped,
         })
     }
@@ -131,13 +155,17 @@ impl<'a> Generator<'a, '_> {
         expr: &Expr<'a>,
     ) -> Result<DisplayWrap, CompileError> {
         match *expr {
-            Expr::BinOp(ref v, _) if matches!(v.op, "&&" | "||") => {
-                let ret = self.visit_expr(ctx, buf, &v.lhs)?;
-                buf.write_tokens(logic_op(v.op, ctx.span_for_node(expr.span())));
+            Expr::BinOp { ref inner, .. } if matches!(inner.op, "&&" | "||") => {
+                let ret = self.visit_expr(ctx, buf, &inner.lhs)?;
+                buf.write_tokens(logic_op(inner.op, ctx.span_for_node(expr.span())));
                 return Ok(ret);
             }
-            Expr::Unary(op, ref inner, _) => {
-                buf.write_tokens(unary_op(op, ctx.span_for_node(expr.span())));
+            Expr::Unary {
+                operator,
+                expr: ref inner,
+                ..
+            } => {
+                buf.write_tokens(unary_op(operator, ctx.span_for_node(expr.span())));
                 return self.visit_expr_first(ctx, buf, inner);
             }
             _ => {}
@@ -153,12 +181,12 @@ impl<'a> Generator<'a, '_> {
         prev_display_wrap: DisplayWrap,
     ) -> Result<DisplayWrap, CompileError> {
         match *expr {
-            Expr::BinOp(ref v, _) if matches!(v.op, "&&" | "||") => {
-                self.visit_condition(ctx, buf, &v.rhs)?;
+            Expr::BinOp { ref inner, .. } if matches!(inner.op, "&&" | "||") => {
+                self.visit_condition(ctx, buf, &inner.rhs)?;
                 Ok(DisplayWrap::Unwrapped)
             }
-            Expr::Unary(_, ref inner, _) => {
-                self.visit_expr_not_first(ctx, buf, inner, prev_display_wrap)
+            Expr::Unary { ref expr, .. } => {
+                self.visit_expr_not_first(ctx, buf, expr, prev_display_wrap)
             }
             _ => Ok(prev_display_wrap),
         }
@@ -171,27 +199,31 @@ impl<'a> Generator<'a, '_> {
         expr: &Expr<'a>,
     ) -> Result<(), CompileError> {
         match expr {
-            Expr::BoolLit(_, _) | Expr::IsDefined(_, _) | Expr::IsNotDefined(_, _) => {
+            Expr::BoolLit { .. } | Expr::IsDefined { .. } | Expr::IsNotDefined { .. } => {
                 self.visit_expr(ctx, buf, expr)?;
             }
-            Expr::Unary("!", expr, _) => {
+            Expr::Unary {
+                operator: "!",
+                expr,
+                ..
+            } => {
                 buf.write_token(Token![!], ctx.span_for_node(expr.span()));
                 self.visit_condition(ctx, buf, expr)?;
             }
-            Expr::BinOp(v, _) if matches!(v.op, "&&" | "||") => {
-                self.visit_condition(ctx, buf, &v.lhs)?;
-                buf.write_tokens(logic_op(v.op, ctx.span_for_node(expr.span())));
-                self.visit_condition(ctx, buf, &v.rhs)?;
+            Expr::BinOp { inner, .. } if matches!(inner.op, "&&" | "||") => {
+                self.visit_condition(ctx, buf, &inner.lhs)?;
+                buf.write_tokens(logic_op(inner.op, ctx.span_for_node(expr.span())));
+                self.visit_condition(ctx, buf, &inner.rhs)?;
             }
-            Expr::Group(expr, _) => {
+            Expr::Group { elem, .. } => {
                 let mut tmp = Buffer::new();
 
-                self.visit_condition(ctx, &mut tmp, expr)?;
+                self.visit_condition(ctx, &mut tmp, elem)?;
                 let tmp = tmp.into_token_stream();
-                let span = ctx.span_for_node(expr.span());
+                let span = ctx.span_for_node(elem.span());
                 quote_into!(buf, span, { (#tmp) });
             }
-            Expr::LetCond(cond, _) => {
+            Expr::LetCond { cond, .. } => {
                 self.visit_let_cond(ctx, buf, cond)?;
             }
             _ => {
@@ -407,15 +439,20 @@ impl<'a> Generator<'a, '_> {
         // be able to skip a few levels.
         need_borrow: bool,
     ) -> Result<TokenStream, CompileError> {
-        if let Expr::Unary(expr @ ("*" | "&"), ref arg, _) = *arg {
-            let inner = self.visit_arg_inner(ctx, arg, ctx.span_for_node(arg.span()), false)?;
-            let operator = TokenStream::from_str(expr).unwrap();
+        if let Expr::Unary {
+            operator: operator @ ("*" | "&"),
+            ref expr,
+            ..
+        } = *arg
+        {
+            let inner = self.visit_arg_inner(ctx, expr, ctx.span_for_node(expr.span()), false)?;
+            let operator = TokenStream::from_str(operator).unwrap();
             return Ok(quote_spanned!(span=> #operator #inner));
         }
         let borrow = need_borrow || !is_copyable(arg);
         let mut buf = Buffer::new();
         let stream = match *arg {
-            Expr::Call(ref v, _) if !matches!(*v.path, Expr::Path(_, _)) => {
+            Expr::Call { ref call, .. } if !matches!(*call.path, Expr::Path { .. }) => {
                 self.visit_expr(ctx, &mut buf, arg)?;
                 let buf = buf.into_token_stream();
                 quote_spanned!(span=> #buf)
@@ -468,7 +505,7 @@ impl<'a> Generator<'a, '_> {
         associated_item: &AssociatedItem<'a>,
     ) -> Result<DisplayWrap, CompileError> {
         let span = ctx.span_for_node(obj.span());
-        if let Expr::Var("loop", _) = *obj {
+        if let Expr::Var { name: "loop", .. } = *obj {
             let var_item = crate::var_item();
             buf.write_tokens(match *associated_item.name {
                 "index0" => quote_spanned!(span => #var_item.index0),
@@ -601,70 +638,69 @@ impl<'a> Generator<'a, '_> {
         // ensure that no named args are used in normal rust call expressions
         if let Some(arg) = args
             .iter()
-            .find(|&arg| matches!(**arg, Expr::NamedArgument(_, _, _)))
+            .find(|&arg| matches!(**arg, Expr::NamedArgument { .. }))
         {
             return Err(ctx.generate_error("unsupported use of named arguments", arg.span()));
         }
 
         match left {
-            Expr::AssociatedItem(sub_left, AssociatedItem { name, generics }, _)
-                if matches!(**sub_left, Expr::Var("loop", _)) =>
-            {
-                match **name {
-                    "cycle" => {
-                        if generics.is_some() {
-                            return Err(ctx.generate_error(
-                                "loop.cycle(…) doesn't use generics",
-                                name.span(),
-                            ));
-                        }
-                        match args {
-                            [arg] => {
-                                if matches!(**arg, Expr::Array(ref arr, _) if arr.is_empty()) {
-                                    return Err(ctx.generate_error(
-                                        "loop.cycle(…) cannot use an empty array",
-                                        name.span(),
-                                    ));
-                                }
-                                let mut expr_buf = Buffer::new();
-                                self.visit_expr(ctx, &mut expr_buf, arg)?;
-                                let expr_buf = expr_buf.into_token_stream();
-                                let arg_span = ctx.span_for_node(arg.span());
-
-                                let var_cycle = crate::var_cycle();
-                                let var_item = crate::var_item();
-                                let var_len = crate::var_len();
-                                quote_into!(buf, arg_span, {
-                                    ({
-                                        let #var_cycle = &(#expr_buf);
-                                        let #var_len = #var_cycle.len();
-                                        if #var_len == 0 {
-                                            return askama::helpers::core::result::Result::Err(askama::Error::Fmt);
-                                        }
-                                        #var_cycle[#var_item.index0 % #var_len]
-                                    })
-                                });
-                            }
-                            _ => {
+            Expr::AssociatedItem {
+                parent_item,
+                associated_item: AssociatedItem { name, generics },
+                ..
+            } if matches!(**parent_item, Expr::Var { name: "loop", .. }) => match **name {
+                "cycle" => {
+                    if generics.is_some() {
+                        return Err(
+                            ctx.generate_error("loop.cycle(…) doesn't use generics", name.span())
+                        );
+                    }
+                    match args {
+                        [arg] => {
+                            if matches!(**arg, Expr::Array { ref elems, .. } if elems.is_empty()) {
                                 return Err(ctx.generate_error(
                                     "loop.cycle(…) cannot use an empty array",
                                     name.span(),
                                 ));
                             }
+                            let mut expr_buf = Buffer::new();
+                            self.visit_expr(ctx, &mut expr_buf, arg)?;
+                            let expr_buf = expr_buf.into_token_stream();
+                            let arg_span = ctx.span_for_node(arg.span());
+
+                            let var_cycle = crate::var_cycle();
+                            let var_item = crate::var_item();
+                            let var_len = crate::var_len();
+                            quote_into!(buf, arg_span, {
+                                ({
+                                    let #var_cycle = &(#expr_buf);
+                                    let #var_len = #var_cycle.len();
+                                    if #var_len == 0 {
+                                        return askama::helpers::core::result::Result::Err(askama::Error::Fmt);
+                                    }
+                                    #var_cycle[#var_item.index0 % #var_len]
+                                })
+                            });
+                        }
+                        _ => {
+                            return Err(ctx.generate_error(
+                                "loop.cycle(…) cannot use an empty array",
+                                name.span(),
+                            ));
                         }
                     }
-                    s => {
-                        return Err(ctx.generate_error(
-                            format_args!("unknown loop method: `{}`", s.escape_debug()),
-                            name.span(),
-                        ));
-                    }
                 }
-            }
+                s => {
+                    return Err(ctx.generate_error(
+                        format_args!("unknown loop method: `{}`", s.escape_debug()),
+                        name.span(),
+                    ));
+                }
+            },
             sub_left => {
                 // We special-case "askama::get_value".
-                if let Expr::Path(path, _) = sub_left
-                    && let [part1, part2] = path.as_slice()
+                if let Expr::Path { components, .. } = sub_left
+                    && let [part1, part2] = components.as_slice()
                     && part1.generics.is_none()
                     && *part1.name == "askama"
                     && *part2.name == "get_value"
@@ -681,7 +717,7 @@ impl<'a> Generator<'a, '_> {
 
                 let span = ctx.span_for_node(left.span());
                 match *sub_left {
-                    Expr::Var(name, _) => match self.locals.resolve(name) {
+                    Expr::Var { name, .. } => match self.locals.resolve(name) {
                         Some(resolved) => write_resolved(buf, &resolved, span),
                         None => {
                             let id = field_new(name, span);
@@ -711,7 +747,7 @@ impl<'a> Generator<'a, '_> {
         let span = ctx.span_for_node(span);
         let path_span = ctx.span_for_node(struct_.path.span());
         match &*struct_.path {
-            Expr::Var(name, _) => match self.locals.resolve(name) {
+            Expr::Var { name, .. } => match self.locals.resolve(name) {
                 Some(resolved) => write_resolved(buf, &resolved, path_span),
                 None => {
                     let id = field_new(name, path_span);

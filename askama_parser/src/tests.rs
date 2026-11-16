@@ -43,22 +43,29 @@ fn test_invalid_block() {
 }
 
 fn int_lit<'a>(i: &'a str, span: Span) -> Box<Expr<'a>> {
-    Box::new(Expr::NumLit(i, Num::Int(i, None), span))
+    Box::new(Expr::NumLit {
+        num_with_suffix: i,
+        num: Num::Int(i, None),
+        span,
+    })
 }
 
 fn bin_op<'a>(op: &'a str, lhs: Box<Expr<'a>>, rhs: Box<Expr<'a>>, span: Span) -> Box<Expr<'a>> {
-    Box::new(Expr::BinOp(crate::expr::BinOp { op, lhs, rhs }, span))
+    Box::new(Expr::BinOp {
+        inner: crate::expr::BinOp { op, lhs, rhs },
+        span,
+    })
 }
 
 fn call<'a>(path: Box<Expr<'a>>, args: Vec<Box<Expr<'a>>>, span: Span) -> Box<Expr<'a>> {
-    Box::new(Expr::Call(
-        crate::expr::Call {
+    Box::new(Expr::Call {
+        call: crate::expr::Call {
             path,
             generics: None,
             args,
         },
         span,
-    ))
+    })
 }
 
 #[test]
@@ -70,43 +77,46 @@ fn test_parse_filter() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Identifier(WithSpan::no_span("e")),
-                    arguments: vec![Box::new(Expr::Var("strvar", Span::new(3..9)))],
+                    arguments: vec![Box::new(Expr::Var {
+                        name: "strvar",
+                        span: Span::new(3..9)
+                    })],
                 },
-                Span::new(9..12)
-            )),
+                span: Span::new(9..12)
+            }),
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ 2|abs }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
                     arguments: vec![int_lit("2", Span::new(3..4))],
                 },
-                Span::new(4..9)
-            )),
+                span: Span::new(4..9)
+            }),
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ -2|abs }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
-                    arguments: vec![Box::new(Expr::Unary(
-                        "-",
-                        int_lit("2", Span::new(4..5)),
-                        Span::new(3..4)
-                    ))],
+                    arguments: vec![Box::new(Expr::Unary {
+                        operator: "-",
+                        expr: int_lit("2", Span::new(4..5)),
+                        span: Span::new(3..4)
+                    })],
                 },
-                Span::new(5..10)
-            )),
+                span: Span::new(5..10)
+            }),
         ))],
     );
     assert_eq!(
@@ -115,21 +125,21 @@ fn test_parse_filter() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
-                    arguments: vec![Box::new(Expr::Group(
-                        bin_op(
+                    arguments: vec![Box::new(Expr::Group {
+                        elem: bin_op(
                             "-",
                             int_lit("1", Span::new(4..5)),
                             int_lit("2", Span::new(8..9)),
                             Span::new(6..7),
                         ),
-                        Span::new(3..10)
-                    ))],
+                        span: Span::new(3..10)
+                    })],
                 },
-                Span::new(10..15)
-            )),
+                span: Span::new(10..15)
+            }),
         ))],
     );
 }
@@ -148,11 +158,11 @@ fn test_parse_numbers() {
         Ast::from_str("{{ 2.5 }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::NumLit(
-                "2.5",
-                Num::Float("2.5", None),
-                Span::new(3..6)
-            ))
+            Box::new(Expr::NumLit {
+                num_with_suffix: "2.5",
+                num: Num::Float("2.5", None),
+                span: Span::new(3..6)
+            })
         ))],
     );
 }
@@ -165,14 +175,20 @@ fn test_parse_var() {
         Ast::from_str("{{ foo }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Var("foo", Span::new(3..6)))
+            Box::new(Expr::Var {
+                name: "foo",
+                span: Span::new(3..6)
+            })
         ))]
     );
     assert_eq!(
         Ast::from_str("{{ foo_bar }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Var("foo_bar", Span::new(3..10)))
+            Box::new(Expr::Var {
+                name: "foo_bar",
+                span: Span::new(3..10)
+            })
         ))],
     );
 
@@ -180,7 +196,10 @@ fn test_parse_var() {
         Ast::from_str("{{ none }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Var("none", Span::new(3..7)))
+            Box::new(Expr::Var {
+                name: "none",
+                span: Span::new(3..7)
+            })
         ))]
     );
 }
@@ -193,14 +212,20 @@ fn test_parse_const() {
         Ast::from_str("{{ FOO }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Path(as_path(&["FOO"]), Span::new(3..6)))
+            Box::new(Expr::Path {
+                components: as_path(&["FOO"]),
+                span: Span::new(3..6)
+            })
         ))]
     );
     assert_eq!(
         Ast::from_str("{{ FOO_BAR }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Path(as_path(&["FOO_BAR"]), Span::new(3..10)))
+            Box::new(Expr::Path {
+                components: as_path(&["FOO_BAR"]),
+                span: Span::new(3..10)
+            })
         ))],
     );
 
@@ -208,7 +233,10 @@ fn test_parse_const() {
         Ast::from_str("{{ NONE }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Path(as_path(&["NONE"]), Span::new(3..7)))
+            Box::new(Expr::Path {
+                components: as_path(&["NONE"]),
+                span: Span::new(3..7)
+            })
         ))]
     );
 }
@@ -221,7 +249,10 @@ fn test_parse_path() {
         Ast::from_str("{{ None }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Path(as_path(&["None"]), Span::new(3..7))),
+            Box::new(Expr::Path {
+                components: as_path(&["None"]),
+                span: Span::new(3..7)
+            }),
         ))]
     );
     assert_eq!(
@@ -231,7 +262,10 @@ fn test_parse_path() {
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                Box::new(Expr::Path(as_path(&["Some"]), Span::new(3..7))),
+                Box::new(Expr::Path {
+                    components: as_path(&["Some"]),
+                    span: Span::new(3..7)
+                }),
                 vec![int_lit("123", Span::new(8..11))],
                 Span::new(7..8),
             ),
@@ -243,7 +277,10 @@ fn test_parse_path() {
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                Box::new(Expr::Path(as_path(&["Ok"]), Span::new(3..5))),
+                Box::new(Expr::Path {
+                    components: as_path(&["Ok"]),
+                    span: Span::new(3..5)
+                }),
                 vec![int_lit("123", Span::new(6..9))],
                 Span::new(5..6),
             ),
@@ -256,7 +293,10 @@ fn test_parse_path() {
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                Box::new(Expr::Path(as_path(&["Err"]), Span::new(3..6))),
+                Box::new(Expr::Path {
+                    components: as_path(&["Err"]),
+                    span: Span::new(3..6)
+                }),
                 vec![int_lit("123", Span::new(7..10))],
                 Span::new(6..7),
             ),
@@ -275,10 +315,13 @@ fn test_parse_var_call() {
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                Box::new(Expr::Var("function", Span::new(3..11))),
+                Box::new(Expr::Var {
+                    name: "function",
+                    span: Span::new(3..11)
+                }),
                 vec![
-                    Box::new(Expr::StrLit(
-                        StrLit {
+                    Box::new(Expr::StrLit {
+                        inner: StrLit {
                             content: "123",
                             prefix: None,
                             contains_null: false,
@@ -286,8 +329,8 @@ fn test_parse_var_call() {
                             contains_unicode_escape: false,
                             contains_high_ascii: false,
                         },
-                        Span::new(12..17)
-                    )),
+                        span: Span::new(12..17)
+                    }),
                     int_lit("3", Span::new(19..20))
                 ],
                 Span::new(11..12),
@@ -306,7 +349,10 @@ fn test_parse_path_call() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Path(as_path(&["Option", "None"]), Span::new(3..15))),
+            Box::new(Expr::Path {
+                components: as_path(&["Option", "None"]),
+                span: Span::new(3..15)
+            }),
         ))],
     );
     assert_eq!(
@@ -316,7 +362,10 @@ fn test_parse_path_call() {
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                Box::new(Expr::Path(as_path(&["Option", "Some"]), Span::new(3..15))),
+                Box::new(Expr::Path {
+                    components: as_path(&["Option", "Some"]),
+                    span: Span::new(3..15)
+                }),
                 vec![int_lit("123", Span::new(16..19))],
                 Span::new(15..16),
             )
@@ -330,10 +379,13 @@ fn test_parse_path_call() {
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                Box::new(Expr::Path(as_path(&["self", "function"]), Span::new(3..17))),
+                Box::new(Expr::Path {
+                    components: as_path(&["self", "function"]),
+                    span: Span::new(3..17)
+                }),
                 vec![
-                    Box::new(Expr::StrLit(
-                        StrLit {
+                    Box::new(Expr::StrLit {
+                        inner: StrLit {
                             content: "123",
                             prefix: None,
                             contains_null: false,
@@ -341,8 +393,8 @@ fn test_parse_path_call() {
                             contains_unicode_escape: false,
                             contains_high_ascii: false,
                         },
-                        Span::new(18..23)
-                    )),
+                        span: Span::new(18..23)
+                    }),
                     int_lit("3", Span::new(25..26))
                 ],
                 Span::new(17..18),
@@ -361,10 +413,10 @@ fn test_parse_root_path() {
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                Box::new(Expr::Path(
-                    as_path(&["std", "string", "String", "new"]),
-                    Span::new(3..27)
-                )),
+                Box::new(Expr::Path {
+                    components: as_path(&["std", "string", "String", "new"]),
+                    span: Span::new(3..27)
+                }),
                 vec![],
                 Span::new(27..28),
             ),
@@ -377,10 +429,10 @@ fn test_parse_root_path() {
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                Box::new(Expr::Path(
-                    as_path(&["", "std", "string", "String", "new"]),
-                    Span::new(3..29)
-                )),
+                Box::new(Expr::Path {
+                    components: as_path(&["", "std", "string", "String", "new"]),
+                    span: Span::new(3..29)
+                }),
                 vec![],
                 Span::new(29..30),
             ),
@@ -397,11 +449,11 @@ fn test_rust_macro() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("vec")],
-                WithSpan::no_span("1, 2, 3"),
-                Span::new(6..7)
-            )),
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("vec")],
+                arguments: WithSpan::no_span("1, 2, 3"),
+                span: Span::new(6..7)
+            }),
         ))],
     );
     assert_eq!(
@@ -410,66 +462,66 @@ fn test_rust_macro() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("alloc"), WithSpan::no_span("vec")],
-                WithSpan::no_span("1, 2, 3"),
-                Span::new(13..14)
-            )),
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("alloc"), WithSpan::no_span("vec")],
+                arguments: WithSpan::no_span("1, 2, 3"),
+                span: Span::new(13..14)
+            }),
         ))],
     );
     assert_eq!(
         Ast::from_str("{{a!()}}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("a")],
-                WithSpan::no_span(""),
-                Span::new(3..4)
-            ))
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("a")],
+                arguments: WithSpan::no_span(""),
+                span: Span::new(3..4)
+            })
         ))]
     );
     assert_eq!(
         Ast::from_str("{{a !()}}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("a")],
-                WithSpan::no_span(""),
-                Span::new(4..5)
-            ))
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("a")],
+                arguments: WithSpan::no_span(""),
+                span: Span::new(4..5)
+            })
         ))]
     );
     assert_eq!(
         Ast::from_str("{{a! ()}}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("a")],
-                WithSpan::no_span(""),
-                Span::new(3..4)
-            ))
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("a")],
+                arguments: WithSpan::no_span(""),
+                span: Span::new(3..4)
+            })
         ))]
     );
     assert_eq!(
         Ast::from_str("{{a ! ()}}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("a")],
-                WithSpan::no_span(""),
-                Span::new(4..5)
-            ))
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("a")],
+                arguments: WithSpan::no_span(""),
+                span: Span::new(4..5)
+            })
         ))]
     );
     assert_eq!(
         Ast::from_str("{{A!()}}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("A")],
-                WithSpan::no_span(""),
-                Span::new(3..4)
-            ))
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("A")],
+                arguments: WithSpan::no_span(""),
+                span: Span::new(3..4)
+            })
         ))]
     );
     assert_eq!(
@@ -511,7 +563,10 @@ fn unicode_delimiters_in_syntax() {
             })),
             Box::new(Node::Expr(
                 Ws(None, None),
-                Box::new(Expr::Var("e", Span::new(32..33)))
+                Box::new(Expr::Var {
+                    name: "e",
+                    span: Span::new(32..33)
+                })
             )),
             Box::new(Node::Lit(Lit {
                 lws: WithSpan::no_span(""),
@@ -536,11 +591,20 @@ fn test_precedence() {
                 "==",
                 bin_op(
                     "+",
-                    Box::new(Expr::Var("a", Span::new(3..4))),
-                    Box::new(Expr::Var("b", Span::new(7..8))),
+                    Box::new(Expr::Var {
+                        name: "a",
+                        span: Span::new(3..4)
+                    }),
+                    Box::new(Expr::Var {
+                        name: "b",
+                        span: Span::new(7..8)
+                    }),
                     Span::new(5..6)
                 ),
-                Box::new(Expr::Var("c", Span::new(12..13))),
+                Box::new(Expr::Var {
+                    name: "c",
+                    span: Span::new(12..13)
+                }),
                 Span::new(9..11)
             )
         ))],
@@ -555,19 +619,34 @@ fn test_precedence() {
                 "-",
                 bin_op(
                     "+",
-                    Box::new(Expr::Var("a", Span::new(3..4))),
+                    Box::new(Expr::Var {
+                        name: "a",
+                        span: Span::new(3..4)
+                    }),
                     bin_op(
                         "*",
-                        Box::new(Expr::Var("b", Span::new(7..8))),
-                        Box::new(Expr::Var("c", Span::new(11..12))),
+                        Box::new(Expr::Var {
+                            name: "b",
+                            span: Span::new(7..8)
+                        }),
+                        Box::new(Expr::Var {
+                            name: "c",
+                            span: Span::new(11..12)
+                        }),
                         Span::new(9..10)
                     ),
                     Span::new(5..6)
                 ),
                 bin_op(
                     "/",
-                    Box::new(Expr::Var("d", Span::new(15..16))),
-                    Box::new(Expr::Var("e", Span::new(19..20))),
+                    Box::new(Expr::Var {
+                        name: "d",
+                        span: Span::new(15..16)
+                    }),
+                    Box::new(Expr::Var {
+                        name: "e",
+                        span: Span::new(19..20)
+                    }),
                     Span::new(17..18)
                 ),
                 Span::new(13..14),
@@ -584,23 +663,35 @@ fn test_precedence() {
                 "/",
                 bin_op(
                     "*",
-                    Box::new(Expr::Var("a", Span::new(3..4))),
-                    Box::new(Expr::Group(
-                        bin_op(
+                    Box::new(Expr::Var {
+                        name: "a",
+                        span: Span::new(3..4)
+                    }),
+                    Box::new(Expr::Group {
+                        elem: bin_op(
                             "+",
-                            Box::new(Expr::Var("b", Span::new(8..9))),
-                            Box::new(Expr::Var("c", Span::new(12..13))),
+                            Box::new(Expr::Var {
+                                name: "b",
+                                span: Span::new(8..9)
+                            }),
+                            Box::new(Expr::Var {
+                                name: "c",
+                                span: Span::new(12..13)
+                            }),
                             Span::new(10..11)
                         ),
-                        Span::new(7..14)
-                    )),
+                        span: Span::new(7..14)
+                    }),
                     Span::new(5..6)
                 ),
-                Box::new(Expr::Unary(
-                    "-",
-                    Box::new(Expr::Var("d", Span::new(18..19))),
-                    Span::new(17..18)
-                )),
+                Box::new(Expr::Unary {
+                    operator: "-",
+                    expr: Box::new(Expr::Var {
+                        name: "d",
+                        span: Span::new(18..19)
+                    }),
+                    span: Span::new(17..18)
+                }),
                 Span::new(15..16)
             )
         ))],
@@ -615,19 +706,34 @@ fn test_precedence() {
                 "||",
                 bin_op(
                     "||",
-                    Box::new(Expr::Var("a", Span::new(3..4))),
+                    Box::new(Expr::Var {
+                        name: "a",
+                        span: Span::new(3..4)
+                    }),
                     bin_op(
                         "&&",
-                        Box::new(Expr::Var("b", Span::new(8..9))),
-                        Box::new(Expr::Var("c", Span::new(13..14))),
+                        Box::new(Expr::Var {
+                            name: "b",
+                            span: Span::new(8..9)
+                        }),
+                        Box::new(Expr::Var {
+                            name: "c",
+                            span: Span::new(13..14)
+                        }),
                         Span::new(10..12)
                     ),
                     Span::new(5..7),
                 ),
                 bin_op(
                     "&&",
-                    Box::new(Expr::Var("d", Span::new(18..19))),
-                    Box::new(Expr::Var("e", Span::new(23..24))),
+                    Box::new(Expr::Var {
+                        name: "d",
+                        span: Span::new(18..19)
+                    }),
+                    Box::new(Expr::Var {
+                        name: "e",
+                        span: Span::new(23..24)
+                    }),
                     Span::new(20..22)
                 ),
                 Span::new(15..17),
@@ -649,11 +755,20 @@ fn test_associativity() {
                 "+",
                 bin_op(
                     "+",
-                    Box::new(Expr::Var("a", Span::new(3..4))),
-                    Box::new(Expr::Var("b", Span::new(7..8))),
+                    Box::new(Expr::Var {
+                        name: "a",
+                        span: Span::new(3..4)
+                    }),
+                    Box::new(Expr::Var {
+                        name: "b",
+                        span: Span::new(7..8)
+                    }),
                     Span::new(5..6)
                 ),
-                Box::new(Expr::Var("c", Span::new(11..12))),
+                Box::new(Expr::Var {
+                    name: "c",
+                    span: Span::new(11..12)
+                }),
                 Span::new(9..10)
             )
         ))],
@@ -668,11 +783,20 @@ fn test_associativity() {
                 "*",
                 bin_op(
                     "*",
-                    Box::new(Expr::Var("a", Span::new(3..4))),
-                    Box::new(Expr::Var("b", Span::new(7..8))),
+                    Box::new(Expr::Var {
+                        name: "a",
+                        span: Span::new(3..4)
+                    }),
+                    Box::new(Expr::Var {
+                        name: "b",
+                        span: Span::new(7..8)
+                    }),
                     Span::new(5..6)
                 ),
-                Box::new(Expr::Var("c", Span::new(11..12))),
+                Box::new(Expr::Var {
+                    name: "c",
+                    span: Span::new(11..12)
+                }),
                 Span::new(9..10)
             )
         ))],
@@ -687,11 +811,20 @@ fn test_associativity() {
                 "&&",
                 bin_op(
                     "&&",
-                    Box::new(Expr::Var("a", Span::new(3..4))),
-                    Box::new(Expr::Var("b", Span::new(8..9))),
+                    Box::new(Expr::Var {
+                        name: "a",
+                        span: Span::new(3..4)
+                    }),
+                    Box::new(Expr::Var {
+                        name: "b",
+                        span: Span::new(8..9)
+                    }),
                     Span::new(5..7)
                 ),
-                Box::new(Expr::Var("c", Span::new(13..14))),
+                Box::new(Expr::Var {
+                    name: "c",
+                    span: Span::new(13..14)
+                }),
                 Span::new(10..12)
             )
         ))],
@@ -708,14 +841,26 @@ fn test_associativity() {
                     "-",
                     bin_op(
                         "+",
-                        Box::new(Expr::Var("a", Span::new(3..4))),
-                        Box::new(Expr::Var("b", Span::new(7..8))),
+                        Box::new(Expr::Var {
+                            name: "a",
+                            span: Span::new(3..4)
+                        }),
+                        Box::new(Expr::Var {
+                            name: "b",
+                            span: Span::new(7..8)
+                        }),
                         Span::new(5..6)
                     ),
-                    Box::new(Expr::Var("c", Span::new(11..12))),
+                    Box::new(Expr::Var {
+                        name: "c",
+                        span: Span::new(11..12)
+                    }),
                     Span::new(9..10)
                 ),
-                Box::new(Expr::Var("d", Span::new(15..16))),
+                Box::new(Expr::Var {
+                    name: "d",
+                    span: Span::new(15..16)
+                }),
                 Span::new(13..14)
             )
         ))],
@@ -730,12 +875,21 @@ fn test_odd_calls() {
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                Box::new(Expr::Index(
-                    Box::new(Expr::Var("a", Span::new(3..4))),
-                    Box::new(Expr::Var("b", Span::new(5..6))),
-                    Span::new(4..5)
-                )),
-                vec![Box::new(Expr::Var("c", Span::new(8..9)))],
+                Box::new(Expr::Index {
+                    parent_item: Box::new(Expr::Var {
+                        name: "a",
+                        span: Span::new(3..4)
+                    }),
+                    index: Box::new(Expr::Var {
+                        name: "b",
+                        span: Span::new(5..6)
+                    }),
+                    span: Span::new(4..5)
+                }),
+                vec![Box::new(Expr::Var {
+                    name: "c",
+                    span: Span::new(8..9)
+                })],
                 Span::new(7..8),
             )
         ))],
@@ -747,16 +901,25 @@ fn test_odd_calls() {
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                Box::new(Expr::Group(
-                    bin_op(
+                Box::new(Expr::Group {
+                    elem: bin_op(
                         "+",
-                        Box::new(Expr::Var("a", Span::new(4..5))),
-                        Box::new(Expr::Var("b", Span::new(8..9))),
+                        Box::new(Expr::Var {
+                            name: "a",
+                            span: Span::new(4..5)
+                        }),
+                        Box::new(Expr::Var {
+                            name: "b",
+                            span: Span::new(8..9)
+                        }),
                         Span::new(6..7)
                     ),
-                    Span::new(3..10)
-                )),
-                vec![Box::new(Expr::Var("c", Span::new(11..12)))],
+                    span: Span::new(3..10)
+                }),
+                vec![Box::new(Expr::Var {
+                    name: "c",
+                    span: Span::new(11..12)
+                })],
                 Span::new(10..11),
             )
         ))],
@@ -769,10 +932,19 @@ fn test_odd_calls() {
             Ws(None, None),
             bin_op(
                 "+",
-                Box::new(Expr::Var("a", Span::new(3..4))),
+                Box::new(Expr::Var {
+                    name: "a",
+                    span: Span::new(3..4)
+                }),
                 call(
-                    Box::new(Expr::Var("b", Span::new(7..8))),
-                    vec![Box::new(Expr::Var("c", Span::new(9..10)))],
+                    Box::new(Expr::Var {
+                        name: "b",
+                        span: Span::new(7..8)
+                    }),
+                    vec![Box::new(Expr::Var {
+                        name: "c",
+                        span: Span::new(9..10)
+                    })],
                     Span::new(8..9),
                 ),
                 Span::new(5..6),
@@ -784,15 +956,21 @@ fn test_odd_calls() {
         [Box::new(Node::Expr(
             Ws(None, None),
             call(
-                Box::new(Expr::Group(
-                    Box::new(Expr::Unary(
-                        "-",
-                        Box::new(Expr::Var("a", Span::new(5..6))),
-                        Span::new(4..5)
-                    )),
-                    Span::new(3..7)
-                )),
-                vec![Box::new(Expr::Var("b", Span::new(8..9)))],
+                Box::new(Expr::Group {
+                    elem: Box::new(Expr::Unary {
+                        operator: "-",
+                        expr: Box::new(Expr::Var {
+                            name: "a",
+                            span: Span::new(5..6)
+                        }),
+                        span: Span::new(4..5)
+                    }),
+                    span: Span::new(3..7)
+                }),
+                vec![Box::new(Expr::Var {
+                    name: "b",
+                    span: Span::new(8..9)
+                })],
                 Span::new(7..8),
             )
         ))],
@@ -801,49 +979,67 @@ fn test_odd_calls() {
         Ast::from_str("{{ -a(b) }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Unary(
-                "-",
-                call(
-                    Box::new(Expr::Var("a", Span::new(4..5))),
-                    vec![Box::new(Expr::Var("b", Span::new(6..7)))],
+            Box::new(Expr::Unary {
+                operator: "-",
+                expr: call(
+                    Box::new(Expr::Var {
+                        name: "a",
+                        span: Span::new(4..5)
+                    }),
+                    vec![Box::new(Expr::Var {
+                        name: "b",
+                        span: Span::new(6..7)
+                    })],
                     Span::new(5..6),
                 ),
-                Span::new(3..4)
-            ))
+                span: Span::new(3..4)
+            })
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ a(b)|c }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Identifier(WithSpan::no_span("c")),
                     arguments: vec![call(
-                        Box::new(Expr::Var("a", Span::new(3..4))),
-                        vec![Box::new(Expr::Var("b", Span::new(5..6)))],
+                        Box::new(Expr::Var {
+                            name: "a",
+                            span: Span::new(3..4)
+                        }),
+                        vec![Box::new(Expr::Var {
+                            name: "b",
+                            span: Span::new(5..6)
+                        })],
                         Span::new(4..5),
                     )],
                 },
-                Span::new(7..10)
-            ))
+                span: Span::new(7..10)
+            })
         ))]
     );
     assert_eq!(
         Ast::from_str("{{ a(b)| c }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Identifier(WithSpan::no_span("c")),
                     arguments: vec![call(
-                        Box::new(Expr::Var("a", Span::new(3..4))),
-                        vec![Box::new(Expr::Var("b", Span::new(5..6)))],
+                        Box::new(Expr::Var {
+                            name: "a",
+                            span: Span::new(3..4)
+                        }),
+                        vec![Box::new(Expr::Var {
+                            name: "b",
+                            span: Span::new(5..6)
+                        })],
                         Span::new(4..5),
                     )],
                 },
-                Span::new(7..11)
-            )),
+                span: Span::new(7..11)
+            }),
         ))]
     );
 }
@@ -915,74 +1111,80 @@ fn test_parse_tuple() {
         Ast::from_str("{{ () }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Tuple(vec![], Span::new(3..5)))
+            Box::new(Expr::Tuple {
+                elems: vec![],
+                span: Span::new(3..5)
+            })
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1) }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Group(int_lit("1", Span::new(4..5)), Span::new(3..6)))
+            Box::new(Expr::Group {
+                elem: int_lit("1", Span::new(4..5)),
+                span: Span::new(3..6)
+            })
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1,) }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Tuple(
-                vec![int_lit("1", Span::new(4..5))],
-                Span::new(3..7)
-            )),
+            Box::new(Expr::Tuple {
+                elems: vec![int_lit("1", Span::new(4..5))],
+                span: Span::new(3..7)
+            }),
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1, ) }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Tuple(
-                vec![int_lit("1", Span::new(4..5))],
-                Span::new(3..8)
-            )),
+            Box::new(Expr::Tuple {
+                elems: vec![int_lit("1", Span::new(4..5))],
+                span: Span::new(3..8)
+            }),
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1 ,) }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Tuple(
-                vec![int_lit("1", Span::new(4..5))],
-                Span::new(3..8)
-            )),
+            Box::new(Expr::Tuple {
+                elems: vec![int_lit("1", Span::new(4..5))],
+                span: Span::new(3..8)
+            }),
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1 , ) }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Tuple(
-                vec![int_lit("1", Span::new(4..5))],
-                Span::new(3..9)
-            )),
+            Box::new(Expr::Tuple {
+                elems: vec![int_lit("1", Span::new(4..5))],
+                span: Span::new(3..9)
+            }),
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1, 2) }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Tuple(
-                vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(7..8))],
-                Span::new(3..9)
-            )),
+            Box::new(Expr::Tuple {
+                elems: vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(7..8))],
+                span: Span::new(3..9)
+            }),
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1, 2,) }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Tuple(
-                vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(7..8))],
-                Span::new(3..10)
-            )),
+            Box::new(Expr::Tuple {
+                elems: vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(7..8))],
+                span: Span::new(3..10)
+            }),
         ))],
     );
     assert_eq!(
@@ -991,43 +1193,46 @@ fn test_parse_tuple() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Tuple(
-                vec![
+            Box::new(Expr::Tuple {
+                elems: vec![
                     int_lit("1", Span::new(4..5)),
                     int_lit("2", Span::new(7..8)),
                     int_lit("3", Span::new(10..11))
                 ],
-                Span::new(3..12)
-            )),
+                span: Span::new(3..12)
+            }),
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ ()|abs }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
-                    arguments: vec![Box::new(Expr::Tuple(vec![], Span::new(3..5)))],
+                    arguments: vec![Box::new(Expr::Tuple {
+                        elems: vec![],
+                        span: Span::new(3..5)
+                    })],
                 },
-                Span::new(5..10)
-            )),
+                span: Span::new(5..10)
+            }),
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ (1)|abs }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
-                    arguments: vec![Box::new(Expr::Group(
-                        int_lit("1", Span::new(4..5)),
-                        Span::new(3..6)
-                    ))],
+                    arguments: vec![Box::new(Expr::Group {
+                        elem: int_lit("1", Span::new(4..5)),
+                        span: Span::new(3..6)
+                    })],
                 },
-                Span::new(6..11)
-            )),
+                span: Span::new(6..11)
+            }),
         ))],
     );
     assert_eq!(
@@ -1036,16 +1241,16 @@ fn test_parse_tuple() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
-                    arguments: vec![Box::new(Expr::Tuple(
-                        vec![int_lit("1", Span::new(4..5))],
-                        Span::new(3..7)
-                    ))],
+                    arguments: vec![Box::new(Expr::Tuple {
+                        elems: vec![int_lit("1", Span::new(4..5))],
+                        span: Span::new(3..7)
+                    })],
                 },
-                Span::new(7..12)
-            )),
+                span: Span::new(7..12)
+            }),
         ))],
     );
     assert_eq!(
@@ -1054,16 +1259,16 @@ fn test_parse_tuple() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Identifier(WithSpan::no_span("abs")),
-                    arguments: vec![Box::new(Expr::Tuple(
-                        vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(7..8))],
-                        Span::new(3..9)
-                    ))],
+                    arguments: vec![Box::new(Expr::Tuple {
+                        elems: vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(7..8))],
+                        span: Span::new(3..9)
+                    })],
                 },
-                Span::new(9..14)
-            )),
+                span: Span::new(9..14)
+            }),
         ))],
     );
 }
@@ -1085,113 +1290,122 @@ fn test_parse_array() {
         Ast::from_str("{{ [] }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Array(vec![], Span::new(3..4)))
+            Box::new(Expr::Array {
+                elems: vec![],
+                span: Span::new(3..4)
+            })
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ [1] }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Array(
-                vec![int_lit("1", Span::new(4..5))],
-                Span::new(3..4)
-            ))
+            Box::new(Expr::Array {
+                elems: vec![int_lit("1", Span::new(4..5))],
+                span: Span::new(3..4)
+            })
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ [ 1] }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Array(
-                vec![int_lit("1", Span::new(5..6))],
-                Span::new(3..4)
-            ))
+            Box::new(Expr::Array {
+                elems: vec![int_lit("1", Span::new(5..6))],
+                span: Span::new(3..4)
+            })
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ [1 ] }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Array(
-                vec![int_lit("1", Span::new(4..5))],
-                Span::new(3..4)
-            ))
+            Box::new(Expr::Array {
+                elems: vec![int_lit("1", Span::new(4..5))],
+                span: Span::new(3..4)
+            })
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ [1,2] }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Array(
-                vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(6..7))],
-                Span::new(3..4)
-            ))
+            Box::new(Expr::Array {
+                elems: vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(6..7))],
+                span: Span::new(3..4)
+            })
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ [1 ,2] }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Array(
-                vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(7..8))],
-                Span::new(3..4)
-            ))
+            Box::new(Expr::Array {
+                elems: vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(7..8))],
+                span: Span::new(3..4)
+            })
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ [1, 2] }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Array(
-                vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(7..8))],
-                Span::new(3..4)
-            ))
+            Box::new(Expr::Array {
+                elems: vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(7..8))],
+                span: Span::new(3..4)
+            })
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ [1,2 ] }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Array(
-                vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(6..7))],
-                Span::new(3..4)
-            ))
+            Box::new(Expr::Array {
+                elems: vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(6..7))],
+                span: Span::new(3..4)
+            })
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ []|foo }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Identifier(WithSpan::no_span("foo")),
-                    arguments: vec![Box::new(Expr::Array(vec![], Span::new(3..4)))],
+                    arguments: vec![Box::new(Expr::Array {
+                        elems: vec![],
+                        span: Span::new(3..4)
+                    })],
                 },
-                Span::new(5..10)
-            ))
+                span: Span::new(5..10)
+            })
         ))],
     );
     assert_eq!(
         Ast::from_str("{{ []| foo }}", None, &syntax).unwrap().nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Identifier(WithSpan::no_span("foo")),
-                    arguments: vec![Box::new(Expr::Array(vec![], Span::new(3..4)))],
+                    arguments: vec![Box::new(Expr::Array {
+                        elems: vec![],
+                        span: Span::new(3..4)
+                    })],
                 },
-                Span::new(5..11)
-            ))
+                span: Span::new(5..11)
+            })
         ))],
     );
 
     let n = |bracket: usize| {
         Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Array(
-                vec![int_lit("1", Span::new(bracket + 1..bracket + 2))],
-                Span::new(bracket..bracket + 1),
-            )),
+            Box::new(Expr::Array {
+                elems: vec![int_lit("1", Span::new(bracket + 1..bracket + 2))],
+                span: Span::new(bracket..bracket + 1),
+            }),
         ))
     };
     assert_eq!(
@@ -1476,13 +1690,16 @@ fn test_filter_with_path() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Path(as_path(&["", "e"])),
-                    arguments: vec![Box::new(Expr::Var("strvar", Span::new(3..9)))],
+                    arguments: vec![Box::new(Expr::Var {
+                        name: "strvar",
+                        span: Span::new(3..9)
+                    })],
                 },
-                Span::new(9..14)
-            )),
+                span: Span::new(9..14)
+            }),
         ))],
     );
     assert_eq!(
@@ -1491,13 +1708,16 @@ fn test_filter_with_path() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Path(as_path(&["", "e", "f"])),
-                    arguments: vec![Box::new(Expr::Var("strvar", Span::new(3..9)))],
+                    arguments: vec![Box::new(Expr::Var {
+                        name: "strvar",
+                        span: Span::new(3..9)
+                    })],
                 },
-                Span::new(9..17)
-            )),
+                span: Span::new(9..17)
+            }),
         ))],
     );
     assert_eq!(
@@ -1506,13 +1726,16 @@ fn test_filter_with_path() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Path(as_path(&["e", "f"])),
-                    arguments: vec![Box::new(Expr::Var("strvar", Span::new(3..9)))],
+                    arguments: vec![Box::new(Expr::Var {
+                        name: "strvar",
+                        span: Span::new(3..9)
+                    })],
                 },
-                Span::new(9..15)
-            )),
+                span: Span::new(9..15)
+            }),
         ))],
     );
     assert_eq!(
@@ -1521,13 +1744,16 @@ fn test_filter_with_path() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Filter(
-                Filter {
+            Box::new(Expr::Filter {
+                inner: Filter {
                     name: PathOrIdentifier::Path(as_path(&["e", "f"])),
-                    arguments: vec![Box::new(Expr::Var("strvar", Span::new(3..9)))],
+                    arguments: vec![Box::new(Expr::Var {
+                        name: "strvar",
+                        span: Span::new(3..9)
+                    })],
                 },
-                Span::new(9..17)
-            )),
+                span: Span::new(9..17)
+            }),
         ))],
     );
     assert_eq!(
@@ -1604,11 +1830,11 @@ fn macro_calls_can_have_raw_prefixes() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("z")],
-                WithSpan::no_span(inner),
-                Span::new(4..5)
-            )),
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("z")],
+                arguments: WithSpan::no_span(inner),
+                span: Span::new(4..5)
+            }),
         ))],
     );
 }
@@ -1629,11 +1855,11 @@ fn macro_comments_in_macro_calls() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("e")],
-                WithSpan::no_span("// hello\n"),
-                Span::new(4..5)
-            )),
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("e")],
+                arguments: WithSpan::no_span("// hello\n"),
+                span: Span::new(4..5)
+            }),
         ))],
     );
     assert_eq!(
@@ -1642,11 +1868,11 @@ fn macro_comments_in_macro_calls() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("e")],
-                WithSpan::no_span("/// hello\n"),
-                Span::new(4..5)
-            )),
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("e")],
+                arguments: WithSpan::no_span("/// hello\n"),
+                span: Span::new(4..5)
+            }),
         ))],
     );
     assert_eq!(
@@ -1655,11 +1881,11 @@ fn macro_comments_in_macro_calls() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("e")],
-                WithSpan::no_span("//! hello\n"),
-                Span::new(4..5)
-            )),
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("e")],
+                arguments: WithSpan::no_span("//! hello\n"),
+                span: Span::new(4..5)
+            }),
         ))],
     );
 
@@ -1669,11 +1895,11 @@ fn macro_comments_in_macro_calls() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("e")],
-                WithSpan::no_span("/* hello */"),
-                Span::new(4..5)
-            )),
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("e")],
+                arguments: WithSpan::no_span("/* hello */"),
+                span: Span::new(4..5)
+            }),
         ))],
     );
     assert_eq!(
@@ -1682,11 +1908,11 @@ fn macro_comments_in_macro_calls() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("e")],
-                WithSpan::no_span("/** hello */"),
-                Span::new(4..5)
-            )),
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("e")],
+                arguments: WithSpan::no_span("/** hello */"),
+                span: Span::new(4..5)
+            }),
         ))],
     );
     assert_eq!(
@@ -1695,11 +1921,11 @@ fn macro_comments_in_macro_calls() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("e")],
-                WithSpan::no_span("/*! hello */"),
-                Span::new(4..5)
-            )),
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("e")],
+                arguments: WithSpan::no_span("/*! hello */"),
+                span: Span::new(4..5)
+            }),
         ))],
     );
 }
@@ -1768,11 +1994,11 @@ fn test_macro_call_nested_comments() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("x")],
-                WithSpan::no_span("/*/*/*)*/*/*/"),
-                Span::new(4..5)
-            )),
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("x")],
+                arguments: WithSpan::no_span("/*/*/*)*/*/*/"),
+                span: Span::new(4..5)
+            }),
         ))],
     );
 
@@ -1787,11 +2013,11 @@ fn test_macro_call_nested_comments() {
             .nodes,
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::RustMacro(
-                vec![WithSpan::no_span("x")],
-                WithSpan::no_span("/**/"),
-                Span::new(4..5)
-            )),
+            Box::new(Expr::RustMacro {
+                path: vec![WithSpan::no_span("x")],
+                arguments: WithSpan::no_span("/**/"),
+                span: Span::new(4..5)
+            }),
         ))],
     );
 }
@@ -1914,10 +2140,10 @@ fn regression_tests_span_change() {
                 vec![Target::Placeholder(Span::new(9..10))],
                 Span::new(8..12)
             ),
-            val: LetValueOrBlock::Value(Box::new(Expr::Array(
-                vec![int_lit("2", Span::new(15..16))],
-                Span::new(14..15)
-            ))),
+            val: LetValueOrBlock::Value(Box::new(Expr::Array {
+                elems: vec![int_lit("2", Span::new(15..16))],
+                span: Span::new(14..15)
+            })),
             ty: None,
             is_mutable: false,
             span: Span::new(4..7),
@@ -1931,10 +2157,10 @@ fn regression_tests_span_change() {
         [Box::new(Node::Let(Let {
             ws: Ws(Some(Whitespace::Suppress), Some(Whitespace::Suppress)),
             var: Target::Placeholder(Span::new(9..10)),
-            val: LetValueOrBlock::Value(Box::new(Expr::Array(
-                vec![int_lit("2", Span::new(15..16))],
-                Span::new(14..15)
-            ))),
+            val: LetValueOrBlock::Value(Box::new(Expr::Array {
+                elems: vec![int_lit("2", Span::new(15..16))],
+                span: Span::new(14..15)
+            })),
             ty: None,
             is_mutable: false,
             span: Span::new(4..7),
@@ -1954,13 +2180,16 @@ fn regression_tests_span_change() {
             })),
             Box::new(Node::Expr(
                 Ws(None, None),
-                Box::new(Expr::Filter(
-                    Filter {
+                Box::new(Expr::Filter {
+                    inner: Filter {
                         name: PathOrIdentifier::Identifier(WithSpan::no_span("cased")),
-                        arguments: vec![Box::new(Expr::Var("user", Span::new(10..14)))],
+                        arguments: vec![Box::new(Expr::Var {
+                            name: "user",
+                            span: Span::new(10..14)
+                        })],
                     },
-                    Span::new(15..23)
-                ))
+                    span: Span::new(15..23)
+                })
             )),
             Box::new(Node::Lit(Lit {
                 lws: WithSpan::no_span(""),
@@ -1977,17 +2206,17 @@ fn regression_tests_span_change() {
             .nodes(),
         [Box::new(Node::Expr(
             Ws(None, None),
-            Box::new(Expr::Group(
-                Box::new(Expr::BinOp(
-                    BinOp {
+            Box::new(Expr::Group {
+                elem: Box::new(Expr::BinOp {
+                    inner: BinOp {
                         op: "+",
                         lhs: int_lit("0", Span::new(5..6)),
                         rhs: int_lit("1", Span::new(9..10)),
                     },
-                    Span::new(7..8)
-                )),
-                Span::new(3..12)
-            ))
+                    span: Span::new(7..8)
+                }),
+                span: Span::new(3..12)
+            })
         ))]
     );
 }
@@ -2151,7 +2380,7 @@ fn test_expr_spans() {
             panic!("expected an expression in {src:?}");
         };
         assert_eq!(expr.span().as_infix_of(&src), Some(span), "{src:?}");
-        if let Expr::Call(call, _) = &**expr {
+        if let Expr::Call { call, .. } = &**expr {
             assert_eq!(call.args[0].span().as_infix_of(&src), Some("x = 1"));
         }
     }
@@ -2214,26 +2443,34 @@ fn show(expr: &Expr<'_>) -> String {
     let join =
         |exprs: &[Box<Expr<'_>>], sep| exprs.iter().map(|e| show(e)).collect::<Vec<_>>().join(sep);
     match expr {
-        Expr::Var(name, _) | Expr::NumLit(name, _, _) => name.to_string(),
-        Expr::Unary(op, e, _) => format!("({op}{})", show(e)),
-        Expr::BinOp(BinOp { op, lhs, rhs }, _) => format!("({} {op} {})", show(lhs), show(rhs)),
-        Expr::Concat(exprs, _) => format!("({})", join(exprs, " ~ ")),
-        Expr::Filter(
-            Filter {
-                name: PathOrIdentifier::Identifier(name),
-                arguments,
-            },
-            _,
-        ) => format!("{}({})", **name, join(arguments, ", ")),
-        Expr::As(e, ty, _) => format!("({} as {})", show(e), **ty),
-        Expr::IsDefined(name, _) => format!("({name} is defined)"),
-        Expr::Range(r, _) => {
+        Expr::Var { name, .. }
+        | Expr::NumLit {
+            num_with_suffix: name,
+            ..
+        } => name.to_string(),
+        Expr::Unary { operator, expr, .. } => format!("({operator}{})", show(expr)),
+        Expr::BinOp {
+            inner: BinOp { op, lhs, rhs },
+            ..
+        } => format!("({} {op} {})", show(lhs), show(rhs)),
+        Expr::Concat { exprs, .. } => format!("({})", join(exprs, " ~ ")),
+        Expr::Filter {
+            inner:
+                Filter {
+                    name: PathOrIdentifier::Identifier(name),
+                    arguments,
+                },
+            ..
+        } => format!("{}({})", **name, join(arguments, ", ")),
+        Expr::As { lhs, target, .. } => format!("({} as {})", show(lhs), **target),
+        Expr::IsDefined { var_name, .. } => format!("({var_name} is defined)"),
+        Expr::Range { inner, .. } => {
             let side = |e: &Option<Box<Expr<'_>>>| e.as_ref().map_or(String::new(), |e| show(e));
-            format!("({}{}{})", side(&r.lhs), r.op, side(&r.rhs))
+            format!("({}{}{})", side(&inner.lhs), inner.op, side(&inner.rhs))
         }
-        Expr::Group(e, _) => format!("({})", show(e)),
-        Expr::Array(exprs, _) => format!("[{}]", join(exprs, ", ")),
-        Expr::Call(call, _) => format!("{}({})", show(&call.path), join(&call.args, ", ")),
+        Expr::Group { elem, .. } => format!("({})", show(elem)),
+        Expr::Array { elems, .. } => format!("[{}]", join(elems, ", ")),
+        Expr::Call { call, .. } => format!("{}({})", show(&call.path), join(&call.args, ", ")),
         _ => panic!("unexpected {expr:?}"),
     }
 }

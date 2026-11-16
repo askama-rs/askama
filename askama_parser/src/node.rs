@@ -457,8 +457,11 @@ impl<'a: 'l, 'l> CondTest<'a> {
                 let start_offset = i.current_token_start();
 
                 let mut expr = Expr::parse(i, false)?;
-                if let Expr::BinOp(v, _) = &mut *expr
-                    && let Expr::Var("set" | "let", rhs_span) = *v.rhs
+                if let Expr::BinOp { inner, .. } = &mut *expr
+                    && let Expr::Var {
+                        name: "set" | "let",
+                        span: rhs_span,
+                    } = *inner.rhs
                 {
                     let _level_guard = i.state.level.nest(i)?;
 
@@ -466,7 +469,10 @@ impl<'a: 'l, 'l> CondTest<'a> {
                     i.next_slice(rhs_span.start - start_offset);
 
                     let (new_right, span) = Self::parse_cond.with_span().parse_next(i)?;
-                    *v.rhs = Expr::LetCond(WithSpan::new(new_right, span), rhs_span);
+                    *inner.rhs = Expr::LetCond {
+                        cond: WithSpan::new(new_right, span),
+                        span: rhs_span,
+                    };
                 }
                 Ok(expr)
             }),
@@ -802,9 +808,13 @@ impl<'a: 'l, 'l> FilterBlock<'a> {
             let mut i_before = *i;
             while let Some((mut filter, span)) = filter.parse_next(i)? {
                 level_guard.nest(&i_before)?;
-                filter
-                    .arguments
-                    .insert(0, Box::new(Expr::Filter(res, span.into())));
+                filter.arguments.insert(
+                    0,
+                    Box::new(Expr::Filter {
+                        inner: res,
+                        span: span.into(),
+                    }),
+                );
                 res = filter;
                 i_before = *i;
             }

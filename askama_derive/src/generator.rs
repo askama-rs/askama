@@ -496,14 +496,15 @@ fn compile_time_escape<'a>(expr: &Expr<'a>, escaper: &str) -> Option<Writable<'a
 
     // for now, we only escape strings, chars, numbers, and bools at compile time
     let value = match *expr {
-        Expr::StrLit(
-            StrLit {
-                prefix: None,
-                content,
-                ..
-            },
-            _,
-        ) => {
+        Expr::StrLit {
+            inner:
+                StrLit {
+                    prefix: None,
+                    content,
+                    ..
+                },
+            ..
+        } => {
             if content.find('\\').is_none() {
                 // if the literal does not contain any backslashes, then it does not need unescaping
                 Cow::Borrowed(content)
@@ -515,13 +516,13 @@ fn compile_time_escape<'a>(expr: &Expr<'a>, escaper: &str) -> Option<Writable<'a
                 Cow::Owned(input.value())
             }
         }
-        Expr::CharLit(
-            CharLit {
+        Expr::CharLit {
+            inner: CharLit {
                 prefix: None,
                 content,
             },
-            _,
-        ) => {
+            ..
+        } => {
             if content.find('\\').is_none() {
                 // if the literal does not contain any backslashes, then it does not need unescaping
                 Cow::Borrowed(content)
@@ -533,13 +534,13 @@ fn compile_time_escape<'a>(expr: &Expr<'a>, escaper: &str) -> Option<Writable<'a
                 Cow::Owned(input.value().to_string())
             }
         }
-        Expr::NumLit(_, value, _) => {
+        Expr::NumLit { num, .. } => {
             enum NumKind {
                 Int(Option<IntKind>),
                 Float(Option<FloatKind>),
             }
 
-            let (orig_value, kind) = match value {
+            let (orig_value, kind) = match num {
                 Num::Int(value, kind) => (value, NumKind::Int(kind)),
                 Num::Float(value, kind) => (value, NumKind::Float(kind)),
             };
@@ -596,8 +597,8 @@ fn compile_time_escape<'a>(expr: &Expr<'a>, escaper: &str) -> Option<Writable<'a
                 false => Cow::Owned(value),
             }
         }
-        Expr::BoolLit(true, _) => Cow::Borrowed("true"),
-        Expr::BoolLit(false, _) => Cow::Borrowed("false"),
+        Expr::BoolLit { value: true, .. } => Cow::Borrowed("true"),
+        Expr::BoolLit { value: false, .. } => Cow::Borrowed("false"),
         _ => return None,
     };
 
@@ -794,18 +795,20 @@ fn is_copyable(expr: &Expr<'_>) -> bool {
 
 fn is_copyable_within_op(expr: &Expr<'_>, within_op: bool) -> bool {
     match expr {
-        Expr::BoolLit(_, _)
-        | Expr::NumLit(_, _, _)
-        | Expr::StrLit(_, _)
-        | Expr::CharLit(_, _)
-        | Expr::BinOp(_, _)
-        | Expr::Range(..) => true,
-        Expr::Unary(_, expr, _) => is_copyable_within_op(expr, true),
-        Expr::NamedArgument(_, expr, _) => is_copyable_within_op(expr, true),
+        Expr::BoolLit { .. }
+        | Expr::NumLit { .. }
+        | Expr::StrLit { .. }
+        | Expr::CharLit { .. }
+        | Expr::BinOp { .. }
+        | Expr::Range { .. } => true,
+        Expr::Unary { expr, .. } => is_copyable_within_op(expr, true),
+        Expr::NamedArgument { value, .. } => is_copyable_within_op(value, true),
         // The result of a call likely doesn't need to be borrowed,
         // as in that case the call is more likely to return a
         // reference in the first place then.
-        Expr::Call(..) | Expr::Path(..) | Expr::Filter(..) | Expr::RustMacro(..) => true,
+        Expr::Call { .. } | Expr::Path { .. } | Expr::Filter { .. } | Expr::RustMacro { .. } => {
+            true
+        }
         // If the `expr` is within a `Unary` or `BinOp` then
         // an assumption can be made that the operand is copy.
         // If not, then the value is moved and adding `.clone()`
@@ -820,11 +823,15 @@ fn is_copyable_within_op(expr: &Expr<'_>, within_op: bool) -> bool {
 fn is_associated_item_self(mut expr: &Expr<'_>) -> bool {
     loop {
         match expr {
-            Expr::AssociatedItem(obj, _, _) if matches!(**obj, Expr::Var("self", _)) => {
+            Expr::AssociatedItem { parent_item, .. }
+                if matches!(**parent_item, Expr::Var { name: "self", .. }) =>
+            {
                 return true;
             }
-            Expr::AssociatedItem(obj, _, _) if matches!(**obj, Expr::AssociatedItem(..)) => {
-                expr = obj
+            Expr::AssociatedItem { parent_item, .. }
+                if matches!(**parent_item, Expr::AssociatedItem { .. }) =>
+            {
+                expr = parent_item
             }
             _ => return false,
         }
