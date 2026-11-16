@@ -20,7 +20,7 @@ pub(crate) struct MacroInvocation<'a, 'b> {
     pub callsite_ctx: &'b Context<'a>,
     pub callsite_span: Span,
     pub callsite_ws: Ws,
-    pub call_args: &'b [WithSpan<Box<Expr<'a>>>],
+    pub call_args: &'b [Box<Expr<'a>>],
     pub call: Option<&'a Call<'a>>,
     pub macro_def: &'a Macro<'a>,
     pub macro_ctx: &'b Context<'a>,
@@ -193,10 +193,10 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         generator: &mut Generator<'a, 'h>,
     ) -> Result<(), CompileError> {
         let mut named_arguments = HashMap::default();
-        if let Some(Expr::NamedArgument(_, _)) = self.call_args.last().map(|expr| &***expr) {
+        if let Some(Expr::NamedArgument(_, _, _)) = self.call_args.last().map(|expr| &**expr) {
             // First we check that all named arguments actually exist in the called item.
             for arg in self.call_args.iter().rev() {
-                let &Expr::NamedArgument(arg_name, _) = &***arg else {
+                let &Expr::NamedArgument(arg_name, _, _) = &**arg else {
                     break;
                 };
                 let Some(index) = self
@@ -222,8 +222,8 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         for (index, call_arg) in self.call_args.iter().enumerate() {
             // No need to check if named arguments are before unnamed arguments since it's
             // already checked in `askama_parser`.
-            let (index, expr) = match &***call_arg {
-                Expr::NamedArgument(arg_name, _) => {
+            let (index, expr) = match &**call_arg {
+                Expr::NamedArgument(arg_name, _, _) => {
                     // We already looked for invalid named args when generating `named_arguments`.
                     let Some((index, expr)) = named_arguments.get(&**arg_name) else {
                         unreachable!()
@@ -305,7 +305,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             .map(|arg| Some(arg.name))
             .collect();
         for (pos, arg) in self.call_args.iter().enumerate() {
-            let pos = match ***arg {
+            let pos = match **arg {
                 Expr::NamedArgument(name, ..) => {
                     self.macro_def.args.iter().position(|arg| arg.name == name)
                 }
@@ -404,15 +404,15 @@ impl<'a> ArgBindings<'a> {
         ctx: &Context<'_>,
         name: &'a str,
         ty: Option<&WithSpan<TyGenerics<'a>>>,
-        expr: &WithSpan<Box<Expr<'a>>>,
+        expr: &Expr<'a>,
         span: proc_macro2::Span,
     ) -> Result<(), CompileError> {
-        let var = match &***expr {
+        let var = match expr {
             // If `expr` is already a form of variable then
             // don't reintroduce a new variable. This is
             // to avoid moving non-copyable values.
-            &Expr::Var(name) if name != "self" => Some(generator.locals.resolve_or_self(name)),
-            Expr::AssociatedItem(obj, associated_item) => {
+            &Expr::Var(name, _) if name != "self" => Some(generator.locals.resolve_or_self(name)),
+            Expr::AssociatedItem(obj, associated_item, _) => {
                 let mut associated_item_buf = Buffer::new();
                 generator.visit_associated_item(
                     ctx,
