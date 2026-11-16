@@ -962,7 +962,7 @@ impl<'a> Generator<'a, '_> {
         l: Span,
     ) -> Result<bool, CompileError> {
         match var {
-            Target::Name(name) => {
+            Target::Name(name, _) => {
                 match self.locals.get(name) {
                     // declares a new variable
                     None => Ok(false),
@@ -973,17 +973,18 @@ impl<'a> Generator<'a, '_> {
                 }
             }
             Target::Placeholder(_) => Ok(false),
-            Target::Rest(var_name) => {
-                if let Some(var_name) = **var_name {
-                    match self.is_shadowing_variable(ctx, &Target::Name(var_name), l) {
+            Target::Rest(var_name, _) => {
+                if let Some(var_name) = var_name {
+                    let name = Target::Name(**var_name, var_name.span());
+                    match self.is_shadowing_variable(ctx, &name, l) {
                         Ok(false) => {}
                         outcome => return outcome,
                     }
                 }
                 Ok(false)
             }
-            Target::Tuple(v) => {
-                for target in &v.1 {
+            Target::Tuple(_, targets, _) => {
+                for target in targets {
                     match self.is_shadowing_variable(ctx, target, l) {
                         Ok(false) => continue,
                         outcome => return outcome,
@@ -991,8 +992,8 @@ impl<'a> Generator<'a, '_> {
                 }
                 Ok(false)
             }
-            Target::Struct(v) => {
-                for target in &v.1 {
+            Target::Struct(_, targets, _) => {
+                for target in targets {
                     match self.is_shadowing_variable(ctx, &target.dest, l) {
                         Ok(false) => continue,
                         outcome => return outcome,
@@ -1000,8 +1001,8 @@ impl<'a> Generator<'a, '_> {
                 }
                 Ok(false)
             }
-            Target::Array(v) => {
-                for target in v.iter() {
+            Target::Array(targets, _) => {
+                for target in targets {
                     match self.is_shadowing_variable(ctx, target, l) {
                         Ok(false) => continue,
                         outcome => return outcome,
@@ -1055,8 +1056,8 @@ impl<'a> Generator<'a, '_> {
         let shadowed = self.is_shadowing_variable(ctx, &l.var, l.span)?;
         let size_hint = self.flush_before_statement(ctx, buf)?;
         if shadowed
-            || !matches!(l.var, Target::Name(_))
-            || matches!(&l.var, Target::Name(name) if self.locals.get(name).is_none())
+            || !matches!(l.var, Target::Name(..))
+            || matches!(&l.var, Target::Name(name, _) if self.locals.get(name).is_none())
         {
             buf.write_token(Token![let], span);
             if l.is_mutable {
@@ -1246,11 +1247,11 @@ impl<'a> Generator<'a, '_> {
         val: &'a Expr<'a>,
     ) -> Result<SizeHint, CompileError> {
         // Handle when this statement creates a new alias of a caller variable (or of another alias),
-        if let Target::Name(dstvar) = l.var {
+        if let Target::Name(dstvar, _) = l.var {
             if let Expr::Var(srcvar, _) = *val {
                 if let Some(caller_alias) = self.locals.get_caller(srcvar) {
                     self.locals.insert(
-                        Cow::Borrowed(*dstvar),
+                        Cow::Borrowed(dstvar),
                         LocalMeta::CallerAlias(Box::new(caller_alias.clone())),
                     );
                     return Ok(SizeHint::EMPTY);
@@ -1300,7 +1301,14 @@ impl<'a> Generator<'a, '_> {
         if c.is_mutable {
             buf.write_token(Token![mut], span);
         }
-        self.visit_target(ctx, buf, false, true, &Target::Name(c.var_name), span);
+        self.visit_target(
+            ctx,
+            buf,
+            false,
+            true,
+            &Target::Name(*c.var_name, c.var_name.span()),
+            span,
+        );
         buf.write_token(Token![;], span);
 
         Ok(size_hint)
