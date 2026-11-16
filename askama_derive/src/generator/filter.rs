@@ -4,7 +4,7 @@ use std::mem::replace;
 use std::str::FromStr;
 
 use parser::{
-    Expr, IntKind, Num, PathComponent, PathOrIdentifier, Span, StrLit, StrPrefix, TyGenerics,
+    Expr, IntKind, Num, PathComponent, PathOrIdentifier, Span, StrLit, StrPrefix, TyGenericArgs,
     WithSpan,
 };
 use proc_macro2::TokenStream;
@@ -84,7 +84,7 @@ impl<'a> Generator<'a, '_> {
 
         // some sanity checks
         let generics = &path.last().unwrap().generics.as_ref();
-        if path.is_empty() || generics.is_some() && !generics.unwrap().is_empty() {
+        if path.is_empty() || generics.is_some() && !generics.unwrap().args.is_empty() {
             return Err(ctx.generate_error(
                 "Invalid filter invocation. Generics are not supported",
                 node,
@@ -150,7 +150,7 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         name: WithSpan<&'a str>,
         args: &[Box<Expr<'a>>],
-        _generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+        _generics: Option<&TyGenericArgs<'a>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_custom_filter_with_path(
@@ -171,7 +171,7 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         name: WithSpan<&'a str>,
         args: &[Box<Expr<'a>>],
-        generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+        generics: Option<&TyGenericArgs<'a>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_alloc(ctx, *name, node)?;
@@ -184,7 +184,7 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         name: WithSpan<&'a str>,
         args: &[Box<Expr<'a>>],
-        generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+        generics: Option<&TyGenericArgs<'a>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         ensure_filter_has_feature_std(ctx, *name, node)?;
@@ -197,7 +197,7 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         name: WithSpan<&'a str>,
         args: &[Box<Expr<'a>>],
-        generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+        generics: Option<&TyGenericArgs<'a>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let name = *name;
@@ -1008,12 +1008,12 @@ fn fail_missing_feature(
 fn ensure_no_generics(
     ctx: &Context<'_>,
     name: &str,
-    generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'_>>>>>,
+    generics: Option<&TyGenericArgs<'_>>,
 ) -> Result<(), CompileError> {
     if let Some(generics) = generics {
         return Err(ctx.generate_error(
             format_args!("unexpected generics on filter `{}`", name.escape_debug()),
-            generics.span(),
+            generics.span,
         ));
     }
     Ok(())
