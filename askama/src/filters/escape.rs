@@ -89,7 +89,7 @@ impl<T: FastWritable, E: Escaper> FastWritable for EscapeDisplay<T, E> {
 struct EscapeWriter<W, E>(W, E);
 
 impl<W: Write, E: Escaper> Write for EscapeWriter<W, E> {
-    #[inline]
+    #[inline(always)]
     fn write_str(&mut self, s: &str) -> fmt::Result {
         self.1.write_escaped_str(&mut self.0, s)
     }

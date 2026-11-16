@@ -40,23 +40,20 @@ pub(crate) fn write_escaped_str(mut dest: impl fmt::Write, src: &str) -> fmt::Re
 
 const WORD_LEN: usize = size_of::<u64>();
 
-/// Sets the highest bit of every byte in `word` that needs HTML escaping.
+/// Sets the highest bit of every byte in `word` that needs HTML escaping, and maybe of some bytes
+/// after it, so every hit must be checked with `get_escaped()`.
 #[inline]
 fn find_escaped(word: u64) -> u64 {
-    const LOW: u64 = u64::from_ne_bytes([0x7f; WORD_LEN]);
+    const ONES: u64 = u64::from_ne_bytes([0x01; WORD_LEN]);
     const HIGH: u64 = u64::from_ne_bytes([0x80; WORD_LEN]);
 
-    let mut found = 0;
-    let mut i = 0;
-    while i < CHARS.len() {
-        // A byte in `diff` is zero iff it is `CHARS[i]` in `word`. Adding `0x7f` to its lower
-        // seven bits cannot carry into the next byte, and leaves the highest bit unset only if
-        // they were all zero.
-        let diff = word ^ u64::from_ne_bytes([CHARS[i]; WORD_LEN]);
-        found |= !(((diff & LOW) + LOW) | diff);
-        i += 1;
-    }
-    found & HIGH
+    // Sets the highest bit of each zero byte. A borrow can also set it in the bytes after one.
+    let zero = |x: u64| x.wrapping_sub(ONES) & !x;
+    // `&` and `'` only differ in the lowest bit, `<` and `>` only in the second lowest.
+    let quot = word ^ (ONES * b'"' as u64);
+    let amp_apos = (word | ONES) ^ (ONES * b'\'' as u64);
+    let lt_gt = (word | (ONES * 2)) ^ (ONES * b'>' as u64);
+    (zero(quot) | zero(amp_apos) | zero(lt_gt)) & HIGH
 }
 
 #[allow(unused)]
