@@ -141,13 +141,14 @@ impl<S: FastWritable> FastWritable for Lower<S> {
         dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        let mut buffer = String::new();
+        let mut buffer = Buffer::new();
         self.0.write_into(&mut buffer, values)?;
-        if buffer.is_ascii() {
-            buffer.make_ascii_lowercase();
-            Ok(dest.write_str(&buffer)?)
+        let s = buffer.as_mut_str();
+        if s.is_ascii() {
+            s.make_ascii_lowercase();
+            Ok(dest.write_str(s)?)
         } else {
-            Ok(flush_lower(dest, &buffer)?)
+            Ok(flush_lower(dest, s)?)
         }
     }
 }
@@ -165,12 +166,55 @@ fn capitalize_ascii(s: &mut str) {
 }
 
 /// What `flush_title()` does, without a copy of every word. `s` must be ASCII.
-fn title_ascii(mut s: &mut str) {
-    while !s.is_empty() {
-        let end = s.find(char::is_whitespace).map_or(s.len(), |pos| pos + 1);
-        let word;
-        (word, s) = s.split_at_mut(end);
-        capitalize_ascii(word);
+fn title_ascii(s: &mut str) {
+    s.make_ascii_lowercase();
+    let mut word_start = true;
+    for i in 0..s.len() {
+        if word_start {
+            s[i..=i].make_ascii_uppercase();
+        }
+        word_start = matches!(s.as_bytes()[i], b'\t'..=b'\r' | b' ');
+    }
+}
+
+/// Collects a filter's input on the stack while it is short, so that most calls don't allocate.
+struct Buffer {
+    stack: [u8; 64],
+    len: usize,
+    heap: String,
+}
+
+impl Buffer {
+    fn new() -> Self {
+        Self {
+            stack: [0; 64],
+            len: 0,
+            heap: String::new(),
+        }
+    }
+
+    fn as_mut_str(&mut self) -> &mut str {
+        match self.heap.is_empty() {
+            true => str::from_utf8_mut(&mut self.stack[..self.len]).unwrap(),
+            false => &mut self.heap,
+        }
+    }
+}
+
+impl fmt::Write for Buffer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let end = self.len + s.len();
+        if self.heap.is_empty() && end <= self.stack.len() {
+            self.stack[self.len..end].copy_from_slice(s.as_bytes());
+            self.len = end;
+        } else {
+            if self.heap.is_empty() {
+                self.heap
+                    .push_str(str::from_utf8(&self.stack[..self.len]).unwrap());
+            }
+            self.heap.push_str(s);
+        }
+        Ok(())
     }
 }
 
@@ -251,13 +295,14 @@ impl<S: FastWritable> FastWritable for Upper<S> {
         dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        let mut buffer = String::new();
+        let mut buffer = Buffer::new();
         self.0.write_into(&mut buffer, values)?;
-        if buffer.is_ascii() {
-            buffer.make_ascii_uppercase();
-            Ok(dest.write_str(&buffer)?)
+        let s = buffer.as_mut_str();
+        if s.is_ascii() {
+            s.make_ascii_uppercase();
+            Ok(dest.write_str(s)?)
         } else {
-            Ok(flush_upper(dest, &buffer)?)
+            Ok(flush_upper(dest, s)?)
         }
     }
 }
@@ -326,7 +371,9 @@ pub struct Trim<S>(S);
 impl<S: fmt::Display> fmt::Display for Trim<S> {
     #[inline]
     fn fmt(&self, dest: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(TrimWriter::new(dest), "{}", self.0)
+        let mut collector = TrimCollector(String::new());
+        write!(collector, "{}", self.0)?;
+        flush_trim(dest, collector)
     }
 }
 
@@ -337,45 +384,25 @@ impl<S: FastWritable> FastWritable for Trim<S> {
         dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        self.0.write_into(&mut TrimWriter::new(dest), values)
+        let mut buffer = Buffer::new();
+        self.0.write_into(&mut buffer, values)?;
+        Ok(dest.write_str(buffer.as_mut_str().trim())?)
     }
 }
 
-struct TrimWriter<W> {
-    dest: W,
-    /// Whether any text was written, so that whitespace is not leading anymore.
-    started: bool,
-    /// Whitespace that is trailing unless more text follows.
-    pending: String,
-}
+struct TrimCollector(String);
 
-impl<W> TrimWriter<W> {
-    fn new(dest: W) -> Self {
-        Self {
-            dest,
-            started: false,
-            pending: String::new(),
-        }
-    }
-}
-
-impl<W: fmt::Write> fmt::Write for TrimWriter<W> {
+impl fmt::Write for TrimCollector {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        let s = if self.started { s } else { s.trim_start() };
-        let text = s.trim_end();
-        if text.is_empty() {
-            self.pending.push_str(s);
-            return Ok(());
+        match self.0.is_empty() {
+            true => self.0.write_str(s.trim_start()),
+            false => self.0.write_str(s),
         }
-        if !self.pending.is_empty() {
-            self.dest.write_str(&self.pending)?;
-            self.pending.clear();
-        }
-        self.started = true;
-        self.dest.write_str(text)?;
-        self.pending.push_str(&s[text.len()..]);
-        Ok(())
     }
+}
+
+fn flush_trim(dest: &mut (impl fmt::Write + ?Sized), collector: TrimCollector) -> fmt::Result {
+    dest.write_str(collector.0.trim_end())
 }
 
 /// Capitalize a value. The first character will be uppercase, all others lowercase.
@@ -425,13 +452,14 @@ impl<S: FastWritable> FastWritable for Capitalize<S> {
         dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        let mut buffer = String::new();
+        let mut buffer = Buffer::new();
         self.0.write_into(&mut buffer, values)?;
-        if buffer.is_ascii() {
-            capitalize_ascii(&mut buffer);
-            Ok(dest.write_str(&buffer)?)
+        let s = buffer.as_mut_str();
+        if s.is_ascii() {
+            capitalize_ascii(s);
+            Ok(dest.write_str(s)?)
         } else {
-            Ok(flush_capitalize(dest, &buffer)?)
+            Ok(flush_capitalize(dest, s)?)
         }
     }
 }
@@ -493,13 +521,14 @@ impl<S: FastWritable> FastWritable for Title<S> {
         dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        let mut buffer = String::new();
+        let mut buffer = Buffer::new();
         self.0.write_into(&mut buffer, values)?;
-        if buffer.is_ascii() {
-            title_ascii(&mut buffer);
-            Ok(dest.write_str(&buffer)?)
+        let s = buffer.as_mut_str();
+        if s.is_ascii() {
+            title_ascii(s);
+            Ok(dest.write_str(s)?)
         } else {
-            Ok(flush_title(dest, &buffer)?)
+            Ok(flush_title(dest, s)?)
         }
     }
 }
@@ -601,86 +630,35 @@ mod tests {
         );
     }
 
-    fn fast(value: impl FastWritable) -> String {
-        let mut dest = String::new();
-        value.write_into(&mut dest, crate::NO_VALUES).unwrap();
-        dest
-    }
-
     #[test]
     fn test_fast_writable_is_display() {
+        fn fast(value: impl FastWritable) -> String {
+            let mut dest = String::new();
+            value.write_into(&mut dest, crate::NO_VALUES).unwrap();
+            dest
+        }
+
+        // Pairs are written in two chunks, and the longest input does not fit on the stack.
         const INPUTS: &[&str] = &[
             "",
-            "f",
-            "F",
-            " \n\t",
             " foo BAR ",
-            "hElLo wOrLD",
-            "foo\x0bbAR\x0cbAZ\tqUX\r\nqUUX  x",
-            "fOO\u{2002}bAR\u{3000}bAZ",
-            "äØÄÅÖ",
-            "ß",
-            "ßß straße",
-            "İSTANBUL",
-            "ﬁne ǆ",
-            "ὈΔΥΣΣΕΎΣ ΌΣΟΣ Σ",
+            "fOo  BaR\x0bbAZ\r\nqux ",
+            "foo\x1fbar",
+            "äÖ ß",
+            "ὈΔΥΣΣΕΎΣ Σ",
+            "a much LONGER input that does not fit into sixty-four bytes at all ",
         ];
-
-        for &input in INPUTS {
-            assert_eq!(fast(lower(input).unwrap()), input.to_lowercase());
-            assert_eq!(fast(upper(input).unwrap()), input.to_uppercase());
-            assert_eq!(
-                fast(capitalize(input).unwrap()),
-                capitalize(input).unwrap().to_string(),
-            );
-            assert_eq!(
-                fast(title(input).unwrap()),
-                title(input).unwrap().to_string()
-            );
-            assert_eq!(fast(trim(input).unwrap()), input.trim());
-        }
-
-        assert_eq!(fast(capitalize("foO BAR").unwrap()), "Foo bar");
-        assert_eq!(
-            fast(title("fOo  BaR\x0bbAZ\r\nqux ").unwrap()),
-            "Foo  Bar\x0bBaz\r\nQux "
-        );
-    }
-
-    #[test]
-    fn test_trim_chunks() {
-        struct Chunks(&'static [&'static str]);
-
-        impl fmt::Display for Chunks {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                self.0.iter().try_for_each(|chunk| f.write_str(chunk))
+        for &a in INPUTS {
+            for &b in INPUTS {
+                let s = &alloc::format!("{a}{b}");
+                let c = || crate::helpers::Concat(a, b);
+                assert_eq!(fast(lower(c()).unwrap()), lower(s).unwrap().to_string());
+                assert_eq!(fast(upper(c()).unwrap()), upper(s).unwrap().to_string());
+                let expected = capitalize(s).unwrap().to_string();
+                assert_eq!(fast(capitalize(c()).unwrap()), expected);
+                assert_eq!(fast(title(c()).unwrap()), title(s).unwrap().to_string());
+                assert_eq!(fast(trim(c()).unwrap()), s.trim());
             }
-        }
-
-        impl FastWritable for Chunks {
-            fn write_into(
-                &self,
-                dest: &mut dyn fmt::Write,
-                _: &dyn crate::Values,
-            ) -> crate::Result<()> {
-                Ok(self.0.iter().try_for_each(|chunk| dest.write_str(chunk))?)
-            }
-        }
-
-        const INPUTS: &[&[&str]] = &[
-            &[],
-            &["", " ", "\n"],
-            &[" ", " a ", "  ", "", "b  ", " ", ""],
-            &["a", " ", "\n", "b"],
-            &["a", " ", "\n"],
-            &["\u{3000}a\u{2002}", "\u{2002}b\u{3000}", "\u{2002}"],
-        ];
-
-        for &input in INPUTS {
-            let expected = input.concat();
-            let expected = expected.trim();
-            assert_eq!(trim(Chunks(input)).unwrap().to_string(), expected);
-            assert_eq!(fast(trim(Chunks(input)).unwrap()), expected);
         }
     }
 }

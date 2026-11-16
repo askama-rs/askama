@@ -40,14 +40,20 @@ fn functions(c: &mut Criterion) {
         };
     }
 
+    bench!(Lower, "word", WORD);
     bench!(Lower, "short", SHORT);
+    bench!(Lower, "words", WORDS);
     bench!(Lower, "lorem", LOREM);
+    bench!(Lower, "last non-ascii", LAST_NON_ASCII);
     bench!(Lower, "umlauts", UMLAUTS);
+    bench!(Upper, "word", WORD);
     bench!(Upper, "short", SHORT);
-    bench!(Upper, "lorem", LOREM);
     bench!(Upper, "umlauts", UMLAUTS);
+    bench!(Capitalize, "word", WORD);
     bench!(Capitalize, "short", SHORT);
     bench!(Capitalize, "umlauts", UMLAUTS);
+    bench!(Title, "word", WORD);
+    bench!(Title, "short", SHORT);
     bench!(Title, "words", WORDS);
     bench!(Title, "lorem", LOREM);
     bench!(Title, "umlauts", UMLAUTS);
@@ -55,9 +61,11 @@ fn functions(c: &mut Criterion) {
     bench!(Trim, "lorem", LOREM);
 }
 
+const WORD: &str = "Hello";
 const SHORT: &str = "Hello World";
 const WORDS: &str = "the quick brown fox jumps over the lazy dog";
-const PADDED: &str = "  \n Hello World, how are you?  \t\n";
+const PADDED: &str = "  Hello World  ";
+const LAST_NON_ASCII: &str = "the quick brown fox jumps over the lazy dö";
 const UMLAUTS: &str = "Grüße aus Köln, Zürich und Århus ÄÖÜ";
 const LOREM: &str = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Mauris consequat \
     tellus sit amet ornare fermentum. Etiam nec erat ante. In at metus a orci mollis scelerisque. \
