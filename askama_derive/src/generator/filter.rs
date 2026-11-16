@@ -118,8 +118,8 @@ impl<'a> Generator<'a, '_> {
         for (arg_idx, arg) in args[1..].iter().enumerate() {
             let expr: &Expr<'a> = arg;
             let (arg_setter_ident, arg_expr_span) = match expr {
-                Expr::NamedArgument(name, expr, _) => {
-                    (format_ident!("with_{}", **name), expr.span())
+                Expr::NamedArgument { name, value, .. } => {
+                    (format_ident!("with_{}", **name), value.span())
                 }
                 _ => (format_ident!("with_{arg_idx}"), arg.span()),
             };
@@ -297,8 +297,11 @@ impl<'a> Generator<'a, '_> {
         args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        const DEFAULT_PRECISION: &Expr<'_> =
-            &Expr::NumLit("2u8", Num::Int("2", Some(IntKind::U8)), Span::no_span());
+        const DEFAULT_PRECISION: &Expr<'_> = &Expr::NumLit {
+            num_with_suffix: "2u8",
+            num: Num::Int("2", Some(IntKind::U8)),
+            span: Span::no_span(),
+        };
         const ARGUMENTS: &[&FilterArgument; 2] = &[
             FILTER_SOURCE,
             &FilterArgument {
@@ -342,7 +345,7 @@ impl<'a> Generator<'a, '_> {
         let span = ctx.span_for_node(node);
 
         let mut tmp = Buffer::new();
-        if matches!(filter, Expr::Path(_, _)) {
+        if matches!(filter, Expr::Path { .. }) {
             self.visit_loop_iter(ctx, &mut tmp, input)?;
             let arg = self.visit_arg(ctx, filter, ctx.span_for_node(filter.span()))?;
 
@@ -369,8 +372,8 @@ impl<'a> Generator<'a, '_> {
         args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        const SINGULAR: &Expr<'_> = &Expr::StrLit(
-            StrLit {
+        const SINGULAR: &Expr<'_> = &Expr::StrLit {
+            inner: StrLit {
                 prefix: None,
                 content: "",
                 contains_null: false,
@@ -378,10 +381,10 @@ impl<'a> Generator<'a, '_> {
                 contains_unicode_escape: false,
                 contains_high_ascii: false,
             },
-            Span::no_span(),
-        );
-        const PLURAL: &Expr<'_> = &Expr::StrLit(
-            StrLit {
+            span: Span::no_span(),
+        };
+        const PLURAL: &Expr<'_> = &Expr::StrLit {
+            inner: StrLit {
                 prefix: None,
                 content: "s",
                 contains_null: false,
@@ -389,8 +392,8 @@ impl<'a> Generator<'a, '_> {
                 contains_unicode_escape: false,
                 contains_high_ascii: false,
             },
-            Span::no_span(),
-        );
+            span: Span::no_span(),
+        };
         const ARGUMENTS: &[&FilterArgument; 3] = &[
             FILTER_SOURCE,
             &FilterArgument {
@@ -611,12 +614,12 @@ impl<'a> Generator<'a, '_> {
 
         let [source, opt_escaper] = collect_filter_args(ctx, "escape", node, args, ARGUMENTS)?;
         let opt_escaper = if !is_argument_placeholder(opt_escaper) {
-            let Expr::StrLit(
-                StrLit {
+            let Expr::StrLit {
+                inner: StrLit {
                     prefix, content, ..
                 },
-                _,
-            ) = *opt_escaper
+                ..
+            } = *opt_escaper
             else {
                 return Err(ctx.generate_error("invalid escaper type for escape filter", node));
             };
@@ -678,11 +681,11 @@ impl<'a> Generator<'a, '_> {
         ensure_filter_has_feature_alloc(ctx, "format", node)?;
         ensure_no_named_arguments(ctx, "format", args)?;
         if let [head, tail @ ..] = args
-            && let Expr::StrLit(ref fmt, _) = **head
+            && let Expr::StrLit { ref inner, .. } = **head
         {
             let span = ctx.span_for_node(node);
             let mut filter = Buffer::new();
-            self.visit_str_lit(&mut filter, fmt, span);
+            self.visit_str_lit(&mut filter, inner, span);
             if !tail.is_empty() {
                 filter.write_token(Token![,], ctx.span_for_node(node));
                 self.visit_args(ctx, &mut filter, tail)?;
@@ -692,10 +695,10 @@ impl<'a> Generator<'a, '_> {
             return Ok(DisplayWrap::Unwrapped);
         }
         if let [_, tail, ..] = args
-            && let Expr::StrLit(ref fmt, _) = **tail
+            && let Expr::StrLit { ref inner, .. } = **tail
         {
             return Err(ctx.generate_error(
-                format_args!("the string literal ({:?}) should be the input, use the `fmt` filter instead if you want to keep it that way", fmt.content),
+                format_args!("the string literal ({:?}) should be the input, use the `fmt` filter instead if you want to keep it that way", inner.content),
                 node,
             ));
         }
@@ -722,10 +725,10 @@ impl<'a> Generator<'a, '_> {
 
         ensure_filter_has_feature_alloc(ctx, "fmt", node)?;
         let [source, fmt] = collect_filter_args(ctx, "fmt", node, args, ARGUMENTS)?;
-        let Expr::StrLit(ref fmt, _) = *fmt else {
-            if let Expr::StrLit(ref source, _) = *source {
+        let Expr::StrLit { ref inner, .. } = *fmt else {
+            if let Expr::StrLit { ref inner, .. } = *source {
                 return Err(ctx.generate_error(
-                    format_args!("the string literal ({:?}) should be the first argument, use the `format` filter instead if you want to keep it that way", source.content),
+                    format_args!("the string literal ({:?}) should be the first argument, use the `format` filter instead if you want to keep it that way", inner.content),
                     node,
                 ));
             }
@@ -733,7 +736,7 @@ impl<'a> Generator<'a, '_> {
         };
         let span = ctx.span_for_node(node);
         let mut filter = Buffer::new();
-        self.visit_str_lit(&mut filter, fmt, span);
+        self.visit_str_lit(&mut filter, inner, span);
         let source = self.visit_arg(ctx, source, ctx.span_for_node(source.span()))?;
         let filter = filter.into_token_stream();
         buf.write_tokens(quote_spanned!(span=>
@@ -841,7 +844,10 @@ impl<'a> Generator<'a, '_> {
 
         let [value, fallback, is_assigned] =
             collect_filter_args(ctx, "default", node, args, ARGUMENTS)?;
-        let Expr::BoolLit(is_assigned, _) = *is_assigned else {
+        let Expr::BoolLit {
+            value: is_assigned, ..
+        } = *is_assigned
+        else {
             return Err(ctx.generate_error(
                 "the `default` filter takes a boolean literal as its optional second argument",
                 is_assigned.span(),
@@ -881,8 +887,8 @@ impl<'a> Generator<'a, '_> {
         value: &Expr<'a>,
         fallback: &Expr<'a>,
     ) -> Result<DisplayWrap, CompileError> {
-        if let Expr::Var(var_name, _) = *value
-            && !self.is_var_assigned(var_name)
+        if let Expr::Var { name, .. } = *value
+            && !self.is_var_assigned(name)
         {
             self.visit_expr(ctx, buf, fallback)?;
             return Ok(DisplayWrap::Unwrapped);
@@ -935,14 +941,14 @@ impl<'a> Generator<'a, '_> {
         fallback: &Expr<'a>,
         name: &str,
     ) -> Result<DisplayWrap, CompileError> {
-        let Expr::Var(var_name, _) = *value else {
+        let Expr::Var { name, .. } = *value else {
             return Err(ctx.generate_error(
                 format!("the `{name}` filter requires a variable name on its left-hand side"),
                 node,
             ));
         };
 
-        let expr = match self.is_var_assigned(var_name) {
+        let expr = match self.is_var_assigned(name) {
             true => value,
             false => fallback,
         };
@@ -952,7 +958,10 @@ impl<'a> Generator<'a, '_> {
     }
 }
 
-const FALSE: &Expr<'static> = &Expr::BoolLit(false, Span::no_span());
+const FALSE: &Expr<'static> = &Expr::BoolLit {
+    value: false,
+    span: Span::no_span(),
+};
 
 #[inline]
 fn ensure_filter_has_feature_alloc(
@@ -1049,7 +1058,11 @@ fn expr_is_int_lit_plus_minus_one(expr: &Expr<'_>) -> Option<bool> {
         };
     }
 
-    let Expr::NumLit(_, Num::Int(value, kind), _) = *expr else {
+    let Expr::NumLit {
+        num: Num::Int(value, kind),
+        ..
+    } = *expr
+    else {
         return None;
     };
     impl_match! {
@@ -1137,7 +1150,12 @@ fn collect_filter_args_inner<'a, 'b>(
     // invariant: the parser ensures that named arguments come after positional arguments
     let mut arg_idx = 0;
     for arg in input_args {
-        let (idx, value) = if let Expr::NamedArgument(arg_name, value, _) = &**arg {
+        let (idx, value) = if let Expr::NamedArgument {
+            name: arg_name,
+            value,
+            ..
+        } = &**arg
+        {
             let Some(idx) = filter_args
                 .iter()
                 .enumerate()
@@ -1236,7 +1254,7 @@ fn ensure_no_named_arguments(
     args: &[Box<Expr<'_>>],
 ) -> Result<(), CompileError> {
     for arg in args {
-        if let Expr::NamedArgument(..) = &**arg {
+        if let Expr::NamedArgument { .. } = &**arg {
             return Err(ctx.generate_error(
                 format_args!(
                     "`{}` filter cannot accept named arguments",

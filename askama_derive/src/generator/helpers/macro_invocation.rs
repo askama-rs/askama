@@ -193,28 +193,24 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         generator: &mut Generator<'a, 'h>,
     ) -> Result<(), CompileError> {
         let mut named_arguments = HashMap::default();
-        if let Some(Expr::NamedArgument(_, _, _)) = self.call_args.last().map(|expr| &**expr) {
+        if let Some(Expr::NamedArgument { .. }) = self.call_args.last().map(|expr| &**expr) {
             // First we check that all named arguments actually exist in the called item.
             for arg in self.call_args.iter().rev() {
-                let &Expr::NamedArgument(arg_name, _, _) = &**arg else {
+                let &Expr::NamedArgument { name, .. } = &**arg else {
                     break;
                 };
-                let Some(index) = self
-                    .macro_def
-                    .args
-                    .iter()
-                    .position(|arg| arg.name == arg_name)
+                let Some(index) = self.macro_def.args.iter().position(|arg| arg.name == name)
                 else {
                     return Err(self.callsite_ctx.generate_error(
                         format_args!(
                             "no argument named `{}` in macro `{}`",
-                            arg_name.escape_debug(),
+                            name.escape_debug(),
                             self.macro_def.name.escape_debug(),
                         ),
                         self.callsite_span,
                     ));
                 };
-                named_arguments.insert(&**arg_name, (index, arg));
+                named_arguments.insert(&**name, (index, arg));
             }
         }
         let mut used_args = vec![None; self.macro_def.args.len()];
@@ -223,9 +219,9 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             // No need to check if named arguments are before unnamed arguments since it's
             // already checked in `askama_parser`.
             let (index, expr) = match &**call_arg {
-                Expr::NamedArgument(arg_name, _, _) => {
+                Expr::NamedArgument { name, .. } => {
                     // We already looked for invalid named args when generating `named_arguments`.
-                    let Some((index, expr)) = named_arguments.get(&**arg_name) else {
+                    let Some((index, expr)) = named_arguments.get(&**name) else {
                         unreachable!()
                     };
                     (*index, *expr)
@@ -306,7 +302,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             .collect();
         for (pos, arg) in self.call_args.iter().enumerate() {
             let pos = match **arg {
-                Expr::NamedArgument(name, ..) => {
+                Expr::NamedArgument { name, .. } => {
                     self.macro_def.args.iter().position(|arg| arg.name == name)
                 }
                 _ => Some(pos),
@@ -411,13 +407,19 @@ impl<'a> ArgBindings<'a> {
             // If `expr` is already a form of variable then
             // don't reintroduce a new variable. This is
             // to avoid moving non-copyable values.
-            &Expr::Var(name, _) if name != "self" => Some(generator.locals.resolve_or_self(name)),
-            Expr::AssociatedItem(obj, associated_item, _) => {
+            &Expr::Var { name, .. } if name != "self" => {
+                Some(generator.locals.resolve_or_self(name))
+            }
+            Expr::AssociatedItem {
+                parent_item,
+                associated_item,
+                ..
+            } => {
                 let mut associated_item_buf = Buffer::new();
                 generator.visit_associated_item(
                     ctx,
                     &mut associated_item_buf,
-                    obj,
+                    parent_item,
                     associated_item,
                 )?;
 
