@@ -411,7 +411,7 @@ impl<'a> Generator<'a, '_> {
             self.push_locals(|this| {
                 let mut has_cond = true;
 
-                if let Some(CondTest { target, expr, .. }) = cond.cond.as_deref() {
+                if let Some(CondTest { target, expr, .. }) = cond.cond.as_ref() {
                     let expr = cond_info.cond_expr.as_ref().unwrap_or(expr);
                     let expr_span = ctx.span_for_node(expr.span());
 
@@ -552,10 +552,10 @@ impl<'a> Generator<'a, '_> {
                 self.handle_ws(arm.ws);
             }
 
-            // FIXME: When `Target` is wrapped in `WithSpan`, update the spans.
             self.push_locals(|this| {
                 let mut targets_buf = Buffer::new();
                 for (index, target) in arm.target.iter().enumerate() {
+                    let span = ctx.span_for_node(target.span());
                     if index != 0 {
                         targets_buf.write_token(Token![|], span);
                     }
@@ -1091,7 +1091,7 @@ impl<'a> Generator<'a, '_> {
 
     fn write_let_ty(&mut self, ctx: &Context<'a>, buf: &mut Buffer, l: &'a Let<'_>) {
         if let Some(ty) = &l.ty {
-            let span = ctx.span_for_node(ty.span());
+            let span = ctx.span_for_node(ty.span);
 
             buf.write_token(syn::Token![:], span);
             self.visit_ty_generic(ctx, buf, ty, span);
@@ -1969,7 +1969,7 @@ impl<'a> Conds<'a> {
                 expr,
                 contains_bool_lit_or_is_defined,
                 ..
-            }) = cond.cond.as_deref()
+            }) = cond.cond.as_ref()
             {
                 let mut only_contains_is_defined = true;
 

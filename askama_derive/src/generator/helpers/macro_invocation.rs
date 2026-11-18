@@ -399,7 +399,7 @@ impl<'a> ArgBindings<'a> {
         generator: &mut Generator<'a, '_>,
         ctx: &Context<'_>,
         name: &'a str,
-        ty: Option<&WithSpan<TyGenerics<'a>>>,
+        ty: Option<&TyGenerics<'a>>,
         expr: &Expr<'a>,
         span: proc_macro2::Span,
     ) -> Result<(), CompileError> {

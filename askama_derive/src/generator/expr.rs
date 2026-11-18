@@ -4,7 +4,7 @@ use std::str::FromStr;
 use parser::node::CondTest;
 use parser::{
     AssociatedItem, CharLit, CharPrefix, Expr, PathComponent, Span, StrLit, StrPrefix, Target,
-    TyGenerics, TyGenericsKind, WithSpan,
+    TyGenericArgs, TyGenerics, TyGenericsKind, WithSpan,
 };
 use proc_macro2::{Delimiter, Spacing, TokenStream, TokenTree};
 use quote::quote_spanned;
@@ -306,12 +306,12 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        cond: &WithSpan<CondTest<'a>>,
+        cond: &CondTest<'a>,
     ) -> Result<DisplayWrap, CompileError> {
         let mut expr_buf = Buffer::new();
         let display_wrap = self.visit_expr_first(ctx, &mut expr_buf, &cond.expr)?;
         let expr_buf = expr_buf.into_token_stream();
-        let span = ctx.span_for_node(cond.span());
+        let span = ctx.span_for_node(cond.span);
         buf.write_token(Token![let], span);
         if let Some(ref target) = cond.target {
             self.visit_target(ctx, buf, true, true, target, span);
@@ -375,7 +375,7 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         args: &[Box<Expr<'a>>],
-        generics: Option<&WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+        generics: Option<&TyGenericArgs<'a>>,
         node: Span,
         kind: &str,
     ) -> Result<DisplayWrap, CompileError> {
@@ -391,20 +391,15 @@ impl<'a> Generator<'a, '_> {
                 ctx.generate_error(format_args!("{kind} expects one generic, found none"), node)
             );
         };
-        let [r#gen] = generics.as_slice() else {
+        let [r#gen] = generics.args.as_slice() else {
             return Err(ctx.generate_error(
-                format_args!("{kind} expects one generic, found {}", generics.len()),
-                generics.span(),
+                format_args!("{kind} expects one generic, found {}", generics.args.len()),
+                generics.span,
             ));
         };
 
         let mut ty_generics = Buffer::new();
-        self.visit_ty_generic(
-            ctx,
-            &mut ty_generics,
-            r#gen,
-            ctx.span_for_node(r#gen.span()),
-        );
+        self.visit_ty_generic(ctx, &mut ty_generics, r#gen, ctx.span_for_node(r#gen.span));
         let span = ctx.span_for_node(node);
         let args = self.visit_arg(ctx, key, span)?;
 
@@ -554,9 +549,9 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        generics: &WithSpan<Vec<WithSpan<TyGenerics<'a>>>>,
+        generics: &TyGenericArgs<'a>,
     ) {
-        buf.write_token(Token![::], ctx.span_for_node(generics.span()));
+        buf.write_token(Token![::], ctx.span_for_node(generics.span));
         self.visit_ty_generics(ctx, buf, generics);
     }
 
@@ -564,15 +559,15 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        generics: &WithSpan<Vec<WithSpan<TyGenerics<'a>>>>,
+        generics: &TyGenericArgs<'a>,
     ) {
-        if generics.is_empty() {
+        if generics.args.is_empty() {
             return;
         }
-        let generics_span = ctx.span_for_node(generics.span());
+        let generics_span = ctx.span_for_node(generics.span);
         buf.write_token(Token![<], generics_span);
-        for generic in &**generics {
-            let span = ctx.span_for_node(generic.span());
+        for generic in &generics.args {
+            let span = ctx.span_for_node(generic.span);
             self.visit_ty_generic(ctx, buf, generic, span);
             buf.write_token(Token![,], span);
         }
@@ -583,14 +578,14 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        generic: &WithSpan<TyGenerics<'a>>,
+        generic: &TyGenerics<'a>,
         span: proc_macro2::Span,
     ) {
-        let TyGenerics { refs, ref kind } = **generic;
+        let TyGenerics { refs, ref kind, .. } = *generic;
         for _ in 0..refs {
             buf.write_token(Token![&], span);
         }
-        match &**kind {
+        match kind {
             TyGenericsKind::Path { path, args } => {
                 self.visit_macro_path(buf, path, span);
                 if let Some(generics) = args.as_ref() {
@@ -600,7 +595,7 @@ impl<'a> Generator<'a, '_> {
             TyGenericsKind::Tuple(kinds) => {
                 let mut tuple_buf = Buffer::new();
                 for (pos, kind) in kinds.iter().enumerate() {
-                    let kind_span = ctx.span_for_node(kind.span());
+                    let kind_span = ctx.span_for_node(kind.span);
                     if pos > 0 {
                         tuple_buf.write_token(Token![,], kind_span);
                     }

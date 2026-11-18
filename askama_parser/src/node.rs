@@ -392,7 +392,7 @@ impl<'a: 'l, 'l> When<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Cond<'a> {
     pub ws: Ws,
-    pub cond: Option<WithSpan<CondTest<'a>>>,
+    pub cond: Option<CondTest<'a>>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub span: Span,
 }
@@ -405,8 +405,9 @@ impl<'a: 'l, 'l> Cond<'a> {
                 ws(keyword("elif").span()),
                 cut_node(Some("if-elif"), CondTest::parse_cond),
             );
-            let (span, cond) = p.parse_next(i)?;
-            Ok((span.clone(), Some(WithSpan::new(cond, span))))
+            let (span, mut cond) = p.parse_next(i)?;
+            cond.span = span.clone().into();
+            Ok((span, Some(cond)))
         };
 
         let (_, pws, (span, cond), nws, _, nodes) = (
@@ -433,20 +434,23 @@ pub struct CondTest<'a> {
     pub target: Option<Target<'a>>,
     pub expr: Box<Expr<'a>>,
     pub contains_bool_lit_or_is_defined: bool,
+    /// The span of the leading `if` or `elif`, or of the whole condition in `&& let`.
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> CondTest<'a> {
-    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+    fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
         let mut p = (
             ws(keyword("if").span()),
             cut_node(Some("if"), Self::parse_cond),
         );
-        let (span, cond) = p.parse_next(i)?;
-        Ok(WithSpan::new(cond, span))
+        let (span, mut cond) = p.parse_next(i)?;
+        cond.span = span.into();
+        Ok(cond)
     }
 
     fn parse_cond(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
-        let (target, expr) = (
+        let ((target, expr), span) = (
             opt(delimited(
                 ws(alt((keyword("let"), keyword("set")))),
                 ws(Target::parse),
@@ -468,21 +472,22 @@ impl<'a: 'l, 'l> CondTest<'a> {
                     i.reset(&start_checkpoint);
                     i.next_slice(rhs_span.start - start_offset);
 
-                    let (new_right, span) = Self::parse_cond.with_span().parse_next(i)?;
                     *inner.rhs = Expr::LetCond {
-                        cond: WithSpan::new(new_right, span),
+                        cond: Self::parse_cond(i)?,
                         span: rhs_span,
                     };
                 }
                 Ok(expr)
             }),
         )
+            .with_span()
             .parse_next(i)?;
         let contains_bool_lit_or_is_defined = expr.contains_bool_lit_or_is_defined();
         Ok(Self {
             target,
             expr,
             contains_bool_lit_or_is_defined,
+            span: span.into(),
         })
     }
 }
@@ -661,7 +666,7 @@ pub struct Macro<'a> {
 #[derive(Debug, PartialEq)]
 pub struct MacroArg<'a> {
     pub name: WithSpan<&'a str>,
-    pub ty: Option<WithSpan<TyGenerics<'a>>>,
+    pub ty: Option<TyGenerics<'a>>,
     pub default: Option<Box<Expr<'a>>>,
 }
 
@@ -953,7 +958,7 @@ impl<'a: 'l, 'l> Call<'a> {
             caller_args: call_args.unwrap_or_default(),
             scope,
             name: WithSpan::new(name, name_span),
-            args: args.map(|args| args.deconstruct().0),
+            args: args.map(|(args, _)| args),
             nodes,
             ws2: Ws(pws2, nws2),
             span: keyword_span,
@@ -1265,7 +1270,7 @@ pub enum LetValueOrBlock<'a> {
 pub struct Let<'a> {
     pub ws: Ws,
     pub var: Target<'a>,
-    pub ty: Option<WithSpan<TyGenerics<'a>>>,
+    pub ty: Option<TyGenerics<'a>>,
     pub val: LetValueOrBlock<'a>,
     pub is_mutable: bool,
     pub span: Span,
@@ -1443,7 +1448,7 @@ impl<'a: 'l, 'l> Let<'a> {
 
 #[derive(Debug, PartialEq)]
 pub struct Compound<'a> {
-    pub op: WithSpan<BinOp<'a>>,
+    pub op: BinOp<'a>,
     pub ws: Ws,
     pub span: Span,
 }
@@ -1481,7 +1486,7 @@ impl<'a: 'l, 'l> Compound<'a> {
 
         Ok(Box::new(Node::Compound(Compound {
             ws: Ws(pws, nws),
-            op: WithSpan::new(BinOp { op, lhs, rhs }, span.clone()),
+            op: BinOp { op, lhs, rhs },
             span: span.into(),
         })))
     }

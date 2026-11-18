@@ -177,7 +177,7 @@ fn err_reserved_identifier<'a, T>(name: &WithSpan<&str>) -> ParseResult<'a, T> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PathComponent<'a> {
     pub name: WithSpan<&'a str>,
-    pub generics: Option<WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+    pub generics: Option<TyGenericArgs<'a>>,
 }
 
 impl<'a: 'l, 'l> PathComponent<'a> {
@@ -323,7 +323,7 @@ pub enum Expr<'a> {
     },
     /// If you have `&& let Some(y)`, this variant handles it.
     LetCond {
-        cond: WithSpan<CondTest<'a>>,
+        cond: CondTest<'a>,
         span: Span,
     },
     /// This variant should never be used directly.
@@ -334,7 +334,7 @@ pub enum Expr<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct Call<'a> {
     pub path: Box<Expr<'a>>,
-    pub generics: Option<WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+    pub generics: Option<TyGenericArgs<'a>>,
     pub args: Vec<Box<Expr<'a>>>,
 }
 
@@ -395,7 +395,7 @@ impl<'a: 'l, 'l> Expr<'a> {
 
     pub(super) fn arguments(
         i: &mut InputStream<'a, 'l>,
-    ) -> ParseResult<'a, WithSpan<Vec<Box<Self>>>> {
+    ) -> ParseResult<'a, (Vec<Box<Self>>, Span)> {
         fn comma<'a: 'l, 'l>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, ()> {
             (ws(','), no_comma).void().parse_next(i)
         }
@@ -444,7 +444,7 @@ impl<'a: 'l, 'l> Expr<'a> {
         if closed.is_none() {
             cut_error!("matching closing `)` is missing", span)
         } else {
-            Ok(WithSpan::new(args.unwrap_or_default(), span))
+            Ok((args.unwrap_or_default(), span.into()))
         }
     }
 
@@ -1107,7 +1107,7 @@ impl<'a: 'l, 'l> Filter<'a> {
         let (name, arguments) = p.parse_next(i)?;
         Ok(Self {
             name,
-            arguments: arguments.map_or_else(Vec::new, |arguments| arguments.inner),
+            arguments: arguments.map_or_else(Vec::new, |(arguments, _)| arguments),
         })
     }
 }
@@ -1115,7 +1115,7 @@ impl<'a: 'l, 'l> Filter<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct AssociatedItem<'a> {
     pub name: WithSpan<&'a str>,
-    pub generics: Option<WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+    pub generics: Option<TyGenericArgs<'a>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1128,7 +1128,7 @@ enum Suffix<'a> {
     AssociatedItem(AssociatedItem<'a>),
     Index(Box<Expr<'a>>),
     Call {
-        generics: Option<WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+        generics: Option<TyGenericArgs<'a>>,
         args: Vec<Box<Expr<'a>>>,
     },
     Struct {
@@ -1167,7 +1167,7 @@ impl<'a: 'l, 'l> Suffix<'a> {
             && let Some(suffix) = right.parse_next(i)?
         {
             level_guard.nest(i)?;
-            let (suffix, span) = suffix.deconstruct();
+            let (suffix, span) = suffix;
             expr = Box::new(match suffix {
                 Self::AssociatedItem(associated_item) => Expr::AssociatedItem {
                     parent_item: expr,
@@ -1244,7 +1244,7 @@ impl<'a: 'l, 'l> Suffix<'a> {
         Ok(expr)
     }
 
-    fn r#macro(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+    fn r#macro(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, (Self, Span)> {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         enum Token {
             SomeOther,
@@ -1626,10 +1626,10 @@ impl<'a: 'l, 'l> Suffix<'a> {
 
         let (span, open_token) = (ws('!'.span()), open).parse_next(i)?;
         let inner = (|i: &mut _| macro_arguments(i, open_token)).parse_next(i)?;
-        Ok(WithSpan::new(inner, span))
+        Ok((inner, span.into()))
     }
 
-    fn associated_item(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+    fn associated_item(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, (Self, Span)> {
         let mut p = (
             ws(terminated('.'.span(), not('.'))),
             cut_err((
@@ -1647,13 +1647,13 @@ impl<'a: 'l, 'l> Suffix<'a> {
             )),
         );
         let (span, (name, generics)) = p.parse_next(i)?;
-        Ok(WithSpan::new(
+        Ok((
             Self::AssociatedItem(AssociatedItem { name, generics }),
-            span,
+            span.into(),
         ))
     }
 
-    fn index(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+    fn index(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, (Self, Span)> {
         let mut p = (
             ws('['.span()),
             cut_err((ws(move |i: &mut _| Expr::parse(i, true)), opt(']'))),
@@ -1662,22 +1662,21 @@ impl<'a: 'l, 'l> Suffix<'a> {
         if closed.is_none() {
             return cut_error!("matching closing `]` is missing", span);
         }
-        Ok(WithSpan::new(Self::Index(expr), span))
+        Ok((Self::Index(expr), span.into()))
     }
 
-    fn call(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+    fn call(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, (Self, Span)> {
         let mut p = (opt(call_generics), Expr::arguments);
-        let (generics, args) = p.parse_next(i)?;
-        let (args, span) = args.deconstruct();
-        Ok(WithSpan::new(Self::Call { generics, args }, span))
+        let (generics, (args, span)) = p.parse_next(i)?;
+        Ok((Self::Call { generics, args }, span))
     }
 
-    fn r#try(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+    fn r#try(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, (Self, Span)> {
         let span = preceded(skip_ws0, '?'.span()).parse_next(i)?;
-        Ok(WithSpan::new(Self::Try, span))
+        Ok((Self::Try, span.into()))
     }
 
-    fn r#struct(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
+    fn r#struct(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, (Self, Span)> {
         let span = ws('{'.span()).parse_next(i)?;
         let _level_guard = i.state.level.nest(i)?;
         let mut p = (
@@ -1735,7 +1734,7 @@ impl<'a: 'l, 'l> Suffix<'a> {
             }
         }
 
-        Ok(WithSpan::new(Self::Struct { fields, base }, span))
+        Ok((Self::Struct { fields, base }, span.into()))
     }
 
     fn struct_base(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Field<'a>> {
@@ -1796,29 +1795,33 @@ fn ensure_macro_name<'a>(name: &WithSpan<&'a str>) -> ParseResult<'a, ()> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct TyGenerics<'a> {
     pub refs: usize,
-    pub kind: WithSpan<TyGenericsKind<'a>>,
+    pub kind: TyGenericsKind<'a>,
+    pub span: Span,
+}
+
+/// Generic arguments like the `<u32, &str>` in `x::<u32, &str>()`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TyGenericArgs<'a> {
+    pub args: Vec<TyGenerics<'a>>,
+    /// The span of the `<`.
+    pub span: Span,
 }
 
 impl<'a: 'l, 'l> TyGenerics<'a> {
-    pub(crate) fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, WithSpan<Self>> {
-        let p = ws((repeat(0.., ws('&')), TyGenericsKind::parse.with_span()));
-        let ((refs, (kind, kind_span)), span) = p.with_span().parse_next(i)?;
+    pub(crate) fn parse(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Self> {
+        let p = ws((repeat(0.., ws('&')), TyGenericsKind::parse));
+        let ((refs, kind), span) = p.with_span().parse_next(i)?;
         if refs > MAX_REFS {
             return cut_error!(format!("too many references (> {MAX_REFS})"), span);
         }
-
-        Ok(WithSpan::new(
-            TyGenerics {
-                refs,
-                kind: WithSpan::new(kind, kind_span),
-            },
-            span,
-        ))
+        Ok(TyGenerics {
+            refs,
+            kind,
+            span: span.into(),
+        })
     }
 
-    fn args(
-        i: &mut InputStream<'a, 'l>,
-    ) -> ParseResult<'a, WithSpan<Vec<WithSpan<TyGenerics<'a>>>>> {
+    fn args(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, TyGenericArgs<'a>> {
         let mut p = cut_err(terminated(
             opt(terminated(
                 separated(1.., TyGenerics::parse, ws(',')),
@@ -1830,7 +1833,10 @@ impl<'a: 'l, 'l> TyGenerics<'a> {
         let span = ws('<'.span()).parse_next(i)?;
         let _level_guard = i.state.level.nest(i)?;
         let args = p.parse_next(i)?;
-        Ok(WithSpan::new(args.unwrap_or_default(), span))
+        Ok(TyGenericArgs {
+            args: args.unwrap_or_default(),
+            span: span.into(),
+        })
     }
 }
 
@@ -1838,11 +1844,11 @@ impl<'a: 'l, 'l> TyGenerics<'a> {
 pub enum TyGenericsKind<'a> {
     Path {
         path: Vec<WithSpan<&'a str>>,
-        args: Option<WithSpan<Vec<WithSpan<TyGenerics<'a>>>>>,
+        args: Option<TyGenericArgs<'a>>,
     },
-    Tuple(Vec<WithSpan<TyGenerics<'a>>>),
+    Tuple(Vec<TyGenerics<'a>>),
     Array {
-        ty: Box<WithSpan<TyGenerics<'a>>>,
+        ty: Box<TyGenerics<'a>>,
         nb_elems: Option<&'a str>,
     },
 }
@@ -1941,7 +1947,7 @@ impl<'a: 'l, 'l> TyGenericsKind<'a> {
 
 pub(crate) fn call_generics<'a: 'l, 'l>(
     i: &mut InputStream<'a, 'l>,
-) -> ParseResult<'a, WithSpan<Vec<WithSpan<TyGenerics<'a>>>>> {
+) -> ParseResult<'a, TyGenericArgs<'a>> {
     preceded(ws("::"), cut_err(TyGenerics::args)).parse_next(i)
 }
 
