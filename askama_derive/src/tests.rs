@@ -257,8 +257,8 @@ fn check_if_let_chain() {
             && bla == "x"
             && let Some(blob) = z
             && blob == "z" %}{{bla}} {{blob}}{% endif %}"#,
-        r#"if let Some(bla) = &self.y && askama::helpers::as_bool(&(bla == "x"))
-             && let Some(blob) = &self.z && askama::helpers::as_bool(&(blob == "z"))
+        r#"if let Some(bla) = &self.y && (bla == "x")
+             && let Some(blob) = &self.z && (blob == "z")
 {
     match (
         &((&&askama::filters::AutoEscaper::new(&(bla), askama::filters::Text))
@@ -287,7 +287,7 @@ fn check_if_let_chain() {
             && z == "z" %}{{y}} {{z}}{% endif %}"#,
         r#"if let Some(y) = &self.y && self.y == "x"
     && askama::helpers::as_bool(&(self.w)) && let Some(z) = &self.z
-    && askama::helpers::as_bool(&(z == "z"))
+    && (z == "z")
 {
     match (
         &((&&askama::filters::AutoEscaper::new(&(y), askama::filters::Text))
@@ -314,7 +314,7 @@ fn check_if_let_chain() {
             && z == "z" %}{{y}} {{z}}{% endif %}"#,
         r#"if askama::helpers::as_bool(&(self.w)) && let Some(y) = &self.y
     && self.y == "x" && let Some(z) = &self.z
-    && askama::helpers::as_bool(&(z == "z"))
+    && (z == "z")
 {
     match (
         &((&&askama::filters::AutoEscaper::new(&(y), askama::filters::Text))
@@ -459,7 +459,7 @@ __askama_writer.write_str("bla")?;"#,
         "{% if x == 12 %}bli
          {%- else if x is defined %}12
          {%- else %}nope{% endif %}",
-        r#"if askama::helpers::as_bool(&(self.x == 12)) {
+        r#"if (self.x == 12) {
 __askama_writer.write_str("bli")?;
 } else {
 __askama_writer.write_str("12")?;
@@ -472,7 +472,7 @@ __askama_writer.write_str("12")?;
     // are present.
     compare(
         "{% if y is defined || x == 12 %}{{x}}{% endif %}",
-        r"if askama::helpers::as_bool(&(self.x == 12)) {
+        r"if (self.x == 12) {
     match (
         &((&&askama::filters::AutoEscaper::new(&(self.x), askama::filters::Text)).askama_auto_escape()?),
     ) {
@@ -513,7 +513,7 @@ __askama_writer.write_str("12")?;
     compare(
         "{% if y is defined && y == 12 %}{{y}}{% else %}bli{% endif %}",
         r#"
-if askama::helpers::as_bool(&(self.y == 12)) {
+if (self.y == 12) {
     match (
         &((&&askama::filters::AutoEscaper::new(
             &(self.y),
@@ -673,7 +673,7 @@ fn check_bool_conditions() {
     );
     compare(
         "{% if false || x == 12 %}{{x}}{% endif %}",
-        r"if askama::helpers::as_bool(&(self.x == 12)) {
+        r"if (self.x == 12) {
     match (
         &((&&askama::filters::AutoEscaper::new(
             &(self.x),
@@ -697,7 +697,7 @@ fn check_bool_conditions() {
     // condition.
     compare(
         "{% if y == 3 || (true || x == 12) %}{{x}}{% endif %}",
-        r"if askama::helpers::as_bool(&(self.y == 3)) || true {
+        r"if (self.y == 3) || true {
     match (
         &((&&askama::filters::AutoEscaper::new(
             &(self.x),
@@ -736,8 +736,8 @@ fn check_bool_conditions() {
     compare(
         "{% if y == 3 || (x == 12 || true) %}{{x}}{% endif %}",
         r"
-if askama::helpers::as_bool(&(self.y == 3))
-    || (askama::helpers::as_bool(&(self.x == 12)) || true)
+if (self.y == 3)
+    || ((self.x == 12) || true)
 {
     match (
         &((&&askama::filters::AutoEscaper::new(

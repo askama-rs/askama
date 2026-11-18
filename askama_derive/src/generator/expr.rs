@@ -202,6 +202,17 @@ impl<'a> Generator<'a, '_> {
             Expr::BoolLit { .. } | Expr::IsDefined { .. } | Expr::IsNotDefined { .. } => {
                 self.visit_expr(ctx, buf, expr)?;
             }
+            // `PartialEq` and `PartialOrd` always return a `bool`, so `as_bool()` would be a no-op.
+            // The parentheses stay: `if x == Foo { .. } {` would not parse.
+            Expr::BinOp { inner, .. }
+                if matches!(inner.op, "==" | "!=" | "<" | "<=" | ">" | ">=") =>
+            {
+                let mut tmp = Buffer::new();
+                self.visit_expr(ctx, &mut tmp, expr)?;
+                let tmp = tmp.into_token_stream();
+                let span = ctx.span_for_node(expr.span());
+                quote_into!(buf, span, { (#tmp) });
+            }
             Expr::Unary {
                 operator: "!",
                 expr,
