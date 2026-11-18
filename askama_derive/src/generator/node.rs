@@ -855,14 +855,7 @@ impl<'a> Generator<'a, '_> {
         let filter_buf = filter_buf.into_token_stream();
         let filter_buf = match display_wrap {
             DisplayWrap::Wrapped => filter_buf,
-            DisplayWrap::Unwrapped => {
-                let escaper = TokenStream::from_str(self.input.escaper).unwrap();
-                quote_spanned!(span=>
-                    (&&askama::filters::AutoEscaper::new(
-                        &(#filter_buf), #escaper
-                    )).askama_auto_escape()?
-                )
-            }
+            DisplayWrap::Unwrapped => self.auto_escape(filter_buf, span),
         };
         let var_values = crate::var_values();
         quote_into!(buf, span, { {
@@ -1149,12 +1142,6 @@ impl<'a> Generator<'a, '_> {
         let mut filter_buf = Buffer::new();
         quote_into!(&mut filter_buf, span, { askama::filters::Safe(&#var_let_source) });
         let filter_buf = filter_buf.into_token_stream();
-        let escaper = TokenStream::from_str(self.input.escaper).unwrap();
-        let filter_buf = quote_spanned!(span=>
-            (&&askama::filters::AutoEscaper::new(
-                &(#filter_buf), #escaper
-            )).askama_auto_escape()?
-        );
         let var_values = crate::var_values();
         quote_into!(buf, span, { {
             #filter_def_buf
@@ -1231,12 +1218,6 @@ impl<'a> Generator<'a, '_> {
         let mut filter_buf = Buffer::new();
         quote_into!(&mut filter_buf, span, { askama::filters::Safe(&#var_let_caller) });
         let filter_buf = filter_buf.into_token_stream();
-        let escaper = TokenStream::from_str(self.input.escaper).unwrap();
-        let filter_buf = quote_spanned!(span=>
-            (&&askama::filters::AutoEscaper::new(
-                &(#filter_buf), #escaper
-            )).askama_auto_escape()?
-        );
         let var_values = crate::var_values();
         quote_into!(buf, span, { {
             #filter_def_buf
@@ -1685,6 +1666,18 @@ impl<'a> Generator<'a, '_> {
     }
 
     // Write expression buffer and empty
+    /// Passes `expr` through the template's escaper. `Text` would only add a writer that
+    /// forwards everything unchanged, so its input is written as is.
+    fn auto_escape(&self, expr: TokenStream, span: proc_macro2::Span) -> TokenStream {
+        if self.input.escaper == "askama::filters::Text" {
+            return expr;
+        }
+        let escaper = TokenStream::from_str(self.input.escaper).unwrap();
+        quote_spanned!(span=>
+            (&&askama::filters::AutoEscaper::new(&(#expr), #escaper)).askama_auto_escape()?
+        )
+    }
+
     pub(crate) fn write_buf_writable(
         &mut self,
         ctx: &Context<'_>,
@@ -1754,12 +1747,7 @@ impl<'a> Generator<'a, '_> {
                     let expr = match self.visit_expr(ctx, &mut expr_buf, s)? {
                         DisplayWrap::Wrapped => expr_buf.into_token_stream(),
                         DisplayWrap::Unwrapped => {
-                            let escaper = TokenStream::from_str(self.input.escaper).unwrap();
-                            let expr_buf = expr_buf.into_token_stream();
-                            quote_spanned!(span=>
-                                (&&askama::filters::AutoEscaper::new(&(#expr_buf), #escaper)).
-                                    askama_auto_escape()?
-                            )
+                            self.auto_escape(expr_buf.into_token_stream(), span)
                         }
                     };
 
