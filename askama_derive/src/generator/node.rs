@@ -686,9 +686,17 @@ impl<'a> Generator<'a, '_> {
                 this.handle_ws(loop_block.ws2);
                 size_hint1 += this.write_buf_writable(ctx, &mut loop_body_buf)?;
                 let loop_body_buf = loop_body_buf.into_token_stream();
-                if uses_ident(&loop_body_buf, &var_item) {
+                let loop_use = loop_item_use(&loop_body_buf, &var_item);
+                if loop_use == LoopItemUse::Any {
                     quote_into!(&mut loop_buf, span, {
                         for (#target_buf, #var_item) in askama::helpers::TemplateLoop::new(#var_iter) {
+                            #loop_body_buf
+                        }
+                    });
+                } else if loop_use == LoopItemUse::Index {
+                    // Only `loop.last` needs `TemplateLoop`'s look-ahead.
+                    quote_into!(&mut loop_buf, span, {
+                        for (#target_buf, #var_item) in askama::helpers::TemplateLoopIndex::new(#var_iter) {
                             #loop_body_buf
                         }
                     });
@@ -2112,13 +2120,35 @@ fn is_cacheable(expr: &Expr<'_>) -> bool {
     }
 }
 
-/// Whether `ident` occurs anywhere in `tokens`, e.g. if a loop body reads `loop.*`.
-fn uses_ident(tokens: &TokenStream, ident: &proc_macro2::Ident) -> bool {
-    tokens.clone().into_iter().any(|token| match token {
-        proc_macro2::TokenTree::Ident(i) => i == *ident,
-        proc_macro2::TokenTree::Group(g) => uses_ident(&g.stream(), ident),
-        _ => false,
-    })
+/// What a loop body reads of its loop item `ident`, i.e. of `loop.*`.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum LoopItemUse {
+    None,
+    /// Only `index0`, which `loop.index`, `loop.first` and `loop.cycle()` are built on.
+    Index,
+    Any,
+}
+
+fn loop_item_use(tokens: &TokenStream, ident: &proc_macro2::Ident) -> LoopItemUse {
+    let mut found = LoopItemUse::None;
+    let mut tokens = tokens.clone().into_iter().peekable();
+    while let Some(token) = tokens.next() {
+        let this = match token {
+            proc_macro2::TokenTree::Ident(i) if i == *ident => {
+                let dot = matches!(tokens.next(), Some(proc_macro2::TokenTree::Punct(p)) if p.as_char() == '.');
+                match tokens.peek() {
+                    Some(proc_macro2::TokenTree::Ident(f)) if dot && f == "index0" => {
+                        LoopItemUse::Index
+                    }
+                    _ => LoopItemUse::Any,
+                }
+            }
+            proc_macro2::TokenTree::Group(g) => loop_item_use(&g.stream(), ident),
+            _ => LoopItemUse::None,
+        };
+        found = found.max(this);
+    }
+    found
 }
 
 fn check_num_args<'a>(

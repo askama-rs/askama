@@ -1622,3 +1622,25 @@ fn test_loop_keeps_template_loop_only_when_used() {
         7,
     );
 }
+
+#[test]
+fn test_loop_without_last_skips_look_ahead() {
+    compare(
+        "{% for a in v %}{% if loop.first %}{{ a }}{% endif %}{% endfor %}",
+        r#"
+            let __askama_iter = (&self.v).into_iter();
+            for (a, __askama_item) in askama::helpers::TemplateLoopIndex::new(__askama_iter) {
+                if askama::helpers::as_bool(&((__askama_item.index0 == 0))) {
+                    match (&(a),) {
+                        (__askama_expr0,) => {
+                            (&&&askama::filters::Writable(__askama_expr0))
+                                .askama_write(__askama_writer, __askama_values)?;
+                        }
+                    }
+                }
+            }
+        "#,
+        &[("v", "Vec<u32>")],
+        4,
+    );
+}

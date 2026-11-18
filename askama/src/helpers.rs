@@ -61,6 +61,32 @@ pub struct LoopItem {
     pub last: bool,
 }
 
+/// [`TemplateLoop`] without the look-ahead, for loops that never read `loop.last`.
+pub struct TemplateLoopIndex<I>(Enumerate<I>);
+
+impl<I: Iterator> TemplateLoopIndex<I> {
+    #[inline]
+    pub fn new(iter: I) -> Self {
+        Self(iter.enumerate())
+    }
+}
+
+impl<I: Iterator> Iterator for TemplateLoopIndex<I> {
+    type Item = (I::Item, LoopIndex);
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0
+            .next()
+            .map(|(index0, item)| (item, LoopIndex { index0 }))
+    }
+}
+
+#[derive(Copy, Clone)]
+pub struct LoopIndex {
+    pub index0: usize,
+}
+
 pub struct FmtCell<F> {
     func: Cell<Option<F>>,
     err: Cell<Option<crate::Error>>,
