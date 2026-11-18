@@ -686,11 +686,20 @@ impl<'a> Generator<'a, '_> {
                 this.handle_ws(loop_block.ws2);
                 size_hint1 += this.write_buf_writable(ctx, &mut loop_body_buf)?;
                 let loop_body_buf = loop_body_buf.into_token_stream();
-                quote_into!(&mut loop_buf, span, {
-                    for (#target_buf, #var_item) in askama::helpers::TemplateLoop::new(#var_iter) {
-                        #loop_body_buf
-                    }
-                });
+                if uses_ident(&loop_body_buf, &var_item) {
+                    quote_into!(&mut loop_buf, span, {
+                        for (#target_buf, #var_item) in askama::helpers::TemplateLoop::new(#var_iter) {
+                            #loop_body_buf
+                        }
+                    });
+                } else {
+                    // Without `loop.*`, `TemplateLoop`'s counter and look-ahead would be dead weight.
+                    quote_into!(&mut loop_buf, span, {
+                        for #target_buf in #var_iter {
+                            #loop_body_buf
+                        }
+                    });
+                }
                 Ok(size_hint1)
             })?;
 
@@ -2113,6 +2122,15 @@ fn is_cacheable(expr: &Expr<'_>) -> bool {
         Expr::FilterSource(_) => unreachable!("FilterSource in expression?"),
         Expr::ArgumentPlaceholder(_) => unreachable!("ExpressionPlaceholder in expression?"),
     }
+}
+
+/// Whether `ident` occurs anywhere in `tokens`, e.g. if a loop body reads `loop.*`.
+fn uses_ident(tokens: &TokenStream, ident: &proc_macro2::Ident) -> bool {
+    tokens.clone().into_iter().any(|token| match token {
+        proc_macro2::TokenTree::Ident(i) => i == *ident,
+        proc_macro2::TokenTree::Group(g) => uses_ident(&g.stream(), ident),
+        _ => false,
+    })
 }
 
 fn check_num_args<'a>(

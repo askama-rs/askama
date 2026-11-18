@@ -131,3 +131,21 @@ fn test_struct_expressions_generic() {
     let template = OuterTemplate;
     assert_eq!(template.render().unwrap(), "84!");
 }
+
+#[test]
+fn test_struct_expressions_in_comparison() {
+    #[derive(PartialEq, PartialOrd)]
+    struct Point {
+        x: u32,
+    }
+
+    #[derive(Template)]
+    #[template(
+        source = r#"{% if p == Point { x: 1 } %}eq{% endif %}{% if Point { x: 2 } > p && !(p != Point { x: 1 }) %}gt{% endif %}"#,
+        ext = "txt"
+    )]
+    struct Cmp {
+        p: Point,
+    }
+    assert_eq!(Cmp { p: Point { x: 1 } }.render().unwrap(), "eqgt");
+}

@@ -257,8 +257,8 @@ fn check_if_let_chain() {
             && bla == "x"
             && let Some(blob) = z
             && blob == "z" %}{{bla}} {{blob}}{% endif %}"#,
-        r#"if let Some(bla) = &self.y && askama::helpers::as_bool(&(bla == "x"))
-             && let Some(blob) = &self.z && askama::helpers::as_bool(&(blob == "z"))
+        r#"if let Some(bla) = &self.y && (bla == "x")
+             && let Some(blob) = &self.z && (blob == "z")
 {
     match (
         &((&&askama::filters::AutoEscaper::new(&(bla), askama::filters::Text))
@@ -287,7 +287,7 @@ fn check_if_let_chain() {
             && z == "z" %}{{y}} {{z}}{% endif %}"#,
         r#"if let Some(y) = &self.y && self.y == "x"
     && askama::helpers::as_bool(&(self.w)) && let Some(z) = &self.z
-    && askama::helpers::as_bool(&(z == "z"))
+    && (z == "z")
 {
     match (
         &((&&askama::filters::AutoEscaper::new(&(y), askama::filters::Text))
@@ -314,7 +314,7 @@ fn check_if_let_chain() {
             && z == "z" %}{{y}} {{z}}{% endif %}"#,
         r#"if askama::helpers::as_bool(&(self.w)) && let Some(y) = &self.y
     && self.y == "x" && let Some(z) = &self.z
-    && askama::helpers::as_bool(&(z == "z"))
+    && (z == "z")
 {
     match (
         &((&&askama::filters::AutoEscaper::new(&(y), askama::filters::Text))
@@ -459,7 +459,7 @@ __askama_writer.write_str("bla")?;"#,
         "{% if x == 12 %}bli
          {%- else if x is defined %}12
          {%- else %}nope{% endif %}",
-        r#"if askama::helpers::as_bool(&(self.x == 12)) {
+        r#"if (self.x == 12) {
 __askama_writer.write_str("bli")?;
 } else {
 __askama_writer.write_str("12")?;
@@ -472,7 +472,7 @@ __askama_writer.write_str("12")?;
     // are present.
     compare(
         "{% if y is defined || x == 12 %}{{x}}{% endif %}",
-        r"if askama::helpers::as_bool(&(self.x == 12)) {
+        r"if (self.x == 12) {
     match (
         &((&&askama::filters::AutoEscaper::new(&(self.x), askama::filters::Text)).askama_auto_escape()?),
     ) {
@@ -513,7 +513,7 @@ __askama_writer.write_str("12")?;
     compare(
         "{% if y is defined && y == 12 %}{{y}}{% else %}bli{% endif %}",
         r#"
-if askama::helpers::as_bool(&(self.y == 12)) {
+if (self.y == 12) {
     match (
         &((&&askama::filters::AutoEscaper::new(
             &(self.y),
@@ -673,7 +673,7 @@ fn check_bool_conditions() {
     );
     compare(
         "{% if false || x == 12 %}{{x}}{% endif %}",
-        r"if askama::helpers::as_bool(&(self.x == 12)) {
+        r"if (self.x == 12) {
     match (
         &((&&askama::filters::AutoEscaper::new(
             &(self.x),
@@ -697,7 +697,7 @@ fn check_bool_conditions() {
     // condition.
     compare(
         "{% if y == 3 || (true || x == 12) %}{{x}}{% endif %}",
-        r"if askama::helpers::as_bool(&(self.y == 3)) || true {
+        r"if (self.y == 3) || true {
     match (
         &((&&askama::filters::AutoEscaper::new(
             &(self.x),
@@ -736,8 +736,8 @@ fn check_bool_conditions() {
     compare(
         "{% if y == 3 || (x == 12 || true) %}{{x}}{% endif %}",
         r"
-if askama::helpers::as_bool(&(self.y == 3))
-    || (askama::helpers::as_bool(&(self.x == 12)) || true)
+if (self.y == 3)
+    || ((self.x == 12) || true)
 {
     match (
         &((&&askama::filters::AutoEscaper::new(
@@ -1568,7 +1568,7 @@ fn test_compound_assignment() {
         let expected = r#"
             let mut prefixsum = 0;
             let __askama_iter = 0..self.limit;
-            for (i, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
+            for i in __askama_iter {
                 prefixsum @= i;
                 match (
                     &((&&askama::filters::AutoEscaper::new(&(prefixsum), askama::filters::Text))
@@ -1649,7 +1649,7 @@ fn check_size_hint() {
         r#"{% for _ in .. %} Hello {% break %} {% endfor %}"#,
         r#"
             let __askama_iter = ..;
-            for (_, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
+            for _ in __askama_iter {
                 __askama_writer.write_str(" Hello ")?;
                 break;
                 __askama_writer.write_str(" ")?;
@@ -1662,7 +1662,7 @@ fn check_size_hint() {
         r#"{% for _ in .. %} Hello {% continue %} {% endfor %}"#,
         r#"
             let __askama_iter = ..;
-            for (_, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
+            for _ in __askama_iter {
                 __askama_writer.write_str(" Hello ")?;
                 continue;
                 __askama_writer.write_str(" ")?;
@@ -1670,5 +1670,35 @@ fn check_size_hint() {
         "#,
         &[],
         12,
+    );
+}
+
+#[test]
+fn test_loop_keeps_template_loop_only_when_used() {
+    // The outer loop reads `loop.last` and keeps `TemplateLoop`, the inner one becomes a plain `for`.
+    compare(
+        "{% for a in v %}{% for b in a %}{{ b }}{% endfor %}{% if !loop.last %},{% endif %}{% endfor %}",
+        r#"
+            let __askama_iter = (&self.v).into_iter();
+            for (a, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
+                let __askama_iter = (a).into_iter();
+                for b in __askama_iter {
+                    match (
+                        &((&&askama::filters::AutoEscaper::new(&(b), askama::filters::Text))
+                            .askama_auto_escape()?),
+                    ) {
+                        (__askama_expr0,) => {
+                            (&&&askama::filters::Writable(__askama_expr0))
+                                .askama_write(__askama_writer, __askama_values)?;
+                        }
+                    }
+                }
+                if !askama::helpers::as_bool(&(__askama_item.last)) {
+                    __askama_writer.write_str(",")?;
+                }
+            }
+        "#,
+        &[("v", "Vec<Vec<u32>>")],
+        7,
     );
 }
