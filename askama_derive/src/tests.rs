@@ -1568,7 +1568,7 @@ fn test_compound_assignment() {
         let expected = r#"
             let mut prefixsum = 0;
             let __askama_iter = 0..self.limit;
-            for (i, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
+            for i in __askama_iter {
                 prefixsum @= i;
                 match (
                     &((&&askama::filters::AutoEscaper::new(&(prefixsum), askama::filters::Text))
@@ -1649,7 +1649,7 @@ fn check_size_hint() {
         r#"{% for _ in .. %} Hello {% break %} {% endfor %}"#,
         r#"
             let __askama_iter = ..;
-            for (_, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
+            for _ in __askama_iter {
                 __askama_writer.write_str(" Hello ")?;
                 break;
                 __askama_writer.write_str(" ")?;
@@ -1662,7 +1662,7 @@ fn check_size_hint() {
         r#"{% for _ in .. %} Hello {% continue %} {% endfor %}"#,
         r#"
             let __askama_iter = ..;
-            for (_, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
+            for _ in __askama_iter {
                 __askama_writer.write_str(" Hello ")?;
                 continue;
                 __askama_writer.write_str(" ")?;
@@ -1670,5 +1670,35 @@ fn check_size_hint() {
         "#,
         &[],
         12,
+    );
+}
+
+#[test]
+fn test_loop_keeps_template_loop_only_when_used() {
+    // The outer loop reads `loop.last` and keeps `TemplateLoop`, the inner one becomes a plain `for`.
+    compare(
+        "{% for a in v %}{% for b in a %}{{ b }}{% endfor %}{% if !loop.last %},{% endif %}{% endfor %}",
+        r#"
+            let __askama_iter = (&self.v).into_iter();
+            for (a, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
+                let __askama_iter = (a).into_iter();
+                for b in __askama_iter {
+                    match (
+                        &((&&askama::filters::AutoEscaper::new(&(b), askama::filters::Text))
+                            .askama_auto_escape()?),
+                    ) {
+                        (__askama_expr0,) => {
+                            (&&&askama::filters::Writable(__askama_expr0))
+                                .askama_write(__askama_writer, __askama_values)?;
+                        }
+                    }
+                }
+                if !askama::helpers::as_bool(&(__askama_item.last)) {
+                    __askama_writer.write_str(",")?;
+                }
+            }
+        "#,
+        &[("v", "Vec<Vec<u32>>")],
+        7,
     );
 }
