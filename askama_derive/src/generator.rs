@@ -10,7 +10,7 @@ use std::str;
 use std::sync::Arc;
 
 use parser::node::{Call, Macro, Whitespace};
-use parser::{CharLit, Expr, FloatKind, IntKind, Num, StrLit, WithSpan};
+use parser::{CharLit, Expr, FloatKind, IntKind, Num, StrLit};
 use proc_macro2::{Span, TokenStream};
 use quote::{ToTokens, quote_spanned};
 use syn::Token;
@@ -111,7 +111,7 @@ struct Generator<'a, 'h> {
     /// Suffix whitespace from the previous literal. Will be flushed to the
     /// output buffer unless suppressed by whitespace suppression on the next
     /// non-literal.
-    next_ws: Option<WithSpan<&'a str>>,
+    next_ws: Option<(&'a str, parser::Span)>,
     /// Whitespace suppression from the previous non-literal. Will be used to
     /// determine whether to flush prefix whitespace from the next literal.
     skip_ws: Whitespace,
@@ -603,17 +603,18 @@ fn compile_time_escape<'a>(expr: &Expr<'a>, escaper: &str) -> Option<Writable<'a
     };
 
     // escape the un-string-escaped input using the selected escaper
-    Some(Writable::Lit(match output {
-        OutputKind::Text => WithSpan::new(value, expr.span()),
+    let (value, span) = match output {
+        OutputKind::Text => (value, expr.span()),
         OutputKind::Html => {
             let mut escaped = String::with_capacity(value.len() + 20);
             write_escaped_str(&mut escaped, &value).ok()?;
             match escaped == value {
-                true => WithSpan::new(value, expr.span()),
-                false => WithSpan::new(Cow::Owned(escaped), expr.span()),
+                true => (value, expr.span()),
+                false => (Cow::Owned(escaped), expr.span()),
             }
         }
-    }))
+    };
+    Some(Writable::Lit(value, span))
 }
 
 #[derive(Clone, Default, Debug)]
@@ -873,7 +874,7 @@ impl<'a> Deref for WritableBuffer<'a> {
 
 #[derive(Debug)]
 enum Writable<'a> {
-    Lit(WithSpan<Cow<'a, str>>),
+    Lit(Cow<'a, str>, parser::Span),
     Expr(&'a Expr<'a>),
 }
 

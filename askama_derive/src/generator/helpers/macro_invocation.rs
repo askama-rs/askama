@@ -5,7 +5,7 @@ use std::mem;
 use std::str::FromStr;
 
 use parser::node::{Call, Macro, Ws};
-use parser::{Expr, Span, TyGenerics, WithSpan};
+use parser::{Expr, Span, TyGenerics};
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
 
@@ -146,7 +146,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             self.write_preamble(&mut content, this)?;
             let mut args = Buffer::new();
             for arg in &self.macro_def.args {
-                let arg = field_new(&arg.name, span);
+                let arg = field_new(arg.name, span);
                 quote_into!(&mut args, span, { #arg, });
             }
             if let Some(call) = self.call {
@@ -210,7 +210,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                         self.callsite_span,
                     ));
                 };
-                named_arguments.insert(&**name, (index, arg));
+                named_arguments.insert(name, (index, arg));
             }
         }
         let mut used_args = vec![None; self.macro_def.args.len()];
@@ -221,7 +221,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             let (index, expr) = match &**call_arg {
                 Expr::NamedArgument { name, .. } => {
                     // We already looked for invalid named args when generating `named_arguments`.
-                    let Some((index, expr)) = named_arguments.get(&**name) else {
+                    let Some((index, expr)) = named_arguments.get(name) else {
                         unreachable!()
                     };
                     (*index, *expr)
@@ -235,11 +235,11 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         let mut args = ArgBindings::default();
         for (arg, expr) in self.macro_def.args.iter().zip(&used_args) {
             if let Some(expr) = expr {
-                let span = self.callsite_ctx.span_for_node(arg.name.span());
+                let span = self.callsite_ctx.span_for_node(arg.span);
                 args.add(
                     generator,
                     self.callsite_ctx,
-                    &arg.name,
+                    arg.name,
                     arg.ty.as_ref(),
                     expr,
                     span,
@@ -259,12 +259,12 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     self.callsite_span,
                 ));
             };
-            let span = self.callsite_ctx.span_for_node(arg.name.span());
+            let span = self.callsite_ctx.span_for_node(arg.span);
             let mut args = ArgBindings::default();
             args.add(
                 generator,
                 self.callsite_ctx,
-                &arg.name,
+                arg.name,
                 arg.ty.as_ref(),
                 default_value,
                 span,
@@ -333,10 +333,10 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         struct FmtMissing<'a, I> {
             count: usize,
             missing: I,
-            name: WithSpan<&'a str>,
+            name: &'a str,
         }
 
-        impl<'a, I: Iterator<Item = WithSpan<&'a str>> + Clone> fmt::Display for FmtMissing<'a, I> {
+        impl<'a, I: Iterator<Item = &'a str> + Clone> fmt::Display for FmtMissing<'a, I> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 let mut iter = self.missing.clone();
                 if self.count == 1 {
@@ -555,14 +555,14 @@ impl<'a> Generator<'a, '_> {
                 let Some(ty) = &arg.ty else {
                     unreachable!("checked by `why_not_a_function()`")
                 };
-                let name = field_new(&arg.name, span);
+                let name = field_new(arg.name, span);
                 let mut ty_buf = Buffer::new();
                 generator.visit_ty_generic(&macro_ctx, &mut ty_buf, ty, span);
                 let ty = ty_buf.into_token_stream();
                 quote_into!(&mut params, span, { #name: &#ty, });
                 generator
                     .locals
-                    .insert(Cow::Borrowed(*arg.name), LocalMeta::var_decl());
+                    .insert(Cow::Borrowed(arg.name), LocalMeta::var_decl());
             }
             if has_caller {
                 let var_caller = crate::var_caller();

@@ -11,10 +11,10 @@ mod target;
 #[cfg(test)]
 mod tests;
 
-use std::borrow::{Borrow, BorrowMut, Cow};
+use std::borrow::Cow;
 use std::cell::Cell;
 use std::env::current_dir;
-use std::ops::{Deref, DerefMut, Range};
+use std::ops::{Deref, Range};
 use std::path::Path;
 use std::sync::Arc;
 use std::{fmt, str};
@@ -148,14 +148,6 @@ impl<'a> Ast<'a> {
     }
 }
 
-#[derive(Clone, Copy)]
-/// Struct used to wrap types with their associated "span" which is used when generating errors
-/// in the code generation.
-pub struct WithSpan<T> {
-    inner: T,
-    span: Span,
-}
-
 /// A location in `&'a str`
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span {
@@ -268,135 +260,6 @@ impl Span {
 
     pub fn is_overlapping(&self, other: Span) -> bool {
         (self.start < other.end) & (other.start < self.end)
-    }
-}
-
-impl<T> WithSpan<T> {
-    #[inline]
-    #[track_caller]
-    pub fn new(inner: T, span: impl Into<Span>) -> Self {
-        Self {
-            inner,
-            span: span.into(),
-        }
-    }
-
-    #[inline]
-    pub const fn no_span(inner: T) -> Self {
-        Self {
-            inner,
-            span: Span::no_span(),
-        }
-    }
-
-    #[inline]
-    pub fn span(&self) -> Span {
-        self.span
-    }
-
-    #[inline]
-    pub fn deconstruct(self) -> (T, Span) {
-        let Self { inner, span } = self;
-        (inner, span)
-    }
-}
-
-impl WithSpan<&str> {
-    /// Returns an empty [`Span`] that points to the start of the contained string.
-    #[inline]
-    pub fn start(self) -> Self {
-        let (inner, span) = self.deconstruct();
-        Self::new(&inner[..0], span.start())
-    }
-
-    /// Returns an empty [`Span`] that points to the end of the contained string.
-    #[inline]
-    pub fn end(self) -> Self {
-        let (inner, span) = self.deconstruct();
-        Self::new(&inner[inner.len()..], span.end())
-    }
-
-    /// Splits `self` at `mid` into two spanned strings.
-    #[track_caller]
-    pub fn split_at(self, mid: usize) -> (Self, Self) {
-        let (inner, span) = self.deconstruct();
-        let (front, back) = inner.split_at(mid);
-        let (front_span, back_span) = span.split_at(mid);
-        (Self::new(front, front_span), Self::new(back, back_span))
-    }
-}
-
-impl<T> Deref for WithSpan<T> {
-    type Target = T;
-
-    #[inline]
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<T> DerefMut for WithSpan<T> {
-    #[inline]
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
-}
-
-impl<T: fmt::Debug> fmt::Debug for WithSpan<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.inner.fmt(f)
-    }
-}
-
-impl<T: PartialEq, R: AsRef<T>> PartialEq<R> for WithSpan<T> {
-    #[inline]
-    fn eq(&self, other: &R) -> bool {
-        // We never want to compare the span information.
-        self.inner == *other.as_ref()
-    }
-}
-
-impl<T: PartialOrd, R: AsRef<T>> PartialOrd<R> for WithSpan<T> {
-    #[inline]
-    fn partial_cmp(&self, other: &R) -> Option<std::cmp::Ordering> {
-        self.inner.partial_cmp(other.as_ref())
-    }
-}
-
-impl<T: Eq> Eq for WithSpan<T> {}
-
-impl<T: Ord> Ord for WithSpan<T> {
-    #[inline]
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.inner.cmp(&other.inner)
-    }
-}
-
-impl<T: std::hash::Hash> std::hash::Hash for WithSpan<T> {
-    #[inline]
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.inner.hash(state);
-    }
-}
-
-impl<T> AsRef<T> for WithSpan<T> {
-    #[inline]
-    fn as_ref(&self) -> &T {
-        &self.inner
-    }
-}
-
-impl<T> Borrow<T> for WithSpan<T> {
-    #[inline]
-    fn borrow(&self) -> &T {
-        &self.inner
-    }
-}
-
-impl<T> BorrowMut<T> for WithSpan<T> {
-    #[inline]
-    fn borrow_mut(&mut self) -> &mut T {
-        &mut self.inner
     }
 }
 
@@ -1017,7 +880,7 @@ impl<'a> Char<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PathOrIdentifier<'a> {
     Path(Vec<PathComponent<'a>>),
-    Identifier(WithSpan<&'a str>),
+    Identifier(&'a str, Span),
 }
 
 fn path_or_identifier<'a: 'l, 'l>(
@@ -1047,13 +910,14 @@ fn path_or_identifier<'a: 'l, 'l>(
                     .next()
                     .is_none_or(|c| c == '_' || c.is_lowercase()) =>
         {
-            Ok(PathOrIdentifier::Identifier(arg.name))
+            Ok(PathOrIdentifier::Identifier(arg.name, arg.span))
         }
         (root, start, tail) => {
             let mut path = if let Some(root) = root {
                 let mut path = Vec::with_capacity(2 + tail.len());
                 path.push(PathComponent {
-                    name: WithSpan::new("", root),
+                    name: "",
+                    span: root.into(),
                     generics: None,
                 });
                 path
