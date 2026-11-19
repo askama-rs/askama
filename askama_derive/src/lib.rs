@@ -79,12 +79,11 @@ macro_rules! make_derive_template {
         /// E.g. `path = "foo.html"`
         ///
         /// Sets the path to the template file.
-        /// The path is interpreted as relative to the configured template directories
-        /// (by default, this is a `templates` directory next to your `Cargo.toml`).
-        /// The file name extension is used to infer an escape mode (see below). In
-        /// web framework integrations, the path's extension may also be used to
-        /// infer the content type of the resulting response.
-        /// Cannot be used together with `source`.
+        /// The path is interpreted as relative to the configured template directories (by default,
+        /// this is a `templates` directory next to your `Cargo.toml` or the directory where
+        /// `Cargo.toml` is). The file name extension is used to infer an escape mode (see below).
+        /// In web framework integrations, the path's extension may also be used to infer the
+        /// content type of the resulting response. Cannot be used together with `source`.
         ///
         /// ### source
         ///
