@@ -5,7 +5,7 @@ use std::mem;
 use std::str::FromStr;
 
 use parser::node::{Call, Macro, Ws};
-use parser::{Expr, Span, TyGenerics, WithSpan};
+use parser::{Expr, Span, TyGenerics};
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
 
@@ -45,7 +45,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     if let Some(f) = f {
                         write!(message, "{f}").unwrap();
                     } else {
-                        write!(message, "\n`{}`", m.name.escape_debug()).unwrap();
+                        write!(message, "\n`{}`", m.ident.name.escape_debug()).unwrap();
                     }
                 }
                 return Err(self
@@ -110,7 +110,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                 "A macro can only call itself if all its arguments have a type, \
                  but argument `{}` of macro `{}` has none",
                 arg.name.escape_debug(),
-                self.macro_def.name.escape_debug(),
+                self.macro_def.ident.name.escape_debug(),
             ));
         }
         // The body is passed as a closure, whose parameters would need a type.
@@ -120,7 +120,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             return Some(format!(
                 "A macro can only call itself without `caller` arguments, \
                  but this call of macro `{}` has some",
-                self.macro_def.name.escape_debug(),
+                self.macro_def.ident.name.escape_debug(),
             ));
         }
         None
@@ -146,7 +146,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             self.write_preamble(&mut content, this)?;
             let mut args = Buffer::new();
             for arg in &self.macro_def.args {
-                let arg = field_new(&arg.name, span);
+                let arg = field_new(arg.name, span);
                 quote_into!(&mut args, span, { #arg, });
             }
             if let Some(call) = self.call {
@@ -205,12 +205,12 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                         format_args!(
                             "no argument named `{}` in macro `{}`",
                             name.escape_debug(),
-                            self.macro_def.name.escape_debug(),
+                            self.macro_def.ident.name.escape_debug(),
                         ),
                         self.callsite_span,
                     ));
                 };
-                named_arguments.insert(&**name, (index, arg));
+                named_arguments.insert(name, (index, arg));
             }
         }
         let mut used_args = vec![None; self.macro_def.args.len()];
@@ -221,7 +221,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             let (index, expr) = match &**call_arg {
                 Expr::NamedArgument { name, .. } => {
                     // We already looked for invalid named args when generating `named_arguments`.
-                    let Some((index, expr)) = named_arguments.get(&**name) else {
+                    let Some((index, expr)) = named_arguments.get(name) else {
                         unreachable!()
                     };
                     (*index, *expr)
@@ -235,11 +235,11 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         let mut args = ArgBindings::default();
         for (arg, expr) in self.macro_def.args.iter().zip(&used_args) {
             if let Some(expr) = expr {
-                let span = self.callsite_ctx.span_for_node(arg.name.span());
+                let span = self.callsite_ctx.span_for_node(arg.span);
                 args.add(
                     generator,
                     self.callsite_ctx,
-                    &arg.name,
+                    arg.name,
                     arg.ty.as_ref(),
                     expr,
                     span,
@@ -259,12 +259,12 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     self.callsite_span,
                 ));
             };
-            let span = self.callsite_ctx.span_for_node(arg.name.span());
+            let span = self.callsite_ctx.span_for_node(arg.span);
             let mut args = ArgBindings::default();
             args.add(
                 generator,
                 self.callsite_ctx,
-                &arg.name,
+                arg.name,
                 arg.ty.as_ref(),
                 default_value,
                 span,
@@ -280,7 +280,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             return Err(self.callsite_ctx.generate_error(
                 format_args!(
                     "macro `{}` expected {} argument{}, found {}",
-                    self.macro_def.name.escape_debug(),
+                    self.macro_def.ident.name.escape_debug(),
                     self.macro_def.args.len(),
                     if self.macro_def.args.len() > 1 {
                         "s"
@@ -315,7 +315,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     format_args!(
                         "argument `{}` was passed more than once when calling macro `{}`",
                         self.macro_def.args[pos].name.escape_debug(),
-                        self.macro_def.name.escape_debug(),
+                        self.macro_def.ident.name.escape_debug(),
                     ),
                     arg.span(),
                 ));
@@ -333,10 +333,10 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         struct FmtMissing<'a, I> {
             count: usize,
             missing: I,
-            name: WithSpan<&'a str>,
+            name: &'a str,
         }
 
-        impl<'a, I: Iterator<Item = WithSpan<&'a str>> + Clone> fmt::Display for FmtMissing<'a, I> {
+        impl<'a, I: Iterator<Item = &'a str> + Clone> fmt::Display for FmtMissing<'a, I> {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 let mut iter = self.missing.clone();
                 if self.count == 1 {
@@ -375,7 +375,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         let fmt_missing = FmtMissing {
             count,
             missing,
-            name: self.macro_def.name,
+            name: self.macro_def.ident.name,
         };
         Err(self
             .callsite_ctx
@@ -555,14 +555,14 @@ impl<'a> Generator<'a, '_> {
                 let Some(ty) = &arg.ty else {
                     unreachable!("checked by `why_not_a_function()`")
                 };
-                let name = field_new(&arg.name, span);
+                let name = field_new(arg.name, span);
                 let mut ty_buf = Buffer::new();
                 generator.visit_ty_generic(&macro_ctx, &mut ty_buf, ty, span);
                 let ty = ty_buf.into_token_stream();
                 quote_into!(&mut params, span, { #name: &#ty, });
                 generator
                     .locals
-                    .insert(Cow::Borrowed(*arg.name), LocalMeta::var_decl());
+                    .insert(Cow::Borrowed(arg.name), LocalMeta::var_decl());
             }
             if has_caller {
                 let var_caller = crate::var_caller();

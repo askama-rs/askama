@@ -9,10 +9,10 @@ use winnow::token::{any, one_of, take, take_until};
 
 use crate::node::CondTest;
 use crate::{
-    CharLit, ErrorContext, HashSet, InputStream, LevelGuard, Num, ParseResult, PathOrIdentifier,
-    Span, StrLit, StrPrefix, WithSpan, any_rust_token, char_lit, cut_error, deny_any_rust_token,
-    filter, identifier, is_rust_keyword, keyword, not_suffix_with_hash, num_lit,
-    path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
+    CharLit, ErrorContext, HashSet, Ident, InputStream, LevelGuard, Num, ParseResult,
+    PathOrIdentifier, Span, StrLit, StrPrefix, any_rust_token, char_lit, cut_error,
+    deny_any_rust_token, filter, identifier, is_rust_keyword, keyword, not_suffix_with_hash,
+    num_lit, path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
 };
 
 const MAX_REFS: usize = 20;
@@ -29,25 +29,25 @@ fn check_expr<'a>(expr: &Expr<'a>, allowed: Allowed) -> ParseResult<'a, ()> {
             // List can be found in rust compiler "can_be_raw" function (although in our case, it's
             // also used in cases like `match`, so `self` is allowed in this case).
             if (!allowed.super_keyword && name == "super") || matches!(name, "crate" | "Self") {
-                err_reserved_identifier(&WithSpan::new(name, span))
+                err_reserved_identifier(name, span)
             } else if !allowed.underscore && name == "_" {
-                err_underscore_identifier(&WithSpan::new(name, span))
+                err_underscore_identifier(span)
             } else {
                 Ok(())
             }
         }
         Expr::IsDefined { var_name, span } | Expr::IsNotDefined { var_name, span } => {
             if var_name == "_" {
-                err_underscore_identifier(&WithSpan::new(var_name, span))
+                err_underscore_identifier(span)
             } else {
                 Ok(())
             }
         }
         Expr::Path { ref components, .. } => {
             if let [arg] = components.as_slice()
-                && !crate::can_be_variable_name(*arg.name)
+                && !crate::can_be_variable_name(arg.name)
             {
-                return err_reserved_identifier(&arg.name);
+                return err_reserved_identifier(arg.name, arg.span);
             }
             Ok(())
         }
@@ -75,10 +75,10 @@ fn check_expr<'a>(expr: &Expr<'a>, allowed: Allowed) -> ParseResult<'a, ()> {
             ref associated_item,
             ..
         } => {
-            if *associated_item.name == "_" {
-                err_underscore_identifier(&associated_item.name)
-            } else if !crate::can_be_variable_name(*associated_item.name) {
-                err_reserved_identifier(&associated_item.name)
+            if associated_item.name == "_" {
+                err_underscore_identifier(associated_item.span)
+            } else if !crate::can_be_variable_name(associated_item.name) {
+                err_reserved_identifier(associated_item.name, associated_item.span)
             } else {
                 check_expr(parent_item, Allowed::default())
             }
@@ -139,10 +139,10 @@ fn check_expr<'a>(expr: &Expr<'a>, allowed: Allowed) -> ParseResult<'a, ()> {
                 },
             )?;
             for field in &inner.fields {
-                if field.name.inner == "_" {
-                    return err_underscore_identifier(&field.name);
-                } else if !crate::can_be_variable_name(field.name.inner) {
-                    return err_reserved_identifier(&field.name);
+                if field.name == "_" {
+                    return err_underscore_identifier(field.span);
+                } else if !crate::can_be_variable_name(field.name) {
+                    return err_reserved_identifier(field.name, field.span);
                 }
                 if let Some(ref value) = field.value {
                     check_expr(value, Allowed::default())?;
@@ -162,29 +162,28 @@ fn check_expr<'a>(expr: &Expr<'a>, allowed: Allowed) -> ParseResult<'a, ()> {
 }
 
 #[inline(always)]
-fn err_underscore_identifier<'a, T>(name: &WithSpan<&str>) -> ParseResult<'a, T> {
-    cut_error!("reserved keyword `_` cannot be used here", name.span)
+fn err_underscore_identifier<'a, T>(span: Span) -> ParseResult<'a, T> {
+    cut_error!("reserved keyword `_` cannot be used here", span)
 }
 
 #[inline(always)]
-fn err_reserved_identifier<'a, T>(name: &WithSpan<&str>) -> ParseResult<'a, T> {
-    cut_error!(
-        format!("`{}` cannot be used as an identifier", name.inner),
-        name.span
-    )
+fn err_reserved_identifier<'a, T>(name: &str, span: Span) -> ParseResult<'a, T> {
+    cut_error!(format!("`{name}` cannot be used as an identifier"), span)
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PathComponent<'a> {
-    pub name: WithSpan<&'a str>,
+    pub name: &'a str,
+    pub span: Span,
     pub generics: Option<TyGenericArgs<'a>>,
 }
 
 impl<'a: 'l, 'l> PathComponent<'a> {
     #[inline]
-    pub fn new_with_name(name: WithSpan<&'a str>) -> Self {
+    pub fn new_with_name(name: &'a str, span: Span) -> Self {
         Self {
             name,
+            span,
             generics: None,
         }
     }
@@ -196,7 +195,8 @@ impl<'a: 'l, 'l> PathComponent<'a> {
         );
         let ((name, name_span), generics) = p.parse_next(i)?;
         Ok(Self {
-            name: WithSpan::new(name, name_span),
+            name,
+            span: name_span.into(),
             generics,
         })
     }
@@ -254,11 +254,13 @@ pub enum Expr<'a> {
     },
     As {
         lhs: Box<Expr<'a>>,
-        target: WithSpan<&'a str>,
+        target: &'a str,
+        target_span: Span,
         span: Span,
     },
     NamedArgument {
-        name: WithSpan<&'a str>,
+        name: &'a str,
+        name_span: Span,
         value: Box<Expr<'a>>,
         span: Span,
     },
@@ -290,8 +292,8 @@ pub enum Expr<'a> {
         span: Span,
     },
     RustMacro {
-        path: Vec<WithSpan<&'a str>>,
-        arguments: WithSpan<&'a str>,
+        path: Vec<Ident<'a>>,
+        arguments: &'a str,
         span: Span,
     },
     /// An expression followed by `?`.
@@ -469,7 +471,8 @@ impl<'a: 'l, 'l> Expr<'a> {
         }
 
         Ok(Box::new(Self::NamedArgument {
-            name: WithSpan::new(argument, arg_span),
+            name: argument,
+            name_span: arg_span.into(),
             value,
             span: span.into(),
         }))
@@ -641,7 +644,11 @@ impl<'a: 'l, 'l> Expr<'a> {
         span: std::ops::Range<usize>,
     ) -> ParseResult<'a, Box<Self>> {
         let target = opt(path_or_identifier).parse_next(i)?;
-        let Some(PathOrIdentifier::Identifier(target)) = target else {
+        let Some(PathOrIdentifier::Identifier {
+            name: target,
+            span: target_span,
+        }) = target
+        else {
             return cut_error!(
                 "`as` operator expects the name of a primitive type on its right-hand side, \
                 not a path or alias",
@@ -653,6 +660,7 @@ impl<'a: 'l, 'l> Expr<'a> {
             Ok(Box::new(Self::As {
                 lhs,
                 target,
+                target_span,
                 span: span.into(),
             }))
         } else if target.is_empty() {
@@ -904,11 +912,13 @@ impl<'a: 'l, 'l> Expr<'a> {
                 components: v,
                 span,
             },
-            PathOrIdentifier::Identifier(v) if *v == "true" => Self::BoolLit { value: true, span },
-            PathOrIdentifier::Identifier(v) if *v == "false" => {
+            PathOrIdentifier::Identifier { name: "true", .. } => {
+                Self::BoolLit { value: true, span }
+            }
+            PathOrIdentifier::Identifier { name: "false", .. } => {
                 Self::BoolLit { value: false, span }
             }
-            PathOrIdentifier::Identifier(v) => Self::Var { name: *v, span },
+            PathOrIdentifier::Identifier { name, .. } => Self::Var { name, span },
         }))
     }
 
@@ -1114,13 +1124,15 @@ impl<'a: 'l, 'l> Filter<'a> {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AssociatedItem<'a> {
-    pub name: WithSpan<&'a str>,
+    pub name: &'a str,
+    pub span: Span,
     pub generics: Option<TyGenericArgs<'a>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ExprStructField<'a> {
-    pub name: WithSpan<&'a str>,
+    pub name: &'a str,
+    pub span: Span,
     pub value: Option<Box<Expr<'a>>>,
 }
 
@@ -1196,48 +1208,50 @@ impl<'a: 'l, 'l> Suffix<'a> {
                     span,
                 },
                 Self::Try => Expr::Try { expr, span },
-                Self::MacroCall(arguments) => {
-                    let arguments = WithSpan::new(arguments, span);
-                    match *expr {
-                        Expr::Path { components, .. } => {
-                            let last = components.last().unwrap();
-                            ensure_macro_name(&last.name)?;
+                Self::MacroCall(arguments) => match *expr {
+                    Expr::Path { components, .. } => {
+                        let last = components.last().unwrap();
+                        ensure_macro_name(last.name, last.span)?;
 
-                            if let Some(r) = components.iter().find_map(|r| r.generics.as_ref()) {
-                                return Err(ErrorContext::new(
-                                    "macro paths cannot have generics",
-                                    r.span,
-                                )
-                                .cut());
-                            }
+                        if let Some(r) = components.iter().find_map(|r| r.generics.as_ref()) {
+                            return Err(ErrorContext::new(
+                                "macro paths cannot have generics",
+                                r.span,
+                            )
+                            .cut());
+                        }
 
-                            Expr::RustMacro {
-                                path: components
-                                    .into_iter()
-                                    .map(|c: PathComponent<'_>| c.name)
-                                    .collect(),
-                                arguments,
-                                span,
-                            }
-                        }
-                        Expr::Var {
-                            name,
-                            span: name_span,
-                        } => {
-                            let name = WithSpan::new(name, name_span);
-                            ensure_macro_name(&name)?;
-                            Expr::RustMacro {
-                                path: vec![name],
-                                arguments,
-                                span,
-                            }
-                        }
-                        _ => {
-                            i.reset(&i_before);
-                            return fail(i);
+                        Expr::RustMacro {
+                            path: components
+                                .into_iter()
+                                .map(|c: PathComponent<'_>| Ident {
+                                    name: c.name,
+                                    span: c.span,
+                                })
+                                .collect(),
+                            arguments,
+                            span,
                         }
                     }
-                }
+                    Expr::Var {
+                        name,
+                        span: name_span,
+                    } => {
+                        ensure_macro_name(name, name_span)?;
+                        Expr::RustMacro {
+                            path: vec![Ident {
+                                name,
+                                span: name_span,
+                            }],
+                            arguments,
+                            span,
+                        }
+                    }
+                    _ => {
+                        i.reset(&i_before);
+                        return fail(i);
+                    }
+                },
             });
             i_before = i.checkpoint();
         }
@@ -1641,14 +1655,18 @@ impl<'a: 'l, 'l> Suffix<'a> {
                             span,
                         );
                     }
-                    Ok(WithSpan::new(name, span))
+                    Ok((name, Span::from(span)))
                 },
                 opt(call_generics),
             )),
         );
-        let (span, (name, generics)) = p.parse_next(i)?;
+        let (span, ((name, name_span), generics)) = p.parse_next(i)?;
         Ok((
-            Self::AssociatedItem(AssociatedItem { name, generics }),
+            Self::AssociatedItem(AssociatedItem {
+                name,
+                span: name_span,
+                generics,
+            }),
             span.into(),
         ))
     }
@@ -1701,7 +1719,7 @@ impl<'a: 'l, 'l> Suffix<'a> {
                     if base.is_some() {
                         return cut_error!(
                             "expected end of struct expression after `..` was used",
-                            field.name.span()
+                            field.span
                         );
                     }
                     fields.push(field);
@@ -1762,7 +1780,8 @@ impl<'a: 'l, 'l> Suffix<'a> {
             cut_error!("expected expression after `:`", *i)
         } else {
             Ok(Field::Field(ExprStructField {
-                name: WithSpan::new(name, name_span),
+                name,
+                span: name_span.into(),
                 value,
             }))
         }
@@ -1785,9 +1804,9 @@ fn doc_comment_no_bare_cr<'a: 'l, 'l>(
     }
 }
 
-fn ensure_macro_name<'a>(name: &WithSpan<&'a str>) -> ParseResult<'a, ()> {
-    if matches!(**name, "_" | "crate" | "super" | "Self" | "self") {
-        return cut_error!(format!("`{}` is not a valid macro name", **name), name.span);
+fn ensure_macro_name<'a>(name: &str, span: Span) -> ParseResult<'a, ()> {
+    if matches!(name, "_" | "crate" | "super" | "Self" | "self") {
+        return cut_error!(format!("`{name}` is not a valid macro name"), span);
     }
     Ok(())
 }
@@ -1843,7 +1862,7 @@ impl<'a: 'l, 'l> TyGenerics<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum TyGenericsKind<'a> {
     Path {
-        path: Vec<WithSpan<&'a str>>,
+        path: Vec<Ident<'a>>,
         args: Option<TyGenericArgs<'a>>,
     },
     Tuple(Vec<TyGenerics<'a>>),
@@ -1862,29 +1881,30 @@ impl<'a: 'l, 'l> TyGenericsKind<'a> {
     fn ty_path(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, TyGenericsKind<'a>> {
         let path = separated(
             1..,
-            ws(identifier
-                .with_span()
-                .map(|(name, span)| WithSpan::new(name, span))),
+            ws(identifier.with_span().map(|(name, span)| Ident {
+                name,
+                span: span.into(),
+            })),
             "::",
         )
         .map(|v: Vec<_>| v);
 
         let (path, args) = (path, opt(TyGenerics::args)).parse_next(i)?;
 
-        if let [name] = path.as_slice() {
-            if matches!(**name, "super" | "self" | "crate") {
+        if let [Ident { name, span }] = *path.as_slice() {
+            if matches!(name, "super" | "self" | "crate") {
                 // `Self` and `_` are allowed
-                return err_reserved_identifier(name);
+                return err_reserved_identifier(name, span);
             }
         } else {
-            for (idx, name) in path.iter().enumerate() {
-                if **name == "_" {
+            for (idx, &Ident { name, span }) in path.iter().enumerate() {
+                if name == "_" {
                     // `_` is never allowed
-                    return err_underscore_identifier(name);
-                } else if idx > 0 && matches!(**name, "super" | "self" | "Self" | "crate") {
+                    return err_underscore_identifier(span);
+                } else if idx > 0 && matches!(name, "super" | "self" | "Self" | "crate") {
                     // At the front of the path, "super" | "self" | "Self" | "crate" are allowed.
                     // Inside the path, they are not allowed.
-                    return err_reserved_identifier(name);
+                    return err_reserved_identifier(name, span);
                 }
             }
         }
