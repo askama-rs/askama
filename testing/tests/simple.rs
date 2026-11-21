@@ -632,3 +632,45 @@ fn test_concat_inner() {
 
     assert_eq!(ConcatInner { a: "'" }.to_string(), "%3C%27%3E");
 }
+
+// Checks that literals and expressions mix are all correctly rendered.
+#[test]
+fn test_single_expr_with_text() {
+    macro_rules! check {
+        ($source:literal, $expected:literal) => {{
+            #[derive(Template)]
+            #[template(source = $source, ext = "txt")]
+            #[allow(dead_code)] // Not all templates use all fields.
+            struct Tmpl {
+                x: u32,
+                y: &'static str,
+            }
+
+            #[allow(dead_code)] // Not all templates use methods.
+            impl Tmpl {
+                fn f(&self) -> u32 {
+                    self.x + 1
+                }
+            }
+
+            let t = Tmpl { x: 1, y: "y" };
+            assert_eq!(t.render().unwrap(), $expected, "source: {:?}", $source);
+        }};
+    }
+
+    // One expression.
+    check!("{{ x }}", "1");
+    check!("a{{ x }}", "a1");
+    check!("{{ x }}b", "1b");
+    check!("a{{ x }}b", "a1b");
+    check!("a {{- x -}} b", "a1b");
+    check!(r#"a{{ "<" }}{{ x }}{{ '>' }}b"#, "a<1>b");
+    check!("{% if true %}a{{ x }}b{% endif %}c", "a1bc");
+    check!("{% for i in 0..2 %}[{{ i }}]{% endfor %}", "[0][1]");
+    // The same expression twice: only evaluated once, but written twice.
+    check!("a{{ x }}-{{ x }}b", "a1-1b");
+    check!("a{{ self.f() }}-{{ self.f() }}b", "a2-2b");
+    // Multiple expressions.
+    check!("a{{ x }}b{{ y }}c", "a1byc");
+    check!(r#"{{ x }}{{ "-" }}{{ y }}"#, "1-y");
+}

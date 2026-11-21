@@ -1725,6 +1725,9 @@ impl<'a> Generator<'a, '_> {
         let mut trailing_simple_lines = Vec::new();
 
         let mut matched_expr_buf = Buffer::new();
+        let mut single_expr = None;
+        let mut nb_written_exprs = 0_usize;
+        let mut lines_has_literals = false;
         while let Some((idx, s)) = it.next() {
             match s {
                 Writable::Lit(s) => {
@@ -1741,6 +1744,9 @@ impl<'a> Generator<'a, '_> {
                             string_escape(&mut literal, s);
                         }
                         lines.write_str_lit(literal, span);
+                        // This is the only case where literals are written into `lines` which is
+                        // the shared buffer with expressions.
+                        lines_has_literals = true;
                     } else {
                         trailing_simple_lines = items;
                         break;
@@ -1789,16 +1795,61 @@ impl<'a> Generator<'a, '_> {
                     quote_into!(&mut lines, span, {
                         (&&&askama::filters::Writable(#id)).askama_write(#var_writer, #var_values)?;
                     });
+                    nb_written_exprs += 1;
+                    single_expr = Some((expr, span));
                 }
             }
         }
-        quote_into!(buf, ctx.span_for_node(start_span), {
-            match (#matched_expr_buf) {
-                (#targets) => {
-                    #lines
+        if nb_written_exprs == 1
+            && !lines_has_literals
+            && let Some((expr, span)) = single_expr
+        {
+            // If we only have one expression, no need to wrap it into a `match`.
+            let var_writer = crate::var_writer();
+            let var_values = crate::var_values();
+            quote_into!(buf, span, {
+                (&&&askama::filters::Writable(&(#expr))).askama_write(#var_writer, #var_values)?;
+            });
+        } else {
+            // FIXME maybe: If we have code like:
+            //
+            // ```
+            // use std::cell::Cell;
+            // use std::fmt;
+            //
+            // #[derive(Template)]
+            // #[template(source = "{{ self.show() }} {{ self.bump() }}", ext = "txt")]
+            // struct LazyThenBump {
+            //     counter: Cell<u32>
+            // }
+            //
+            // impl LazyThenBump {
+            //     fn show(&self) -> Show<'_> { Show(&self.counter) }
+            //     fn bump(&self) -> u32 { self.counter.set(self.counter.get() + 1); self.counter.get() }
+            // }
+            //
+            // struct Show<'a>(&'a Cell<u32>);
+            // impl fmt::Display for Show<'_> {
+            //     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            //         write!(f, "{}", self.0.get())
+            //     }
+            // }
+            //
+            // fn main() {
+            //     println!("--> {}", LazyThenBump { counter: Cell::new(0) }.render().unwrap());
+            // }
+            // ```
+            //
+            // We will get "1 1" instead of "0 1" because both are evaluated at once. Is it an issue
+            // or not?
+            quote_into!(buf, ctx.span_for_node(start_span), {
+                match (#matched_expr_buf) {
+                    (#targets) => {
+                        #lines
+                    }
                 }
-            }
-        });
+            });
+        }
 
         if !trailing_simple_lines.is_empty() {
             let mut literal = String::new();
