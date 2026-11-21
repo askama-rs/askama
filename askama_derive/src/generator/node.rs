@@ -11,7 +11,7 @@ use parser::node::{
     Call, Comment, Compound, Cond, CondTest, Declare, FilterBlock, If, Include, Let, Lit, Loop,
     Match, Whitespace, Ws,
 };
-use parser::{Expr, LetValueOrBlock, Node, Span, Target, WithSpan};
+use parser::{Expr, LetValueOrBlock, Node, Span, Target};
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
 use rustc_hash::FxBuildHasher;
@@ -145,7 +145,7 @@ impl<'a> Generator<'a, '_> {
                     // keeps its own code for it, so a block in a loop would render nothing.
                     if level == AstLevel::Nested
                         && let fragment = self.fragment_path()
-                        && fragment.contains(&*b.name)
+                        && fragment.contains(&b.name)
                     {
                         return Err(ctx.generate_error(
                             format_args!(
@@ -754,8 +754,8 @@ impl<'a> Generator<'a, '_> {
             ..
         } = *call;
 
-        let (def, own_ctx) = if let Some(s) = scope {
-            let path = ctx.imports.get(*s).ok_or_else(|| {
+        let (def, own_ctx) = if let Some((s, _)) = scope {
+            let path = ctx.imports.get(s).ok_or_else(|| {
                 ctx.generate_error(
                     format_args!("no import found for scope `{}`", s.escape_debug()),
                     call.span,
@@ -767,7 +767,7 @@ impl<'a> Generator<'a, '_> {
                     call.span,
                 )
             })?;
-            let def = mctx.macros.get(&*name).ok_or_else(|| {
+            let def = mctx.macros.get(name).ok_or_else(|| {
                 ctx.generate_error(
                     format_args!(
                         "macro `{}` not found in scope `{}`",
@@ -779,7 +779,7 @@ impl<'a> Generator<'a, '_> {
             })?;
             (*def, mctx)
         } else {
-            let def = ctx.macros.get(&*name).ok_or_else(|| {
+            let def = ctx.macros.get(name).ok_or_else(|| {
                 ctx.generate_error(
                     format_args!("macro `{}` not found", name.escape_debug()),
                     call.span,
@@ -922,12 +922,12 @@ impl<'a> Generator<'a, '_> {
             None => child_ctx,
         };
 
-        if let Some(block) = i.block {
+        if let Some((block, block_span)) = i.block {
             // `{% include "..." block name %}` renders only that block, the way it renders in
             // the included template, `super()` and nested blocks included.
             if heritage
                 .as_ref()
-                .is_none_or(|h| !h.blocks.contains_key(*block))
+                .is_none_or(|h| !h.blocks.contains_key(block))
             {
                 return Err(ctx.generate_error(
                     format_args!(
@@ -935,7 +935,7 @@ impl<'a> Generator<'a, '_> {
                         block.escape_debug(),
                         i.path.escape_debug(),
                     ),
-                    block.span(),
+                    block_span,
                 ));
             }
             // Inside discarded code, e.g. outside the fragment being rendered, the block would
@@ -944,7 +944,7 @@ impl<'a> Generator<'a, '_> {
                 size_hint += self.with_child(heritage.as_ref(), |child| {
                     // Render the template as a fragment, like `#[template(block = "...")]`,
                     // so the `if` or `match` around the block is kept.
-                    child.fragment = Some(*block);
+                    child.fragment = Some(block);
                     child.buf_writable.discard = true;
                     let prev_buf_discard = buf.is_discard();
                     buf.set_discard(true);
@@ -994,8 +994,8 @@ impl<'a> Generator<'a, '_> {
             }
             Target::Placeholder(_) => Ok(false),
             Target::Rest(var_name, _) => {
-                if let Some(var_name) = var_name {
-                    let name = Target::Name(**var_name, var_name.span());
+                if let Some((var_name, var_name_span)) = *var_name {
+                    let name = Target::Name(var_name, var_name_span);
                     match self.is_shadowing_variable(ctx, &name, l) {
                         Ok(false) => {}
                         outcome => return outcome,
@@ -1302,10 +1302,10 @@ impl<'a> Generator<'a, '_> {
         c: &'a Declare<'_>,
     ) -> Result<SizeHint, CompileError> {
         let span = ctx.span_for_node(c.span);
-        if *c.var_name == "_" {
+        if c.var_name == "_" {
             return Err(ctx.generate_error(
                 "`_` cannot be used when there is no value assigned, use `let` instead",
-                c.var_name.span(),
+                c.var_name_span,
             ));
         }
         self.handle_ws(c.ws);
@@ -1320,7 +1320,7 @@ impl<'a> Generator<'a, '_> {
             buf,
             false,
             true,
-            &Target::Name(*c.var_name, c.var_name.span()),
+            &Target::Name(c.var_name, c.var_name_span),
             span,
         );
         buf.write_token(Token![;], span);
@@ -1335,7 +1335,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        name: Option<WithSpan<&'a str>>,
+        name: Option<&'a str>,
         outer: Ws,
         node: Span,
     ) -> Result<SizeHint, CompileError> {
@@ -1353,9 +1353,9 @@ impl<'a> Generator<'a, '_> {
 
         let cur = match (name, self.super_block) {
             // The top-level context contains a block definition
-            (Some(cur_name), None) => (*cur_name, 0),
+            (Some(cur_name), None) => (cur_name, 0),
             // A block definition contains a block definition of the same name
-            (Some(cur_name), Some((prev_name, _))) if *cur_name == prev_name => {
+            (Some(cur_name), Some((prev_name, _))) if cur_name == prev_name => {
                 return Err(ctx.generate_error(
                     format_args!(
                         "cannot define recursive blocks (`{}`)",
@@ -1365,7 +1365,7 @@ impl<'a> Generator<'a, '_> {
                 ));
             }
             // A block definition contains a definition of another block
-            (Some(cur_name), Some((_, _))) => (*cur_name, 0),
+            (Some(cur_name), Some((_, _))) => (cur_name, 0),
             // `super()` was called inside a block
             (None, Some((prev_name, r#gen))) => (prev_name, r#gen + 1),
             // `super()` is called from outside a block
@@ -1376,8 +1376,7 @@ impl<'a> Generator<'a, '_> {
 
         let mut size_hint = self.write_buf_writable(ctx, buf)?;
 
-        let block_fragment_write =
-            self.fragment == name.as_deref().copied() && self.buf_writable.discard;
+        let block_fragment_write = self.fragment == name && self.buf_writable.discard;
         // Allow writing to the buffer if we're in the block fragment
         if block_fragment_write {
             self.buf_writable.discard = false;
@@ -1629,9 +1628,9 @@ impl<'a> Generator<'a, '_> {
             && let [scope, macro_name] = components.as_slice()
             && scope.generics.is_none()
             && macro_name.generics.is_none()
-            && let Some(scope) = ctx.imports.get(*scope.name)
+            && let Some(scope) = ctx.imports.get(scope.name)
             && let Some(macro_ctx) = self.contexts.get(scope)
-            && let Some(macro_def) = macro_ctx.macros.get(*macro_name.name)
+            && let Some(macro_def) = macro_ctx.macros.get(macro_name.name)
         {
             return helpers::MacroInvocation {
                 callsite_ctx: ctx,
@@ -1650,9 +1649,9 @@ impl<'a> Generator<'a, '_> {
             && let [scope, macro_name] = components.as_slice()
             && scope.generics.is_none()
             && macro_name.generics.is_none()
-            && let Some(scope) = ctx.imports.get(*scope.name)
+            && let Some(scope) = ctx.imports.get(scope.name)
             && let Some(macro_ctx) = self.contexts.get(scope)
-            && let Some(macro_def) = macro_ctx.macros.get(*macro_name.name)
+            && let Some(macro_def) = macro_ctx.macros.get(macro_name.name)
         {
             return helpers::MacroInvocation {
                 callsite_ctx: ctx,
@@ -1698,19 +1697,19 @@ impl<'a> Generator<'a, '_> {
             return Ok(SizeHint::EMPTY);
         };
         let start_span = match start {
-            Writable::Lit(v) => v.span(),
+            Writable::Lit { span, .. } => *span,
             Writable::Expr(v) => v.span(),
         };
 
-        if let Some((_, Writable::Lit(lit))) = it.peek() {
+        if let Some(&(_, &Writable::Lit { span: lit_span, .. })) = it.peek() {
             let mut literal = String::new();
 
-            while let Some((_, Writable::Lit(s))) = it.peek() {
+            while let Some((_, Writable::Lit { value: s, .. })) = it.peek() {
                 size_hint += s.len();
                 string_escape(&mut literal, s);
                 it.next();
             }
-            let span = ctx.span_for_node(lit.span());
+            let span = ctx.span_for_node(lit_span);
             buf.write_str_lit(literal, span);
         }
         if it.peek().is_none() {
@@ -1727,16 +1726,16 @@ impl<'a> Generator<'a, '_> {
         let mut matched_expr_buf = Buffer::new();
         while let Some((idx, s)) = it.next() {
             match s {
-                Writable::Lit(s) => {
-                    let mut items = vec![s];
-                    while let Some((_, Writable::Lit(s))) = it.peek() {
-                        items.push(s);
+                Writable::Lit { value: s, span } => {
+                    let mut items = vec![(s, *span)];
+                    while let Some((_, Writable::Lit { value: s, span })) = it.peek() {
+                        items.push((s, *span));
                         it.next();
                     }
                     if it.peek().is_some() {
                         let mut literal = String::new();
-                        let span = ctx.span_for_node(items[0].span());
-                        for s in items {
+                        let span = ctx.span_for_node(items[0].1);
+                        for (s, _) in items {
                             size_hint += s.len();
                             string_escape(&mut literal, s);
                         }
@@ -1802,8 +1801,8 @@ impl<'a> Generator<'a, '_> {
 
         if !trailing_simple_lines.is_empty() {
             let mut literal = String::new();
-            let span = ctx.span_for_node(trailing_simple_lines[0].span());
-            for s in trailing_simple_lines {
+            let span = ctx.span_for_node(trailing_simple_lines[0].1);
+            for (s, _) in trailing_simple_lines {
                 size_hint += s.len();
                 string_escape(&mut literal, s);
             }
@@ -1819,47 +1818,43 @@ impl<'a> Generator<'a, '_> {
 
     fn write_lit(&mut self, lit: &'a Lit<'_>) {
         assert!(self.next_ws.is_none());
-        let Lit {
-            lws,
-            val,
-            rws,
-            span: _,
-        } = *lit;
+        let Lit { lws, val, rws, .. } = *lit;
+        let (lws_span, val_span, rws_span) = lit.spans();
         if !lws.is_empty() {
             match self.skip_ws {
                 Whitespace::Suppress => {}
                 _ if val.is_empty() => {
                     assert!(rws.is_empty());
-                    self.next_ws = Some(lws);
+                    self.next_ws = Some((lws, lws_span));
                 }
                 Whitespace::Preserve => {
-                    self.buf_writable.push(Writable::Lit(WithSpan::new(
-                        Cow::Borrowed(*lws),
-                        lws.span(),
-                    )));
+                    self.buf_writable.push(Writable::Lit {
+                        value: Cow::Borrowed(lws),
+                        span: lws_span,
+                    });
                 }
                 Whitespace::Minimize => {
-                    self.buf_writable.push(Writable::Lit(WithSpan::new(
-                        Cow::Borrowed(match lws.contains('\n') {
+                    self.buf_writable.push(Writable::Lit {
+                        value: Cow::Borrowed(match lws.contains('\n') {
                             true => "\n",
                             false => " ",
                         }),
-                        lws.span(),
-                    )));
+                        span: lws_span,
+                    });
                 }
             }
         }
 
         if !val.is_empty() {
             self.skip_ws = Whitespace::Preserve;
-            self.buf_writable.push(Writable::Lit(WithSpan::new(
-                Cow::Borrowed(*val),
-                val.span(),
-            )));
+            self.buf_writable.push(Writable::Lit {
+                value: Cow::Borrowed(val),
+                span: val_span,
+            });
         }
 
         if !rws.is_empty() {
-            self.next_ws = Some(rws);
+            self.next_ws = Some((rws, rws_span));
         }
     }
 
@@ -1888,24 +1883,24 @@ impl<'a> Generator<'a, '_> {
         // a `+` character.
         match self.should_trim_ws(ws.0) {
             Whitespace::Preserve => {
-                let val = self.next_ws.unwrap();
+                let (val, span) = self.next_ws.unwrap();
                 if !val.is_empty() {
-                    self.buf_writable.push(Writable::Lit(WithSpan::new(
-                        Cow::Borrowed(*val),
-                        val.span(),
-                    )));
+                    self.buf_writable.push(Writable::Lit {
+                        value: Cow::Borrowed(val),
+                        span,
+                    });
                 }
             }
             Whitespace::Minimize => {
-                let val = self.next_ws.unwrap();
+                let (val, span) = self.next_ws.unwrap();
                 if !val.is_empty() {
-                    self.buf_writable.push(Writable::Lit(WithSpan::new(
-                        Cow::Borrowed(match val.contains('\n') {
+                    self.buf_writable.push(Writable::Lit {
+                        value: Cow::Borrowed(match val.contains('\n') {
                             true => "\n",
                             false => " ",
                         }),
-                        val.span(),
-                    )));
+                        span,
+                    });
                 }
             }
             Whitespace::Suppress => {}

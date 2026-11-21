@@ -223,12 +223,12 @@ impl Buffer {
 
         self.handle_str_lit();
         for (idx, item) in path.iter().enumerate() {
-            let span = ctx.span_for_node(item.name.span());
+            let span = ctx.span_for_node(item.span);
             if idx > 0 {
                 Token![::](span).to_tokens(&mut self.buf);
             }
             if !item.name.is_empty() {
-                Ident::new(*item.name, span).to_tokens(&mut self.buf);
+                Ident::new(item.name, span).to_tokens(&mut self.buf);
             }
         }
     }

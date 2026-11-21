@@ -12,8 +12,8 @@ use winnow::{ModalParser, Parser};
 use crate::expr::BinOp;
 use crate::{
     ErrorContext, Expr, Filter, HashSet, InputStream, ParseErr, ParseResult, Span, Target,
-    TyGenerics, WithSpan, block_end, block_start, cut_error, deny_any_rust_token, expr_end,
-    expr_start, filter, identifier, is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
+    TyGenerics, block_end, block_start, cut_error, deny_any_rust_token, expr_end, expr_start,
+    filter, identifier, is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
 };
 
 #[derive(Debug, PartialEq)]
@@ -656,7 +656,8 @@ impl<'a: 'l, 'l> Loop<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Macro<'a> {
     pub ws1: Ws,
-    pub name: WithSpan<&'a str>,
+    pub name: &'a str,
+    pub name_span: Span,
     pub args: Vec<MacroArg<'a>>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
@@ -665,19 +666,20 @@ pub struct Macro<'a> {
 
 #[derive(Debug, PartialEq)]
 pub struct MacroArg<'a> {
-    pub name: WithSpan<&'a str>,
+    pub name: &'a str,
+    pub span: Span,
     pub ty: Option<TyGenerics<'a>>,
     pub default: Option<Box<Expr<'a>>>,
 }
 
 fn check_duplicated_name<'a>(
     names: &mut HashSet<&'a str>,
-    arg_name: &WithSpan<&'a str>,
+    arg: &MacroArg<'a>,
 ) -> Result<(), ParseErr<'a>> {
-    if !names.insert(arg_name.inner) {
+    if !names.insert(arg.name) {
         return cut_error!(
-            format!("duplicated argument `{}`", arg_name.escape_debug()),
-            arg_name.span
+            format!("duplicated argument `{}`", arg.name.escape_debug()),
+            arg.span
         );
     }
     Ok(())
@@ -707,7 +709,8 @@ impl<'a: 'l, 'l> Macro<'a> {
             );
             let ((name, name_span), ty, default) = p.parse_next(i)?;
             Ok(MacroArg {
-                name: WithSpan::new(name, name_span),
+                name,
+                span: name_span.into(),
                 ty,
                 default,
             })
@@ -735,13 +738,13 @@ impl<'a: 'l, 'l> Macro<'a> {
             let mut names = HashSet::default();
             let mut iter = params.iter();
             for arg in iter.by_ref() {
-                check_duplicated_name(&mut names, &arg.name)?;
+                check_duplicated_name(&mut names, arg)?;
                 if arg.default.is_none() {
                     continue;
                 }
 
                 for new_arg in iter.by_ref() {
-                    check_duplicated_name(&mut names, &new_arg.name)?;
+                    check_duplicated_name(&mut names, new_arg)?;
                     if new_arg.default.is_some() {
                         continue;
                     }
@@ -753,7 +756,7 @@ impl<'a: 'l, 'l> Macro<'a> {
                             arg.name.escape_debug(),
                             new_arg.name.escape_debug(),
                         ),
-                        new_arg.name.span,
+                        new_arg.span,
                     );
                 }
                 break;
@@ -779,7 +782,8 @@ impl<'a: 'l, 'l> Macro<'a> {
 
         Ok(Box::new(Node::Macro(Self {
             ws1: Ws(pws1, nws1),
-            name: WithSpan::new(name, name_span),
+            name,
+            name_span: name_span.into(),
             args: params.unwrap_or_default(),
             nodes: contents,
             ws2: Ws(pws2, nws2),
@@ -890,8 +894,9 @@ impl<'a: 'l, 'l> Import<'a> {
 pub struct Call<'a> {
     pub ws1: Ws,
     pub caller_args: Vec<&'a str>,
-    pub scope: Option<WithSpan<&'a str>>,
-    pub name: WithSpan<&'a str>,
+    pub scope: Option<(&'a str, Span)>,
+    pub name: &'a str,
+    pub name_span: Span,
     pub args: Option<Vec<Box<Expr<'a>>>>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
@@ -925,7 +930,7 @@ impl<'a: 'l, 'l> Call<'a> {
                     opt(|i: &mut _| {
                         let (scope, span) =
                             terminated(ws(identifier.with_span()), ws("::")).parse_next(i)?;
-                        Ok(WithSpan::new(scope, span))
+                        Ok((scope, Span::from(span)))
                     }),
                     ws(identifier.with_span()),
                     opt(ws(Expr::arguments)),
@@ -957,7 +962,8 @@ impl<'a: 'l, 'l> Call<'a> {
             ws1: Ws(pws, nws),
             caller_args: call_args.unwrap_or_default(),
             scope,
-            name: WithSpan::new(name, name_span),
+            name,
+            name_span: name_span.into(),
             args: args.map(|(args, _)| args),
             nodes,
             ws2: Ws(pws2, nws2),
@@ -1029,7 +1035,8 @@ impl<'a: 'l, 'l> Match<'a> {
 #[derive(Debug, PartialEq)]
 pub struct BlockDef<'a> {
     pub ws1: Ws,
-    pub name: WithSpan<&'a str>,
+    pub name: &'a str,
+    pub name_span: Span,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
     pub span: Span,
@@ -1071,7 +1078,8 @@ impl<'a: 'l, 'l> BlockDef<'a> {
 
         Ok(Box::new(Node::BlockDef(BlockDef {
             ws1: Ws(pws1, nws1),
-            name: WithSpan::new(name, name_span),
+            name,
+            name_span: name_span.into(),
             nodes,
             ws2: Ws(pws2, nws2),
             span: keyword_span,
@@ -1105,9 +1113,9 @@ fn check_end_name<'a: 'l, 'l>(
 
 #[derive(Debug, PartialEq)]
 pub struct Lit<'a> {
-    pub lws: WithSpan<&'a str>,
-    pub val: WithSpan<&'a str>,
-    pub rws: WithSpan<&'a str>,
+    pub lws: &'a str,
+    pub val: &'a str,
+    pub rws: &'a str,
     pub span: Span,
 }
 
@@ -1125,40 +1133,31 @@ impl<'a: 'l, 'l> Lit<'a> {
             .verify(|s: &str| !s.is_empty())
             .with_span()
             .parse_next(i)?;
-        Ok(Box::new(Node::Lit(Self::split_ws_parts(WithSpan::new(
-            content, span,
-        )))))
+        Ok(Box::new(Node::Lit(Self::split_ws_parts(
+            content,
+            span.into(),
+        ))))
     }
 
-    pub(crate) fn split_ws_parts(s: WithSpan<&'a str>) -> Self {
-        if let Some(mid) = s.find(|c: char| !c.is_ascii_whitespace()) {
-            let (lws, val) = s.split_at(mid);
-            let mid = val.trim_ascii_end().len();
-            if val.len() != mid {
-                let (val, rws) = val.split_at(mid);
-                Self {
-                    lws,
-                    val,
-                    rws,
-                    span: s.span,
-                }
-            } else {
-                Self {
-                    lws,
-                    val,
-                    rws: val.end(),
-                    span: s.span,
-                }
-            }
-        } else {
-            let end = s.end();
-            Self {
-                lws: s,
-                val: end,
-                rws: end,
-                span: s.span,
-            }
+    pub(crate) fn split_ws_parts(s: &'a str, span: Span) -> Self {
+        let rest = s.trim_ascii_start();
+        let lws = &s[..s.len() - rest.len()];
+        let val = rest.trim_ascii_end();
+        let rws = &rest[val.len()..];
+        Self {
+            lws,
+            val,
+            rws,
+            span,
         }
+    }
+
+    /// The spans of [`lws`][Self::lws], [`val`][Self::val] and [`rws`][Self::rws], which lie
+    /// back to back in [`span`][Self::span].
+    pub fn spans(&self) -> (Span, Span, Span) {
+        let (lws, rest) = self.span.split_at(self.lws.len());
+        let (val, rws) = rest.split_at(self.val.len());
+        (lws, val, rws)
     }
 }
 
@@ -1206,10 +1205,7 @@ impl<'a: 'l, 'l> Raw<'a> {
                     continue;
                 }
 
-                return Ok((
-                    Ws(pws, nws),
-                    Lit::split_ws_parts(WithSpan::new(inner, span)),
-                ));
+                return Ok((Ws(pws, nws), Lit::split_ws_parts(inner, span.into())));
             }
         }
 
@@ -1235,7 +1231,8 @@ impl<'a: 'l, 'l> Raw<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Declare<'a> {
     pub ws: Ws,
-    pub var_name: WithSpan<&'a str>,
+    pub var_name: &'a str,
+    pub var_name_span: Span,
     pub is_mutable: bool,
     pub span: Span,
 }
@@ -1253,7 +1250,8 @@ impl<'a: 'l, 'l> Declare<'a> {
 
         Ok(Box::new(Node::Declare(Declare {
             ws: Ws(pws, nws),
-            var_name: WithSpan::new(var_name, var_name_span),
+            var_name,
+            var_name_span: var_name_span.into(),
             is_mutable: is_mut.is_some(),
             span: span.into(),
         })))
@@ -1569,7 +1567,7 @@ pub struct Include<'a> {
     pub ws: Ws,
     pub path: &'a str,
     /// The block to render instead of the whole template, from `{% include "..." block name %}`.
-    pub block: Option<WithSpan<&'a str>>,
+    pub block: Option<(&'a str, Span)>,
     pub span: Span,
 }
 
@@ -1591,7 +1589,7 @@ impl<'a: 'l, 'l> Include<'a> {
         Ok(Box::new(Node::Include(Self {
             ws: Ws(pws, nws),
             path,
-            block: block.map(|(name, span)| WithSpan::new(name, span)),
+            block: block.map(|(name, span)| (name, Span::from(span))),
             span: span.into(),
         })))
     }

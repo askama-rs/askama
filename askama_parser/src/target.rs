@@ -6,7 +6,7 @@ use winnow::{ModalParser, Parser};
 
 use crate::{
     CharLit, ErrorContext, InputStream, Num, ParseErr, ParseResult, PathComponent,
-    PathOrIdentifier, Span, StrLit, WithSpan, bool_lit, can_be_variable_name, char_lit, cut_error,
+    PathOrIdentifier, Span, StrLit, bool_lit, can_be_variable_name, char_lit, cut_error,
     identifier, is_rust_keyword, keyword, num_lit, path_or_identifier, str_lit, ws,
 };
 
@@ -24,19 +24,20 @@ pub enum Target<'a> {
     OrChain(Vec<Target<'a>>, Span),
     Placeholder(Span),
     /// The `Option` is the variable name (if any) in `var_name @ ..`.
-    Rest(Option<WithSpan<&'a str>>, Span),
+    Rest(Option<(&'a str, Span)>, Span),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct NamedTarget<'a> {
-    pub src: WithSpan<&'a str>,
+    pub src: &'a str,
+    pub span: Span,
     pub dest: Target<'a>,
 }
 
-impl<'a> From<(WithSpan<&'a str>, Target<'a>)> for NamedTarget<'a> {
+impl<'a> From<((&'a str, Span), Target<'a>)> for NamedTarget<'a> {
     #[inline]
-    fn from((src, dest): (WithSpan<&'a str>, Target<'a>)) -> Self {
-        Self { src, dest }
+    fn from(((src, span), dest): ((&'a str, Span), Target<'a>)) -> Self {
+        Self { src, span, dest }
     }
 }
 
@@ -125,7 +126,7 @@ impl<'a: 'l, 'l> Target<'a> {
         // match structs
         let path = path_or_identifier.verify_map(|r| match r {
             PathOrIdentifier::Path(v) => Some(v),
-            PathOrIdentifier::Identifier(_) => None,
+            PathOrIdentifier::Identifier { .. } => None,
         });
         let path = opt(path.with_span()).parse_next(i)?;
         if let Some((path, path_span)) = path {
@@ -147,24 +148,24 @@ impl<'a: 'l, 'l> Target<'a> {
 
             if let [arg] = path.as_slice() {
                 // If the path only contains one item, we need to check the name.
-                if !can_be_variable_name(*arg.name) {
+                if !can_be_variable_name(arg.name) {
                     return cut_error!(
                         format!(
                             "`{}` cannot be used as an identifier",
                             arg.name.escape_debug()
                         ),
-                        arg.name.span
+                        arg.span
                     );
                 }
             } else {
                 // Otherwise we need to check every element but the first.
-                if let Some(arg) = path.iter().skip(1).find(|n| !can_be_variable_name(*n.name)) {
+                if let Some(arg) = path.iter().skip(1).find(|n| !can_be_variable_name(n.name)) {
                     return cut_error!(
                         format!(
                             "`{}` cannot be used as an identifier",
                             arg.name.escape_debug()
                         ),
-                        arg.name.span
+                        arg.span
                     );
                 }
             }
@@ -177,7 +178,7 @@ impl<'a: 'l, 'l> Target<'a> {
         let (name, span) = identifier.with_span().parse_next(i)?;
         match name {
             "_" => Ok(Self::Placeholder(span.into())),
-            _ => verify_name(WithSpan::new(name, span)),
+            _ => verify_name(name, span.into()),
         }
     }
 
@@ -209,9 +210,7 @@ impl<'a: 'l, 'l> Target<'a> {
         alt((Self::rest, Self::parse)).parse_next(i)
     }
 
-    fn named<O: From<(WithSpan<&'a str>, Self)>>(
-        i: &mut InputStream<'a, 'l>,
-    ) -> ParseResult<'a, O> {
+    fn named<O: From<((&'a str, Span), Self)>>(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, O> {
         if let Some(rest) = opt(Self::rest_inner).parse_next(i)? {
             let chr = peek(ws(opt(one_of([',', ':']).with_span()))).parse_next(i)?;
             if let Some((chr, span)) = chr {
@@ -228,24 +227,21 @@ impl<'a: 'l, 'l> Target<'a> {
             if name.is_some() {
                 return cut_error!("`@ ..` cannot be used in struct", span);
             }
-            Ok((WithSpan::new("..", span), Target::Rest(name, span)).into())
+            Ok((("..", span), Target::Rest(name, span)).into())
         } else {
             let ((src, span), target) =
                 (identifier.with_span(), opt(preceded(ws(':'), Self::parse))).parse_next(i)?;
 
-            let src = WithSpan::new(src, span);
-            if *src == "_" {
-                return cut_error!(
-                    "cannot use placeholder `_` as source in named struct",
-                    src.span,
-                );
+            let span = Span::from(span);
+            if src == "_" {
+                return cut_error!("cannot use placeholder `_` as source in named struct", span);
             }
 
             let target = match target {
                 Some(target) => target,
-                None => verify_name(src)?,
+                None => verify_name(src, span)?,
             };
-            Ok((src, target).into())
+            Ok(((src, span), target).into())
         }
     }
 
@@ -254,32 +250,30 @@ impl<'a: 'l, 'l> Target<'a> {
         Ok(Self::Rest(name, span))
     }
 
-    fn rest_inner(
-        i: &mut InputStream<'a, 'l>,
-    ) -> ParseResult<'a, (Option<WithSpan<&'a str>>, Span)> {
+    fn rest_inner(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, (Option<(&'a str, Span)>, Span)> {
         let p = |i: &mut _| {
             let id =
                 terminated(opt(terminated(identifier.with_span(), ws('@'))), "..").parse_next(i)?;
-            Ok(id.map(|(id, span)| WithSpan::new(id, span)))
+            Ok(id.map(|(id, span)| (id, Span::from(span))))
         };
         let (id, span) = ws(p.with_span()).parse_next(i)?;
         Ok((id, span.into()))
     }
 }
 
-fn verify_name<'a>(name: WithSpan<&'a str>) -> Result<Target<'a>, ErrMode<ErrorContext>> {
-    if !can_be_variable_name(*name) {
+fn verify_name<'a>(name: &'a str, span: Span) -> Result<Target<'a>, ErrMode<ErrorContext>> {
+    if !can_be_variable_name(name) {
         cut_error!(
             format!("`{}` cannot be used as an identifier", name.escape_debug()),
-            name.span,
+            span,
         )
-    } else if is_rust_keyword(*name) {
+    } else if is_rust_keyword(name) {
         cut_error!(
             format!(
                 "cannot use `{}` as a name: it is a rust keyword",
                 name.escape_debug(),
             ),
-            name.span,
+            span,
         )
     } else if name.starts_with("__askama") {
         cut_error!(
@@ -287,10 +281,10 @@ fn verify_name<'a>(name: WithSpan<&'a str>) -> Result<Target<'a>, ErrMode<ErrorC
                 "cannot use `{}` as a name: it is reserved for `askama`",
                 name.escape_debug()
             ),
-            name.span,
+            span,
         )
     } else {
-        Ok(Target::Name(*name, name.span))
+        Ok(Target::Name(name, span))
     }
 }
 

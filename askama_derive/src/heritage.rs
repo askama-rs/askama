@@ -116,7 +116,7 @@ impl<'a> Context<'a> {
                     }
                     Node::Macro(m) => {
                         ensure_top(top, m.span, path, parsed, "macro")?;
-                        macros.insert(*m.name, m);
+                        macros.insert(m.name, m);
                     }
                     Node::Import(import) => {
                         ensure_top(top, import.span, path, parsed, "import")?;
@@ -125,36 +125,36 @@ impl<'a> Context<'a> {
                     Node::BlockDef(b) => {
                         let current = Self::file_info_of_inner(b.span, path, parsed);
                         // This checks if the same block is called in a file.
-                        if let Some(prev) = blocks.get(&*b.name) {
+                        if let Some(prev) = blocks.get(b.name) {
                             let prev = Self::file_info_of_inner(prev.span, path, parsed);
                             let error_msg = format!(
                                 "⚠️ {current:#}: block `{}` was already called at `{prev:#}` so the previous one will be ignored\n\
                                  You can repeat blocks by using the `template` proc-macro blocks: \
                                  https://askama.rs/en/latest/creating_templates.html#blocks",
-                                *b.name,
+                                b.name,
                             );
                             return Err(CompileError::new(
                                 error_msg,
                                 Some(FileInfo::of(b.span, path, parsed)),
                             ));
                         } else if extends.is_none() {
-                            called_blocks.check_if_already_called(*b.name, current);
+                            called_blocks.check_if_already_called(b.name, current);
                             called_blocks
                                 .called_blocks
-                                .entry(*b.name)
+                                .entry(b.name)
                                 .or_default()
                                 .push(current);
                         } else {
-                            called_blocks.unprocessed.push((*b.name, current));
+                            called_blocks.unprocessed.push((b.name, current));
                         }
-                        blocks.insert(*b.name, b);
+                        blocks.insert(b.name, b);
                         if !holders.is_empty() {
-                            block_holders.insert(*b.name, holders.clone());
+                            block_holders.insert(b.name, holders.clone());
                         }
                         if let Some(parent) = parent {
-                            block_parents.insert(*b.name, parent);
+                            block_parents.insert(b.name, parent);
                         }
-                        nested.push((&b.nodes, holders.clone(), Some(*b.name)));
+                        nested.push((&b.nodes, holders.clone(), Some(b.name)));
                     }
                     Node::If(i) => {
                         let holders = [&holders[..], &[i.span]].concat();
