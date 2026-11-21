@@ -931,6 +931,20 @@ restrictions:
 As a short-hand for `{{ a }}{{ b }}{{ c }}` you can use the concat operator `~`: `{{ a ~ b ~ c }}`.
 The tilde `~` has to be surrounded by spaces to avoid confusion with the whitespace control operator.
 
+### Closures
+
+A closure can be passed as an argument to a function, a method or a filter.
+It is written like in Rust, and rustc infers the types of its parameters:
+
+```jinja
+{% for user in users.iter().filter(|user| user.active) %}
+    {{ user.name }}
+{% endfor %}
+```
+
+A closure takes one or more parameters, which shadow the fields and variables of the same
+name. Its body is one expression, which cannot contain filters or the `?` operator.
+
 ## Templates in templates
 
 Using expressions, it is possible to delegate rendering part of a template to another template.

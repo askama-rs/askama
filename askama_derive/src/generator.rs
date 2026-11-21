@@ -134,6 +134,8 @@ struct Generator<'a, 'h> {
     fragment: Option<&'a str>,
     /// Number of filter invocations currently being generated, one inside the other.
     filter_depth: usize,
+    /// Whether a closure body is being generated, see [`Generator::ensure_not_in_closure()`].
+    in_closure: bool,
 }
 
 enum CallerDir {
@@ -169,6 +171,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             caller_dir: CallerDir::Unresolved,
             fragment: input.block.map(|(name, _)| name),
             filter_depth: 0,
+            in_closure: false,
         }
     }
 
@@ -804,6 +807,8 @@ fn is_copyable_within_op(expr: &Expr<'_>, within_op: bool) -> bool {
         | Expr::CharLit { .. }
         | Expr::BinOp { .. }
         | Expr::Range { .. } => true,
+        // Borrowing a closure would keep rustc from inferring its parameter types.
+        Expr::Closure { .. } => true,
         Expr::Unary { expr, .. } => is_copyable_within_op(expr, true),
         Expr::NamedArgument { value, .. } => is_copyable_within_op(value, true),
         // The result of a call likely doesn't need to be borrowed,

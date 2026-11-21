@@ -60,6 +60,46 @@ impl<'a> Generator<'a, '_> {
         Ok(DisplayWrap::Unwrapped)
     }
 
+    fn visit_closure(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        params: &[WithSpan<&'a str>],
+        body: &Expr<'a>,
+        node: Span,
+    ) -> Result<DisplayWrap, CompileError> {
+        let body = self.push_locals(|this| {
+            for param in params {
+                this.locals
+                    .insert(Cow::Borrowed(**param), LocalMeta::var_def());
+            }
+            let outer = std::mem::replace(&mut this.in_closure, true);
+            let body = this.visit_expr_root(ctx, body);
+            this.in_closure = outer;
+            body
+        })?;
+        let params = params
+            .iter()
+            .map(|param| field_new(param, ctx.span_for_node(param.span())));
+        quote_into!(buf, ctx.span_for_node(node), { |#(#params),*| #body });
+        Ok(DisplayWrap::Unwrapped)
+    }
+
+    /// The closure returns what its body evaluates to, so it cannot propagate the error of the
+    /// `?` that filters and the `?` operator generate.
+    pub(super) fn ensure_not_in_closure(
+        &self,
+        ctx: &Context<'_>,
+        what: &str,
+        node: Span,
+    ) -> Result<(), CompileError> {
+        if self.in_closure {
+            Err(ctx.generate_error(format_args!("{what} cannot be used inside a closure"), node))
+        } else {
+            Ok(())
+        }
+    }
+
     pub(super) fn visit_expr(
         &mut self,
         ctx: &Context<'_>,
@@ -138,6 +178,11 @@ impl<'a> Generator<'a, '_> {
             Expr::Concat { ref exprs, .. } => self.visit_concat(ctx, buf, exprs)?,
             Expr::LetCond { ref cond, .. } => self.visit_let_cond(ctx, buf, cond)?,
             Expr::ArgumentPlaceholder(_) => DisplayWrap::Unwrapped,
+            Expr::Closure {
+                ref params,
+                ref body,
+                ..
+            } => self.visit_closure(ctx, buf, params, body, expr.span())?,
         })
     }
 
@@ -326,6 +371,7 @@ impl<'a> Generator<'a, '_> {
         buf: &mut Buffer,
         expr: &Expr<'a>,
     ) -> Result<DisplayWrap, CompileError> {
+        self.ensure_not_in_closure(ctx, "the `?` operator", expr.span())?;
         let mut tmp = Buffer::new();
         let span = ctx.span_for_node(expr.span());
         self.visit_expr(ctx, &mut tmp, expr)?;

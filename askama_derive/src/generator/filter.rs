@@ -25,6 +25,7 @@ impl<'a> Generator<'a, '_> {
         args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
+        self.ensure_not_in_closure(ctx, "a filter", node)?;
         // Every filter invocation nests its input and arguments, which can contain filters
         // themselves: `a|b|c` is generated as `c(b(a))`, so is `((a|b)|c)`, and so on.
         // In the template, such a nesting is shallow, and the parser lets it pass,

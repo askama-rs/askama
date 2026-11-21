@@ -151,6 +151,18 @@ fn check_expr<'a>(expr: &Expr<'a>, allowed: Allowed) -> ParseResult<'a, ()> {
             Ok(())
         }
         Expr::LetCond { ref cond, .. } => check_expr(&cond.expr, Allowed::default()),
+        Expr::Closure {
+            ref params,
+            ref body,
+            ..
+        } => {
+            for param in params {
+                if !crate::can_be_variable_name(param.inner) {
+                    return err_reserved_identifier(param);
+                }
+            }
+            check_expr(body, Allowed::default())
+        }
         Expr::ArgumentPlaceholder(span) => cut_error!("unreachable", span),
         Expr::BoolLit { .. }
         | Expr::NumLit { .. }
@@ -329,6 +341,12 @@ pub enum Expr<'a> {
     /// This variant should never be used directly.
     /// It is used for the handling of named arguments in the generator, esp. with filters.
     ArgumentPlaceholder(Span),
+    /// A closure, only allowed as an argument: `|a, b| a.cmp(b)`.
+    Closure {
+        params: Vec<WithSpan<&'a str>>,
+        body: Box<Expr<'a>>,
+        span: Span,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -389,7 +407,8 @@ impl<'a: 'l, 'l> Expr<'a> {
             | Self::IsNotDefined { span, .. }
             | Self::Concat { span, .. }
             | Self::LetCond { span, .. }
-            | Self::ArgumentPlaceholder(span) => span,
+            | Self::ArgumentPlaceholder(span)
+            | Self::Closure { span, .. } => span,
         }
     }
 
@@ -428,7 +447,7 @@ impl<'a: 'l, 'l> Expr<'a> {
 
                 let mut p = alt((
                     move |i: &mut _| Self::named_argument(i, named_arguments),
-                    move |i: &mut _| Self::parse(i, false),
+                    Self::argument,
                 ));
                 let expr = p.parse_next(i)?;
                 if has_named_arguments && !matches!(*expr, Self::NamedArgument { .. }) {
@@ -453,9 +472,7 @@ impl<'a: 'l, 'l> Expr<'a> {
         named_arguments: &mut HashSet<&'a str>,
     ) -> ParseResult<'a, Box<Self>> {
         let (((argument, arg_span), _, value), span) =
-            (identifier.with_span(), ws('='), move |i: &mut _| {
-                Self::parse(i, false)
-            })
+            (identifier.with_span(), ws('='), Self::argument)
                 .with_span()
                 .parse_next(i)?;
         if !named_arguments.insert(argument) {
@@ -471,6 +488,35 @@ impl<'a: 'l, 'l> Expr<'a> {
         Ok(Box::new(Self::NamedArgument {
             name: WithSpan::new(argument, arg_span),
             value,
+            span: span.into(),
+        }))
+    }
+
+    fn argument(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
+        // A leading `|` can only start a closure: in an argument there is nothing to filter.
+        if i.trim_ascii_start().starts_with('|') {
+            Self::closure(i)
+        } else {
+            Self::parse(i, false)
+        }
+    }
+
+    fn closure(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, Box<Self>> {
+        let param = ws(identifier.with_span()).map(|(name, span)| WithSpan::new(name, span));
+        let ((_, params, closing), span): ((_, Option<Vec<_>>, _), _) =
+            (ws('|'), opt(separated(1.., param, ws(','))), opt(ws('|')))
+                .with_span()
+                .parse_next(i)?;
+        let (Some(params), Some(_)) = (params, closing) else {
+            return cut_error!(
+                "expected a closure with one or more parameters, like `|a, b| a.cmp(b)`",
+                span,
+            );
+        };
+        let body = cut_err(move |i: &mut _| Self::parse(i, false)).parse_next(i)?;
+        Ok(Box::new(Self::Closure {
+            params,
+            body,
             span: span.into(),
         }))
     }
@@ -970,7 +1016,8 @@ impl<'a: 'l, 'l> Expr<'a> {
             | Self::Path { .. }
             | Self::Concat { .. }
             | Self::LetCond { .. }
-            | Self::ArgumentPlaceholder(..) => false,
+            | Self::ArgumentPlaceholder(..)
+            | Self::Closure { .. } => false,
         }
     }
 }

@@ -261,7 +261,8 @@ impl<'a> Generator<'a, '_> {
             | Expr::As { .. }
             | Expr::Concat { .. }
             | Expr::LetCond { .. }
-            | Expr::ArgumentPlaceholder(_) => {
+            | Expr::ArgumentPlaceholder(_)
+            | Expr::Closure { .. } => {
                 *only_contains_is_defined = false;
                 EvaluatedResult::Unknown(expr)
             }
@@ -2117,7 +2118,7 @@ fn is_cacheable(expr: &Expr<'_>) -> bool {
                     .filter_map(|field| field.value.as_ref())
                     .all(|value| is_cacheable(value))
         }
-        Expr::RustMacro { .. } => false,
+        Expr::RustMacro { .. } | Expr::Closure { .. } => false,
         // Should never be encountered:
         Expr::FilterSource(_) => unreachable!("FilterSource in expression?"),
         Expr::ArgumentPlaceholder(_) => unreachable!("ExpressionPlaceholder in expression?"),

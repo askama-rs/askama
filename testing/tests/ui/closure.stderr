@@ -1,0 +1,39 @@
+error: expected a closure with one or more parameters, like `|a, b| a.cmp(b)`
+ --> <source attribute>:1:15
+       "|| 1) }}"
+ --> tests/ui/closure.rs:4:21
+  |
+4 | #[template(source = "{{ value|apply(|| 1) }}", ext = "txt")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: the token `)` was not expected at this point in the expression
+ --> <source attribute>:1:18
+       ") }}"
+  --> tests/ui/closure.rs:10:21
+   |
+10 | #[template(source = "{{ value|apply(|a|) }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `Self` cannot be used as an identifier
+ --> <source attribute>:1:16
+       "Self| 1) }}"
+  --> tests/ui/closure.rs:16:21
+   |
+16 | #[template(source = "{{ value|apply(|Self| 1) }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: a filter cannot be used inside a closure
+ --> FilterInBody.txt:1:20
+       "|lower) }}"
+  --> tests/ui/closure.rs:22:21
+   |
+22 | #[template(source = "{{ value|apply(|a| a|lower) }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: the `?` operator cannot be used inside a closure
+ --> TryInBody.txt:1:26
+       "()?) }}"
+  --> tests/ui/closure.rs:28:21
+   |
+28 | #[template(source = "{{ value|apply(|a| a.parse()?) }}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
