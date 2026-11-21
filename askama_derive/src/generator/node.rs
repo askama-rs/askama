@@ -686,19 +686,24 @@ impl<'a> Generator<'a, '_> {
                 this.handle_ws(loop_block.ws2);
                 size_hint1 += this.write_buf_writable(ctx, &mut loop_body_buf)?;
                 let loop_body_buf = loop_body_buf.into_token_stream();
-                if uses_ident(&loop_body_buf, &var_item) {
-                    quote_into!(&mut loop_buf, span, {
+                match loop_item_use(&loop_body_buf, &var_item) {
+                    LoopItemUse::Any => quote_into!(&mut loop_buf, span, {
                         for (#target_buf, #var_item) in askama::helpers::TemplateLoop::new(#var_iter) {
                             #loop_body_buf
                         }
-                    });
-                } else {
+                    }),
+                    // Only `loop.last` needs `TemplateLoop`'s look-ahead.
+                    LoopItemUse::Index => quote_into!(&mut loop_buf, span, {
+                        for (#target_buf, #var_item) in askama::helpers::TemplateLoopIndex::new(#var_iter) {
+                            #loop_body_buf
+                        }
+                    }),
                     // Without `loop.*`, `TemplateLoop`'s counter and look-ahead would be dead weight.
-                    quote_into!(&mut loop_buf, span, {
+                    LoopItemUse::None => quote_into!(&mut loop_buf, span, {
                         for #target_buf in #var_iter {
                             #loop_body_buf
                         }
-                    });
+                    }),
                 }
                 Ok(size_hint1)
             })?;
@@ -855,14 +860,7 @@ impl<'a> Generator<'a, '_> {
         let filter_buf = filter_buf.into_token_stream();
         let filter_buf = match display_wrap {
             DisplayWrap::Wrapped => filter_buf,
-            DisplayWrap::Unwrapped => {
-                let escaper = TokenStream::from_str(self.input.escaper).unwrap();
-                quote_spanned!(span=>
-                    (&&askama::filters::AutoEscaper::new(
-                        &(#filter_buf), #escaper
-                    )).askama_auto_escape()?
-                )
-            }
+            DisplayWrap::Unwrapped => self.auto_escape(filter_buf, span),
         };
         let var_values = crate::var_values();
         quote_into!(buf, span, { {
@@ -1149,12 +1147,6 @@ impl<'a> Generator<'a, '_> {
         let mut filter_buf = Buffer::new();
         quote_into!(&mut filter_buf, span, { askama::filters::Safe(&#var_let_source) });
         let filter_buf = filter_buf.into_token_stream();
-        let escaper = TokenStream::from_str(self.input.escaper).unwrap();
-        let filter_buf = quote_spanned!(span=>
-            (&&askama::filters::AutoEscaper::new(
-                &(#filter_buf), #escaper
-            )).askama_auto_escape()?
-        );
         let var_values = crate::var_values();
         quote_into!(buf, span, { {
             #filter_def_buf
@@ -1231,12 +1223,6 @@ impl<'a> Generator<'a, '_> {
         let mut filter_buf = Buffer::new();
         quote_into!(&mut filter_buf, span, { askama::filters::Safe(&#var_let_caller) });
         let filter_buf = filter_buf.into_token_stream();
-        let escaper = TokenStream::from_str(self.input.escaper).unwrap();
-        let filter_buf = quote_spanned!(span=>
-            (&&askama::filters::AutoEscaper::new(
-                &(#filter_buf), #escaper
-            )).askama_auto_escape()?
-        );
         let var_values = crate::var_values();
         quote_into!(buf, span, { {
             #filter_def_buf
@@ -1685,6 +1671,18 @@ impl<'a> Generator<'a, '_> {
     }
 
     // Write expression buffer and empty
+    /// Passes `expr` through the template's escaper. `Text` would only add a writer that
+    /// forwards everything unchanged, so its input is written as is.
+    fn auto_escape(&self, expr: TokenStream, span: proc_macro2::Span) -> TokenStream {
+        if self.input.escaper == "askama::filters::Text" {
+            return expr;
+        }
+        let escaper = TokenStream::from_str(self.input.escaper).unwrap();
+        quote_spanned!(span=>
+            (&&askama::filters::AutoEscaper::new(&(#expr), #escaper)).askama_auto_escape()?
+        )
+    }
+
     pub(crate) fn write_buf_writable(
         &mut self,
         ctx: &Context<'_>,
@@ -1754,12 +1752,7 @@ impl<'a> Generator<'a, '_> {
                     let expr = match self.visit_expr(ctx, &mut expr_buf, s)? {
                         DisplayWrap::Wrapped => expr_buf.into_token_stream(),
                         DisplayWrap::Unwrapped => {
-                            let escaper = TokenStream::from_str(self.input.escaper).unwrap();
-                            let expr_buf = expr_buf.into_token_stream();
-                            quote_spanned!(span=>
-                                (&&askama::filters::AutoEscaper::new(&(#expr_buf), #escaper)).
-                                    askama_auto_escape()?
-                            )
+                            self.auto_escape(expr_buf.into_token_stream(), span)
                         }
                     };
 
@@ -2124,13 +2117,35 @@ fn is_cacheable(expr: &Expr<'_>) -> bool {
     }
 }
 
-/// Whether `ident` occurs anywhere in `tokens`, e.g. if a loop body reads `loop.*`.
-fn uses_ident(tokens: &TokenStream, ident: &proc_macro2::Ident) -> bool {
-    tokens.clone().into_iter().any(|token| match token {
-        proc_macro2::TokenTree::Ident(i) => i == *ident,
-        proc_macro2::TokenTree::Group(g) => uses_ident(&g.stream(), ident),
-        _ => false,
-    })
+/// What a loop body reads of its loop item `ident`, i.e. of `loop.*`.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum LoopItemUse {
+    None,
+    /// Only `index0`, which `loop.index`, `loop.first` and `loop.cycle()` are built on.
+    Index,
+    Any,
+}
+
+fn loop_item_use(tokens: &TokenStream, ident: &proc_macro2::Ident) -> LoopItemUse {
+    let mut found = LoopItemUse::None;
+    let mut tokens = tokens.clone().into_iter().peekable();
+    while let Some(token) = tokens.next() {
+        let this = match token {
+            proc_macro2::TokenTree::Ident(i) if i == *ident => {
+                let dot = matches!(tokens.next(), Some(proc_macro2::TokenTree::Punct(p)) if p.as_char() == '.');
+                match tokens.peek() {
+                    Some(proc_macro2::TokenTree::Ident(f)) if dot && f == "index0" => {
+                        LoopItemUse::Index
+                    }
+                    _ => LoopItemUse::Any,
+                }
+            }
+            proc_macro2::TokenTree::Group(g) => loop_item_use(&g.stream(), ident),
+            _ => LoopItemUse::None,
+        };
+        found = found.max(this);
+    }
+    found
 }
 
 fn check_num_args<'a>(
