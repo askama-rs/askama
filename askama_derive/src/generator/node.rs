@@ -686,27 +686,24 @@ impl<'a> Generator<'a, '_> {
                 this.handle_ws(loop_block.ws2);
                 size_hint1 += this.write_buf_writable(ctx, &mut loop_body_buf)?;
                 let loop_body_buf = loop_body_buf.into_token_stream();
-                let loop_use = loop_item_use(&loop_body_buf, &var_item);
-                if loop_use == LoopItemUse::Any {
-                    quote_into!(&mut loop_buf, span, {
+                match loop_item_use(&loop_body_buf, &var_item) {
+                    LoopItemUse::Any => quote_into!(&mut loop_buf, span, {
                         for (#target_buf, #var_item) in askama::helpers::TemplateLoop::new(#var_iter) {
                             #loop_body_buf
                         }
-                    });
-                } else if loop_use == LoopItemUse::Index {
+                    }),
                     // Only `loop.last` needs `TemplateLoop`'s look-ahead.
-                    quote_into!(&mut loop_buf, span, {
+                    LoopItemUse::Index => quote_into!(&mut loop_buf, span, {
                         for (#target_buf, #var_item) in askama::helpers::TemplateLoopIndex::new(#var_iter) {
                             #loop_body_buf
                         }
-                    });
-                } else {
+                    }),
                     // Without `loop.*`, `TemplateLoop`'s counter and look-ahead would be dead weight.
-                    quote_into!(&mut loop_buf, span, {
+                    LoopItemUse::None => quote_into!(&mut loop_buf, span, {
                         for #target_buf in #var_iter {
                             #loop_body_buf
                         }
-                    });
+                    }),
                 }
                 Ok(size_hint1)
             })?;

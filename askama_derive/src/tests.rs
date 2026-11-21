@@ -1640,6 +1640,49 @@ fn test_loop_without_last_skips_look_ahead() {
 }
 
 #[test]
+fn test_loop_with_last_keeps_look_ahead() {
+    compare(
+        "{% for a in v %}{{ a }}{% if !loop.last %},{% endif %}{% endfor %}",
+        r#"
+            let __askama_iter = (&self.v).into_iter();
+            for (a, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
+                match (&(a),) {
+                    (__askama_expr0,) => {
+                        (&&&askama::filters::Writable(__askama_expr0))
+                            .askama_write(__askama_writer, __askama_values)?;
+                    }
+                }
+                if !askama::helpers::as_bool(&(__askama_item.last)) {
+                    __askama_writer.write_str(",")?;
+                }
+            }
+        "#,
+        &[("v", "Vec<u32>")],
+        6,
+    );
+}
+
+#[test]
+fn test_loop_without_loop_var_is_plain_for() {
+    compare(
+        "{% for a in v %}{{ a }}{% endfor %}",
+        r#"
+            let __askama_iter = (&self.v).into_iter();
+            for a in __askama_iter {
+                match (&(a),) {
+                    (__askama_expr0,) => {
+                        (&&&askama::filters::Writable(__askama_expr0))
+                            .askama_write(__askama_writer, __askama_values)?;
+                    }
+                }
+            }
+        "#,
+        &[("v", "Vec<u32>")],
+        4,
+    );
+}
+
+#[test]
 fn fuzzed_long_filter_chain() -> Result<(), syn::Error> {
     // Every element of a filter chain nests the previous one in the generated code, so the
     // code generated for each element must be as shallow as possible, otherwise `syn` overflows
