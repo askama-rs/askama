@@ -3,8 +3,8 @@ use std::str::FromStr;
 
 use parser::node::CondTest;
 use parser::{
-    AssociatedItem, CharLit, CharPrefix, Expr, PathComponent, Span, StrLit, StrPrefix, Target,
-    TyGenericArgs, TyGenerics, TyGenericsKind,
+    AssociatedItem, CharLit, CharPrefix, Expr, Ident, PathComponent, Span, StrLit, StrPrefix,
+    Target, TyGenericArgs, TyGenerics, TyGenericsKind,
 };
 use proc_macro2::{Delimiter, Spacing, TokenStream, TokenTree};
 use quote::quote_spanned;
@@ -347,11 +347,11 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        path: &[(&str, Span)],
+        path: &[Ident<'_>],
         args: &str,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        let [path @ .., (name, _)] = path else {
+        let [path @ .., Ident { name, .. }] = path else {
             unreachable!("path cannot be empty");
         };
 
@@ -932,10 +932,10 @@ impl<'a> Generator<'a, '_> {
     pub(super) fn visit_macro_path(
         &self,
         buf: &mut Buffer,
-        path: &[(&str, Span)],
+        path: &[Ident<'_>],
         span: proc_macro2::Span,
     ) {
-        for (i, &(part, _)) in path.iter().enumerate() {
+        for (i, &Ident { name: part, .. }) in path.iter().enumerate() {
             if i > 0 {
                 buf.write_token(Token![::], span);
             } else if let Some(enum_ast) = self.input.enum_ast
@@ -1080,7 +1080,7 @@ impl<'a> Generator<'a, '_> {
             &Target::Placeholder(s) => quote_into!(buf, ctx.span_for_node(s), { _ }),
             Target::Rest(var_name, s) => {
                 let span = ctx.span_for_node(*s);
-                if let Some((var_name, _)) = var_name {
+                if let Some(Ident { name: var_name, .. }) = var_name {
                     let id = field_new(var_name, span);
                     self.locals
                         .insert(Cow::Borrowed(var_name), LocalMeta::var_def());
@@ -1088,7 +1088,7 @@ impl<'a> Generator<'a, '_> {
                 }
                 buf.write_token(Token![..], span);
             }
-            &Target::Name(name, s) => {
+            &Target::Name(Ident { name, span: s }) => {
                 match initialized {
                     true => self
                         .locals

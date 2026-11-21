@@ -5,14 +5,14 @@ use winnow::token::one_of;
 use winnow::{ModalParser, Parser};
 
 use crate::{
-    CharLit, ErrorContext, InputStream, Num, ParseErr, ParseResult, PathComponent,
+    CharLit, ErrorContext, Ident, InputStream, Num, ParseErr, ParseResult, PathComponent,
     PathOrIdentifier, Span, StrLit, bool_lit, can_be_variable_name, char_lit, cut_error,
     identifier, is_rust_keyword, keyword, num_lit, path_or_identifier, str_lit, ws,
 };
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Target<'a> {
-    Name(&'a str, Span),
+    Name(Ident<'a>),
     Tuple(Vec<PathComponent<'a>>, Vec<Target<'a>>, Span),
     Array(Vec<Target<'a>>, Span),
     Struct(Vec<PathComponent<'a>>, Vec<NamedTarget<'a>>, Span),
@@ -24,7 +24,7 @@ pub enum Target<'a> {
     OrChain(Vec<Target<'a>>, Span),
     Placeholder(Span),
     /// The `Option` is the variable name (if any) in `var_name @ ..`.
-    Rest(Option<(&'a str, Span)>, Span),
+    Rest(Option<Ident<'a>>, Span),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -44,7 +44,7 @@ impl<'a> From<((&'a str, Span), Target<'a>)> for NamedTarget<'a> {
 impl<'a: 'l, 'l> Target<'a> {
     pub fn span(&self) -> Span {
         match *self {
-            Target::Name(_, span)
+            Target::Name(Ident { span, .. })
             | Target::Tuple(_, _, span)
             | Target::Array(_, span)
             | Target::Struct(_, _, span)
@@ -250,11 +250,14 @@ impl<'a: 'l, 'l> Target<'a> {
         Ok(Self::Rest(name, span))
     }
 
-    fn rest_inner(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, (Option<(&'a str, Span)>, Span)> {
+    fn rest_inner(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, (Option<Ident<'a>>, Span)> {
         let p = |i: &mut _| {
             let id =
                 terminated(opt(terminated(identifier.with_span(), ws('@'))), "..").parse_next(i)?;
-            Ok(id.map(|(id, span)| (id, Span::from(span))))
+            Ok(id.map(|(name, span)| Ident {
+                name,
+                span: span.into(),
+            }))
         };
         let (id, span) = ws(p.with_span()).parse_next(i)?;
         Ok((id, span.into()))
@@ -284,7 +287,7 @@ fn verify_name<'a>(name: &'a str, span: Span) -> Result<Target<'a>, ErrMode<Erro
             span,
         )
     } else {
-        Ok(Target::Name(name, span))
+        Ok(Target::Name(Ident { name, span }))
     }
 }
 

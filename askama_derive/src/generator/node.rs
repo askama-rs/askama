@@ -759,7 +759,7 @@ impl<'a> Generator<'a, '_> {
             ..
         } = *call;
 
-        let (def, own_ctx) = if let Some((s, _)) = scope {
+        let (def, own_ctx) = if let Some(Ident { name: s, .. }) = scope {
             let path = ctx.imports.get(s).ok_or_else(|| {
                 ctx.generate_error(
                     format_args!("no import found for scope `{}`", s.escape_debug()),
@@ -927,7 +927,11 @@ impl<'a> Generator<'a, '_> {
             None => child_ctx,
         };
 
-        if let Some((block, block_span)) = i.block {
+        if let Some(Ident {
+            name: block,
+            span: block_span,
+        }) = i.block
+        {
             // `{% include "..." block name %}` renders only that block, the way it renders in
             // the included template, `super()` and nested blocks included.
             if heritage
@@ -987,7 +991,7 @@ impl<'a> Generator<'a, '_> {
         l: Span,
     ) -> Result<bool, CompileError> {
         match var {
-            Target::Name(name, _) => {
+            Target::Name(Ident { name, .. }) => {
                 match self.locals.get(name) {
                     // declares a new variable
                     None => Ok(false),
@@ -999,8 +1003,8 @@ impl<'a> Generator<'a, '_> {
             }
             Target::Placeholder(_) => Ok(false),
             Target::Rest(var_name, _) => {
-                if let Some((var_name, var_name_span)) = *var_name {
-                    let name = Target::Name(var_name, var_name_span);
+                if let Some(var_name) = *var_name {
+                    let name = Target::Name(var_name);
                     match self.is_shadowing_variable(ctx, &name, l) {
                         Ok(false) => {}
                         outcome => return outcome,
@@ -1082,7 +1086,7 @@ impl<'a> Generator<'a, '_> {
         let size_hint = self.flush_before_statement(ctx, buf)?;
         if shadowed
             || !matches!(l.var, Target::Name(..))
-            || matches!(&l.var, Target::Name(name, _) if self.locals.get(name).is_none())
+            || matches!(&l.var, Target::Name(Ident { name, .. }) if self.locals.get(name).is_none())
         {
             buf.write_token(Token![let], span);
             if l.is_mutable {
@@ -1266,7 +1270,7 @@ impl<'a> Generator<'a, '_> {
         val: &'a Expr<'a>,
     ) -> Result<SizeHint, CompileError> {
         // Handle when this statement creates a new alias of a caller variable (or of another alias),
-        if let Target::Name(dstvar, _) = l.var {
+        if let Target::Name(Ident { name: dstvar, .. }) = l.var {
             if let Expr::Var { name, .. } = *val {
                 if let Some(caller_alias) = self.locals.get_caller(name) {
                     self.locals.insert(
@@ -1320,14 +1324,7 @@ impl<'a> Generator<'a, '_> {
         if c.is_mutable {
             buf.write_token(Token![mut], span);
         }
-        self.visit_target(
-            ctx,
-            buf,
-            false,
-            true,
-            &Target::Name(c.var_name.name, c.var_name.span),
-            span,
-        );
+        self.visit_target(ctx, buf, false, true, &Target::Name(c.var_name), span);
         buf.write_token(Token![;], span);
 
         Ok(size_hint)

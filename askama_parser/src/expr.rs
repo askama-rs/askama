@@ -9,10 +9,10 @@ use winnow::token::{any, one_of, take, take_until};
 
 use crate::node::CondTest;
 use crate::{
-    CharLit, ErrorContext, HashSet, InputStream, LevelGuard, Num, ParseResult, PathOrIdentifier,
-    Span, StrLit, StrPrefix, any_rust_token, char_lit, cut_error, deny_any_rust_token, filter,
-    identifier, is_rust_keyword, keyword, not_suffix_with_hash, num_lit, path_or_identifier,
-    skip_ws0, skip_ws1, str_lit, ws,
+    CharLit, ErrorContext, HashSet, Ident, InputStream, LevelGuard, Num, ParseResult,
+    PathOrIdentifier, Span, StrLit, StrPrefix, any_rust_token, char_lit, cut_error,
+    deny_any_rust_token, filter, identifier, is_rust_keyword, keyword, not_suffix_with_hash,
+    num_lit, path_or_identifier, skip_ws0, skip_ws1, str_lit, ws,
 };
 
 const MAX_REFS: usize = 20;
@@ -292,7 +292,7 @@ pub enum Expr<'a> {
         span: Span,
     },
     RustMacro {
-        path: Vec<(&'a str, Span)>,
+        path: Vec<Ident<'a>>,
         arguments: &'a str,
         span: Span,
     },
@@ -1224,7 +1224,10 @@ impl<'a: 'l, 'l> Suffix<'a> {
                         Expr::RustMacro {
                             path: components
                                 .into_iter()
-                                .map(|c: PathComponent<'_>| (c.name, c.span))
+                                .map(|c: PathComponent<'_>| Ident {
+                                    name: c.name,
+                                    span: c.span,
+                                })
                                 .collect(),
                             arguments,
                             span,
@@ -1236,7 +1239,10 @@ impl<'a: 'l, 'l> Suffix<'a> {
                     } => {
                         ensure_macro_name(name, name_span)?;
                         Expr::RustMacro {
-                            path: vec![(name, name_span)],
+                            path: vec![Ident {
+                                name,
+                                span: name_span,
+                            }],
                             arguments,
                             span,
                         }
@@ -1856,7 +1862,7 @@ impl<'a: 'l, 'l> TyGenerics<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum TyGenericsKind<'a> {
     Path {
-        path: Vec<(&'a str, Span)>,
+        path: Vec<Ident<'a>>,
         args: Option<TyGenericArgs<'a>>,
     },
     Tuple(Vec<TyGenerics<'a>>),
@@ -1875,22 +1881,23 @@ impl<'a: 'l, 'l> TyGenericsKind<'a> {
     fn ty_path(i: &mut InputStream<'a, 'l>) -> ParseResult<'a, TyGenericsKind<'a>> {
         let path = separated(
             1..,
-            ws(identifier
-                .with_span()
-                .map(|(name, span)| (name, Span::from(span)))),
+            ws(identifier.with_span().map(|(name, span)| Ident {
+                name,
+                span: span.into(),
+            })),
             "::",
         )
         .map(|v: Vec<_>| v);
 
         let (path, args) = (path, opt(TyGenerics::args)).parse_next(i)?;
 
-        if let [(name, span)] = *path.as_slice() {
+        if let [Ident { name, span }] = *path.as_slice() {
             if matches!(name, "super" | "self" | "crate") {
                 // `Self` and `_` are allowed
                 return err_reserved_identifier(name, span);
             }
         } else {
-            for (idx, &(name, span)) in path.iter().enumerate() {
+            for (idx, &Ident { name, span }) in path.iter().enumerate() {
                 if name == "_" {
                     // `_` is never allowed
                     return err_underscore_identifier(span);

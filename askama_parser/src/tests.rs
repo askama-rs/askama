@@ -5,8 +5,8 @@ use winnow::{LocatingSlice, Parser};
 use crate::expr::BinOp;
 use crate::node::{Extends, Include, Let, Lit, Raw, Whitespace, Ws};
 use crate::{
-    Ast, Expr, Filter, InnerSyntax, InputStream, LetValueOrBlock, Level, Node, Num, PathComponent,
-    PathOrIdentifier, Span, State, StrLit, Syntax, SyntaxBuilder, Target,
+    Ast, Expr, Filter, Ident, InnerSyntax, InputStream, LetValueOrBlock, Level, Node, Num,
+    PathComponent, PathOrIdentifier, Span, State, StrLit, Syntax, SyntaxBuilder, Target,
 };
 
 fn as_path<'a>(path: &[(&'a str, Span)]) -> Vec<PathComponent<'a>> {
@@ -508,7 +508,10 @@ fn test_rust_macro() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("vec", Span::new(3..6))],
+                path: vec![Ident {
+                    name: "vec",
+                    span: Span::new(3..6)
+                }],
                 arguments: "1, 2, 3",
                 span: Span::new(6..7)
             }),
@@ -521,7 +524,16 @@ fn test_rust_macro() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("alloc", Span::new(3..8)), ("vec", Span::new(10..13))],
+                path: vec![
+                    Ident {
+                        name: "alloc",
+                        span: Span::new(3..8)
+                    },
+                    Ident {
+                        name: "vec",
+                        span: Span::new(10..13)
+                    }
+                ],
                 arguments: "1, 2, 3",
                 span: Span::new(13..14)
             }),
@@ -532,7 +544,10 @@ fn test_rust_macro() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("a", Span::new(2..3))],
+                path: vec![Ident {
+                    name: "a",
+                    span: Span::new(2..3)
+                }],
                 arguments: "",
                 span: Span::new(3..4)
             })
@@ -543,7 +558,10 @@ fn test_rust_macro() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("a", Span::new(2..3))],
+                path: vec![Ident {
+                    name: "a",
+                    span: Span::new(2..3)
+                }],
                 arguments: "",
                 span: Span::new(4..5)
             })
@@ -554,7 +572,10 @@ fn test_rust_macro() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("a", Span::new(2..3))],
+                path: vec![Ident {
+                    name: "a",
+                    span: Span::new(2..3)
+                }],
                 arguments: "",
                 span: Span::new(3..4)
             })
@@ -565,7 +586,10 @@ fn test_rust_macro() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("a", Span::new(2..3))],
+                path: vec![Ident {
+                    name: "a",
+                    span: Span::new(2..3)
+                }],
                 arguments: "",
                 span: Span::new(4..5)
             })
@@ -576,7 +600,10 @@ fn test_rust_macro() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("A", Span::new(2..3))],
+                path: vec![Ident {
+                    name: "A",
+                    span: Span::new(2..3)
+                }],
                 arguments: "",
                 span: Span::new(3..4)
             })
@@ -1675,12 +1702,17 @@ fn test_include() {
         [Box::new(Node::Include(Include {
             ws: Ws(Some(Whitespace::Suppress), Some(Whitespace::Minimize)),
             path: "a.html",
-            block: Some(("b_1", Span::new(27..30))),
+            block: Some(Ident {
+                name: "b_1",
+                span: Span::new(27..30)
+            }),
             span: Span::new(4..11),
         }))],
     );
     let Node::Include(Include {
-        block: Some((_, block_span)),
+        block: Some(Ident {
+            span: block_span, ..
+        }),
         ..
     }) = &*ast.nodes()[0]
     else {
@@ -1927,7 +1959,10 @@ fn macro_calls_can_have_raw_prefixes() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("z", Span::new(3..4))],
+                path: vec![Ident {
+                    name: "z",
+                    span: Span::new(3..4)
+                }],
                 arguments: inner,
                 span: Span::new(4..5)
             }),
@@ -1952,7 +1987,10 @@ fn macro_comments_in_macro_calls() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("e", Span::new(3..4))],
+                path: vec![Ident {
+                    name: "e",
+                    span: Span::new(3..4)
+                }],
                 arguments: "// hello\n",
                 span: Span::new(4..5)
             }),
@@ -1965,7 +2003,10 @@ fn macro_comments_in_macro_calls() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("e", Span::new(3..4))],
+                path: vec![Ident {
+                    name: "e",
+                    span: Span::new(3..4)
+                }],
                 arguments: "/// hello\n",
                 span: Span::new(4..5)
             }),
@@ -1978,7 +2019,10 @@ fn macro_comments_in_macro_calls() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("e", Span::new(3..4))],
+                path: vec![Ident {
+                    name: "e",
+                    span: Span::new(3..4)
+                }],
                 arguments: "//! hello\n",
                 span: Span::new(4..5)
             }),
@@ -1992,7 +2036,10 @@ fn macro_comments_in_macro_calls() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("e", Span::new(3..4))],
+                path: vec![Ident {
+                    name: "e",
+                    span: Span::new(3..4)
+                }],
                 arguments: "/* hello */",
                 span: Span::new(4..5)
             }),
@@ -2005,7 +2052,10 @@ fn macro_comments_in_macro_calls() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("e", Span::new(3..4))],
+                path: vec![Ident {
+                    name: "e",
+                    span: Span::new(3..4)
+                }],
                 arguments: "/** hello */",
                 span: Span::new(4..5)
             }),
@@ -2018,7 +2068,10 @@ fn macro_comments_in_macro_calls() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("e", Span::new(3..4))],
+                path: vec![Ident {
+                    name: "e",
+                    span: Span::new(3..4)
+                }],
                 arguments: "/*! hello */",
                 span: Span::new(4..5)
             }),
@@ -2091,7 +2144,10 @@ fn test_macro_call_nested_comments() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("x", Span::new(3..4))],
+                path: vec![Ident {
+                    name: "x",
+                    span: Span::new(3..4)
+                }],
                 arguments: "/*/*/*)*/*/*/",
                 span: Span::new(4..5)
             }),
@@ -2110,7 +2166,10 @@ fn test_macro_call_nested_comments() {
         [Box::new(Node::Expr(
             Ws(None, None),
             Box::new(Expr::RustMacro {
-                path: vec![("x", Span::new(3..4))],
+                path: vec![Ident {
+                    name: "x",
+                    span: Span::new(3..4)
+                }],
                 arguments: "/**/",
                 span: Span::new(4..5)
             }),

@@ -895,7 +895,7 @@ impl<'a: 'l, 'l> Import<'a> {
 pub struct Call<'a> {
     pub ws1: Ws,
     pub caller_args: Vec<&'a str>,
-    pub scope: Option<(&'a str, Span)>,
+    pub scope: Option<Ident<'a>>,
     pub name: Ident<'a>,
     pub args: Option<Vec<Box<Expr<'a>>>>,
     pub nodes: Vec<Box<Node<'a>>>,
@@ -930,7 +930,10 @@ impl<'a: 'l, 'l> Call<'a> {
                     opt(|i: &mut _| {
                         let (scope, span) =
                             terminated(ws(identifier.with_span()), ws("::")).parse_next(i)?;
-                        Ok((scope, Span::from(span)))
+                        Ok(Ident {
+                            name: scope,
+                            span: span.into(),
+                        })
                     }),
                     ws(identifier.with_span()),
                     opt(ws(Expr::arguments)),
@@ -1571,7 +1574,7 @@ pub struct Include<'a> {
     pub ws: Ws,
     pub path: &'a str,
     /// The block to render instead of the whole template, from `{% include "..." block name %}`.
-    pub block: Option<(&'a str, Span)>,
+    pub block: Option<Ident<'a>>,
     pub span: Span,
 }
 
@@ -1593,7 +1596,10 @@ impl<'a: 'l, 'l> Include<'a> {
         Ok(Box::new(Node::Include(Self {
             ws: Ws(pws, nws),
             path,
-            block: block.map(|(name, span)| (name, Span::from(span))),
+            block: block.map(|(name, span)| Ident {
+                name,
+                span: span.into(),
+            }),
             span: span.into(),
         })))
     }
