@@ -132,6 +132,8 @@ struct Generator<'a, 'h> {
     /// The block rendered on its own, by `block = "..."` or `{% include "..." block ... %}`:
     /// only it and the `if` or `match` around it generate code.
     fragment: Option<&'a str>,
+    /// Number of filter invocations currently being generated, one inside the other.
+    filter_depth: usize,
 }
 
 enum CallerDir {
@@ -166,6 +168,7 @@ impl<'a, 'h> Generator<'a, 'h> {
             macro_functions: Vec::new(),
             caller_dir: CallerDir::Unresolved,
             fragment: input.block.map(|(name, _)| name),
+            filter_depth: 0,
         }
     }
 

@@ -1157,10 +1157,8 @@ fn test_filter_with_path() {
         r"{{ a | b::c::d }}",
         r#"
         match (
-            &({
-                    askama::filters::ValidFilterInvocation::wrap(b::c::d::default())
-                        .execute(&(self.a), __askama_values)?
-                }),
+            &(askama::filters::ValidFilterInvocation::wrap(b::c::d::default())
+                .execute(&(self.a), __askama_values)?),
         ) {
             (__askama_expr0,) => {
                 (&&&askama::filters::Writable(__askama_expr0))
@@ -1410,12 +1408,10 @@ fn regression_tests_span_change() {
         r#"
             __askama_writer.write_str("Hello, ")?;
             match (
-                &({
-                    askama::filters::ValidFilterInvocation::wrap(
-                            filters::cased::default(),
-                        )
-                        .execute(&(self.user), __askama_values)?
-                }),
+                &(askama::filters::ValidFilterInvocation::wrap(
+                        filters::cased::default(),
+                    )
+                    .execute(&(self.user), __askama_values)?),
             ) {
                 (__askama_expr2,) => {
                     (&&&askama::filters::Writable(__askama_expr2))
@@ -1432,12 +1428,10 @@ fn regression_tests_span_change() {
         r#"
             __askama_writer.write_str("Hello, ")?;
             match (
-                &({
-                    askama::filters::ValidFilterInvocation::wrap(
-                            filters::cased::default(),
-                        )
-                        .execute(&(self.user), __askama_values)?
-                }),
+                &(askama::filters::ValidFilterInvocation::wrap(
+                        filters::cased::default(),
+                    )
+                    .execute(&(self.user), __askama_values)?),
             ) {
                 (__askama_expr2,) => {
                     (&&&askama::filters::Writable(__askama_expr2))
@@ -1643,4 +1637,153 @@ fn test_loop_without_last_skips_look_ahead() {
         &[("v", "Vec<u32>")],
         4,
     );
+}
+
+#[test]
+fn fuzzed_long_filter_chain() -> Result<(), syn::Error> {
+    // Every element of a filter chain nests the previous one in the generated code, so the
+    // code generated for each element must be as shallow as possible, otherwise `syn` overflows
+    // its stack.
+    let input = quote! {
+        #[template(
+            ext = "txt",
+            source = "{{JJs|J(J)*J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(JJ(J)|J(J)|J(J)|J(J\
+    )|J(JӃJ(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(coreJJ(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J\
+    (J)|J(J)|J(J)|J(J)|J(J|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ(JӃJ(J0|J(J)|J(J)|J(tr(J)|J(J\
+    )|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J|J(J)|J,J)|J(J)|J(J)|J(J)|J(J)|J(J\
+    )|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(\
+    J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(Z)|J(\
+    J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(\
+    J)|JJ(JӃ(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J()|J(J)|Jڵ)|J(J)\
+    |J(J)|J(J)|J)|J(J)|J(J)|J(JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|struJ(J)|J(J)|J(J)|\
+    J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(traitJ)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J((J)\
+    |J(J)|J(J)|J(J)|J|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ\
+    (J)|J(J)|J(J)|J()|J(J)|J((J)|J(J)|J(J)|J(J)*J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(\
+    J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J((J)|J\
+    (J)|J(J)|J(J)*J|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(pubJ)|J(J)|J\
+    (J(J)|J(J)|J(J)|J(J)|J(J)|JJ(JӃ(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)\
+    |J(J)|J()|J(J)|Jڵ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J\
+    (J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)\
+    |J(J)|structJ(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(traitJ)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J\
+    )|J(J)|J(J)|J(J)|J(J)|J((J)|J(J)|J(J)|J(J)|J|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|\
+    J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)\
+    |J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)\
+    |J(J)|J(J)|J(J)|J(J)|J((J)|J(J)|J(J)|J(J)*J|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J\
+    (J)|J(J)|J(J)|J(pubJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|\
+    J(J)|JٵփJ(J)|J(J)|J(JA)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J((J)|\
+    J(J)||J(J)|J(traitJ)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J((J)|J(J)|J(J)|J(J)|J|J\
+    (J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J\
+    (J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|\
+    J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J((J)|J(J)|J(J)|J(J)*J|J(\
+    J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(pubJ)|J(J)|J(J)|J(J)|J(J)|J(J)\
+    |J(J)|J(J)|J(J)|J(J)|J(J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JٵփJ(J)|J(J)|J(JA)|J(J)|J(J)|J(J)|J(J)|J(\
+    J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J((J)|J(J)|J(J)|J(J)*J|J(J)|J(J)|J(JyJ(J)|J(J)|J(J)|\
+    J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J()|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|\
+    J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|\
+    J(J)|J(J)|J(J)|J(J)|J(J)|J*J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|stctJ(J)|J(J)|J(J)|J(J)|J(J)|J(J)|\
+    J(J)|J(J)|J(J)|J(traitJ)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|\
+    J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(փJ(J)|J(J)|J(J)|J\
+    (J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(pubJ)|J(J)|J(J)|J(J\
+    )|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J(J)|J)|J(J)|J(J)|J(J)|J(J)|J(J)|J((J)|J(J)|J\
+    (J)|J(J)|J|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|JJ)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)\
+    |J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|Jd4596}}/6}␆␡}␌{{ktypeore1658}}␌{{core078d7}}␌{{\
+    coeRewult637}}␁&␌����O�L(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)1658}}␌{{core078d\
+    7}}␌{{coeRewult637}}␁&␌����O�L(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(Jo(J)|J(\
+    J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)(J)|J(J)|askama(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J(J)|J()|JJ)|Jc}}"
+        )]
+        struct a {}
+    };
+    let output = derive_template(input, import_askama);
+    let _: syn::File = syn::parse2(output)?;
+    Ok(())
+}
+
+#[test]
+fn test_custom_filter_chain() {
+    // The static assertion checking the number of arguments must be put in the block creating
+    // the filter. Also, it's only wrapped in a block if the filter has arguments of its own.
+    compare(
+        "{{ a | f(b) | g | h(b, c) }}",
+        r#"
+        match (
+            &(askama::filters::ValidFilterInvocation::wrap(
+                    {
+                        const _: bool =
+                            <filters::h as askama::filters::ValidArgIdx<1usize>>::VALID;
+                        filters::h::default()
+                    }
+                    .with_0(&(self.b))
+                    .with_1(&(self.c)),
+                )
+                .execute(
+                    askama::filters::ValidFilterInvocation::wrap(filters::g::default())
+                        .execute(
+                            askama::filters::ValidFilterInvocation::wrap(
+                                {
+                                    const _: bool =
+                                        <filters::f as askama::filters::ValidArgIdx<0usize>>::VALID;
+                                    filters::f::default()
+                                }
+                                .with_0(&(self.b)),
+                            )
+                            .execute(&(self.a), __askama_values)?,
+                            __askama_values,
+                        )?,
+                    __askama_values,
+                )?),
+        ) {
+            (__askama_expr0,) => {
+                (&&&askama::filters::Writable(__askama_expr0))
+                    .askama_write(__askama_writer, __askama_values)?;
+            }
+        }"#,
+        &[("a", "i8"), ("b", "i8"), ("c", "i8")],
+        3,
+    );
+}
+
+#[test]
+fn test_max_filter_depth() {
+    // A filter nests its input and its arguments in the generated code, so the number of
+    // filters nested in one another is limited, wherever they come from.
+    #[track_caller]
+    fn check(src: &str, ok: bool) {
+        let input = quote! {
+            #[template(ext = "txt", source = #src)]
+            struct Foo { a: u32, b: u32 }
+        };
+        let output = derive_template(input, import_askama);
+        let output_str = output.to_string();
+        assert_eq!(
+            !output_str.contains("too many nested filters"),
+            ok,
+            "source: {src:?}",
+        );
+        let _: syn::File = syn::parse2(output).unwrap();
+    }
+
+    // Filter chain.
+    check(&format!("{{{{ a{} }}}}", "|f(b)".repeat(32)), true);
+    check(&format!("{{{{ a{} }}}}", "|f(b)".repeat(33)), false);
+    // Filter chain broken up by parentheses: each chain has only one filter.
+    check(
+        &format!("{{{{ {}a{} }}}}", "(".repeat(32), "|f(b))".repeat(32)),
+        true,
+    );
+    check(
+        &format!("{{{{ {}a{} }}}}", "(".repeat(33), "|f(b))".repeat(33)),
+        false,
+    );
+    // Filters as arguments of filters.
+    check(
+        &format!("{{{{ {}a{} }}}}", "a|f(".repeat(32), ")".repeat(32)),
+        true,
+    );
+    check(
+        &format!("{{{{ {}a{} }}}}", "a|f(".repeat(33), ")".repeat(33)),
+        false,
+    );
+    // Siblings are not nested.
+    check(&format!("{{{{ a|f({}) }}}}", ["b|g"; 64].join(", ")), true);
+    check(&format!("{{{{ {} }}}}", ["a|f(b)|g"; 64].join(" + ")), true);
 }
