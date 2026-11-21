@@ -568,6 +568,51 @@ Output:
 <p>I'm Safe</p>
 ```
 
+### sort
+
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ iterable | sort }}
+{{ iterable | sort(compare) }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
+
+Collects the items into a `Vec` and sorts it, like
+[`slice::sort()`](https://doc.rust-lang.org/std/primitive.slice.html#method.sort).
+With this data:
+
+```rust
+vec![3, 1, 2]
+```
+
+And this template:
+
+```jinja
+{% for elem in data|sort %}{{ elem }},{% endfor %}
+```
+
+Output will be:
+
+```text
+1,2,3,
+```
+
+To sort by something else than the items' `Ord` implementation, pass a closure or the path of
+a function that compares two items, like
+[`slice::sort_by()`](https://doc.rust-lang.org/std/primitive.slice.html#method.sort_by):
+
+```jinja
+{% for user in users|sort(|a, b| a.name.cmp(&b.name)) %}{{ user.name }},{% endfor %}
+```
+
+The sort is stable: items that compare equal keep their order.
+Swap `a` and `b` to sort in descending order.
+
 ### title | titlecase { #title }
 
 <blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">

@@ -80,6 +80,7 @@ impl<'a> Generator<'a, '_> {
             "ref" => Self::visit_ref_filter,
             "reject" => Self::visit_reject_filter,
             "safe" => Self::visit_safe_filter,
+            "sort" => Self::visit_sort_filter,
             "truncate" => Self::visit_truncate_filter,
             "urlencode" => Self::visit_urlencode_filter,
             "urlencode_strict" => Self::visit_urlencode_strict_filter,
@@ -398,6 +399,36 @@ impl<'a> Generator<'a, '_> {
             });
         }
 
+        Ok(DisplayWrap::Unwrapped)
+    }
+
+    fn visit_sort_filter(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[Box<Expr<'a>>],
+        node: Span,
+    ) -> Result<DisplayWrap, CompileError> {
+        const ARGUMENTS: &[&FilterArgument; 2] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "compare",
+                default_value: Some(ARGUMENT_PLACEHOLDER),
+            },
+        ];
+        ensure_filter_has_feature_alloc(ctx, "sort", node)?;
+        let [input, compare] = collect_filter_args(ctx, "sort", node, args, ARGUMENTS)?;
+        let span = ctx.span_for_node(node);
+
+        let mut tmp = Buffer::new();
+        self.visit_loop_iter(ctx, &mut tmp, input)?;
+        let input = tmp.into_token_stream();
+        if let Expr::ArgumentPlaceholder(_) = compare {
+            quote_into!(buf, span, { askama::filters::sort(#input)? });
+        } else {
+            let compare = self.visit_arg(ctx, compare, ctx.span_for_node(compare.span()))?;
+            quote_into!(buf, span, { askama::filters::sort_by(#input, #compare)? });
+        }
         Ok(DisplayWrap::Unwrapped)
     }
 

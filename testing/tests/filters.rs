@@ -859,3 +859,69 @@ fn issue_671() {
     };
     assert_eq!(a.render().unwrap(), "ok");
 }
+
+// `sort` without an argument sorts `Ord` items, and its result can be passed on to other filters.
+#[test]
+fn filter_sort() {
+    #[derive(Template)]
+    #[template(
+        source = r#"{{ numbers|sort|join(",") }} {% for word in words|sort %}{{ word }},{% endfor %}"#,
+        ext = "txt"
+    )]
+    struct Sorted<'a> {
+        numbers: Vec<u32>,
+        words: [&'a str; 3],
+    }
+
+    let t = Sorted {
+        numbers: vec![3, 1, 2],
+        words: ["b", "c", "a"],
+    };
+    assert_eq!(t.render().unwrap(), "1,2,3 a,b,c,");
+}
+
+fn by_age(a: &&User, b: &&User) -> std::cmp::Ordering {
+    a.age.cmp(&b.age)
+}
+
+struct User {
+    name: &'static str,
+    age: u32,
+}
+
+// `sort(compare)` takes a closure or a function, like `slice::sort_by()`, and returns a `Vec`
+// with the methods of one.
+#[test]
+fn filter_sort_compare() {
+    #[derive(Template)]
+    #[template(
+        source = "{% for u in users|sort(|a, b| a.name.cmp(&b.name)) %}{{ u.name }},{% endfor %}
+{% for u in users|sort(compare = crate::by_age) %}{{ u.name }},{% endfor %}
+{% for u in (users|sort(crate::by_age)).into_iter().rev() %}{{ u.name }},{% endfor %}",
+        ext = "txt"
+    )]
+    struct Sorted {
+        users: Vec<User>,
+    }
+
+    let t = Sorted {
+        users: vec![
+            User {
+                name: "bob",
+                age: 30,
+            },
+            User {
+                name: "carl",
+                age: 20,
+            },
+            User {
+                name: "alice",
+                age: 40,
+            },
+        ],
+    };
+    assert_eq!(
+        t.render().unwrap(),
+        "alice,bob,carl,\ncarl,bob,alice,\nalice,bob,carl,"
+    );
+}

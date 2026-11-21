@@ -1,5 +1,7 @@
 use alloc::str;
 use alloc::string::String;
+use alloc::vec::Vec;
+use core::cmp::Ordering;
 use core::convert::Infallible;
 use core::fmt::{self, Write};
 
@@ -478,6 +480,62 @@ fn flush_title(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
 #[inline]
 pub fn titlecase<S: fmt::Display>(source: S) -> Result<Title<S>, Infallible> {
     title(source)
+}
+
+/// Collects the items into a `Vec`, sorted with [`slice::sort()`].
+///
+/// ```
+/// # use askama::Template;
+/// #[derive(Template)]
+/// #[template(ext = "html", source = "{% for n in numbers|sort %}{{ n }},{% endfor %}")]
+/// struct Example {
+///     numbers: Vec<u32>,
+/// }
+///
+/// assert_eq!(Example { numbers: vec![3, 1, 2] }.to_string(), "1,2,3,");
+/// ```
+pub fn sort<I>(it: I) -> Result<Vec<I::Item>, Infallible>
+where
+    I: IntoIterator,
+    I::Item: Ord,
+{
+    let mut items: Vec<_> = it.into_iter().collect();
+    items.sort();
+    Ok(items)
+}
+
+/// Collects the items into a `Vec`, sorted with [`slice::sort_by()`].
+///
+/// The template filter `|sort(compare)` calls this function.
+///
+/// ```
+/// # use askama::Template;
+/// #[derive(Template)]
+/// #[template(
+///     ext = "html",
+///     source = "{% for user in users|sort(|a, b| a.name.cmp(&b.name)) %}{{ user.name }},{% endfor %}"
+/// )]
+/// struct Example {
+///     users: Vec<User>,
+/// }
+///
+/// struct User {
+///     name: &'static str,
+/// }
+///
+/// assert_eq!(
+///     Example { users: vec![User { name: "b" }, User { name: "a" }] }.to_string(),
+///     "a,b,"
+/// );
+/// ```
+pub fn sort_by<I, F>(it: I, compare: F) -> Result<Vec<I::Item>, Infallible>
+where
+    I: IntoIterator,
+    F: FnMut(&I::Item, &I::Item) -> Ordering,
+{
+    let mut items: Vec<_> = it.into_iter().collect();
+    items.sort_by(compare);
+    Ok(items)
 }
 
 #[cfg(test)]
