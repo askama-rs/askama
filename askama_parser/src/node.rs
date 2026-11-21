@@ -656,7 +656,7 @@ impl<'a: 'l, 'l> Loop<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Macro<'a> {
     pub ws1: Ws,
-    pub name: Ident<'a>,
+    pub ident: Ident<'a>,
     pub args: Vec<MacroArg<'a>>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
@@ -781,7 +781,7 @@ impl<'a: 'l, 'l> Macro<'a> {
 
         Ok(Box::new(Node::Macro(Self {
             ws1: Ws(pws1, nws1),
-            name: Ident {
+            ident: Ident {
                 name,
                 span: name_span.into(),
             },
@@ -896,7 +896,7 @@ pub struct Call<'a> {
     pub ws1: Ws,
     pub caller_args: Vec<&'a str>,
     pub scope: Option<Ident<'a>>,
-    pub name: Ident<'a>,
+    pub ident: Ident<'a>,
     pub args: Option<Vec<Box<Expr<'a>>>>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
@@ -965,7 +965,7 @@ impl<'a: 'l, 'l> Call<'a> {
             ws1: Ws(pws, nws),
             caller_args: call_args.unwrap_or_default(),
             scope,
-            name: Ident {
+            ident: Ident {
                 name,
                 span: name_span.into(),
             },
@@ -1040,7 +1040,7 @@ impl<'a: 'l, 'l> Match<'a> {
 #[derive(Debug, PartialEq)]
 pub struct BlockDef<'a> {
     pub ws1: Ws,
-    pub name: Ident<'a>,
+    pub ident: Ident<'a>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
     pub span: Span,
@@ -1082,7 +1082,7 @@ impl<'a: 'l, 'l> BlockDef<'a> {
 
         Ok(Box::new(Node::BlockDef(BlockDef {
             ws1: Ws(pws1, nws1),
-            name: Ident {
+            ident: Ident {
                 name,
                 span: name_span.into(),
             },

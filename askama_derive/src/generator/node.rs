@@ -145,7 +145,7 @@ impl<'a> Generator<'a, '_> {
                     // keeps its own code for it, so a block in a loop would render nothing.
                     if level == AstLevel::Nested
                         && let fragment = self.fragment_path()
-                        && fragment.contains(&b.name.name)
+                        && fragment.contains(&b.ident.name)
                     {
                         return Err(ctx.generate_error(
                             format_args!(
@@ -160,7 +160,7 @@ impl<'a> Generator<'a, '_> {
                         size_hint += self.write_block(
                             ctx,
                             buf,
-                            Some(b.name.name),
+                            Some(b.ident.name),
                             Ws(b.ws1.0, b.ws2.1),
                             b.span,
                         )?;
@@ -753,7 +753,7 @@ impl<'a> Generator<'a, '_> {
         let Call {
             ws1,
             scope,
-            name: Ident { name, .. },
+            ident: Ident { name, .. },
             ref args,
             ws2,
             ..
