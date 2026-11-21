@@ -11,7 +11,7 @@ use parser::node::{
     Call, Comment, Compound, Cond, CondTest, Declare, FilterBlock, If, Include, Let, Lit, Loop,
     Match, Whitespace, Ws,
 };
-use parser::{Expr, LetValueOrBlock, Node, Span, Target};
+use parser::{Expr, Ident, LetValueOrBlock, Node, Span, Target};
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
 use rustc_hash::FxBuildHasher;
@@ -145,7 +145,7 @@ impl<'a> Generator<'a, '_> {
                     // keeps its own code for it, so a block in a loop would render nothing.
                     if level == AstLevel::Nested
                         && let fragment = self.fragment_path()
-                        && fragment.contains(&b.name)
+                        && fragment.contains(&b.name.name)
                     {
                         return Err(ctx.generate_error(
                             format_args!(
@@ -157,8 +157,13 @@ impl<'a> Generator<'a, '_> {
                         ));
                     }
                     if render_for == RenderFor::Template {
-                        size_hint +=
-                            self.write_block(ctx, buf, Some(b.name), Ws(b.ws1.0, b.ws2.1), b.span)?;
+                        size_hint += self.write_block(
+                            ctx,
+                            buf,
+                            Some(b.name.name),
+                            Ws(b.ws1.0, b.ws2.1),
+                            b.span,
+                        )?;
                     }
                 }
                 Node::Include(ref i) => {
@@ -748,7 +753,7 @@ impl<'a> Generator<'a, '_> {
         let Call {
             ws1,
             scope,
-            name,
+            name: Ident { name, .. },
             ref args,
             ws2,
             ..
@@ -1302,10 +1307,10 @@ impl<'a> Generator<'a, '_> {
         c: &'a Declare<'_>,
     ) -> Result<SizeHint, CompileError> {
         let span = ctx.span_for_node(c.span);
-        if c.var_name == "_" {
+        if c.var_name.name == "_" {
             return Err(ctx.generate_error(
                 "`_` cannot be used when there is no value assigned, use `let` instead",
-                c.var_name_span,
+                c.var_name.span,
             ));
         }
         self.handle_ws(c.ws);
@@ -1320,7 +1325,7 @@ impl<'a> Generator<'a, '_> {
             buf,
             false,
             true,
-            &Target::Name(c.var_name, c.var_name_span),
+            &Target::Name(c.var_name.name, c.var_name.span),
             span,
         );
         buf.write_token(Token![;], span);
@@ -1704,9 +1709,9 @@ impl<'a> Generator<'a, '_> {
         if let Some(&(_, &Writable::Lit { span: lit_span, .. })) = it.peek() {
             let mut literal = String::new();
 
-            while let Some((_, Writable::Lit { value: s, .. })) = it.peek() {
-                size_hint += s.len();
-                string_escape(&mut literal, s);
+            while let Some((_, Writable::Lit { value, .. })) = it.peek() {
+                size_hint += value.len();
+                string_escape(&mut literal, value);
                 it.next();
             }
             let span = ctx.span_for_node(lit_span);
@@ -1726,18 +1731,18 @@ impl<'a> Generator<'a, '_> {
         let mut matched_expr_buf = Buffer::new();
         while let Some((idx, s)) = it.next() {
             match s {
-                Writable::Lit { value: s, span } => {
-                    let mut items = vec![(s, *span)];
-                    while let Some((_, Writable::Lit { value: s, span })) = it.peek() {
-                        items.push((s, *span));
+                Writable::Lit { value, span } => {
+                    let mut items = vec![(value, *span)];
+                    while let Some((_, Writable::Lit { value, span })) = it.peek() {
+                        items.push((value, *span));
                         it.next();
                     }
                     if it.peek().is_some() {
                         let mut literal = String::new();
                         let span = ctx.span_for_node(items[0].1);
-                        for (s, _) in items {
-                            size_hint += s.len();
-                            string_escape(&mut literal, s);
+                        for (value, _) in items {
+                            size_hint += value.len();
+                            string_escape(&mut literal, value);
                         }
                         lines.write_str_lit(literal, span);
                     } else {
@@ -1802,9 +1807,9 @@ impl<'a> Generator<'a, '_> {
         if !trailing_simple_lines.is_empty() {
             let mut literal = String::new();
             let span = ctx.span_for_node(trailing_simple_lines[0].1);
-            for (s, _) in trailing_simple_lines {
-                size_hint += s.len();
-                string_escape(&mut literal, s);
+            for (value, _) in trailing_simple_lines {
+                size_hint += value.len();
+                string_escape(&mut literal, value);
             }
             buf.write_str_lit(literal, span);
         }

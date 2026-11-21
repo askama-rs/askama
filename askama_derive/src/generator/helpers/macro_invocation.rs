@@ -45,7 +45,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     if let Some(f) = f {
                         write!(message, "{f}").unwrap();
                     } else {
-                        write!(message, "\n`{}`", m.name.escape_debug()).unwrap();
+                        write!(message, "\n`{}`", m.name.name.escape_debug()).unwrap();
                     }
                 }
                 return Err(self
@@ -110,7 +110,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                 "A macro can only call itself if all its arguments have a type, \
                  but argument `{}` of macro `{}` has none",
                 arg.name.escape_debug(),
-                self.macro_def.name.escape_debug(),
+                self.macro_def.name.name.escape_debug(),
             ));
         }
         // The body is passed as a closure, whose parameters would need a type.
@@ -120,7 +120,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             return Some(format!(
                 "A macro can only call itself without `caller` arguments, \
                  but this call of macro `{}` has some",
-                self.macro_def.name.escape_debug(),
+                self.macro_def.name.name.escape_debug(),
             ));
         }
         None
@@ -205,7 +205,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                         format_args!(
                             "no argument named `{}` in macro `{}`",
                             name.escape_debug(),
-                            self.macro_def.name.escape_debug(),
+                            self.macro_def.name.name.escape_debug(),
                         ),
                         self.callsite_span,
                     ));
@@ -280,7 +280,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
             return Err(self.callsite_ctx.generate_error(
                 format_args!(
                     "macro `{}` expected {} argument{}, found {}",
-                    self.macro_def.name.escape_debug(),
+                    self.macro_def.name.name.escape_debug(),
                     self.macro_def.args.len(),
                     if self.macro_def.args.len() > 1 {
                         "s"
@@ -315,7 +315,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
                     format_args!(
                         "argument `{}` was passed more than once when calling macro `{}`",
                         self.macro_def.args[pos].name.escape_debug(),
-                        self.macro_def.name.escape_debug(),
+                        self.macro_def.name.name.escape_debug(),
                     ),
                     arg.span(),
                 ));
@@ -375,7 +375,7 @@ impl<'a, 'b> MacroInvocation<'a, 'b> {
         let fmt_missing = FmtMissing {
             count,
             missing,
-            name: self.macro_def.name,
+            name: self.macro_def.name.name,
         };
         Err(self
             .callsite_ctx

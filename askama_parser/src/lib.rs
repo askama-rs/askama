@@ -148,6 +148,13 @@ impl<'a> Ast<'a> {
     }
 }
 
+/// An identifier, like the name of a macro or a block, and its location
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Ident<'a> {
+    pub name: &'a str,
+    pub span: Span,
+}
+
 /// A location in `&'a str`
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Span {

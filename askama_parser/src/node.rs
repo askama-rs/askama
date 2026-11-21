@@ -11,7 +11,7 @@ use winnow::{ModalParser, Parser};
 
 use crate::expr::BinOp;
 use crate::{
-    ErrorContext, Expr, Filter, HashSet, InputStream, ParseErr, ParseResult, Span, Target,
+    ErrorContext, Expr, Filter, HashSet, Ident, InputStream, ParseErr, ParseResult, Span, Target,
     TyGenerics, block_end, block_start, cut_error, deny_any_rust_token, expr_end, expr_start,
     filter, identifier, is_rust_keyword, keyword, skip_ws0, str_lit_without_prefix, ws,
 };
@@ -656,8 +656,7 @@ impl<'a: 'l, 'l> Loop<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Macro<'a> {
     pub ws1: Ws,
-    pub name: &'a str,
-    pub name_span: Span,
+    pub name: Ident<'a>,
     pub args: Vec<MacroArg<'a>>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
@@ -782,8 +781,10 @@ impl<'a: 'l, 'l> Macro<'a> {
 
         Ok(Box::new(Node::Macro(Self {
             ws1: Ws(pws1, nws1),
-            name,
-            name_span: name_span.into(),
+            name: Ident {
+                name,
+                span: name_span.into(),
+            },
             args: params.unwrap_or_default(),
             nodes: contents,
             ws2: Ws(pws2, nws2),
@@ -895,8 +896,7 @@ pub struct Call<'a> {
     pub ws1: Ws,
     pub caller_args: Vec<&'a str>,
     pub scope: Option<(&'a str, Span)>,
-    pub name: &'a str,
-    pub name_span: Span,
+    pub name: Ident<'a>,
     pub args: Option<Vec<Box<Expr<'a>>>>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
@@ -962,8 +962,10 @@ impl<'a: 'l, 'l> Call<'a> {
             ws1: Ws(pws, nws),
             caller_args: call_args.unwrap_or_default(),
             scope,
-            name,
-            name_span: name_span.into(),
+            name: Ident {
+                name,
+                span: name_span.into(),
+            },
             args: args.map(|(args, _)| args),
             nodes,
             ws2: Ws(pws2, nws2),
@@ -1035,8 +1037,7 @@ impl<'a: 'l, 'l> Match<'a> {
 #[derive(Debug, PartialEq)]
 pub struct BlockDef<'a> {
     pub ws1: Ws,
-    pub name: &'a str,
-    pub name_span: Span,
+    pub name: Ident<'a>,
     pub nodes: Vec<Box<Node<'a>>>,
     pub ws2: Ws,
     pub span: Span,
@@ -1078,8 +1079,10 @@ impl<'a: 'l, 'l> BlockDef<'a> {
 
         Ok(Box::new(Node::BlockDef(BlockDef {
             ws1: Ws(pws1, nws1),
-            name,
-            name_span: name_span.into(),
+            name: Ident {
+                name,
+                span: name_span.into(),
+            },
             nodes,
             ws2: Ws(pws2, nws2),
             span: keyword_span,
@@ -1231,8 +1234,7 @@ impl<'a: 'l, 'l> Raw<'a> {
 #[derive(Debug, PartialEq)]
 pub struct Declare<'a> {
     pub ws: Ws,
-    pub var_name: &'a str,
-    pub var_name_span: Span,
+    pub var_name: Ident<'a>,
     pub is_mutable: bool,
     pub span: Span,
 }
@@ -1250,8 +1252,10 @@ impl<'a: 'l, 'l> Declare<'a> {
 
         Ok(Box::new(Node::Declare(Declare {
             ws: Ws(pws, nws),
-            var_name,
-            var_name_span: var_name_span.into(),
+            var_name: Ident {
+                name: var_name,
+                span: var_name_span.into(),
+            },
             is_mutable: is_mut.is_some(),
             span: span.into(),
         })))
