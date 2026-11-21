@@ -97,6 +97,40 @@ Output:
 -  a  -
 ```
 
+### chunk_by
+
+<blockquote class="right" style="padding:0.5ex 1ex; margin:0 0 1ex 1ex; font-size:80%">
+enabled by <code>"alloc"</code><br/>
+enabled by <code>"default"</code>
+</blockquote>
+
+```jinja
+{{ iterable | chunk_by(key) }}
+```
+
+<hr style="clear:both; border:0; border-bottom:1pt solid currentColor">
+
+Groups consecutive items with an equal key, like
+[`Itertools::chunk_by()`](https://docs.rs/itertools/latest/itertools/trait.Itertools.html#method.chunk_by).
+`key` is a closure or the path of a function that returns the key of an item.
+The result is a `Vec` of `(key, items)` pairs.
+
+```jinja
+{% for (city, users) in users|chunk_by(|user| user.city) -%}
+    {{ city }}: {% for user in users %}{{ user.name }} {% endfor %}
+{% endfor %}
+```
+
+Only neighbours are grouped: an item whose key differs from the previous one starts a new group,
+so a key can appear in more than one group. Sort the items by the same key first to get one group
+per key:
+
+```jinja
+{% for (city, users) in users|sort(|a, b| a.city.cmp(&b.city))|chunk_by(|user| user.city) %}
+    ...
+{% endfor %}
+```
+
 ### default
 
 ```jinja,ignore

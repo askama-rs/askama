@@ -1,0 +1,15 @@
+error: `sort` filter accepts at most 1 argument; its arguments are: ([compare])
+ --> SortTwoArguments.txt:1:23
+       "|a, b| a.cmp(b))|join(\",\") }}"
+ --> tests/ui/sort-and-chunk_by.rs:5:21
+  |
+5 | #[template(source = "{{ numbers|sort(|n| n, |a, b| a.cmp(b))|join(\",\") }}", ext = "txt")]
+  |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error: `key` argument is missing when calling `chunk_by` filter; its arguments are: (key)
+ --> ChunkByWithoutKey.txt:1:25
+       "|chunk_by %}{% endfor %}"
+  --> tests/ui/sort-and-chunk_by.rs:12:21
+   |
+12 | #[template(source = "{% for (n, ns) in numbers|chunk_by %}{% endfor %}", ext = "txt")]
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

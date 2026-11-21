@@ -26,8 +26,8 @@ mod urlencode;
 
 #[cfg(feature = "alloc")]
 pub use self::alloc::{
-    capitalize, fmt, format, lower, lowercase, sort, sort_by, title, titlecase, trim, upper,
-    uppercase,
+    capitalize, chunk_by, fmt, format, lower, lowercase, sort, sort_by, title, titlecase, trim,
+    upper, uppercase,
 };
 pub use self::core::{
     Either, PluralizeCount, center, join, linebreaks, linebreaksbr, paragraphbreaks, pluralize,

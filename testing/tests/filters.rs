@@ -925,3 +925,84 @@ fn filter_sort_compare() {
         "alice,bob,carl,\ncarl,bob,alice,\nalice,bob,carl,"
     );
 }
+
+struct Visit {
+    city: &'static str,
+    day: u32,
+}
+
+// `chunk_by(key)` groups neighbours with an equal key; sorting first gives one group per key.
+#[test]
+fn filter_chunk_by() {
+    #[derive(Template)]
+    #[template(
+        source = "{% for (city, visits) in visits|chunk_by(|v| v.city) -%}
+            {{ city }}:{% for v in visits %} {{ v.day }}{% endfor %};
+        {%- endfor %}
+{% for (city, visits) in visits|sort(|a, b| a.city.cmp(&b.city))|chunk_by(key = |v| v.city) -%}
+            {{ city }}:{% for v in visits %} {{ v.day }}{% endfor %};
+        {%- endfor %}",
+        ext = "txt"
+    )]
+    struct Grouped {
+        visits: Vec<Visit>,
+    }
+
+    let t = Grouped {
+        visits: vec![
+            Visit {
+                city: "Paris",
+                day: 1,
+            },
+            Visit {
+                city: "Berlin",
+                day: 2,
+            },
+            Visit {
+                city: "Berlin",
+                day: 3,
+            },
+            Visit {
+                city: "Paris",
+                day: 4,
+            },
+        ],
+    };
+    assert_eq!(
+        t.render().unwrap(),
+        "Paris: 1;Berlin: 2 3;Paris: 4;\nBerlin: 2 3;Paris: 1 4;"
+    );
+}
+
+struct Member {
+    name: String,
+    team: String,
+}
+
+// Keys and comparisons can borrow `String` fields of the items.
+#[test]
+fn filter_sort_chunk_by_string_fields() {
+    #[derive(Template)]
+    #[template(
+        source = "{% for (team, members) in members|sort(|a, b| a.name.cmp(&b.name))|chunk_by(|m| &m.team) -%}
+            {{ team }}:{% for m in members %} {{ m.name }}{% endfor %};
+        {%- endfor %}",
+        ext = "txt"
+    )]
+    struct Teams {
+        members: Vec<Member>,
+    }
+
+    let member = |name: &str, team: &str| Member {
+        name: name.into(),
+        team: team.into(),
+    };
+    let t = Teams {
+        members: vec![
+            member("bea", "red"),
+            member("al", "red"),
+            member("cy", "blue"),
+        ],
+    };
+    assert_eq!(t.render().unwrap(), "red: al bea;blue: cy;");
+}

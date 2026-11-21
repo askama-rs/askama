@@ -1,6 +1,6 @@
-use alloc::str;
 use alloc::string::String;
 use alloc::vec::Vec;
+use alloc::{str, vec};
 use core::cmp::Ordering;
 use core::convert::Infallible;
 use core::fmt::{self, Write};
@@ -536,6 +536,53 @@ where
     let mut items: Vec<_> = it.into_iter().collect();
     items.sort_by(compare);
     Ok(items)
+}
+
+/// Groups consecutive items with an equal key, like
+/// [`Itertools::chunk_by()`](https://docs.rs/itertools/latest/itertools/trait.Itertools.html#method.chunk_by).
+///
+/// Returns a `Vec` of `(key, items)` pairs. Only neighbours are grouped, so sort the items by the
+/// same key first to get one group per key.
+///
+/// ```
+/// # use askama::Template;
+/// #[derive(Template)]
+/// #[template(
+///     ext = "html",
+///     source = "{% for (city, users) in users|chunk_by(|user| user.city) -%}
+///         {{ city }}: {{ users.len() }},
+///     {%- endfor %}"
+/// )]
+/// struct Example {
+///     users: Vec<User>,
+/// }
+///
+/// struct User {
+///     city: &'static str,
+/// }
+///
+/// let users = ["Berlin", "Berlin", "Paris", "Berlin"].map(|city| User { city });
+/// assert_eq!(
+///     Example { users: users.into() }.to_string(),
+///     "Berlin: 2,Paris: 1,Berlin: 1,"
+/// );
+/// ```
+#[allow(clippy::type_complexity)] // a type alias would hide the shape in the docs
+pub fn chunk_by<I, K, F>(it: I, mut key: F) -> Result<Vec<(K, Vec<I::Item>)>, Infallible>
+where
+    I: IntoIterator,
+    K: PartialEq,
+    F: FnMut(&I::Item) -> K,
+{
+    let mut chunks: Vec<(K, Vec<I::Item>)> = Vec::new();
+    for item in it {
+        let item_key = key(&item);
+        match chunks.last_mut() {
+            Some((chunk_key, items)) if *chunk_key == item_key => items.push(item),
+            _ => chunks.push((item_key, vec![item])),
+        }
+    }
+    Ok(chunks)
 }
 
 #[cfg(test)]

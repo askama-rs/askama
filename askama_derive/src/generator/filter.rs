@@ -63,6 +63,7 @@ impl<'a> Generator<'a, '_> {
         let filter = match *name {
             "assigned_or" => Self::visit_assigned_or,
             "center" => Self::visit_center_filter,
+            "chunk_by" => Self::visit_chunk_by_filter,
             "default" => Self::visit_default_filter,
             "defined_or" => Self::visit_defined_or,
             "deref" => Self::visit_deref_filter,
@@ -399,6 +400,32 @@ impl<'a> Generator<'a, '_> {
             });
         }
 
+        Ok(DisplayWrap::Unwrapped)
+    }
+
+    fn visit_chunk_by_filter(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        args: &[Box<Expr<'a>>],
+        node: Span,
+    ) -> Result<DisplayWrap, CompileError> {
+        const ARGUMENTS: &[&FilterArgument; 2] = &[
+            FILTER_SOURCE,
+            &FilterArgument {
+                name: "key",
+                default_value: None,
+            },
+        ];
+        ensure_filter_has_feature_alloc(ctx, "chunk_by", node)?;
+        let [input, key] = collect_filter_args(ctx, "chunk_by", node, args, ARGUMENTS)?;
+        let span = ctx.span_for_node(node);
+
+        let mut tmp = Buffer::new();
+        self.visit_loop_iter(ctx, &mut tmp, input)?;
+        let input = tmp.into_token_stream();
+        let key = self.visit_arg(ctx, key, ctx.span_for_node(key.span()))?;
+        quote_into!(buf, span, { askama::filters::chunk_by(#input, #key)? });
         Ok(DisplayWrap::Unwrapped)
     }
 
