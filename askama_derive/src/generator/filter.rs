@@ -24,12 +24,39 @@ impl<'a> Generator<'a, '_> {
         args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        let (name, name_span, generics) = match *name {
-            PathOrIdentifier::Path(ref path) => match path.as_slice() {
+        // Every filter invocation nests its input and arguments, which can contain filters
+        // themselves: `a|b|c` is generated as `c(b(a))`, so is `((a|b)|c)`, and so on.
+        // In the template, such a nesting is shallow, and the parser lets it pass,
+        // but the generated code becomes too deeply nested for `syn` and `rustc` to handle.
+        if self.filter_depth >= MAX_FILTER_DEPTH {
+            return Err(ctx.generate_error(
+                format_args!(
+                    "too many nested filters, at most {MAX_FILTER_DEPTH} filters can be \
+                     nested, including the ones of a filter chain `a|b|c`",
+                ),
+                node,
+            ));
+        }
+        self.filter_depth += 1;
+        let result = self.visit_filter_inner(ctx, buf, name, args, node);
+        self.filter_depth -= 1;
+        result
+    }
+
+    fn visit_filter_inner(
+        &mut self,
+        ctx: &Context<'_>,
+        buf: &mut Buffer,
+        name: &PathOrIdentifier<'a>,
+        args: &[Box<Expr<'a>>],
+        node: Span,
+    ) -> Result<DisplayWrap, CompileError> {
+        let (name, name_span, generics) = match name {
+            PathOrIdentifier::Path(path) => match path.as_slice() {
                 [arg] => (arg.name, arg.span, arg.generics.as_ref()),
                 _ => return self.visit_custom_filter_with_path(ctx, buf, path, args, node),
             },
-            PathOrIdentifier::Identifier(name, name_span) => (name, name_span, None),
+            PathOrIdentifier::Identifier(name, name_span) => (*name, *name_span, None),
         };
         let filter = match name {
             "assigned_or" => Self::visit_assigned_or,
@@ -134,13 +161,21 @@ impl<'a> Generator<'a, '_> {
         let input_expr = self.visit_arg(ctx, &args[0], ctx.span_for_node(args[0].span()))?;
         let var_values = crate::var_values();
 
-        quote_into!(buf, span, {{
-            #assertion_block
+        // The static assertion (only if the filter has arguments of its own) is put in the block
+        // creating the filter instance, to limit the AST depth. It's to prevent `syn` to overflow
+        // its stack.
+        //
+        // Also, if the filter has no argument of its own, no need to wrap in a block.
+        let filter_new = if args.len() > 1 {
+            quote_spanned!(span => { #assertion_block #filter_path::default() })
+        } else {
+            quote_spanned!(span => #filter_path::default())
+        };
+        quote_into!(buf, span, {
             askama::filters::ValidFilterInvocation::wrap(
-                #filter_path::default()
-                    #arg_setter_invocations
+                #filter_new #arg_setter_invocations
             ).execute(#input_expr, #var_values)?
-        }});
+        });
 
         Ok(DisplayWrap::Unwrapped)
     }
@@ -1266,6 +1301,9 @@ fn ensure_no_named_arguments(
     }
     Ok(())
 }
+
+/// Maximum number of filters nested in one another, see [`Generator::visit_filter()`].
+const MAX_FILTER_DEPTH: usize = 32;
 
 // These built-in filters take no arguments, no generics, and are not feature gated.
 const BUILTIN_FILTERS: &[&str] = &[];
