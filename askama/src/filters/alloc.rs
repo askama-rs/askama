@@ -541,7 +541,7 @@ where
 /// Groups consecutive items with an equal key, like
 /// [`Itertools::chunk_by()`](https://docs.rs/itertools/latest/itertools/trait.Itertools.html#method.chunk_by).
 ///
-/// Returns a `Vec` of `(key, items)` pairs. Only neighbours are grouped, so sort the items by the
+/// Returns a `Vec` of `(key, items)` pairs. Only neighbors are grouped, so sort the items by the
 /// same key first to get one group per key.
 ///
 /// ```

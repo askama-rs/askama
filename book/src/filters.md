@@ -121,7 +121,7 @@ The result is a `Vec` of `(key, items)` pairs.
 {% endfor %}
 ```
 
-Only neighbours are grouped: an item whose key differs from the previous one starts a new group,
+Only neighbors are grouped: an item whose key differs from the previous one starts a new group,
 so a key can appear in more than one group. Sort the items by the same key first to get one group
 per key:
 

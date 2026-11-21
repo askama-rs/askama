@@ -931,7 +931,7 @@ struct Visit {
     day: u32,
 }
 
-// `chunk_by(key)` groups neighbours with an equal key; sorting first gives one group per key.
+// `chunk_by(key)` groups neighbors with an equal key; sorting first gives one group per key.
 #[test]
 fn filter_chunk_by() {
     #[derive(Template)]
