@@ -644,7 +644,11 @@ impl<'a: 'l, 'l> Expr<'a> {
         span: std::ops::Range<usize>,
     ) -> ParseResult<'a, Box<Self>> {
         let target = opt(path_or_identifier).parse_next(i)?;
-        let Some(PathOrIdentifier::Identifier(target, target_span)) = target else {
+        let Some(PathOrIdentifier::Identifier {
+            name: target,
+            span: target_span,
+        }) = target
+        else {
             return cut_error!(
                 "`as` operator expects the name of a primitive type on its right-hand side, \
                 not a path or alias",
@@ -908,9 +912,13 @@ impl<'a: 'l, 'l> Expr<'a> {
                 components: v,
                 span,
             },
-            PathOrIdentifier::Identifier("true", _) => Self::BoolLit { value: true, span },
-            PathOrIdentifier::Identifier("false", _) => Self::BoolLit { value: false, span },
-            PathOrIdentifier::Identifier(name, _) => Self::Var { name, span },
+            PathOrIdentifier::Identifier { name: "true", .. } => {
+                Self::BoolLit { value: true, span }
+            }
+            PathOrIdentifier::Identifier { name: "false", .. } => {
+                Self::BoolLit { value: false, span }
+            }
+            PathOrIdentifier::Identifier { name, .. } => Self::Var { name, span },
         }))
     }
 

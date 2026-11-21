@@ -56,7 +56,10 @@ impl<'a> Generator<'a, '_> {
                 [arg] => (arg.name, arg.span, arg.generics.as_ref()),
                 _ => return self.visit_custom_filter_with_path(ctx, buf, path, args, node),
             },
-            PathOrIdentifier::Identifier(name, name_span) => (*name, *name_span, None),
+            PathOrIdentifier::Identifier {
+                name,
+                span: name_span,
+            } => (*name, *name_span, None),
         };
         let filter = match name {
             "assigned_or" => Self::visit_assigned_or,

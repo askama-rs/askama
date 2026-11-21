@@ -108,7 +108,10 @@ fn test_parse_filter() {
             Ws(None, None),
             Box::new(Expr::Filter {
                 inner: Filter {
-                    name: PathOrIdentifier::Identifier("e", Span::new(10..11)),
+                    name: PathOrIdentifier::Identifier {
+                        name: "e",
+                        span: Span::new(10..11)
+                    },
                     arguments: vec![Box::new(Expr::Var {
                         name: "strvar",
                         span: Span::new(3..9)
@@ -124,7 +127,10 @@ fn test_parse_filter() {
             Ws(None, None),
             Box::new(Expr::Filter {
                 inner: Filter {
-                    name: PathOrIdentifier::Identifier("abs", Span::new(5..8)),
+                    name: PathOrIdentifier::Identifier {
+                        name: "abs",
+                        span: Span::new(5..8)
+                    },
                     arguments: vec![int_lit("2", Span::new(3..4))],
                 },
                 span: Span::new(4..9)
@@ -137,7 +143,10 @@ fn test_parse_filter() {
             Ws(None, None),
             Box::new(Expr::Filter {
                 inner: Filter {
-                    name: PathOrIdentifier::Identifier("abs", Span::new(6..9)),
+                    name: PathOrIdentifier::Identifier {
+                        name: "abs",
+                        span: Span::new(6..9)
+                    },
                     arguments: vec![Box::new(Expr::Unary {
                         operator: "-",
                         expr: int_lit("2", Span::new(4..5)),
@@ -156,7 +165,10 @@ fn test_parse_filter() {
             Ws(None, None),
             Box::new(Expr::Filter {
                 inner: Filter {
-                    name: PathOrIdentifier::Identifier("abs", Span::new(11..14)),
+                    name: PathOrIdentifier::Identifier {
+                        name: "abs",
+                        span: Span::new(11..14)
+                    },
                     arguments: vec![Box::new(Expr::Group {
                         elem: bin_op(
                             "-",
@@ -1048,7 +1060,10 @@ fn test_odd_calls() {
             Ws(None, None),
             Box::new(Expr::Filter {
                 inner: Filter {
-                    name: PathOrIdentifier::Identifier("c", Span::new(8..9)),
+                    name: PathOrIdentifier::Identifier {
+                        name: "c",
+                        span: Span::new(8..9)
+                    },
                     arguments: vec![call(
                         Box::new(Expr::Var {
                             name: "a",
@@ -1071,7 +1086,10 @@ fn test_odd_calls() {
             Ws(None, None),
             Box::new(Expr::Filter {
                 inner: Filter {
-                    name: PathOrIdentifier::Identifier("c", Span::new(9..10)),
+                    name: PathOrIdentifier::Identifier {
+                        name: "c",
+                        span: Span::new(9..10)
+                    },
                     arguments: vec![call(
                         Box::new(Expr::Var {
                             name: "a",
@@ -1255,7 +1273,10 @@ fn test_parse_tuple() {
             Ws(None, None),
             Box::new(Expr::Filter {
                 inner: Filter {
-                    name: PathOrIdentifier::Identifier("abs", Span::new(6..9)),
+                    name: PathOrIdentifier::Identifier {
+                        name: "abs",
+                        span: Span::new(6..9)
+                    },
                     arguments: vec![Box::new(Expr::Tuple {
                         elems: vec![],
                         span: Span::new(3..5)
@@ -1271,7 +1292,10 @@ fn test_parse_tuple() {
             Ws(None, None),
             Box::new(Expr::Filter {
                 inner: Filter {
-                    name: PathOrIdentifier::Identifier("abs", Span::new(7..10)),
+                    name: PathOrIdentifier::Identifier {
+                        name: "abs",
+                        span: Span::new(7..10)
+                    },
                     arguments: vec![Box::new(Expr::Group {
                         elem: int_lit("1", Span::new(4..5)),
                         span: Span::new(3..6)
@@ -1289,7 +1313,10 @@ fn test_parse_tuple() {
             Ws(None, None),
             Box::new(Expr::Filter {
                 inner: Filter {
-                    name: PathOrIdentifier::Identifier("abs", Span::new(8..11)),
+                    name: PathOrIdentifier::Identifier {
+                        name: "abs",
+                        span: Span::new(8..11)
+                    },
                     arguments: vec![Box::new(Expr::Tuple {
                         elems: vec![int_lit("1", Span::new(4..5))],
                         span: Span::new(3..7)
@@ -1307,7 +1334,10 @@ fn test_parse_tuple() {
             Ws(None, None),
             Box::new(Expr::Filter {
                 inner: Filter {
-                    name: PathOrIdentifier::Identifier("abs", Span::new(10..13)),
+                    name: PathOrIdentifier::Identifier {
+                        name: "abs",
+                        span: Span::new(10..13)
+                    },
                     arguments: vec![Box::new(Expr::Tuple {
                         elems: vec![int_lit("1", Span::new(4..5)), int_lit("2", Span::new(7..8))],
                         span: Span::new(3..9)
@@ -1418,7 +1448,10 @@ fn test_parse_array() {
             Ws(None, None),
             Box::new(Expr::Filter {
                 inner: Filter {
-                    name: PathOrIdentifier::Identifier("foo", Span::new(6..9)),
+                    name: PathOrIdentifier::Identifier {
+                        name: "foo",
+                        span: Span::new(6..9)
+                    },
                     arguments: vec![Box::new(Expr::Array {
                         elems: vec![],
                         span: Span::new(3..4)
@@ -1434,7 +1467,10 @@ fn test_parse_array() {
             Ws(None, None),
             Box::new(Expr::Filter {
                 inner: Filter {
-                    name: PathOrIdentifier::Identifier("foo", Span::new(7..10)),
+                    name: PathOrIdentifier::Identifier {
+                        name: "foo",
+                        span: Span::new(7..10)
+                    },
                     arguments: vec![Box::new(Expr::Array {
                         elems: vec![],
                         span: Span::new(3..4)
@@ -2242,7 +2278,10 @@ fn regression_tests_span_change() {
                 Ws(None, None),
                 Box::new(Expr::Filter {
                     inner: Filter {
-                        name: PathOrIdentifier::Identifier("cased", Span::new(17..22)),
+                        name: PathOrIdentifier::Identifier {
+                            name: "cased",
+                            span: Span::new(17..22)
+                        },
                         arguments: vec![Box::new(Expr::Var {
                             name: "user",
                             span: Span::new(10..14)
@@ -2517,7 +2556,7 @@ fn show(expr: &Expr<'_>) -> String {
         Expr::Filter {
             inner:
                 Filter {
-                    name: PathOrIdentifier::Identifier(name, _),
+                    name: PathOrIdentifier::Identifier { name, .. },
                     arguments,
                 },
             ..

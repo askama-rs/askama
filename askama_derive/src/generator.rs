@@ -617,7 +617,7 @@ fn compile_time_escape<'a>(expr: &Expr<'a>, escaper: &str) -> Option<Writable<'a
             }
         }
     };
-    Some(Writable::Lit(value, span))
+    Some(Writable::Lit { value, span })
 }
 
 #[derive(Clone, Default, Debug)]
@@ -877,7 +877,10 @@ impl<'a> Deref for WritableBuffer<'a> {
 
 #[derive(Debug)]
 enum Writable<'a> {
-    Lit(Cow<'a, str>, parser::Span),
+    Lit {
+        value: Cow<'a, str>,
+        span: parser::Span,
+    },
     Expr(&'a Expr<'a>),
 }
 

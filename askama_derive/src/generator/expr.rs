@@ -486,7 +486,8 @@ impl<'a> Generator<'a, '_> {
         arg: &Expr<'a>,
     ) -> Result<(), CompileError> {
         let span = ctx.span_for_node(arg.span());
-        if let Some(Writable::Lit(arg, _)) = compile_time_escape(arg, self.input.escaper) {
+        if let Some(Writable::Lit { value: arg, .. }) = compile_time_escape(arg, self.input.escaper)
+        {
             if !arg.is_empty() {
                 let mut tmp = Buffer::new();
                 tmp.write_escaped_str(&arg, span);

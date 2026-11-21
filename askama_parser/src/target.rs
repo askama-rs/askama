@@ -126,7 +126,7 @@ impl<'a: 'l, 'l> Target<'a> {
         // match structs
         let path = path_or_identifier.verify_map(|r| match r {
             PathOrIdentifier::Path(v) => Some(v),
-            PathOrIdentifier::Identifier(..) => None,
+            PathOrIdentifier::Identifier { .. } => None,
         });
         let path = opt(path.with_span()).parse_next(i)?;
         if let Some((path, path_span)) = path {

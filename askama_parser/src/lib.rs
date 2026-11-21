@@ -880,7 +880,7 @@ impl<'a> Char<'a> {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PathOrIdentifier<'a> {
     Path(Vec<PathComponent<'a>>),
-    Identifier(&'a str, Span),
+    Identifier { name: &'a str, span: Span },
 }
 
 fn path_or_identifier<'a: 'l, 'l>(
@@ -910,7 +910,10 @@ fn path_or_identifier<'a: 'l, 'l>(
                     .next()
                     .is_none_or(|c| c == '_' || c.is_lowercase()) =>
         {
-            Ok(PathOrIdentifier::Identifier(arg.name, arg.span))
+            Ok(PathOrIdentifier::Identifier {
+                name: arg.name,
+                span: arg.span,
+            })
         }
         (root, start, tail) => {
             let mut path = if let Some(root) = root {

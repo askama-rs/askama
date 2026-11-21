@@ -1697,14 +1697,14 @@ impl<'a> Generator<'a, '_> {
             return Ok(SizeHint::EMPTY);
         };
         let start_span = match start {
-            Writable::Lit(_, span) => *span,
+            Writable::Lit { span, .. } => *span,
             Writable::Expr(v) => v.span(),
         };
 
-        if let Some(&(_, &Writable::Lit(_, lit_span))) = it.peek() {
+        if let Some(&(_, &Writable::Lit { span: lit_span, .. })) = it.peek() {
             let mut literal = String::new();
 
-            while let Some((_, Writable::Lit(s, _))) = it.peek() {
+            while let Some((_, Writable::Lit { value: s, .. })) = it.peek() {
                 size_hint += s.len();
                 string_escape(&mut literal, s);
                 it.next();
@@ -1726,9 +1726,9 @@ impl<'a> Generator<'a, '_> {
         let mut matched_expr_buf = Buffer::new();
         while let Some((idx, s)) = it.next() {
             match s {
-                Writable::Lit(s, span) => {
+                Writable::Lit { value: s, span } => {
                     let mut items = vec![(s, *span)];
-                    while let Some((_, Writable::Lit(s, span))) = it.peek() {
+                    while let Some((_, Writable::Lit { value: s, span })) = it.peek() {
                         items.push((s, *span));
                         it.next();
                     }
@@ -1828,25 +1828,29 @@ impl<'a> Generator<'a, '_> {
                     self.next_ws = Some((lws, lws_span));
                 }
                 Whitespace::Preserve => {
-                    self.buf_writable
-                        .push(Writable::Lit(Cow::Borrowed(lws), lws_span));
+                    self.buf_writable.push(Writable::Lit {
+                        value: Cow::Borrowed(lws),
+                        span: lws_span,
+                    });
                 }
                 Whitespace::Minimize => {
-                    self.buf_writable.push(Writable::Lit(
-                        Cow::Borrowed(match lws.contains('\n') {
+                    self.buf_writable.push(Writable::Lit {
+                        value: Cow::Borrowed(match lws.contains('\n') {
                             true => "\n",
                             false => " ",
                         }),
-                        lws_span,
-                    ));
+                        span: lws_span,
+                    });
                 }
             }
         }
 
         if !val.is_empty() {
             self.skip_ws = Whitespace::Preserve;
-            self.buf_writable
-                .push(Writable::Lit(Cow::Borrowed(val), val_span));
+            self.buf_writable.push(Writable::Lit {
+                value: Cow::Borrowed(val),
+                span: val_span,
+            });
         }
 
         if !rws.is_empty() {
@@ -1881,20 +1885,22 @@ impl<'a> Generator<'a, '_> {
             Whitespace::Preserve => {
                 let (val, span) = self.next_ws.unwrap();
                 if !val.is_empty() {
-                    self.buf_writable
-                        .push(Writable::Lit(Cow::Borrowed(val), span));
+                    self.buf_writable.push(Writable::Lit {
+                        value: Cow::Borrowed(val),
+                        span,
+                    });
                 }
             }
             Whitespace::Minimize => {
                 let (val, span) = self.next_ws.unwrap();
                 if !val.is_empty() {
-                    self.buf_writable.push(Writable::Lit(
-                        Cow::Borrowed(match val.contains('\n') {
+                    self.buf_writable.push(Writable::Lit {
+                        value: Cow::Borrowed(match val.contains('\n') {
                             true => "\n",
                             false => " ",
                         }),
                         span,
-                    ));
+                    });
                 }
             }
             Whitespace::Suppress => {}
