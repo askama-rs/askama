@@ -141,14 +141,81 @@ impl<S: FastWritable> FastWritable for Lower<S> {
         dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        let mut buffer = String::new();
+        let mut buffer = Buffer::new();
         self.0.write_into(&mut buffer, values)?;
-        Ok(flush_lower(dest, &buffer)?)
+        let s = buffer.as_mut_str();
+        if s.is_ascii() {
+            s.make_ascii_lowercase();
+            Ok(dest.write_str(s)?)
+        } else {
+            Ok(flush_lower(dest, s)?)
+        }
     }
 }
 
 fn flush_lower(dest: &mut (impl fmt::Write + ?Sized), s: &str) -> fmt::Result {
     dest.write_str(&s.to_lowercase())
+}
+
+/// What `flush_capitalize()` does, without a copy of the text. `s` must be ASCII.
+fn capitalize_ascii(s: &mut str) {
+    s.make_ascii_lowercase();
+    if let Some(first) = s.get_mut(..1) {
+        first.make_ascii_uppercase();
+    }
+}
+
+/// What `flush_title()` does, without a copy of every word. `s` must be ASCII.
+fn title_ascii(s: &mut str) {
+    s.make_ascii_lowercase();
+    let mut word_start = true;
+    for i in 0..s.len() {
+        if word_start {
+            s[i..=i].make_ascii_uppercase();
+        }
+        word_start = matches!(s.as_bytes()[i], b'\t'..=b'\r' | b' ');
+    }
+}
+
+/// Collects a filter's input on the stack while it is short, so that most calls don't allocate.
+struct Buffer {
+    stack: [u8; 64],
+    len: usize,
+    heap: String,
+}
+
+impl Buffer {
+    fn new() -> Self {
+        Self {
+            stack: [0; 64],
+            len: 0,
+            heap: String::new(),
+        }
+    }
+
+    fn as_mut_str(&mut self) -> &mut str {
+        match self.heap.is_empty() {
+            true => str::from_utf8_mut(&mut self.stack[..self.len]).unwrap(),
+            false => &mut self.heap,
+        }
+    }
+}
+
+impl fmt::Write for Buffer {
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        let end = self.len + s.len();
+        if self.heap.is_empty() && end <= self.stack.len() {
+            self.stack[self.len..end].copy_from_slice(s.as_bytes());
+            self.len = end;
+        } else {
+            if self.heap.is_empty() {
+                self.heap
+                    .push_str(str::from_utf8(&self.stack[..self.len]).unwrap());
+            }
+            self.heap.push_str(s);
+        }
+        Ok(())
+    }
 }
 
 /// Converts to lowercase, alias for the `|lower` filter
@@ -228,9 +295,15 @@ impl<S: FastWritable> FastWritable for Upper<S> {
         dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        let mut buffer = String::new();
+        let mut buffer = Buffer::new();
         self.0.write_into(&mut buffer, values)?;
-        Ok(flush_upper(dest, &buffer)?)
+        let s = buffer.as_mut_str();
+        if s.is_ascii() {
+            s.make_ascii_uppercase();
+            Ok(dest.write_str(s)?)
+        } else {
+            Ok(flush_upper(dest, s)?)
+        }
     }
 }
 
@@ -311,9 +384,9 @@ impl<S: FastWritable> FastWritable for Trim<S> {
         dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        let mut collector = TrimCollector(String::new());
-        self.0.write_into(&mut collector, values)?;
-        Ok(flush_trim(dest, collector)?)
+        let mut buffer = Buffer::new();
+        self.0.write_into(&mut buffer, values)?;
+        Ok(dest.write_str(buffer.as_mut_str().trim())?)
     }
 }
 
@@ -379,9 +452,15 @@ impl<S: FastWritable> FastWritable for Capitalize<S> {
         dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        let mut buffer = String::new();
+        let mut buffer = Buffer::new();
         self.0.write_into(&mut buffer, values)?;
-        Ok(flush_capitalize(dest, &buffer)?)
+        let s = buffer.as_mut_str();
+        if s.is_ascii() {
+            capitalize_ascii(s);
+            Ok(dest.write_str(s)?)
+        } else {
+            Ok(flush_capitalize(dest, s)?)
+        }
     }
 }
 
@@ -442,9 +521,15 @@ impl<S: FastWritable> FastWritable for Title<S> {
         dest: &mut dyn fmt::Write,
         values: &dyn crate::Values,
     ) -> crate::Result<()> {
-        let mut buffer = String::new();
+        let mut buffer = Buffer::new();
         self.0.write_into(&mut buffer, values)?;
-        Ok(flush_title(dest, &buffer)?)
+        let s = buffer.as_mut_str();
+        if s.is_ascii() {
+            title_ascii(s);
+            Ok(dest.write_str(s)?)
+        } else {
+            Ok(flush_title(dest, s)?)
+        }
     }
 }
 
@@ -543,5 +628,37 @@ mod tests {
                 .to_string(),
             "Fo\x0bOo\x0cOo\u{2002}Oo\u{3000}Bar"
         );
+    }
+
+    #[test]
+    fn test_fast_writable_is_display() {
+        fn fast(value: impl FastWritable) -> String {
+            let mut dest = String::new();
+            value.write_into(&mut dest, crate::NO_VALUES).unwrap();
+            dest
+        }
+
+        // Pairs are written in two chunks, and the longest input does not fit on the stack.
+        const INPUTS: &[&str] = &[
+            "",
+            " foo BAR ",
+            "fOo  BaR\x0bbAZ\r\nqux ",
+            "foo\x1fbar",
+            "äÖ ß",
+            "ὈΔΥΣΣΕΎΣ Σ",
+            "a much LONGER input that does not fit into sixty-four bytes at all ",
+        ];
+        for &a in INPUTS {
+            for &b in INPUTS {
+                let s = &alloc::format!("{a}{b}");
+                let c = || crate::helpers::Concat(a, b);
+                assert_eq!(fast(lower(c()).unwrap()), lower(s).unwrap().to_string());
+                assert_eq!(fast(upper(c()).unwrap()), upper(s).unwrap().to_string());
+                let expected = capitalize(s).unwrap().to_string();
+                assert_eq!(fast(capitalize(c()).unwrap()), expected);
+                assert_eq!(fast(title(c()).unwrap()), title(s).unwrap().to_string());
+                assert_eq!(fast(trim(c()).unwrap()), s.trim());
+            }
+        }
     }
 }

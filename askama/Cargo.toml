@@ -23,6 +23,10 @@ required-features = ["serde_json"]
 name = "escape"
 harness = false
 
+[[bench]]
+name = "filters"
+harness = false
+
 [dependencies]
 itoa = "1.0.11"
 
