@@ -11,7 +11,7 @@ use parser::node::{
     Call, Comment, Compound, Cond, CondTest, Declare, FilterBlock, If, Include, Let, Lit, Loop,
     Match, Whitespace, Ws,
 };
-use parser::{Expr, LetValueOrBlock, Node, Span, Target, WithSpan};
+use parser::{Expr, Ident, LetValueOrBlock, Node, Span, Target};
 use proc_macro2::TokenStream;
 use quote::quote_spanned;
 use rustc_hash::FxBuildHasher;
@@ -145,7 +145,7 @@ impl<'a> Generator<'a, '_> {
                     // keeps its own code for it, so a block in a loop would render nothing.
                     if level == AstLevel::Nested
                         && let fragment = self.fragment_path()
-                        && fragment.contains(&*b.name)
+                        && fragment.contains(&b.ident.name)
                     {
                         return Err(ctx.generate_error(
                             format_args!(
@@ -157,8 +157,13 @@ impl<'a> Generator<'a, '_> {
                         ));
                     }
                     if render_for == RenderFor::Template {
-                        size_hint +=
-                            self.write_block(ctx, buf, Some(b.name), Ws(b.ws1.0, b.ws2.1), b.span)?;
+                        size_hint += self.write_block(
+                            ctx,
+                            buf,
+                            Some(b.ident.name),
+                            Ws(b.ws1.0, b.ws2.1),
+                            b.span,
+                        )?;
                     }
                 }
                 Node::Include(ref i) => {
@@ -753,14 +758,14 @@ impl<'a> Generator<'a, '_> {
         let Call {
             ws1,
             scope,
-            name,
+            ident: Ident { name, .. },
             ref args,
             ws2,
             ..
         } = *call;
 
-        let (def, own_ctx) = if let Some(s) = scope {
-            let path = ctx.imports.get(*s).ok_or_else(|| {
+        let (def, own_ctx) = if let Some(Ident { name: s, .. }) = scope {
+            let path = ctx.imports.get(s).ok_or_else(|| {
                 ctx.generate_error(
                     format_args!("no import found for scope `{}`", s.escape_debug()),
                     call.span,
@@ -772,7 +777,7 @@ impl<'a> Generator<'a, '_> {
                     call.span,
                 )
             })?;
-            let def = mctx.macros.get(&*name).ok_or_else(|| {
+            let def = mctx.macros.get(name).ok_or_else(|| {
                 ctx.generate_error(
                     format_args!(
                         "macro `{}` not found in scope `{}`",
@@ -784,7 +789,7 @@ impl<'a> Generator<'a, '_> {
             })?;
             (*def, mctx)
         } else {
-            let def = ctx.macros.get(&*name).ok_or_else(|| {
+            let def = ctx.macros.get(name).ok_or_else(|| {
                 ctx.generate_error(
                     format_args!("macro `{}` not found", name.escape_debug()),
                     call.span,
@@ -920,12 +925,16 @@ impl<'a> Generator<'a, '_> {
             None => child_ctx,
         };
 
-        if let Some(block) = i.block {
+        if let Some(Ident {
+            name: block,
+            span: block_span,
+        }) = i.block
+        {
             // `{% include "..." block name %}` renders only that block, the way it renders in
             // the included template, `super()` and nested blocks included.
             if heritage
                 .as_ref()
-                .is_none_or(|h| !h.blocks.contains_key(*block))
+                .is_none_or(|h| !h.blocks.contains_key(block))
             {
                 return Err(ctx.generate_error(
                     format_args!(
@@ -933,7 +942,7 @@ impl<'a> Generator<'a, '_> {
                         block.escape_debug(),
                         i.path.escape_debug(),
                     ),
-                    block.span(),
+                    block_span,
                 ));
             }
             // Inside discarded code, e.g. outside the fragment being rendered, the block would
@@ -942,7 +951,7 @@ impl<'a> Generator<'a, '_> {
                 size_hint += self.with_child(heritage.as_ref(), |child| {
                     // Render the template as a fragment, like `#[template(block = "...")]`,
                     // so the `if` or `match` around the block is kept.
-                    child.fragment = Some(*block);
+                    child.fragment = Some(block);
                     child.buf_writable.discard = true;
                     let prev_buf_discard = buf.is_discard();
                     buf.set_discard(true);
@@ -980,7 +989,7 @@ impl<'a> Generator<'a, '_> {
         l: Span,
     ) -> Result<bool, CompileError> {
         match var {
-            Target::Name(name, _) => {
+            Target::Name(Ident { name, .. }) => {
                 match self.locals.get(name) {
                     // declares a new variable
                     None => Ok(false),
@@ -992,8 +1001,8 @@ impl<'a> Generator<'a, '_> {
             }
             Target::Placeholder(_) => Ok(false),
             Target::Rest(var_name, _) => {
-                if let Some(var_name) = var_name {
-                    let name = Target::Name(**var_name, var_name.span());
+                if let Some(var_name) = *var_name {
+                    let name = Target::Name(var_name);
                     match self.is_shadowing_variable(ctx, &name, l) {
                         Ok(false) => {}
                         outcome => return outcome,
@@ -1075,7 +1084,7 @@ impl<'a> Generator<'a, '_> {
         let size_hint = self.flush_before_statement(ctx, buf)?;
         if shadowed
             || !matches!(l.var, Target::Name(..))
-            || matches!(&l.var, Target::Name(name, _) if self.locals.get(name).is_none())
+            || matches!(&l.var, Target::Name(Ident { name, .. }) if self.locals.get(name).is_none())
         {
             buf.write_token(Token![let], span);
             if l.is_mutable {
@@ -1247,7 +1256,7 @@ impl<'a> Generator<'a, '_> {
         val: &'a Expr<'a>,
     ) -> Result<SizeHint, CompileError> {
         // Handle when this statement creates a new alias of a caller variable (or of another alias),
-        if let Target::Name(dstvar, _) = l.var {
+        if let Target::Name(Ident { name: dstvar, .. }) = l.var {
             if let Expr::Var { name, .. } = *val {
                 if let Some(caller_alias) = self.locals.get_caller(name) {
                     self.locals.insert(
@@ -1288,10 +1297,10 @@ impl<'a> Generator<'a, '_> {
         c: &'a Declare<'_>,
     ) -> Result<SizeHint, CompileError> {
         let span = ctx.span_for_node(c.span);
-        if *c.var_name == "_" {
+        if c.var_name.name == "_" {
             return Err(ctx.generate_error(
                 "`_` cannot be used when there is no value assigned, use `let` instead",
-                c.var_name.span(),
+                c.var_name.span,
             ));
         }
         self.handle_ws(c.ws);
@@ -1301,14 +1310,7 @@ impl<'a> Generator<'a, '_> {
         if c.is_mutable {
             buf.write_token(Token![mut], span);
         }
-        self.visit_target(
-            ctx,
-            buf,
-            false,
-            true,
-            &Target::Name(*c.var_name, c.var_name.span()),
-            span,
-        );
+        self.visit_target(ctx, buf, false, true, &Target::Name(c.var_name), span);
         buf.write_token(Token![;], span);
 
         Ok(size_hint)
@@ -1321,7 +1323,7 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'a>,
         buf: &mut Buffer,
-        name: Option<WithSpan<&'a str>>,
+        name: Option<&'a str>,
         outer: Ws,
         node: Span,
     ) -> Result<SizeHint, CompileError> {
@@ -1339,9 +1341,9 @@ impl<'a> Generator<'a, '_> {
 
         let cur = match (name, self.super_block) {
             // The top-level context contains a block definition
-            (Some(cur_name), None) => (*cur_name, 0),
+            (Some(cur_name), None) => (cur_name, 0),
             // A block definition contains a block definition of the same name
-            (Some(cur_name), Some((prev_name, _))) if *cur_name == prev_name => {
+            (Some(cur_name), Some((prev_name, _))) if cur_name == prev_name => {
                 return Err(ctx.generate_error(
                     format_args!(
                         "cannot define recursive blocks (`{}`)",
@@ -1351,7 +1353,7 @@ impl<'a> Generator<'a, '_> {
                 ));
             }
             // A block definition contains a definition of another block
-            (Some(cur_name), Some((_, _))) => (*cur_name, 0),
+            (Some(cur_name), Some((_, _))) => (cur_name, 0),
             // `super()` was called inside a block
             (None, Some((prev_name, r#gen))) => (prev_name, r#gen + 1),
             // `super()` is called from outside a block
@@ -1362,8 +1364,7 @@ impl<'a> Generator<'a, '_> {
 
         let mut size_hint = self.write_buf_writable(ctx, buf)?;
 
-        let block_fragment_write =
-            self.fragment == name.as_deref().copied() && self.buf_writable.discard;
+        let block_fragment_write = self.fragment == name && self.buf_writable.discard;
         // Allow writing to the buffer if we're in the block fragment
         if block_fragment_write {
             self.buf_writable.discard = false;
@@ -1615,9 +1616,9 @@ impl<'a> Generator<'a, '_> {
             && let [scope, macro_name] = components.as_slice()
             && scope.generics.is_none()
             && macro_name.generics.is_none()
-            && let Some(scope) = ctx.imports.get(*scope.name)
+            && let Some(scope) = ctx.imports.get(scope.name)
             && let Some(macro_ctx) = self.contexts.get(scope)
-            && let Some(macro_def) = macro_ctx.macros.get(*macro_name.name)
+            && let Some(macro_def) = macro_ctx.macros.get(macro_name.name)
         {
             return helpers::MacroInvocation {
                 callsite_ctx: ctx,
@@ -1636,9 +1637,9 @@ impl<'a> Generator<'a, '_> {
             && let [scope, macro_name] = components.as_slice()
             && scope.generics.is_none()
             && macro_name.generics.is_none()
-            && let Some(scope) = ctx.imports.get(*scope.name)
+            && let Some(scope) = ctx.imports.get(scope.name)
             && let Some(macro_ctx) = self.contexts.get(scope)
-            && let Some(macro_def) = macro_ctx.macros.get(*macro_name.name)
+            && let Some(macro_def) = macro_ctx.macros.get(macro_name.name)
         {
             return helpers::MacroInvocation {
                 callsite_ctx: ctx,
@@ -1696,19 +1697,19 @@ impl<'a> Generator<'a, '_> {
             return Ok(SizeHint::EMPTY);
         };
         let start_span = match start {
-            Writable::Lit(v) => v.span(),
+            Writable::Lit { span, .. } => *span,
             Writable::Expr(v) => v.span(),
         };
 
-        if let Some((_, Writable::Lit(lit))) = it.peek() {
+        if let Some(&(_, &Writable::Lit { span: lit_span, .. })) = it.peek() {
             let mut literal = String::new();
 
-            while let Some((_, Writable::Lit(s))) = it.peek() {
-                size_hint += s.len();
-                string_escape(&mut literal, s);
+            while let Some((_, Writable::Lit { value, .. })) = it.peek() {
+                size_hint += value.len();
+                string_escape(&mut literal, value);
                 it.next();
             }
-            let span = ctx.span_for_node(lit.span());
+            let span = ctx.span_for_node(lit_span);
             buf.write_str_lit(literal, span);
         }
         if it.peek().is_none() {
@@ -1723,22 +1724,28 @@ impl<'a> Generator<'a, '_> {
         let mut trailing_simple_lines = Vec::new();
 
         let mut matched_expr_buf = Buffer::new();
+        let mut single_expr = None;
+        let mut nb_written_exprs = 0_usize;
+        let mut lines_has_literals = false;
         while let Some((idx, s)) = it.next() {
             match s {
-                Writable::Lit(s) => {
-                    let mut items = vec![s];
-                    while let Some((_, Writable::Lit(s))) = it.peek() {
-                        items.push(s);
+                Writable::Lit { value, span } => {
+                    let mut items = vec![(value, *span)];
+                    while let Some((_, Writable::Lit { value, span })) = it.peek() {
+                        items.push((value, *span));
                         it.next();
                     }
                     if it.peek().is_some() {
                         let mut literal = String::new();
-                        let span = ctx.span_for_node(items[0].span());
-                        for s in items {
-                            size_hint += s.len();
-                            string_escape(&mut literal, s);
+                        let span = ctx.span_for_node(items[0].1);
+                        for (value, _) in items {
+                            size_hint += value.len();
+                            string_escape(&mut literal, value);
                         }
                         lines.write_str_lit(literal, span);
+                        // This is the only case where literals are written into `lines` which is
+                        // the shared buffer with expressions.
+                        lines_has_literals = true;
                     } else {
                         trailing_simple_lines = items;
                         break;
@@ -1782,23 +1789,68 @@ impl<'a> Generator<'a, '_> {
                     quote_into!(&mut lines, span, {
                         (&&&askama::filters::Writable(#id)).askama_write(#var_writer, #var_values)?;
                     });
+                    nb_written_exprs += 1;
+                    single_expr = Some((expr, span));
                 }
             }
         }
-        quote_into!(buf, ctx.span_for_node(start_span), {
-            match (#matched_expr_buf) {
-                (#targets) => {
-                    #lines
+        if nb_written_exprs == 1
+            && !lines_has_literals
+            && let Some((expr, span)) = single_expr
+        {
+            // If we only have one expression, no need to wrap it into a `match`.
+            let var_writer = crate::var_writer();
+            let var_values = crate::var_values();
+            quote_into!(buf, span, {
+                (&&&askama::filters::Writable(&(#expr))).askama_write(#var_writer, #var_values)?;
+            });
+        } else {
+            // FIXME maybe: If we have code like:
+            //
+            // ```
+            // use std::cell::Cell;
+            // use std::fmt;
+            //
+            // #[derive(Template)]
+            // #[template(source = "{{ self.show() }} {{ self.bump() }}", ext = "txt")]
+            // struct LazyThenBump {
+            //     counter: Cell<u32>
+            // }
+            //
+            // impl LazyThenBump {
+            //     fn show(&self) -> Show<'_> { Show(&self.counter) }
+            //     fn bump(&self) -> u32 { self.counter.set(self.counter.get() + 1); self.counter.get() }
+            // }
+            //
+            // struct Show<'a>(&'a Cell<u32>);
+            // impl fmt::Display for Show<'_> {
+            //     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            //         write!(f, "{}", self.0.get())
+            //     }
+            // }
+            //
+            // fn main() {
+            //     println!("--> {}", LazyThenBump { counter: Cell::new(0) }.render().unwrap());
+            // }
+            // ```
+            //
+            // We will get "1 1" instead of "0 1" because both are evaluated at once. Is it an issue
+            // or not?
+            quote_into!(buf, ctx.span_for_node(start_span), {
+                match (#matched_expr_buf) {
+                    (#targets) => {
+                        #lines
+                    }
                 }
-            }
-        });
+            });
+        }
 
         if !trailing_simple_lines.is_empty() {
             let mut literal = String::new();
-            let span = ctx.span_for_node(trailing_simple_lines[0].span());
-            for s in trailing_simple_lines {
-                size_hint += s.len();
-                string_escape(&mut literal, s);
+            let span = ctx.span_for_node(trailing_simple_lines[0].1);
+            for (value, _) in trailing_simple_lines {
+                size_hint += value.len();
+                string_escape(&mut literal, value);
             }
             buf.write_str_lit(literal, span);
         }
@@ -1812,47 +1864,43 @@ impl<'a> Generator<'a, '_> {
 
     fn write_lit(&mut self, lit: &'a Lit<'_>) {
         assert!(self.next_ws.is_none());
-        let Lit {
-            lws,
-            val,
-            rws,
-            span: _,
-        } = *lit;
+        let Lit { lws, val, rws, .. } = *lit;
+        let (lws_span, val_span, rws_span) = lit.spans();
         if !lws.is_empty() {
             match self.skip_ws {
                 Whitespace::Suppress => {}
                 _ if val.is_empty() => {
                     assert!(rws.is_empty());
-                    self.next_ws = Some(lws);
+                    self.next_ws = Some((lws, lws_span));
                 }
                 Whitespace::Preserve => {
-                    self.buf_writable.push(Writable::Lit(WithSpan::new(
-                        Cow::Borrowed(*lws),
-                        lws.span(),
-                    )));
+                    self.buf_writable.push(Writable::Lit {
+                        value: Cow::Borrowed(lws),
+                        span: lws_span,
+                    });
                 }
                 Whitespace::Minimize => {
-                    self.buf_writable.push(Writable::Lit(WithSpan::new(
-                        Cow::Borrowed(match lws.contains('\n') {
+                    self.buf_writable.push(Writable::Lit {
+                        value: Cow::Borrowed(match lws.contains('\n') {
                             true => "\n",
                             false => " ",
                         }),
-                        lws.span(),
-                    )));
+                        span: lws_span,
+                    });
                 }
             }
         }
 
         if !val.is_empty() {
             self.skip_ws = Whitespace::Preserve;
-            self.buf_writable.push(Writable::Lit(WithSpan::new(
-                Cow::Borrowed(*val),
-                val.span(),
-            )));
+            self.buf_writable.push(Writable::Lit {
+                value: Cow::Borrowed(val),
+                span: val_span,
+            });
         }
 
         if !rws.is_empty() {
-            self.next_ws = Some(rws);
+            self.next_ws = Some((rws, rws_span));
         }
     }
 
@@ -1881,24 +1929,24 @@ impl<'a> Generator<'a, '_> {
         // a `+` character.
         match self.should_trim_ws(ws.0) {
             Whitespace::Preserve => {
-                let val = self.next_ws.unwrap();
+                let (val, span) = self.next_ws.unwrap();
                 if !val.is_empty() {
-                    self.buf_writable.push(Writable::Lit(WithSpan::new(
-                        Cow::Borrowed(*val),
-                        val.span(),
-                    )));
+                    self.buf_writable.push(Writable::Lit {
+                        value: Cow::Borrowed(val),
+                        span,
+                    });
                 }
             }
             Whitespace::Minimize => {
-                let val = self.next_ws.unwrap();
+                let (val, span) = self.next_ws.unwrap();
                 if !val.is_empty() {
-                    self.buf_writable.push(Writable::Lit(WithSpan::new(
-                        Cow::Borrowed(match val.contains('\n') {
+                    self.buf_writable.push(Writable::Lit {
+                        value: Cow::Borrowed(match val.contains('\n') {
                             true => "\n",
                             false => " ",
                         }),
-                        val.span(),
-                    )));
+                        span,
+                    });
                 }
             }
             Whitespace::Suppress => {}

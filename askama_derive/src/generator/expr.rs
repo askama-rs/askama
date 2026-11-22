@@ -3,8 +3,8 @@ use std::str::FromStr;
 
 use parser::node::CondTest;
 use parser::{
-    AssociatedItem, CharLit, CharPrefix, Expr, PathComponent, Span, StrLit, StrPrefix, Target,
-    TyGenericArgs, TyGenerics, TyGenericsKind, WithSpan,
+    AssociatedItem, CharLit, CharPrefix, Expr, Ident, PathComponent, Span, StrLit, StrPrefix,
+    Target, TyGenericArgs, TyGenerics, TyGenericsKind,
 };
 use proc_macro2::{Delimiter, Spacing, TokenStream, TokenTree};
 use quote::quote_spanned;
@@ -133,8 +133,11 @@ impl<'a> Generator<'a, '_> {
                 self.visit_is_defined(ctx, buf, false, var_name, expr.span())?
             }
             Expr::As {
-                ref lhs, target, ..
-            } => self.visit_as(ctx, buf, lhs, target)?,
+                ref lhs,
+                target,
+                target_span,
+                ..
+            } => self.visit_as(ctx, buf, lhs, target, target_span)?,
             Expr::Concat { ref exprs, .. } => self.visit_concat(ctx, buf, exprs)?,
             Expr::LetCond { ref cond, .. } => self.visit_let_cond(ctx, buf, cond)?,
             Expr::ArgumentPlaceholder(_) => DisplayWrap::Unwrapped,
@@ -266,12 +269,13 @@ impl<'a> Generator<'a, '_> {
         ctx: &Context<'_>,
         buf: &mut Buffer,
         expr: &Expr<'a>,
-        target: WithSpan<&str>,
+        target: &str,
+        target_span: Span,
     ) -> Result<DisplayWrap, CompileError> {
         let mut tmp = Buffer::new();
         self.visit_expr(ctx, &mut tmp, expr)?;
         let tmp = tmp.into_token_stream();
-        let target = field_new(*target, ctx.span_for_node(target.span()));
+        let target = field_new(target, ctx.span_for_node(target_span));
         quote_into!( buf, ctx.span_for_node(expr.span()), {
             askama::helpers::get_primitive_value(&(#tmp)) as askama::helpers::core::primitive::#target
         });
@@ -343,11 +347,11 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        path: &[WithSpan<&str>],
-        args: WithSpan<&str>,
+        path: &[Ident<'_>],
+        args: &str,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        let [path @ .., name] = path else {
+        let [path @ .., Ident { name, .. }] = path else {
             unreachable!("path cannot be empty");
         };
 
@@ -359,10 +363,10 @@ impl<'a> Generator<'a, '_> {
         }
 
         let args = set_span_recursively(
-            TokenStream::from_str(*args).map_err(|err| {
+            TokenStream::from_str(args).map_err(|err| {
                 ctx.generate_error(format_args!("invalid rust macro argument: {err}"), node)
             })?,
-            ctx.span_for_node(args.span()),
+            span,
         );
 
         quote_into!(buf, span, { #name !(#args) });
@@ -482,7 +486,8 @@ impl<'a> Generator<'a, '_> {
         arg: &Expr<'a>,
     ) -> Result<(), CompileError> {
         let span = ctx.span_for_node(arg.span());
-        if let Some(Writable::Lit(arg)) = compile_time_escape(arg, self.input.escaper) {
+        if let Some(Writable::Lit { value: arg, .. }) = compile_time_escape(arg, self.input.escaper)
+        {
             if !arg.is_empty() {
                 let mut tmp = Buffer::new();
                 tmp.write_escaped_str(&arg, span);
@@ -513,7 +518,7 @@ impl<'a> Generator<'a, '_> {
         let span = ctx.span_for_node(obj.span());
         if let Expr::Var { name: "loop", .. } = *obj {
             let var_item = crate::var_item();
-            buf.write_tokens(match *associated_item.name {
+            buf.write_tokens(match associated_item.name {
                 "index0" => quote_spanned!(span => #var_item.index0),
                 "index" => quote_spanned!(span => (#var_item.index0 + 1)),
                 "first" => quote_spanned!(span => (#var_item.index0 == 0)),
@@ -521,7 +526,7 @@ impl<'a> Generator<'a, '_> {
                 name => {
                     return Err(ctx.generate_error(
                         format!("unknown loop variable `{}`", name.escape_debug()),
-                        associated_item.name.span(),
+                        associated_item.span,
                     ));
                 }
             });
@@ -532,8 +537,8 @@ impl<'a> Generator<'a, '_> {
         self.visit_expr(ctx, &mut expr, obj)?;
         let expr = expr.into_token_stream();
         let identifier = field_new(
-            *associated_item.name,
-            ctx.span_for_node(associated_item.name.span()),
+            associated_item.name,
+            ctx.span_for_node(associated_item.span),
         );
         let mut call_generics = Buffer::new();
         if let Some(generics) = associated_item.generics.as_ref() {
@@ -652,13 +657,18 @@ impl<'a> Generator<'a, '_> {
         match left {
             Expr::AssociatedItem {
                 parent_item,
-                associated_item: AssociatedItem { name, generics },
+                associated_item:
+                    AssociatedItem {
+                        name,
+                        span: name_span,
+                        generics,
+                    },
                 ..
-            } if matches!(**parent_item, Expr::Var { name: "loop", .. }) => match **name {
+            } if matches!(**parent_item, Expr::Var { name: "loop", .. }) => match *name {
                 "cycle" => {
                     if generics.is_some() {
                         return Err(
-                            ctx.generate_error("loop.cycle(…) doesn't use generics", name.span())
+                            ctx.generate_error("loop.cycle(…) doesn't use generics", *name_span)
                         );
                     }
                     match args {
@@ -666,7 +676,7 @@ impl<'a> Generator<'a, '_> {
                             if matches!(**arg, Expr::Array { ref elems, .. } if elems.is_empty()) {
                                 return Err(ctx.generate_error(
                                     "loop.cycle(…) cannot use an empty array",
-                                    name.span(),
+                                    *name_span,
                                 ));
                             }
                             let mut expr_buf = Buffer::new();
@@ -691,7 +701,7 @@ impl<'a> Generator<'a, '_> {
                         _ => {
                             return Err(ctx.generate_error(
                                 "loop.cycle(…) cannot use an empty array",
-                                name.span(),
+                                *name_span,
                             ));
                         }
                     }
@@ -699,7 +709,7 @@ impl<'a> Generator<'a, '_> {
                 s => {
                     return Err(ctx.generate_error(
                         format_args!("unknown loop method: `{}`", s.escape_debug()),
-                        name.span(),
+                        *name_span,
                     ));
                 }
             },
@@ -708,8 +718,8 @@ impl<'a> Generator<'a, '_> {
                 if let Expr::Path { components, .. } = sub_left
                     && let [part1, part2] = components.as_slice()
                     && part1.generics.is_none()
-                    && *part1.name == "askama"
-                    && *part2.name == "get_value"
+                    && part1.name == "askama"
+                    && part2.name == "get_value"
                 {
                     return self.visit_value(
                         ctx,
@@ -766,11 +776,11 @@ impl<'a> Generator<'a, '_> {
         }
         let mut tmp = Buffer::new();
         for (i, field) in struct_.fields.iter().enumerate() {
-            let span = ctx.span_for_node(field.name.span());
+            let span = ctx.span_for_node(field.span);
             if i > 0 {
                 tmp.write_token(Token![,], span);
             }
-            tmp.write_field(&field.name, span);
+            tmp.write_field(field.name, span);
             if let Some(ref value) = field.value {
                 tmp.write_token(Token![:], span);
                 tmp.write_tokens(self.visit_arg(ctx, value, span)?);
@@ -922,14 +932,14 @@ impl<'a> Generator<'a, '_> {
     pub(super) fn visit_macro_path(
         &self,
         buf: &mut Buffer,
-        path: &[WithSpan<&str>],
+        path: &[Ident<'_>],
         span: proc_macro2::Span,
     ) {
-        for (i, part) in path.iter().enumerate() {
+        for (i, &Ident { name: part, .. }) in path.iter().enumerate() {
             if i > 0 {
                 buf.write_token(Token![::], span);
             } else if let Some(enum_ast) = self.input.enum_ast
-                && **part == "Self"
+                && part == "Self"
             {
                 let this = &enum_ast.ident;
                 let (_, generics, _) = enum_ast.generics.split_for_impl();
@@ -951,11 +961,11 @@ impl<'a> Generator<'a, '_> {
         path: &[PathComponent<'a>],
     ) -> DisplayWrap {
         for (i, part) in path.iter().enumerate() {
-            let span = ctx.span_for_node(part.name.span());
+            let span = ctx.span_for_node(part.span);
             if i > 0 {
                 buf.write_token(Token![::], span);
             } else if let Some(enum_ast) = self.input.enum_ast
-                && *part.name == "Self"
+                && part.name == "Self"
             {
                 let this = &enum_ast.ident;
                 let (_, generics, _) = enum_ast.generics.split_for_impl();
@@ -965,7 +975,7 @@ impl<'a> Generator<'a, '_> {
             }
 
             if !part.name.is_empty() {
-                buf.write_field(*part.name, span);
+                buf.write_field(part.name, span);
             }
             if let Some(generics) = &part.generics {
                 buf.write_token(Token![::], span);
@@ -1070,7 +1080,7 @@ impl<'a> Generator<'a, '_> {
             &Target::Placeholder(s) => quote_into!(buf, ctx.span_for_node(s), { _ }),
             Target::Rest(var_name, s) => {
                 let span = ctx.span_for_node(*s);
-                if let Some(var_name) = var_name {
+                if let Some(Ident { name: var_name, .. }) = var_name {
                     let id = field_new(var_name, span);
                     self.locals
                         .insert(Cow::Borrowed(var_name), LocalMeta::var_def());
@@ -1078,7 +1088,7 @@ impl<'a> Generator<'a, '_> {
                 }
                 buf.write_token(Token![..], span);
             }
-            &Target::Name(name, s) => {
+            &Target::Name(Ident { name, span: s }) => {
                 match initialized {
                     true => self
                         .locals
@@ -1125,9 +1135,9 @@ impl<'a> Generator<'a, '_> {
                         continue;
                     }
 
-                    let span = ctx.span_for_node(named_target.src.span());
-                    targets_buf.write_field(&named_target.src, span);
-                    targets_buf.write_token(Token![:], ctx.span_for_node(named_target.src.span()));
+                    let span = ctx.span_for_node(named_target.span);
+                    targets_buf.write_field(named_target.src, span);
+                    targets_buf.write_token(Token![:], span);
                     self.visit_target(
                         ctx,
                         &mut targets_buf,
@@ -1136,7 +1146,7 @@ impl<'a> Generator<'a, '_> {
                         &named_target.dest,
                         span,
                     );
-                    targets_buf.write_token(Token![,], ctx.span_for_node(named_target.src.span()));
+                    targets_buf.write_token(Token![,], span);
                 }
                 let targets_buf = targets_buf.into_token_stream();
                 quote_into!(buf, span, { { #targets_buf } });

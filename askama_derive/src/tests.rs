@@ -180,13 +180,8 @@ fn check_if_let() {
     compare(
         "{% if let Some(query) = s && !query.is_empty() %}{{query}}{% endif %}",
         r"if let Some(query,) = &self.s && !askama::helpers::as_bool(&(query.is_empty())) {
-    match (
-        &(query),
-    ) {
-        (__askama_expr0,) => {
-            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-        }
-    }
+    (&&&askama::filters::Writable(&(query)))
+        .askama_write(__askama_writer, __askama_values)?;
 }",
         &[],
         3,
@@ -197,13 +192,8 @@ fn check_if_let() {
     compare(
         "{% if let Some(s) = s %}{{ s }}{% endif %}",
         r"if let Some(s,) = &self.s {
-    match (
-        &(s),
-    ) {
-        (__askama_expr0,) => {
-            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-        }
-    }
+    (&&&askama::filters::Writable(&(s)))
+        .askama_write(__askama_writer, __askama_values)?;
 }",
         &[],
         3,
@@ -214,13 +204,8 @@ fn check_if_let() {
     compare(
         "{% if let Some(s) = s && !s.is_empty() %}{{s}}{% endif %}",
         r"if let Some(s,) = &self.s && !askama::helpers::as_bool(&(s.is_empty())) {
-    match (
-        &(s),
-    ) {
-        (__askama_expr0,) => {
-            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-        }
-    }
+    (&&&askama::filters::Writable(&(s)))
+        .askama_write(__askama_writer, __askama_values)?;
 }",
         &[],
         3,
@@ -465,13 +450,8 @@ __askama_writer.write_str("12")?;
     compare(
         "{% if y is defined || x == 12 %}{{x}}{% endif %}",
         r"if (self.x == 12) {
-    match (
-        &(self.x),
-    ) {
-        (__askama_expr0,) => {
-            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-        }
-    }
+    (&&&askama::filters::Writable(&(self.x)))
+        .askama_write(__askama_writer, __askama_values)?;
 }
 ",
         &[("x", "u32")],
@@ -479,13 +459,8 @@ __askama_writer.write_str("12")?;
     );
     compare(
         "{% if y is defined || x == 12 %}{{x}}{% endif %}",
-        r"match (
-    &(self.x),
-) {
-    (__askama_expr0,) => {
-        (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-    }
-}
+        r"(&&&askama::filters::Writable(&(self.x)))
+    .askama_write(__askama_writer, __askama_values)?;
 ",
         &[("y", "u32"), ("x", "u32")],
         3,
@@ -506,13 +481,8 @@ __askama_writer.write_str("12")?;
         "{% if y is defined && y == 12 %}{{y}}{% else %}bli{% endif %}",
         r#"
 if (self.y == 12) {
-    match (
-        &(self.y),
-    ) {
-        (__askama_expr0,) => {
-            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-        }
-    }
+    (&&&askama::filters::Writable(&(self.y)))
+        .askama_write(__askama_writer, __askama_values)?;
 } else {
     __askama_writer.write_str("bli")?;
 }
@@ -524,13 +494,8 @@ if (self.y == 12) {
     compare(
         "{% if y is defined %}{{y}}{% else %}bli{% endif %}",
         r"
-match (
-    &(self.y),
-) {
-    (__askama_expr0,) => {
-        (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-    }
-}
+(&&&askama::filters::Writable(&(self.y)))
+    .askama_write(__askama_writer, __askama_values)?;
 ",
         &[("y", "u32")],
         3,
@@ -644,13 +609,8 @@ fn check_bool_conditions() {
 
     compare(
         "{% if true || x == 12 %}{{x}}{% endif %}",
-        r"match (
-    &(self.x),
-) {
-    (__askama_expr0,) => {
-        (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-    }
-}
+        r"(&&&askama::filters::Writable(&(self.x)))
+    .askama_write(__askama_writer, __askama_values)?;
 ",
         &[("x", "u32")],
         3,
@@ -658,13 +618,8 @@ fn check_bool_conditions() {
     compare(
         "{% if false || x == 12 %}{{x}}{% endif %}",
         r"if (self.x == 12) {
-    match (
-        &(self.x),
-    ) {
-        (__askama_expr0,) => {
-            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-        }
-    }
+    (&&&askama::filters::Writable(&(self.x)))
+        .askama_write(__askama_writer, __askama_values)?;
 }
 ",
         &[("x", "u32")],
@@ -678,13 +633,8 @@ fn check_bool_conditions() {
     compare(
         "{% if y == 3 || (true || x == 12) %}{{x}}{% endif %}",
         r"if (self.y == 3) || true {
-    match (
-        &(self.x),
-    ) {
-        (__askama_expr0,) => {
-            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-        }
-    }
+    (&&&askama::filters::Writable(&(self.x)))
+        .askama_write(__askama_writer, __askama_values)?;
 }
 ",
         &[],
@@ -694,13 +644,8 @@ fn check_bool_conditions() {
     // be evaluated so the whole code is removed.
     compare(
         "{% if (true || x == 12) || y == 3 %}{{x}}{% endif %}",
-        r"match (
-    &(self.x),
-) {
-    (__askama_expr0,) => {
-        (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-    }
-}
+        r"(&&&askama::filters::Writable(&(self.x)))
+    .askama_write(__askama_writer, __askama_values)?;
 ",
         &[],
         3,
@@ -711,13 +656,8 @@ fn check_bool_conditions() {
 if (self.y == 3)
     || ((self.x == 12) || true)
 {
-    match (
-        &(self.x),
-    ) {
-        (__askama_expr0,) => {
-            (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-        }
-    }
+    (&&&askama::filters::Writable(&(self.x)))
+        .askama_write(__askama_writer, __askama_values)?;
 }
 ",
         &[],
@@ -963,19 +903,20 @@ fn test_pluralize() {
     compare(
         r"{{count|pluralize(one, count)}}",
         r"
-        match (
-            &(askama::filters::pluralize(
+        (&&&askama::filters::Writable(&(askama::filters::pluralize(
+            &(self.count),
+            (&&askama::filters::AutoEscaper::new(
+                &(self.one),
+                askama::filters::Text,
+            ))
+                .askama_auto_escape()?,
+            (&&askama::filters::AutoEscaper::new(
                 &(self.count),
-                (&&askama::filters::AutoEscaper::new(&(self.one), askama::filters::Text))
-                    .askama_auto_escape()?,
-                (&&askama::filters::AutoEscaper::new(&(self.count), askama::filters::Text))
-                    .askama_auto_escape()?,
-            )?),
-        ) {
-            (__askama_expr0,) => {
-                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-            }
-        }
+                askama::filters::Text,
+            ))
+                .askama_auto_escape()?,
+        )?)))
+            .askama_write(__askama_writer, __askama_values)?;
         ",
         &[("count", "i8"), ("one", "&'static str")],
         3,
@@ -984,13 +925,9 @@ fn test_pluralize() {
     compare(
         r"{{0|pluralize(sg, pl)}}",
         r"
-        match (
-            &((&&askama::filters::AutoEscaper::new(&(self.pl), askama::filters::Text)).askama_auto_escape()?),
-        ) {
-            (__askama_expr0,) => {
-                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-            }
-        }
+        (&&&askama::filters::Writable(&((&&askama::filters::AutoEscaper::new(&(self.pl), askama::filters::Text))
+            .askama_auto_escape()?)))
+            .askama_write(__askama_writer, __askama_values)?;
         ",
         &[("sg", "&'static str"), ("pl", "&'static str")],
         3,
@@ -998,13 +935,9 @@ fn test_pluralize() {
     compare(
         r"{{1|pluralize(sg, pl)}}",
         r"
-        match (
-            &((&&askama::filters::AutoEscaper::new(&(self.sg), askama::filters::Text)).askama_auto_escape()?),
-        ) {
-            (__askama_expr0,) => {
-                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-            }
-        }
+        (&&&askama::filters::Writable(&((&&askama::filters::AutoEscaper::new(&(self.sg), askama::filters::Text))
+            .askama_auto_escape()?)))
+            .askama_write(__askama_writer, __askama_values)?;
         ",
         &[("sg", "&'static str"), ("pl", "&'static str")],
         3,
@@ -1013,11 +946,8 @@ fn test_pluralize() {
     compare(
         r#"{{0|pluralize("sg", "pl")}}"#,
         r#"
-        match (&(askama::filters::Safe("pl")),) {
-            (__askama_expr0,) => {
-                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-            }
-        }
+        (&&&askama::filters::Writable(&(askama::filters::Safe("pl"))))
+            .askama_write(__askama_writer, __askama_values)?;
         "#,
         &[],
         3,
@@ -1025,11 +955,8 @@ fn test_pluralize() {
     compare(
         r#"{{1|pluralize("sg", "pl")}}"#,
         r#"
-        match (&(askama::filters::Safe("sg")),) {
-            (__askama_expr0,) => {
-                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-            }
-        }
+        (&&&askama::filters::Writable(&(askama::filters::Safe("sg"))))
+            .askama_write(__askama_writer, __askama_values)?;
         "#,
         &[],
         3,
@@ -1038,11 +965,8 @@ fn test_pluralize() {
     compare(
         r"{{0|pluralize}}",
         r#"
-        match (&(askama::filters::Safe("s")),) {
-            (__askama_expr0,) => {
-                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-            }
-        }
+        (&&&askama::filters::Writable(&(askama::filters::Safe("s"))))
+            .askama_write(__askama_writer, __askama_values)?;
         "#,
         &[],
         3,
@@ -1050,11 +974,8 @@ fn test_pluralize() {
     compare(
         r"{{1|pluralize}}",
         r"
-        match (&(askama::helpers::Empty),) {
-            (__askama_expr0,) => {
-                (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-            }
-        }
+        (&&&askama::filters::Writable(&(askama::helpers::Empty)))
+            .askama_write(__askama_writer, __askama_values)?;
         ",
         &[],
         3,
@@ -1086,18 +1007,13 @@ fn test_concat() {
     compare(
         r#"{{ ("a=" ~ a ~ " b=" ~ b)|upper }}"#,
         r#"
-            match (
-                &(askama::filters::upper(
-                        &((askama::helpers::Concat(
-                            &(askama::helpers::Concat(&("a="), &(self.a))),
-                            &(askama::helpers::Concat(&(" b="), &(self.b))),
-                        ))),
-                    )?),
-            ) {
-                (__askama_expr0,) => {
-                    (&&&askama::filters::Writable(__askama_expr0)).askama_write(__askama_writer, __askama_values)?;
-                }
-            }
+            (&&&askama::filters::Writable(&(askama::filters::upper(
+                    &((askama::helpers::Concat(
+                        &(askama::helpers::Concat(&("a="), &(self.a))),
+                        &(askama::helpers::Concat(&(" b="), &(self.b))),
+                    ))),
+                )?)))
+                .askama_write(__askama_writer, __askama_values)?;
         "#,
         &[("a", "&'static str"), ("b", "u32")],
         3,
@@ -1156,15 +1072,10 @@ fn test_filter_with_path() {
     compare(
         r"{{ a | b::c::d }}",
         r#"
-        match (
-            &(askama::filters::ValidFilterInvocation::wrap(b::c::d::default())
-                .execute(&(self.a), __askama_values)?),
-        ) {
-            (__askama_expr0,) => {
-                (&&&askama::filters::Writable(__askama_expr0))
-                    .askama_write(__askama_writer, __askama_values)?;
-            }
-        }"#,
+        (&&&askama::filters::Writable(&(
+                askama::filters::ValidFilterInvocation::wrap(b::c::d::default())
+                    .execute(&(self.a), __askama_values)?)))
+            .askama_write(__askama_writer, __askama_values)?;"#,
         &[("a", "i8")],
         3,
     );
@@ -1216,14 +1127,8 @@ fn test_macro_names_that_need_escaping() {
             &format!(r"{{{{ {keyword}!() }}}}"),
             &format!(
                 "
-                match (
-                    &(r#{keyword}!()),
-                ) {{
-                    (__askama_expr0,) => {{
-                        (&&&askama::filters::Writable(__askama_expr0))
-                            .askama_write(__askama_writer, __askama_values)?;
-                    }}
-                }}"
+                (&&&askama::filters::Writable(&(r#{keyword}!())))
+                    .askama_write(__askama_writer, __askama_values)?;"
             ),
             &[],
             3,
@@ -1407,17 +1312,12 @@ fn regression_tests_span_change() {
         "Hello, {{ user | cased }}!",
         r#"
             __askama_writer.write_str("Hello, ")?;
-            match (
-                &(askama::filters::ValidFilterInvocation::wrap(
+            (&&&askama::filters::Writable(&(
+                askama::filters::ValidFilterInvocation::wrap(
                         filters::cased::default(),
                     )
-                    .execute(&(self.user), __askama_values)?),
-            ) {
-                (__askama_expr2,) => {
-                    (&&&askama::filters::Writable(__askama_expr2))
-                        .askama_write(__askama_writer, __askama_values)?;
-                }
-            }
+                    .execute(&(self.user), __askama_values)?)))
+                .askama_write(__askama_writer, __askama_values)?;
             __askama_writer.write_str("!")?;
         "#,
         &[],
@@ -1427,17 +1327,12 @@ fn regression_tests_span_change() {
         "Hello, {{ user | cased::<> }}!",
         r#"
             __askama_writer.write_str("Hello, ")?;
-            match (
-                &(askama::filters::ValidFilterInvocation::wrap(
+            (&&&askama::filters::Writable(&(
+                askama::filters::ValidFilterInvocation::wrap(
                         filters::cased::default(),
                     )
-                    .execute(&(self.user), __askama_values)?),
-            ) {
-                (__askama_expr2,) => {
-                    (&&&askama::filters::Writable(__askama_expr2))
-                        .askama_write(__askama_writer, __askama_values)?;
-                }
-            }
+                    .execute(&(self.user), __askama_values)?)))
+                .askama_write(__askama_writer, __askama_values)?;
             __askama_writer.write_str("!")?;
         "#,
         &[],
@@ -1490,14 +1385,8 @@ fn test_compound_assignment() {
             let __askama_iter = 0..self.limit;
             for i in __askama_iter {
                 prefixsum @= i;
-                match (
-                    &(prefixsum),
-                ) {
-                    (__askama_expr0,) => {
-                        (&&&askama::filters::Writable(__askama_expr0))
-                            .askama_write(__askama_writer, __askama_values)?;
-                    }
-                }
+                (&&&askama::filters::Writable(&(prefixsum)))
+                    .askama_write(__askama_writer, __askama_values)?;
                 __askama_writer.write_str(".")?;
             }
         "#
@@ -1512,14 +1401,8 @@ fn test_flush_before_let() {
     compare(
         "{{ c.get() }}-{% let old = c.replace(5) %}{{ c.get() }}/{{ old }}",
         r#"
-            match (
-                &(self.c.get()),
-            ) {
-                (__askama_expr0,) => {
-                    (&&&askama::filters::Writable(__askama_expr0))
-                        .askama_write(__askama_writer, __askama_values)?;
-                }
-            }
+            (&&&askama::filters::Writable(&(self.c.get())))
+                .askama_write(__askama_writer, __askama_values)?;
             __askama_writer.write_str("-")?;
             let old = self.c.replace(5);
             match (
@@ -1544,14 +1427,8 @@ fn test_flush_before_let() {
         r#"
             let x = 1;
             __askama_writer.write_str("ab")?;
-            match (
-                &(x),
-            ) {
-                (__askama_expr2,) => {
-                    (&&&askama::filters::Writable(__askama_expr2))
-                        .askama_write(__askama_writer, __askama_values)?;
-                }
-            }
+            (&&&askama::filters::Writable(&(x)))
+                .askama_write(__askama_writer, __askama_values)?;
         "#,
         &[],
         5,
@@ -1598,14 +1475,8 @@ fn test_loop_keeps_template_loop_only_when_used() {
             for (a, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
                 let __askama_iter = (a).into_iter();
                 for b in __askama_iter {
-                    match (
-                        &(b),
-                    ) {
-                        (__askama_expr0,) => {
-                            (&&&askama::filters::Writable(__askama_expr0))
-                                .askama_write(__askama_writer, __askama_values)?;
-                        }
-                    }
+                    (&&&askama::filters::Writable(&(b)))
+                        .askama_write(__askama_writer, __askama_values)?;
                 }
                 if !askama::helpers::as_bool(&(__askama_item.last)) {
                     __askama_writer.write_str(",")?;
@@ -1625,12 +1496,8 @@ fn test_loop_without_last_skips_look_ahead() {
             let __askama_iter = (&self.v).into_iter();
             for (a, __askama_item) in askama::helpers::TemplateLoopIndex::new(__askama_iter) {
                 if askama::helpers::as_bool(&((__askama_item.index0 == 0))) {
-                    match (&(a),) {
-                        (__askama_expr0,) => {
-                            (&&&askama::filters::Writable(__askama_expr0))
-                                .askama_write(__askama_writer, __askama_values)?;
-                        }
-                    }
+                    (&&&askama::filters::Writable(&(a)))
+                        .askama_write(__askama_writer, __askama_values)?;
                 }
             }
         "#,
@@ -1646,12 +1513,8 @@ fn test_loop_with_last_keeps_look_ahead() {
         r#"
             let __askama_iter = (&self.v).into_iter();
             for (a, __askama_item) in askama::helpers::TemplateLoop::new(__askama_iter) {
-                match (&(a),) {
-                    (__askama_expr0,) => {
-                        (&&&askama::filters::Writable(__askama_expr0))
-                            .askama_write(__askama_writer, __askama_values)?;
-                    }
-                }
+                (&&&askama::filters::Writable(&(a)))
+                    .askama_write(__askama_writer, __askama_values)?;
                 if !askama::helpers::as_bool(&(__askama_item.last)) {
                     __askama_writer.write_str(",")?;
                 }
@@ -1669,12 +1532,8 @@ fn test_loop_without_loop_var_is_plain_for() {
         r#"
             let __askama_iter = (&self.v).into_iter();
             for a in __askama_iter {
-                match (&(a),) {
-                    (__askama_expr0,) => {
-                        (&&&askama::filters::Writable(__askama_expr0))
-                            .askama_write(__askama_writer, __askama_values)?;
-                    }
-                }
+                (&&&askama::filters::Writable(&(a)))
+                    .askama_write(__askama_writer, __askama_values)?;
             }
         "#,
         &[("v", "Vec<u32>")],
@@ -1748,38 +1607,32 @@ fn test_custom_filter_chain() {
     compare(
         "{{ a | f(b) | g | h(b, c) }}",
         r#"
-        match (
-            &(askama::filters::ValidFilterInvocation::wrap(
-                    {
-                        const _: bool =
-                            <filters::h as askama::filters::ValidArgIdx<1usize>>::VALID;
-                        filters::h::default()
-                    }
-                    .with_0(&(self.b))
-                    .with_1(&(self.c)),
-                )
-                .execute(
-                    askama::filters::ValidFilterInvocation::wrap(filters::g::default())
-                        .execute(
-                            askama::filters::ValidFilterInvocation::wrap(
-                                {
-                                    const _: bool =
-                                        <filters::f as askama::filters::ValidArgIdx<0usize>>::VALID;
-                                    filters::f::default()
-                                }
-                                .with_0(&(self.b)),
-                            )
-                            .execute(&(self.a), __askama_values)?,
-                            __askama_values,
-                        )?,
-                    __askama_values,
-                )?),
-        ) {
-            (__askama_expr0,) => {
-                (&&&askama::filters::Writable(__askama_expr0))
-                    .askama_write(__askama_writer, __askama_values)?;
-            }
-        }"#,
+        (&&&askama::filters::Writable(&(askama::filters::ValidFilterInvocation::wrap(
+                {
+                    const _: bool =
+                        <filters::h as askama::filters::ValidArgIdx<1usize>>::VALID;
+                    filters::h::default()
+                }
+                .with_0(&(self.b))
+                .with_1(&(self.c)),
+            )
+            .execute(
+                askama::filters::ValidFilterInvocation::wrap(filters::g::default())
+                    .execute(
+                        askama::filters::ValidFilterInvocation::wrap(
+                            {
+                                const _: bool =
+                                    <filters::f as askama::filters::ValidArgIdx<0usize>>::VALID;
+                                filters::f::default()
+                            }
+                            .with_0(&(self.b)),
+                        )
+                        .execute(&(self.a), __askama_values)?,
+                        __askama_values,
+                    )?,
+                __askama_values,
+            )?)))
+            .askama_write(__askama_writer, __askama_values)?;"#,
         &[("a", "i8"), ("b", "i8"), ("c", "i8")],
         3,
     );
@@ -1829,4 +1682,22 @@ fn test_max_filter_depth() {
     // Siblings are not nested.
     check(&format!("{{{{ a|f({}) }}}}", ["b|g"; 64].join(", ")), true);
     check(&format!("{{{{ {} }}}}", ["a|f(b)|g"; 64].join(" + ")), true);
+}
+
+#[test]
+fn test_single_expr_with_text() {
+    // With only one expression, no `match` is generated, but the text before and after it must
+    // still be written.
+    compare(
+        r#"a{{ "<" }}{{ x }}{{ '>' }}b"#,
+        r#"
+        __askama_writer.write_str("a<")?;
+        (&&&askama::filters::Writable(
+            &(self.x),
+        ))
+            .askama_write(__askama_writer, __askama_values)?;
+        __askama_writer.write_str(">b")?;"#,
+        &[("x", "u32")],
+        7,
+    );
 }

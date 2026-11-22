@@ -5,7 +5,6 @@ use std::str::FromStr;
 
 use parser::{
     Expr, IntKind, Num, PathComponent, PathOrIdentifier, Span, StrLit, StrPrefix, TyGenericArgs,
-    WithSpan,
 };
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote_spanned};
@@ -52,14 +51,17 @@ impl<'a> Generator<'a, '_> {
         args: &[Box<Expr<'a>>],
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        let (name, generics) = match name {
+        let (name, name_span, generics) = match name {
             PathOrIdentifier::Path(path) => match path.as_slice() {
-                [arg] => (arg.name, arg.generics.as_ref()),
+                [arg] => (arg.name, arg.span, arg.generics.as_ref()),
                 _ => return self.visit_custom_filter_with_path(ctx, buf, path, args, node),
             },
-            PathOrIdentifier::Identifier(name) => (*name, None),
+            PathOrIdentifier::Identifier {
+                name,
+                span: name_span,
+            } => (*name, *name_span, None),
         };
-        let filter = match *name {
+        let filter = match name {
             "assigned_or" => Self::visit_assigned_or,
             "center" => Self::visit_center_filter,
             "default" => Self::visit_default_filter,
@@ -89,13 +91,15 @@ impl<'a> Generator<'a, '_> {
                     _ if BUILTIN_FILTERS.contains(&name) => Self::visit_builtin_filter,
                     _ if BUILTIN_FILTERS_ALLOC.contains(&name) => Self::visit_builtin_filter_alloc,
                     _ if BUILTIN_FILTERS_STD.contains(&name) => Self::visit_builtin_filter_std,
-                    _ => Self::visit_custom_filter,
+                    _ => {
+                        return self.visit_custom_filter(ctx, buf, name, name_span, args, node);
+                    }
                 };
                 return filter(self, ctx, buf, name, args, generics, node);
             }
         };
 
-        ensure_no_generics(ctx, *name, generics)?;
+        ensure_no_generics(ctx, name, generics)?;
         filter(self, ctx, buf, args, node)
     }
 
@@ -146,7 +150,7 @@ impl<'a> Generator<'a, '_> {
             let expr: &Expr<'a> = arg;
             let (arg_setter_ident, arg_expr_span) = match expr {
                 Expr::NamedArgument { name, value, .. } => {
-                    (format_ident!("with_{}", **name), value.span())
+                    (format_ident!("with_{name}"), value.span())
                 }
                 _ => (format_ident!("with_{arg_idx}"), arg.span()),
             };
@@ -183,17 +187,17 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: WithSpan<&'a str>,
+        name: &'a str,
+        name_span: Span,
         args: &[Box<Expr<'a>>],
-        _generics: Option<&TyGenericArgs<'a>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
         self.visit_custom_filter_with_path(
             ctx,
             buf,
             &[
-                PathComponent::new_with_name(WithSpan::no_span("filters")),
-                PathComponent::new_with_name(name),
+                PathComponent::new_with_name("filters", Span::no_span()),
+                PathComponent::new_with_name(name, name_span),
             ],
             args,
             node,
@@ -204,12 +208,12 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: WithSpan<&'a str>,
+        name: &'a str,
         args: &[Box<Expr<'a>>],
         generics: Option<&TyGenericArgs<'a>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_filter_has_feature_alloc(ctx, *name, node)?;
+        ensure_filter_has_feature_alloc(ctx, name, node)?;
         self.visit_builtin_filter(ctx, buf, name, args, generics, node)
     }
 
@@ -217,12 +221,12 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: WithSpan<&'a str>,
+        name: &'a str,
         args: &[Box<Expr<'a>>],
         generics: Option<&TyGenericArgs<'a>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        ensure_filter_has_feature_std(ctx, *name, node)?;
+        ensure_filter_has_feature_std(ctx, name, node)?;
         self.visit_builtin_filter(ctx, buf, name, args, generics, node)
     }
 
@@ -230,12 +234,11 @@ impl<'a> Generator<'a, '_> {
         &mut self,
         ctx: &Context<'_>,
         buf: &mut Buffer,
-        name: WithSpan<&'a str>,
+        name: &'a str,
         args: &[Box<Expr<'a>>],
         generics: Option<&TyGenericArgs<'a>>,
         node: Span,
     ) -> Result<DisplayWrap, CompileError> {
-        let name = *name;
         ensure_no_generics(ctx, name, generics)?;
         let span = ctx.span_for_node(node);
 
@@ -1194,7 +1197,7 @@ fn collect_filter_args_inner<'a, 'b>(
             let Some(idx) = filter_args
                 .iter()
                 .enumerate()
-                .find_map(|(idx, arg)| (arg.name == **arg_name).then_some(idx))
+                .find_map(|(idx, arg)| (arg.name == *arg_name).then_some(idx))
             else {
                 return Err(ctx.generate_error(
                     match filter_args.len() {
