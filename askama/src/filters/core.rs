@@ -232,11 +232,19 @@ pub struct Center<T> {
 
 impl<T: fmt::Display> fmt::Display for Center<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.width < MAX_LEN {
-            write!(f, "{: ^1$}", self.src, self.width)
-        } else {
-            write!(f, "{}", self.src)
+        if self.width >= MAX_LEN {
+            return write!(f, "{}", self.src);
         }
+        // Only `Display` impls that call `Formatter::pad()` (`str`, numbers, …) honor the
+        // requested width, so the value is rendered into a string first if possible.
+        #[cfg(feature = "alloc")]
+        {
+            let mut buffer = alloc::string::String::new();
+            write!(buffer, "{}", self.src)?;
+            write!(f, "{: ^1$}", buffer, self.width)
+        }
+        #[cfg(not(feature = "alloc"))]
+        write!(f, "{: ^1$}", self.src, self.width)
     }
 }
 
@@ -916,6 +924,32 @@ mod tests {
             center("foo", 111_669_149_696).unwrap().to_string(),
             "foo".to_string()
         );
+    }
+
+    #[test]
+    fn test_center_of_any_display() {
+        // Unlike `str`, these `Display` impls ignore the formatter's width.
+        struct Custom;
+
+        impl fmt::Display for Custom {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("fo")
+            }
+        }
+
+        assert_eq!(center(Custom, 5).unwrap().to_string(), " fo  ");
+        assert_eq!(center(Custom, 1).unwrap().to_string(), "fo");
+        assert_eq!(
+            center(join(["a", "b"].iter(), ",").unwrap(), 6)
+                .unwrap()
+                .to_string(),
+            " a,b  "
+        );
+        assert_eq!(
+            center(format_args!("{}é", 'h'), 5).unwrap().to_string(),
+            " hé  "
+        );
+        assert_eq!(center(42, 6).unwrap().to_string(), "  42  ");
     }
 
     #[test]
