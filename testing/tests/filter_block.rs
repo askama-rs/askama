@@ -331,6 +331,20 @@ fn filter_block_custom_errors() {
 }
 
 #[test]
+fn filter_block_center() {
+    #[derive(Template)]
+    #[template(
+        source = r#"[{% filter center(7) %}a{{ b }}{% endfilter %}][{{ b|upper|center(5) }}]"#,
+        ext = "txt"
+    )]
+    struct Center<'a> {
+        b: &'a str,
+    }
+
+    assert_eq!(Center { b: "b" }.render().unwrap(), "[  ab   ][  B  ]");
+}
+
+#[test]
 fn filter_block_custom_errors_display_only_filter() {
     // `center` has no `FastWritable` impl, so the error has to come back through `Display`.
     #[derive(Template)]
