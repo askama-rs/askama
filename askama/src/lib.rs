@@ -191,6 +191,8 @@ pub trait Template: fmt::Display + FastWritable {
         writer: &mut dyn io::Write,
         values: &dyn Values,
     ) -> io::Result<()> {
+        const IO_BUF_LEN: usize = 1024;
+
         struct Wrapped<W: io::Write> {
             writer: W,
             err: Option<io::Error>,
@@ -208,12 +210,22 @@ pub trait Template: fmt::Display + FastWritable {
             }
         }
 
+        // Collects the many small writes, so an unbuffered `writer` (a `File`, a `TcpStream`) is not
+        // called once per fragment.
+        let writer = io::BufWriter::with_capacity(IO_BUF_LEN, writer);
         let mut wrapped = Wrapped { writer, err: None };
-        if self.render_into_with_values(&mut wrapped, values).is_ok() {
-            Ok(())
-        } else {
-            let err = wrapped.err.take();
-            Err(err.unwrap_or_else(|| io::Error::other(fmt::Error)))
+        let rendered = self.render_into_with_values(&mut wrapped, values);
+
+        // `into_inner()` writes out the buffer, also after an error, but unlike `flush()` it does
+        // not flush `writer` itself, which `write_into()` never did.
+        let Wrapped { writer, mut err } = wrapped;
+        if let Err(flush_err) = writer.into_inner() {
+            err.get_or_insert(flush_err.into_error());
+        }
+        match (rendered, err) {
+            (Ok(()), None) => Ok(()),
+            (_, Some(err)) => Err(err),
+            (Err(_), None) => Err(io::Error::other(fmt::Error)),
         }
     }
 
@@ -620,5 +632,121 @@ mod tests {
         let mut vec = alloc::vec![];
         test.dyn_write_into(&mut vec).unwrap();
         assert_eq!(vec, alloc::vec![b't', b'e', b's', b't']);
+    }
+
+    #[cfg(feature = "std")]
+    mod write_into {
+        use alloc::string::ToString;
+        use alloc::vec::Vec;
+        use std::io;
+
+        use super::*;
+
+        /// Writes `"abc"` `fragments` times, then fails if `fail` is set.
+        struct Fragments {
+            fragments: usize,
+            fail: bool,
+        }
+
+        impl Template for Fragments {
+            fn render_into_with_values(
+                &self,
+                writer: &mut dyn fmt::Write,
+                _values: &dyn Values,
+            ) -> Result<()> {
+                for _ in 0..self.fragments {
+                    writer.write_str("abc")?;
+                }
+                match self.fail {
+                    true => Err(Error::Fmt),
+                    false => Ok(()),
+                }
+            }
+
+            const SIZE_HINT: usize = 0;
+        }
+
+        impl fmt::Display for Fragments {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                self.render_into(f).map_err(|_| fmt::Error {})
+            }
+        }
+
+        impl FastWritable for Fragments {
+            fn write_into(&self, f: &mut dyn fmt::Write, values: &dyn Values) -> Result<()> {
+                self.render_into_with_values(f, values)
+            }
+        }
+
+        /// Counts the calls it gets. With a `capacity` it accepts partial writes up to that many
+        /// bytes, then fails.
+        #[derive(Default)]
+        struct Recorder {
+            out: Vec<u8>,
+            writes: usize,
+            flushes: usize,
+            capacity: Option<usize>,
+        }
+
+        impl io::Write for Recorder {
+            fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+                self.writes += 1;
+                let room = self
+                    .capacity
+                    .map_or(buf.len(), |capacity| capacity - self.out.len());
+                if room == 0 {
+                    return Err(io::Error::new(io::ErrorKind::BrokenPipe, "closed"));
+                }
+                let len = buf.len().min(room);
+                self.out.extend_from_slice(&buf[..len]);
+                Ok(len)
+            }
+
+            fn flush(&mut self) -> io::Result<()> {
+                self.flushes += 1;
+                Ok(())
+            }
+        }
+
+        #[test]
+        fn batches_small_writes() {
+            let mut writer = Recorder::default();
+            let template = Fragments {
+                fragments: 10_000,
+                fail: false,
+            };
+            Template::write_into(&template, &mut writer).unwrap();
+            assert_eq!(writer.out, "abc".repeat(10_000).as_bytes());
+            assert!(writer.writes <= 30, "{} writes", writer.writes);
+            assert_eq!(writer.flushes, 0);
+        }
+
+        #[test]
+        fn keeps_output_before_template_error() {
+            let mut writer = Recorder::default();
+            let template = Fragments {
+                fragments: 1000,
+                fail: true,
+            };
+            let err = Template::write_into(&template, &mut writer).unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::Other);
+            assert_eq!(writer.out, "abc".repeat(1000).as_bytes());
+        }
+
+        #[test]
+        fn returns_writer_error() {
+            let mut writer = Recorder {
+                capacity: Some(2000),
+                ..Recorder::default()
+            };
+            let template = Fragments {
+                fragments: 1000,
+                fail: false,
+            };
+            let err = Template::write_into(&template, &mut writer).unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
+            assert_eq!(err.to_string(), "closed");
+            assert_eq!(writer.out, "abc".repeat(1000).as_bytes()[..2000]);
+        }
     }
 }
